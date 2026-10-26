@@ -1063,7 +1063,7 @@ export async function activeObservedNativeWhatsAppRun(sessionKey:string,options:
     now>=r.nativeTurn.startedMono&&now-r.nativeTurn.startedMono<=600000);
   if(candidates.length!==1)return null;
   const row=candidates[0];return {runId:row.runId,sessionKey:row.sessionKey!,clockEpoch:row.nativeTurn!.clockEpoch,
-    deadlineAt:Date.now()+Math.max(0,600000-(now-row.nativeTurn!.startedMono)),state:"running" as const,observationSource:"sdk_message_received" as const};
+    deadlineAt:Date.now()+Math.max(0,600000-(now-row.nativeTurn!.startedMono)),state:"running" as const,observationSource:"companion_native_turn_owner" as const};
 }
 /** Out-of-order callback placeholders stay in the same bounded ledger and are never active evidence. */
 function pendingNativeObservation(runId:string,sessionKey:string,mono:number):StoredRun {

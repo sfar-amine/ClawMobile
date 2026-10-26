@@ -9,7 +9,7 @@
   "canonical_ci": "pending_full_ci",
   "live_recipe": "not_run",
   "summary": "Bascule hôte du cerveau seul décideur, outils typés issus des contrats canoniques et contrôle exact de génération avec admission courante.",
-  "reason": "Owner principal brain chooses semantics; typed mechanical admission reuses existing Graph/dialogue/confirmation owners and current SDK authority. Source draft only; structural eligibility never means CI or live acceptance. Native runtime producer UUID mismatch found after type-level tests; pinned existing compatibility owner and public post-commit adoption binding are prepared. New patch/hook/ordering focused tests passed; canonical final-head CI and paired live recipe remain required.",
+  "reason": "Owner principal brain chooses semantics; typed mechanical admission reuses existing Graph/dialogue/confirmation owners and current SDK authority. Source draft only; structural eligibility never means CI or live acceptance. Native runtime producer UUID mismatch found after type-level tests; pinned existing compatibility owner and public post-commit adoption binding are prepared. New patch/hook/ordering focused tests passed; canonical final-head CI and paired live recipe remain required. Projection source tag now truthfully names companion_native_turn_owner, since optional received and public transcript events share this existing writer; final-head canonical CI must validate the paired tag.",
   "files": [
     ".github/workflows/ci.yml",
     "cloud/voice-relay/src/mcp.mjs",

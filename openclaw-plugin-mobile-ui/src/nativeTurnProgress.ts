@@ -56,14 +56,14 @@ export function nativeTurnProgressHooks(deps:{owners?:()=>Set<string>;post?:(id:
   },
  };
 }
-export type NativeObservedRun={runId:string;sessionKey:string;clockEpoch:string;deadlineAt:number;state:"running";observationSource:"sdk_message_received"};
+export type NativeObservedRun={runId:string;sessionKey:string;clockEpoch:string;deadlineAt:number;state:"running";observationSource:"companion_native_turn_owner"};
 /** Read-only adapter to the same owner. Not an abort authority or a candidate-selection heuristic. */
 export async function activeObservedNativeWhatsAppRun(sessionKey:string,options:{excludeRunId?:string}={}):Promise<NativeObservedRun|null>{
  const id=options.excludeRunId||'native-observation';if(options.excludeRunId!==undefined&&!RUN.test(options.excludeRunId)||!SESSION.test(sessionKey))return null;
  try{
   const response=await postObservation(id,{operation:'native_active',sessionKey,excludeRunId:options.excludeRunId}),v=response?.active;
   if(!v||typeof v.runId!=='string'||!RUN.test(v.runId)||v.sessionKey!==sessionKey||v.state!=='running'||
-    typeof v.clockEpoch!=='string'||!Number.isFinite(v.deadlineAt)||v.observationSource!=='sdk_message_received')return null;
-  return {runId:v.runId,sessionKey:v.sessionKey,clockEpoch:v.clockEpoch,deadlineAt:v.deadlineAt,state:'running',observationSource:'sdk_message_received'};
+    typeof v.clockEpoch!=='string'||!Number.isFinite(v.deadlineAt)||v.observationSource!=='companion_native_turn_owner')return null;
+  return {runId:v.runId,sessionKey:v.sessionKey,clockEpoch:v.clockEpoch,deadlineAt:v.deadlineAt,state:'running',observationSource:'companion_native_turn_owner'};
  }catch{return null;}
 }

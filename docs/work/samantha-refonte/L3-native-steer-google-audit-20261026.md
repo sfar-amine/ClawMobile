@@ -51,3 +51,5 @@ Le test applique ces fonctions capturées à tous les descripteurs produits par 
 ## Portes avant clôture
 
 Les deux nouveaux tests sont inscrits dans la CI de la même PR. La CI canonique finale et l’appariement Core/playbooks restent obligatoires. La recette réelle doit attester le mode effectif, le nouveau message consommé par le cerveau avant `agent_end`, sa décision et sa fin, le maintien des effets déjà envoyés et la conservation des reçus incertains sans rejeu. Une preuve de source, un ACK d’adoption ou un test factice ne remplace aucune de ces étapes.
+
+Le tag de projection `observationSource` vaut `companion_native_turn_owner` : il identifie le writer de ces observations, sans prétendre que tout ingress vient du hook optionnel message_received. Il n’est jamais une preuve d’autorité pour un abort. Les versions appariées du reader et du writer sont obligatoires ; un ancien tag est refusé.
