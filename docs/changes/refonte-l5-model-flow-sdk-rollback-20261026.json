@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "refonte-l5-model-flow-sdk-rollback-20261026",
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Undo the exact candidate model-flow SDK set before resetting its checkout on failed deployment.",
+  "reason": "The candidate consumer is applied before Tier0 promotion; the previous release can lack its manifest and cannot undo it after checkout reset.",
+  "files": [
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/test-model-flow-selection.py",
+    "docs/changes/refonte-l5-model-flow-sdk-rollback-20261026.md",
+    "docs/changes/refonte-l5-model-flow-sdk-rollback-20261026.json"
+  ],
+  "documentation": [
+    "docs/changes/refonte-l5-model-flow-sdk-rollback-20261026.md"
+  ],
+  "tests": [
+    {
+      "name": "Existing model-flow selection and native provenance suites",
+      "status": "passed",
+      "evidence": "Source65ca180a6bcd128d02505591f6e07503575ab3b4, Python3.12.14 and Node26.11.1:5model-flow tests PASS2.262s +7native-provenance tests PASS0.647s, exit0, same HEAD/source hashes before and after. Real shell guard against actual Git identities verifies changed/absent/unchanged sets and failure-before-reset. Already registered in ci.yml. Log model-flow-rollback-65ca-focused-20261026.log SHA256c5ad3ed2925757759f9a4469716348d006ae45354debd609d85221099f33804b. Final combined-head CI not claimed."
+    }
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "NO_CAPABILITY: correction inside existing private deploy rollback; no business effect, route, permission or public action added."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuse exact existing compatibility and deployment owners, with the same changed-or-absent manifest guard already used for native provenance."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "No public MCP schema/adapter/protocol/runtime admission changed; private rollback guard only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Revert source before deployment; existing Companion deploy owner remains canonical. The revert restores a known missing SDK rollback protection and is not a runtime mitigation.",
+  "limitations": [
+    "Final combined-head canonical CI required before merge/activation.",
+    "No native deployment or rollback recipe performed by this child."
+  ]
+}

@@ -4,6 +4,7 @@ import gzip
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -92,6 +93,58 @@ class ModelFlowPatchTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('unsupported_package_version', result.stdout)
         self.assertEqual(self.snapshot(), before)
+
+    def test_deploy_undoes_candidate_model_consumer_before_checkout_rollback(self):
+        # Real guard and actual Git object identities: an older release need not own this set.
+        source = (HERE / 'companion-deploy.sh').read_text()
+        begin = source.index('  # A candidate can install a model profile consumer')
+        end = source.index('  # A candidate can extend a known patch set.', begin)
+        block = source[begin:end]
+        self.assertLess(begin, source.index('  git reset -q --hard "$previous"'))
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            target = repo / 'installer/termux-lite/openclaw-compat'
+            target.mkdir(parents=True)
+            def git(*args):
+                return subprocess.run(['git', *args], cwd=repo, capture_output=True,
+                    text=True, check=True).stdout.strip()
+            git('init', '-q')
+            (repo / 'old-release.txt').write_text('authored previous release without model manifest')
+            git('add', '.')
+            git('-c', 'user.name=Authored test', '-c', 'user.email=fixture@example.invalid',
+                'commit', '-qm', 'previous release without model consumer')
+            absent = git('rev-parse', 'HEAD')
+            manifest = target / 'model-flow-selection.json'
+            manifest.write_text('{"version":"previous"}')
+            git('add', '.')
+            git('-c', 'user.name=Authored test', '-c', 'user.email=fixture@example.invalid',
+                'commit', '-qm', 'previous model consumer')
+            unchanged = git('rev-parse', 'HEAD')
+            marker = repo / 'patch-action.txt'
+            (target / 'whatsapp-network-recovery.py').write_text(
+                "from pathlib import Path\nimport os,sys\n"
+                "Path(os.environ['PATCH_MARKER']).write_text(' '.join(sys.argv[1:]))\n"
+                "sys.exit(int(os.environ.get('PATCH_FAIL','0')))\n")
+            env = {**os.environ, 'ROOT': str(target.parent), 'PATCH_MARKER': str(marker),
+                'log': str(repo / 'guard.log'), 'full': 'authored-candidate'}
+            def invoke(previous, fail=False):
+                marker.unlink(missing_ok=True)
+                return subprocess.run(['bash', '-c', 'write(){ :; };' + block], cwd=repo,
+                    env={**env, 'previous': previous, 'PATCH_FAIL': '1' if fail else '0'},
+                    capture_output=True, text=True)
+            self.assertEqual(invoke(unchanged).returncode, 0)
+            self.assertFalse(marker.exists(), 'unchanged set must remain applied')
+            self.assertEqual(invoke(absent).returncode, 0)
+            self.assertEqual(marker.read_text(), '--patch-set model-flow-selection --rollback')
+            manifest.write_text('{"version":"candidate"}')
+            self.assertEqual(invoke(unchanged).returncode, 0)
+            self.assertEqual(marker.read_text(), '--patch-set model-flow-selection --rollback')
+            self.assertEqual(invoke(unchanged, fail=True).returncode, 6,
+                'unknown SDK state must stop before git reset')
+            manifest.unlink()
+            self.assertEqual(invoke(absent).returncode, 0)
+            self.assertFalse(marker.exists(), 'no candidate-owned set must not invent rollback')
+
 
 if __name__ == '__main__':
     unittest.main()
