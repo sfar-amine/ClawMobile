@@ -135,6 +135,11 @@ Le choix Node respecte le contrat du propriétaire `localci.py` :
 `LOCALCI_NODE26_BIN` est un répertoire bin, auquel le test ajoute `node` ; un
 exécutable direct reste admis pour les ciblés. Un test invoque réellement la même
 version Node26 par ces deux formes, sans modifier le runner ni son environnement.
+Le programme CJS est un harness de fixture appelé avec un SDK temporaire préparé
+par Python, pas une entrée autonome. Il réside donc sous la fixture comme
+`resolver-prompt-harness.cjs` ; le wrapper Python reste l'entrée réellement
+inscrite en CI. Ses octets et son layout relatif au tracker sont conservés dans
+la fixture temporaire existante. La garde `test-ci-registration.py` reste intacte.
 
 Le ciblé et la CI canonique finale restent à exécuter ; aucun gain ou PASS S24
 n'est anticipé. Cette livraison corrige le trou de diagnostic, pas encore le coût

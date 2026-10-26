@@ -12,7 +12,7 @@
     "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
     "installer/termux-lite/openclaw-compat/gateway-prep-stages.json",
     "installer/termux-lite/test-gateway-prep-stages.py",
-    "installer/termux-lite/test-gateway-prep-stages.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/resolver-prompt-harness.cjs",
     "docs/work/samantha-refonte/L0bis-sdk-prep-stage-splits-20261026.md",
     "docs/changes/refonte-l0bis-sdk-prep-stages-20261026.json",
     "docs/changes/refonte-l0bis-sdk-prep-stages-20261026.md",
