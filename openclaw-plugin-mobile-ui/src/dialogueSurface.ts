@@ -33,6 +33,10 @@ export type DialogueReply = {
   handoff?: { status: string; klass: string } | null;
   pendingHandoff?: { goalRef: string; klass: string } | null;
   replayed?: boolean;
+  /** A question keeps the requests behind it waiting in the coordinator's conversation state. */
+  queuedCount?: number;
+  /** Waiting requests handed back once their question no longer is open; the host runs them next. */
+  resumeRequests?: string[];
 };
 
 export type DialogueRunner = (message: string, options?: RunnerOptions) => Promise<FastPathResult>;
@@ -46,6 +50,8 @@ export type DialogueInput = {
   conversationKey: string;
   eventRef: string;
   text: string;
+  /** Requests of the same message not run yet; kept by the coordinator only if this one asks a question. */
+  queuedRequests?: string[];
   caller?: "owner" | "trusted" | "other";
   admittedAt?: number;
   policy?: Record<string, unknown>;
@@ -114,7 +120,28 @@ function runnerOptions(input: DialogueInput, mode: DialogueMode): RunnerOptions 
 
 function eventOf(input: DialogueInput) {
   return { surface: input.surface, conversationKey: input.conversationKey, eventRef: input.eventRef,
-    caller: input.caller || "owner", ...(input.admittedAt ? { admittedAt: input.admittedAt } : {}) };
+    caller: input.caller || "owner", ...(input.admittedAt ? { admittedAt: input.admittedAt } : {}),
+    ...(input.queuedRequests?.length ? { queuedRequests: input.queuedRequests } : {}) };
+}
+
+export const MAX_SPLIT_REQUESTS = 10;
+const ENUMERATED = /^\s*(?:\d{1,2}\s*[.)\-:]|[-•*])\s+(\S.*)$/;
+
+/**
+ * Amine 26/10 (« il faut gérer ce genre de demande automatiquement »): « 1. État du projet …\n2. Passe la phase … »
+ * is two requests. Deterministic and closed: split only when the message is an enumeration from its first line
+ * (a line that is not an item continues the previous item); anything else stays one request.
+ */
+export function splitRequests(text: string): string[] {
+  const items: string[] = [];
+  for (const line of String(text || "").split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const item = ENUMERATED.exec(line);
+    if (item) items.push(item[1].trim());
+    else if (items.length) items[items.length - 1] += "\n" + line.trim();
+    else return [String(text || "").trim()];
+  }
+  return items.length >= 2 && items.length <= MAX_SPLIT_REQUESTS ? items : [String(text || "").trim()];
 }
 
 export async function dialogueTurn(runner: DialogueRunner, input: DialogueInput): Promise<DialogueReply> {
