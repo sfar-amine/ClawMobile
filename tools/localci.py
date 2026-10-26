@@ -262,7 +262,7 @@ def preserve_app_test_reports(space, artifacts):
     return count, size, truncated
 
 
-def run_app_ci(repo, sha, pr, base, logpath):
+def run_app_ci(repo, sha, pr, base, logpath, delivery=None):
     artifacts = logpath.with_name(logpath.stem + "-android")
     if artifacts.exists():
         raise LocalCIError("Android artifact directory already exists; use a new output log to avoid stale evidence")
@@ -277,6 +277,8 @@ def run_app_ci(repo, sha, pr, base, logpath):
                 print(value, file=log, flush=True)
                 print(value, flush=True)
             note(f"LOCALCI_START repo={repo.name} sha={sha} pr={pr} base={base} jobs=1 delivery=android")
+            if delivery:
+                note("DELIVERY_CONTRACT " + json.dumps(delivery, sort_keys=True))
             note(f"ANDROID_OWNER {APP_BUILDER} publication=not_requested signing=local_debug artifacts={artifacts}")
             env = dict(os.environ)
             env.pop("SAMANTHA_DEBUG_KEYSTORE", None)
@@ -322,6 +324,59 @@ def run_ci(repo_arg, sha, pr, output):
             os.close(lock)
 
 
+
+# Single schema owner: immutable full PB tree, never a client-selected validator.
+DELIVERY_OWNER_URL = "https://github.com/sfar-amine/samantha-ui-playbooks.git"
+DELIVERY_OWNER_SHA = "698322f70d454151b802e3c5850db82f4a38d046"
+
+def _checkout_delivery_owner(folder):
+    command(["git", "init", "-q", str(folder)], folder.parent)
+    command(["git", "remote", "add", "origin", DELIVERY_OWNER_URL], folder)
+    command(["git", "fetch", "--quiet", "--depth", "1", "origin", DELIVERY_OWNER_SHA], folder)
+    if command(["git", "rev-parse", "FETCH_HEAD"], folder) != DELIVERY_OWNER_SHA:
+        raise LocalCIError("delivery_owner_revision_mismatch")
+    command(["git", "checkout", "--quiet", "--detach", "FETCH_HEAD"], folder)
+
+
+def _validate_at_delivery_owner(owner, repo, base, head):
+    # -I excludes the PR checkout and ambient PYTHONPATH; the original PB API
+    # imports its own agent_runner/stdlib dependencies from the complete pin.
+    program = r"""
+import json,sys
+from pathlib import Path
+sys.path.insert(0,sys.argv[1])
+from skill_intelligence.delivery_contract import validate_range,validate_note,changed_files,read_at
+repo=Path(sys.argv[2]);base,head=sys.argv[3:5]
+try:
+    result=validate_range(repo,base,head)
+    available=changed_files(repo,base,head)
+    for path in result['notes']:
+        note=json.loads(read_at(repo,head,path))
+        validate_note(note,available,lambda p:read_at(repo,head,p),require_v2=True)
+    print(json.dumps({'ok':True,'notes':result['notes']}))
+except Exception as error:
+    print(json.dumps({'ok':False,'reason':str(error)[:300]}));sys.exit(1)
+"""
+    result = subprocess.run([sys.executable, "-I", "-B", "-c", program,
+                             str(owner), str(repo), base, head],
+                            capture_output=True, text=True, timeout=90)
+    try:
+        value = json.loads(result.stdout)
+    except (ValueError, TypeError):
+        raise LocalCIError("delivery_owner_validation_unavailable") from None
+    if result.returncode or value.get("ok") is not True:
+        raise LocalCIError("delivery_contract_v2:" + str(value.get("reason", "unavailable"))[:300])
+    return {"owner": DELIVERY_OWNER_URL, "revision": DELIVERY_OWNER_SHA,
+            "strict_v2": True, "notes": value["notes"]}
+
+
+def validate_core_delivery(repo, base, head):
+    with tempfile.TemporaryDirectory(prefix="localci-delivery-", dir=os.getenv("LOCALCI_TMP_ROOT") or None) as root:
+        owner = Path(root) / "samantha-ui-playbooks"
+        _checkout_delivery_owner(owner)
+        return _validate_at_delivery_owner(owner, repo, base, head)
+
+
 def _run_ci(repo_arg, sha, pr, output, s24=False):
     repo = Path(repo_arg).expanduser().resolve()
     if repo.name not in WORKFLOWS or not (repo / ".git").exists():
@@ -363,7 +418,9 @@ def _run_ci(repo_arg, sha, pr, output, s24=False):
     if app:
         if set(jobs) != {"apk"} or not isinstance(jobs["apk"], dict) or not jobs["apk"].get("steps"):
             raise LocalCIError("Unsupported Android workflow job layout; update the versioned build owner contract")
-        return run_app_ci(repo, sha, pr, base, logpath)
+        delivery = validate_core_delivery(repo, base, sha)
+        return run_app_ci(repo, sha, pr, base, logpath, delivery)
+    delivery = validate_core_delivery(repo, base, sha) if repo.name == "samantha-core" else None
     context = {
         "github.sha": sha, "github.event.pull_request.head.sha": sha,
         "github.event.pull_request.base.sha": base, "github.event.before": base,
@@ -376,6 +433,8 @@ def _run_ci(repo_arg, sha, pr, output, s24=False):
             print(text, flush=True)
         note(f"LOCALCI_START repo={repo.name} sha={sha} pr={pr} base={base} jobs={len(jobs)}"
              + (" profile=s24" if s24 else ""))
+        if delivery:
+            note("DELIVERY_CONTRACT " + json.dumps(delivery, sort_keys=True))
         for job_name, job in jobs.items():
             if not isinstance(job, dict) or not isinstance(job.get("steps"), list):
                 raise LocalCIError(f"Invalid job definition: {job_name}")

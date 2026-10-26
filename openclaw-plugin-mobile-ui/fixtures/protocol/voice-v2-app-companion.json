@@ -19,7 +19,9 @@
     "transcriptFinal": ["noSpeech"]
   },
   "optionalWarmReadyFields": {
-    "progressReadback": 1
+    "progressReadback": 1,
+    "asyncToolReadback": 1,
+    "turnBudgetMs": 30000
   },
   "speakProgress": {
     "maxChars": 200,
