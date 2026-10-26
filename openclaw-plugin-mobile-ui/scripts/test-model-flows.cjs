@@ -49,6 +49,13 @@ const clone=value=>JSON.parse(JSON.stringify(value));
   const dangerous={...auth,providers:auth.providers.map(row=>row.provider==='openai'?{...row,profiles:[{profileId:'openai:authored-api-fixture',type:'api_key',status:'static'}]}:row)};
   assert.deepEqual(owner.includedModelAccounts('openai/gpt-5.6-sol',dangerous,owner.readIncludedModelPolicy()),[]);
   assert.deepEqual(owner.includedModelAccounts('google/other',auth,owner.readIncludedModelPolicy()),[]);
+  const unsafe={flow:'brain',mode:'set',revision:hash,operationId:'unrestorable-legacy',model:read.model,thinking:'medium',fallbacks:[],fastMode:true};
+  assert.equal(read.writeAvailable,false);assert.ok(read.issues.includes('model_flow_previous_version_unavailable'));
+  await assert.rejects(api.changeAgentConfig(unsafe),error=>error.statusCode===409&&error.message==='model_flow_previous_version_unavailable');
+  assert.equal(effects,0,'an unknown-cost legacy rollback cannot be discovered only after config.patch');assert.equal(preserved.length,0);
+  // Separate authored successful baseline: only the already-qualified included references remain.
+  // This edits this local test fixture, not the S24 configuration or the captured source.
+  for(const entry of [config.agents.defaults,...Object.values(config.agents.entries)])if(Array.isArray(entry.model?.fallbacks))entry.model.fallbacks=entry.model.fallbacks.filter(ref=>!ref.startsWith('github-copilot/'));
   const brain={flow:'brain',mode:'set',revision:hash,operationId:'unqualified-sessions',model:read.model,thinking:'medium',fallbacks:[],fastMode:true};
   const blocked=await api.changeAgentConfig(brain);assert.equal(blocked.state,'refused');assert.equal(blocked.artifact.reason,'model_flow_preservation_unqualified');assert.equal(effects,0,'missing native preservation must fail closed');
   // SDK integration is a separate owner/test: simulate an explicitly verified native result here.
@@ -90,6 +97,22 @@ const clone=value=>JSON.parse(JSON.stringify(value));
   const runStatus=await require('../dist/companion/runs').getRunStatus(uncertain.receipt.runId);
   const reconciled=await api.reconcileModelFlowRunStatus(runStatus);assert.equal(JSON.parse(reconciled.result).state,'completed');assert.equal(effects,count,'status readback reconciles the same receipt without repeating configuration');
   assert.deepEqual(await require('../dist/companion/runs').readModelFlowConfigurationActivity(),[],'verified same-action readback releases admission');
+  patchFail=null;
+  // Inherit must retain genuine absent SDK defaults, rather than inventing booleans/effort.
+  const beforeInheritance=clone(config.agents.entries.main);
+  delete config.agents.defaults.thinkingDefault;delete config.agents.defaults.fastModeDefault;
+  const inherited=await api.changeAgentConfig({flow:'brain',mode:'inherit',revision:hash,operationId:'brain-inherit-native-defaults'});
+  assert.equal(inherited.state,'completed');
+  for(const key of ['model','thinkingDefault','fastModeDefault'])assert.equal(Object.hasOwn(config.agents.entries.main,key),false);
+  const restoredInheritance=await api.changeAgentConfig({flow:'brain',mode:'revert',revision:hash,operationId:'brain-revert-inheritance',restoreRunId:inherited.receipt.runId});
+  assert.equal(restoredInheritance.state,'completed');assert.deepEqual(config.agents.entries.main,beforeInheritance);
+  config.agents.entries.main.fastModeDefault='auto';
+  const autoBefore=clone(config.agents.entries.main);
+  // Re-admit this authored prior native setting so the fixture has an exact valid provenance.
+  config.plugins.entries['openclaw-plugin-mobile-ui'].config.modelFlowSelection.flows.brain={version:1,fieldsHash:owner.modelFlowSettingHash(config,'brain')};
+  const afterAuto=await api.changeAgentConfig({...brain,revision:hash,operationId:'brain-edit-native-auto',thinking:'low'});assert.equal(afterAuto.state,'completed');
+  const autoRestored=await api.changeAgentConfig({flow:'brain',mode:'revert',revision:hash,operationId:'brain-revert-native-auto',restoreRunId:afterAuto.receipt.runId});
+  assert.equal(autoRestored.state,'completed');assert.deepEqual(config.agents.entries.main,autoBefore,'prior SDK automatic speed is restored exactly');assert.equal((await api.readAgentConfig('brain')).fastModeSetting,'auto');
   console.log('L5 real S24 projection; authored local owner effects: included billing admission, account redaction, primary biometric guard, exact CAS/replay/revert, contact isolation, summary preservation and uncertain-effect fence passed');
  }finally{await fs.rm(root,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1});

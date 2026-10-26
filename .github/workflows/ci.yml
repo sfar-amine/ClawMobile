@@ -88,6 +88,9 @@ jobs:
 
       - name: WhatsApp survives extended network outages without retry storms
         run: |
+          python3 ../installer/termux-lite/test-model-flow-selection.py
+          node ../installer/termux-lite/test-model-flow-compaction.cjs
+          node ../installer/termux-lite/test-model-flow-setup.cjs
           python3 ../installer/termux-lite/test-whatsapp-network-recovery.py
           node ../installer/termux-lite/test-whatsapp-network-recovery.cjs
 
@@ -383,7 +386,7 @@ jobs:
         run: node scripts/test-control-automations-latency.cjs
 
       - name: Run agent configuration owner contract
-        run: node scripts/test-agent-config.cjs && node scripts/test-model-flows.cjs
+        run: node scripts/test-agent-config.cjs && node scripts/test-model-flows.cjs && node scripts/test-conversation-model-profile.cjs
       - name: Agent config concurrent owner reads
         working-directory: openclaw-plugin-mobile-ui
         run: node scripts/test-agent-config-flight.cjs
@@ -682,6 +685,9 @@ jobs:
           node-version: 26.11.1
           cache: npm
           cache-dependency-path: openclaw-plugin-mobile-ui/package-lock.json
+      - name: L5 native SDK session CAS over real SQLite connections
+        run: node ../installer/termux-lite/test-model-flow-native-session.cjs
+
       - name: Install integration plugin dependencies
         run: npm ci
       - name: Build integration plugin

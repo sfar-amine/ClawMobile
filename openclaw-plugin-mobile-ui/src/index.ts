@@ -53,6 +53,7 @@ import { handleOwnerBeforeDispatch, handleOwnerFastPath } from "./modelFastPath"
 import { handlePulseRoomBeforeDispatch } from "./pulseRoomFastPath";
 import { createCapabilityTool } from "./capabilityTool";
 import { agentCapabilityHook } from "./capabilityAgentGuard";
+import {conversationModelProfileHooks} from "./companion/conversationModelProfile";
 import { createContactTool } from "./contactTools";
 import { handleContactRoomBeforeDispatch } from "./contactRoomFastPath";
 import { handleQaContactMediaReceived } from "./qaContactMediaOwner";
@@ -192,6 +193,10 @@ function register(api: any) {
   api.on("message_sent",nativeProgress.sent);
   api.on("model_call_ended",(event:any,ctx:any)=>nativeProgress.stage(event,ctx,"model"));
   api.on("after_tool_call",(event:any,ctx:any)=>nativeProgress.stage(event,ctx,"tool"));
+  const modelProfiles=conversationModelProfileHooks(api);
+  api.session?.state?.registerSessionExtension?.(modelProfiles.extension);
+  api.on("before_model_resolve",modelProfiles.resolve,{priority:1000});
+  api.on("before_agent_run",modelProfiles.admit,{priority:1000});
 
   // SDK 2026.9.6 emits this accepted-turn observation without awaiting it.
   // Private QA owners admit an existing DRAFT before any staged bytes are read.

@@ -74,6 +74,7 @@ if [ "$mode" = check ]; then
   dispatch_contract || drift+=(openclaw:before_dispatch_missing)
   python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --check >/dev/null 2>&1 || drift+=(openclaw:whatsapp_network_recovery)
   python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set agent-exec-auth-scope --check >/dev/null 2>&1 || drift+=(openclaw:agent_exec_auth_scope)
+  python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set model-flow-selection --check >/dev/null 2>&1 || drift+=(openclaw:model_flow_selection)
   list=$(printf '"%s",' "${drift[@]}"); list="[${list%,}]"; [ "${#drift[@]}" -eq 0 ] && list='[]'
   printf '{"ok":%s,"commit":"%s","drift":%s}\n' "$([ "${#drift[@]}" -eq 0 ] && echo true || echo false)" "$commit" "$list"
   [ "${#drift[@]}" -eq 0 ]; exit $?
@@ -82,6 +83,8 @@ fi
 dispatch_contract || fail openclaw_before_dispatch_missing
 wa_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --apply) || fail whatsapp_network_recovery_refused
 auth_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set agent-exec-auth-scope --apply) || fail agent_exec_auth_scope_refused
+
+model_flow_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set model-flow-selection --apply) || fail model_flow_selection_refused
 
 # 1. Gateway plugin. Forced: after a rollback the restored dist is older than the install stamp.
 if ! same_plugin; then
@@ -93,7 +96,7 @@ fi
 # 2. The Gateway loads its plugin at start only: restart it gracefully when the plugin changed, then wait for it.
 # Before the Tier0 promotion: a restart inside the soak window reads as a health regression (S24 12/10, 17:31 —
 # release 5631a6aa rolled back to the 11/10 release after one bad sample).
-if [ "$plugin" = synced ] || [[ "$wa_patch" == *'"applied"'* ]]; then
+if [ "$plugin" = synced ] || [[ "$wa_patch" == *'"applied"'* ]] || [[ "$auth_patch" == *'"applied"'* ]] || [[ "$model_flow_patch" == *'"applied"'* ]]; then
   if [ -n "${SAMANTHA_DEPLOY_LOCK_FD:-}" ]; then
     # Companion cannot inherit our flock over HTTP. Run its SAME stop/start
     # owner in this process tree, with the verified inherited EX description.
