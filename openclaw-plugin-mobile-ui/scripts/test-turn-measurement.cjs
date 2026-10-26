@@ -79,7 +79,7 @@ const budget = require('../dist/companion/turnBudget.js');
     const previousPort=process.env.CLAWMOBILE_COMPANION_PORT;process.env.CLAWMOBILE_COMPANION_PORT=String(server.address().port);
     try{
       const active=await require('../dist/nativeTurnProgress').activeObservedNativeWhatsAppRun(nativeBody.sessionKey);
-      assert.equal(active.runId,'11111111-1111-4111-8111-111111111111');assert.equal(active.observationSource,'sdk_message_received');assert.equal(active.ownerAdmitted,undefined);
+      assert.equal(active.runId,'11111111-1111-4111-8111-111111111111');assert.equal(active.observationSource,'companion_native_turn_owner');assert.equal(active.ownerAdmitted,undefined);
       assert.equal(await require('../dist/nativeTurnProgress').activeObservedNativeWhatsAppRun(nativeBody.sessionKey,{excludeRunId:'11111111-1111-4111-8111-111111111111'}),null);
     }finally{if(previousPort===undefined)delete process.env.CLAWMOBILE_COMPANION_PORT;else process.env.CLAWMOBILE_COMPANION_PORT=previousPort;}
     assert.equal((await request({operation:'native_end',sessionKey:nativeBody.sessionKey,success:true},owner,'11111111-1111-4111-8111-111111111111')).status,200);

@@ -191,6 +191,12 @@ function register(api: any) {
 
   api.on("before_tool_call", agentCapabilityHook);
   const nativeProgress=nativeTurnProgressHooks();
+  // Existing public SDK event; only native committed user metadata is observed, with no text copied.
+  const transcriptUpdates=api.runtime?.events?.onSessionTranscriptUpdate;
+  if(typeof transcriptUpdates==='function'){
+    const unsubscribe=transcriptUpdates((event:any)=>{void nativeProgress.transcript(event).catch(()=>{});});
+    if(typeof unsubscribe==='function')api.on("gateway_stop",()=>{unsubscribe();});
+  }
   api.on("agent_end",nativeProgress.ended);
   api.on("message_sent",nativeProgress.sent);
   api.on("model_call_ended",(event:any,ctx:any)=>nativeProgress.stage(event,ctx,"model"));

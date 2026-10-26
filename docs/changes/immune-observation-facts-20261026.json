@@ -1,0 +1,73 @@
+{
+  "version": 2,
+  "id": "immune-observation-facts-20261026",
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Every shell owner that asks the immune gate for a bounded repair now passes its own probe facts (supervisor absent or on another release, HTTP/ADB/sshd/Slack probe result, ADB readiness reason) instead of the bare default observation.",
+  "reason": "S24 26/10: 18 of 37 successful Sol decisions answered 'undetermined, no diagnostic details' because immune-action.sh never forwarded an observation; adb_watchdog and remote_watchdog stayed down after deploy 9527b700 while their restore waited on a decision that could not be made.",
+  "files": [
+    "installer/termux-lite/immune-action.sh",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/samantha-root-guardian.sh",
+    "installer/termux-lite/adb-recovery-watchdog.sh",
+    "installer/termux-lite/test-immune-action.py",
+    "docs/changes/immune-observation-facts-20261026.json",
+    "docs/changes/immune-observation-facts-20261026.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-immune-action.py",
+      "status": "passed",
+      "evidence": "7 tests; new: IMMUNE_OBSERVATION reaches allow as --observation with the supervisor facts, and a caller without facts keeps the default. Real immune-action.sh, synthetic admission port."
+    },
+    {
+      "name": "health, watchdog and incident suites",
+      "status": "passed",
+      "evidence": "23 suites that source or assert these owners pass, including test-adb-recovery-readiness-watchdog.sh, test-incident-runtime-hardening.sh, test-health-restart-escalation.py, test-supervisor-lock-portability.py, test-tier0-control.py."
+    },
+    {
+      "name": "secret filter",
+      "status": "passed",
+      "evidence": "Every new observation text checked against the playbooks SECRET_RE: no match, so the gate never refuses it as unsafe context."
+    }
+  ],
+  "documentation": [
+    "docs/changes/immune-observation-facts-20261026.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Evidence passed to the existing immune decision only; same operations, callbacks, budgets and verifiers."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same admission adapter and owners; one optional environment value forwarded to the existing --observation argument."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: no MCP schema, adapter, endpoint or runtime protocol changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Live proof requires companion-deploy, then adb_watchdog and remote_watchdog restored through an accepted decision (or escalated once by the existing review)."
+  ],
+  "rollback": "Revert this commit; owners fall back to the default observation."
+}

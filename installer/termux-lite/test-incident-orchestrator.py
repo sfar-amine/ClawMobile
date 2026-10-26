@@ -42,6 +42,26 @@ class T(unittest.TestCase):
   self.assertNotEqual(i,b["id"]);self.assertEqual(b["state"],"detected")
   self.assertEqual(io.open_incident("adb","boot-1","health","still down")["id"],b["id"])
   self.assertEqual(io.recover_incident("adb","boot-1","health","recovered again")["id"],b["id"])
+ def test_parked_incident_escalates_once_after_bound(self):
+  # S24 26/10: route incidents parked since 17/10 without any review or notification.
+  sent=[]
+  a=io.open_incident("route.orange.summary.maxit.v1","runtime","route-health","guard_unavailable");i=a["id"]
+  io.transition(i,"awaiting_deterministic_recovery","worker","no managed handler")
+  home=Path(self.t.name)
+  self.assertEqual(io.escalate_stale(3600,home=home,notify=lambda m,a:sent.append(m))["escalated"],[])
+  c=io.connect();c.execute("UPDATE incidents SET updated=updated-7200 WHERE id=?",(i,));c.commit();c.close()
+  self.assertEqual(io.escalate_stale(3600,home=home,notify=lambda m,a:sent.append(m))["escalated"],[i])
+  self.assertEqual(io.show(i)["incident"]["state"],"human_required")
+  self.assertEqual(len(sent),1);self.assertIn(i,sent[0])
+  self.assertEqual(io.escalate_stale(3600,home=home,notify=lambda m,a:sent.append(m))["escalated"],[])
+  self.assertEqual(io.recover_by_id(i,"route-health","verified route result")["state"],"recovered")
+ def test_immune_intervention_keeps_its_own_review(self):
+  a=io.open_incident("remote_watchdog","runtime","immune-ai-decision","down");i=a["id"]
+  io.transition(i,"awaiting_deterministic_recovery","worker","no managed handler")
+  home=Path(self.t.name);f=home/".openclaw/continuations/foreground"/("immune:"+i+".json")
+  f.parent.mkdir(parents=True);f.write_text("{}")
+  c=io.connect();c.execute("UPDATE incidents SET updated=updated-7200 WHERE id=?",(i,));c.commit();c.close()
+  self.assertEqual(io.escalate_stale(3600,home=home,notify=lambda m,a:self.fail("double notice"))["escalated"],[])
  def test_terminal(self):
   a=io.open_incident("gateway","runtime","health","down");i=a["id"];io.transition(i,"failed","test")
   with self.assertRaises(SystemExit):io.transition(i,"diagnosing","test")

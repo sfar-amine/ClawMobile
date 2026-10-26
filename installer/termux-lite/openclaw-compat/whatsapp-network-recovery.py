@@ -51,11 +51,17 @@ def reconcile(roots, mode, manifest_path=None):
             raise ValueError("patch_module_path_invalid:" + entry["path"])
         data = path.read_bytes()
         current = digest(data)
-        if current not in (entry["original"], entry["patched"]):
+        predecessors = entry.get("predecessors", [])
+        known = next((item for item in predecessors if item.get("patched") == current), None)
+        if current not in (entry["original"], entry["patched"]) and known is None:
             raise ValueError("unsupported_module_hash:" + entry["path"])
         target_hash = entry["original"] if mode == "rollback" else entry["patched"]
         if current != target_hash:
-            planned.append((path, data, transform(data, entry, mode == "rollback")))
+            # Upgrade only a pinned predecessor, through its verified original bytes. The whole set is
+            # validated before the first write; unknown state still refuses atomically.
+            original = transform(data, {**entry, **known}, True) if known else None
+            result = original if known and mode == "rollback" else transform(original if known else data, entry, mode == "rollback")
+            planned.append((path, data, result))
     if mode == "check":
         return {"ok": not planned, "state": "drift" if planned else "verified", "changed": len(planned)}
     written = []
@@ -76,7 +82,7 @@ def main():
         group.add_argument("--" + mode, dest="mode", action="store_const", const=mode)
     ap.add_argument("--openclaw-root", type=Path, default=Path(os.environ.get("PREFIX", "/data/data/com.termux/files/usr")) / "lib/node_modules/openclaw")
     ap.add_argument("--whatsapp-root", type=Path)
-    ap.add_argument("--patch-set", choices=("whatsapp-network-recovery", "agent-exec-auth-scope"), default="whatsapp-network-recovery")
+    ap.add_argument("--patch-set", choices=("whatsapp-network-recovery", "agent-exec-auth-scope", "native-turn-provenance"), default="whatsapp-network-recovery")
     args = ap.parse_args()
     try:
         manifest_path = MANIFEST.with_name(args.patch_set + ".json")

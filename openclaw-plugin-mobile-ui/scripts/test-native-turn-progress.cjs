@@ -55,6 +55,44 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
   try{assert.deepEqual(await runs.listRunSummaries({limit:10}),[]);await runs.awaitRunInactivity();assert.equal(reads.length,1,'empty product history keeps its one canonical legacy page read, with no metadata-row fanout');assert.equal(reads[0].method,'sessions.list');}
   finally{gateway.callOpenClawGateway=read;}
   assert.deepEqual(changes,[],'native measurement rows never create product conversation events');
+  // Real SDK public transcript shape: original dispatch clock/account, exact adoption, and out-of-order delivery/end.
+  const uuid=n=>String(n).padStart(8,'0')+'-1111-4111-8111-111111111111';
+  const originalStamp=mono-5000;
+  const transcript=(id,stamp,adoptedBy,accountId='owner-named-account')=>({target:{agentId:'main',sessionKey},messageId:'authored-source-anchor',
+   message:{role:'user',__openclaw:{senderIsOwner:true,transport:{channel:'whatsapp',ingressRunId:id,ingressObservedMonoMs:stamp,...(accountId?{accountId}:{})},
+    ...(adoptedBy?{steerTargetRunId:adoptedBy}:{})}}});
+  await hooks.transcript(transcript(uuid(101),originalStamp));const targetTimer=scheduled.at(-1);
+  assert.equal(targetTimer.delay,25000,'budget starts at native dispatch, not delayed transcript callback');
+  await hooks.transcript(transcript(uuid(102),mono,uuid(101)));const aliasTimer=scheduled.at(-1);
+  assert.equal(aliasTimer.cancelled,true,'adoption cancels only the exact alias timer');
+  assert.equal((await runs.activeObservedNativeWhatsAppRun(sessionKey)).runId,uuid(101));
+  const deadline=(await runs.nativeTurnProgressState(uuid(102))).deadlineAt;
+  await hooks.transcript(transcript(uuid(102),mono,uuid(101)));assert.equal((await runs.nativeTurnProgressState(uuid(102))).deadlineAt,deadline);
+  now+=25000;mono+=25000;fail=false;const sentBefore=sent.length;targetTimer.fn();await wait(async()=>sent.length===sentBefore+1);
+  assert.equal(sent.at(-1).accountId,'owner-named-account','the actual native account, never default, owns managed send');
+  const beforeBoundLogs=logs.length;
+  await hooks.sent({success:true,runId:uuid(101)},ctx(uuid(101)));await hooks.ended({success:true},ctx(uuid(101)));
+  assert.equal(logs.length,beforeBoundLogs+2,'one measurement per real ingress bound to the exact delivered run');
+  await hooks.sent({success:true,runId:uuid(101)},ctx(uuid(101)));assert.equal(logs.length,beforeBoundLogs+2);
+  const boundRows=JSON.parse(await fs.readFile(path.join(root,'clawmobile-companion/runs.json'),'utf8')).runs;
+  assert.equal(boundRows.find(r=>r.runId===uuid(101)).turnMeasurement.usefulMs,30000);
+  const aliasMeasurement=boundRows.find(r=>r.runId===uuid(102)).turnMeasurement;
+  assert.equal(aliasMeasurement.usefulMs,25000);assert.equal(aliasMeasurement.decisionMs,null);assert.equal(aliasMeasurement.route,null);
+  // A real delivery/end may precede ingress persistence. Placeholders never claim a clock or arm a notice.
+  const timerCount=scheduled.length;const late=uuid(103),lateAlias=uuid(104),lateStarted=mono-1000;
+  await owner.observe(late,{operation:'native_delivery',sessionKey,observedMonoMs:mono});
+  await owner.observe(late,{operation:'native_end',sessionKey,success:true});
+  await owner.observe(lateAlias,{operation:'native_adoption',sessionKey,targetRunId:late,observedMonoMs:mono});
+  assert.equal((await runs.nativeTurnProgressState(late)).ingressPending,true);
+  const logsBeforeLate=logs.length;
+  await hooks.transcript(transcript(lateAlias,lateStarted,late));await hooks.transcript(transcript(late,lateStarted));
+  assert.equal(scheduled.length,timerCount);assert.equal(logs.length,logsBeforeLate+2,'late true ingress finalizes exact ended bindings once');
+  assert.equal((await runs.nativeTurnProgressState(late)).state,'done');
+  // Unknown account cannot turn a logical owner peer into a fabricated default-account send.
+  await hooks.transcript(transcript(uuid(105),mono,undefined,null));const noAccount=scheduled.at(-1);
+  now+=30000;mono+=30000;const sendsBeforeMissingAccount=sent.length;noAccount.fn();await new Promise(r=>setTimeout(r,20));
+  assert.equal(sent.length,sendsBeforeMissingAccount);await hooks.ended({success:true},ctx(uuid(105)));
+
   // Authored volume from the owner's serialized new-schema row; no private S24 message is invented.
   const registryPath=path.join(root,'clawmobile-companion/runs.json'),ledger=JSON.parse(await fs.readFile(registryPath,'utf8'));
   const seed=ledger.runs.find(r=>r.runId==='d8077c1f-ba13-1715-a344-8695080fcc9a');
