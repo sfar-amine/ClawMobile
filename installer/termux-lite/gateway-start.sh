@@ -52,5 +52,17 @@ if [ -f "$AUTH_PATCH_DIR/agent-exec-auth-scope.json" ]; then
     echo "[lite] WARNING: native auth scope patch unsupported; runtime drift requires review." >&2
 fi
 
+# Native ingress provenance follows checkout ownership independently of other patch sets.
+NATIVE_PATCH_DIR="${CLAW_CORE_REPO:-$HOME/ClawMobile}/installer/termux-lite/openclaw-compat"
+NATIVE_PATCH_MODE=--apply
+if [ ! -f "$NATIVE_PATCH_DIR/native-turn-provenance.json" ]; then
+  NATIVE_PATCH_DIR="$SCRIPT_DIR/openclaw-compat"
+  NATIVE_PATCH_MODE=--rollback
+fi
+if [ -f "$NATIVE_PATCH_DIR/native-turn-provenance.json" ]; then
+  python3 "$NATIVE_PATCH_DIR/whatsapp-network-recovery.py" --patch-set native-turn-provenance "$NATIVE_PATCH_MODE" >&2 ||
+    echo "[lite] WARNING: native turn provenance patch unsupported; runtime drift requires review." >&2
+fi
+
 echo "[lite] Starting OpenClaw Gateway through fast recovery path..."
 exec openclaw gateway --bind "$GATEWAY_BIND" --port "$GATEWAY_PORT" --verbose

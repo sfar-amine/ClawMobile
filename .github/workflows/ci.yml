@@ -102,6 +102,7 @@ jobs:
       - name: Native agent exec resolves auth secrets in its existing scoped owner
         run: |
           python3 ../installer/termux-lite/test-agent-exec-auth-scope.py
+          python3 ../installer/termux-lite/test-native-turn-provenance.py
           node ../installer/termux-lite/test-agent-exec-auth-scope.cjs
 
       - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
@@ -567,6 +568,7 @@ jobs:
           node scripts/test-main-comprehension-provenance.cjs
           node scripts/test-google-typed-schema.cjs
           node scripts/test-sdk-steering-loop.cjs
+          node scripts/test-native-turn-provenance.cjs
 
       - name: E3 agent cannot run operator or transaction capabilities outside the harness
         run: |

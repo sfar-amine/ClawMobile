@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "package_version": "2026.9.6",
+  "purpose": "Assign one host identity and monotonic start at canonical reply dispatch, preserve them through existing direct/followup owners and protected user transport. Observe admitted input and confirmed steer adoption via the existing public transcript event, independent of optional channel received hooks. No semantic routing, auto-interrupt, authority or new queue/store.",
+  "files": [
+    {
+      "root": "openclaw",
+      "path": "dist/dispatch-from-config-Cu599NRF.mjs",
+      "original": "882ec5ebec4e1a93aee395b2c0ab59a4f57d9819c1ea943103d405b39ffc1400",
+      "patched": "33966feaa679584f6469cf496069105920c11d2b12de9b22e40a5cab12e70876",
+      "replacements": [
+        [
+          "async function dispatchReplyFromConfigWithQueuePolicy(params, allowActiveQueueResolution) {",
+          "// Samantha native turn provenance v1: one host identity before hooks and retries, reused by the existing executor.\nfunction prepareNativeInboundRunOptions(options) {\n return {...options, runId: options?.runId ?? crypto.randomUUID(), nativeIngressObservedMonoMs: Number(process.hrtime.bigint() / 1000000n)};\n}\nasync function dispatchReplyFromConfigWithQueuePolicy(params, allowActiveQueueResolution) {\n\tparams = {...params, replyOptions: prepareNativeInboundRunOptions(params.replyOptions)};"
+        ],
+        [
+          "\t\tconst nextHookContext = deriveInboundMessageHookContext(sourceCtx, { messageId: messageIdForHook });",
+          "\t\tconst nextHookContext = {...deriveInboundMessageHookContext(sourceCtx, { messageId: messageIdForHook }), runId: normalizedParams.replyOptions.runId};"
+        ]
+      ]
+    },
+    {
+      "root": "openclaw",
+      "path": "dist/get-reply-DXzvDRjY.mjs",
+      "original": "a3b812cce700c1436d390b0733a68d1c7d374f9b28f32bf3521ea3c38b664a77",
+      "patched": "7e40b4c29bcbeb1b403cc5d220f0135b486cd15b7e37b1c4f8eb08b26df10556",
+      "replacements": [
+        [
+          "\tconst transport = conversationRef || transportMessageId || transportReplyToId || transportThreadId || transportChannel ? {\n",
+          "\tconst transport = conversationRef || transportMessageId || transportReplyToId || transportThreadId || transportChannel ? {\n\t\t.../^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(opts?.runId ?? '') ? { ingressRunId: opts.runId, ...(Number.isSafeInteger(opts.nativeIngressObservedMonoMs) && opts.nativeIngressObservedMonoMs >= 0 ? { ingressObservedMonoMs: opts.nativeIngressObservedMonoMs } : {}) } : {},\n"
+        ],
+        [
+          "\tconst followupRun = {\n\t\tprompt: queuedBody,",
+          "\tconst followupRun = {\n\t\t.../^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(opts?.runId ?? '') ? { ingressRunId: opts.runId } : {},\n\t\tprompt: queuedBody,"
+        ]
+      ]
+    },
+    {
+      "root": "openclaw",
+      "path": "dist/agent-runner.runtime-DH-TOu7I.mjs",
+      "original": "f3e2b410e2089ac1c8834df5ef2ba7813cbbf2c5f36844861b1d8d8c446f2644",
+      "patched": "a80b77f0ff45cdd2dc7c3f342bb4fab84907ffaf984d3ef9dbf2ba78e9c50d64",
+      "replacements": [
+        [
+          "\t\t\trunId: crypto.randomUUID(),\n\t\t\tqueued:",
+          "\t\t\trunId: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(queued.ingressRunId ?? '') ? queued.ingressRunId : crypto.randomUUID(),\n\t\t\tqueued:"
+        ]
+      ]
+    }
+  ]
+}

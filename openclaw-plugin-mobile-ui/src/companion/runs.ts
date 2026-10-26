@@ -29,7 +29,7 @@ type StoredRun = {
   /** Native SDK correlation stored by this same owner; hidden from product history. */
   turnSurface?: "app" | "whatsapp" | "voice";
   measurementOnly?: true;
-  nativeTurn?: {version:1;deadlineAt:number;clockEpoch:string;startedMono:number;notice:"pending"|"attempted"|"accepted"|"uncertain"|"cancelled";
+  nativeTurn?: {version:1;deadlineAt:number;clockEpoch:string;startedMono:number;ingressPending?:true;adoptedByRunId?:string;adoptedMono?:number;notice:"pending"|"attempted"|"accepted"|"uncertain"|"cancelled";
     accountId?:string;ended?:boolean;deliveredMono?:number;route:"tool"|"question"|"answer"|"reflex"|null;model?:string;decisionMs:number|null;toolMs:number|null};
   gatewayObservation?: GatewayObservation;
   gatewayProgress?: CompanionRunProgress;
@@ -1011,6 +1011,9 @@ function nativeTurnMetadata(v:any):StoredRun["nativeTurn"]{
     !["pending","attempted","accepted","uncertain","cancelled"].includes(v.notice)||
     (v.route!==null&&!["tool","question","answer","reflex"].includes(v.route)))return undefined;
   return {version:1,deadlineAt:v.deadlineAt,startedMono:v.startedMono,clockEpoch:v.clockEpoch,notice:v.notice,
+    ...(v.ingressPending===true?{ingressPending:true as const}:{}),
+    ...(/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(v.adoptedByRunId||'')?{adoptedByRunId:v.adoptedByRunId}:{}),
+    ...(Number.isSafeInteger(v.adoptedMono)&&v.adoptedMono>=0?{adoptedMono:v.adoptedMono}:{}),
     ...(typeof v.accountId==="string"&&/^[A-Za-z0-9_.-]{1,80}$/.test(v.accountId)?{accountId:v.accountId}:{}),
     ...(v.ended===true?{ended:true}:{}),...(Number.isSafeInteger(v.deliveredMono)&&v.deliveredMono>=v.startedMono?{deliveredMono:v.deliveredMono}:{}),route:v.route,
     ...(typeof v.model==="string"&&/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/.test(v.model)?{model:v.model}:{}),
@@ -1020,11 +1023,23 @@ function nativeTurnMetadata(v:any):StoredRun["nativeTurn"]{
 export async function recordNativeWhatsAppIngress(runId:string,sessionKey:string,accountId?:string,observedMonoMs?:number){
   const mono=nativeMono();
   if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(runId)||!/^agent:main:whatsapp:direct:\+?[1-9][0-9]{7,14}$/.test(sessionKey)||
-    accountId!==undefined&&(typeof accountId!=="string"||!/^[A-Za-z0-9_.-]{1,80}$/.test(accountId))||!Number.isSafeInteger(observedMonoMs)||observedMonoMs! < 0||observedMonoMs! > mono||mono-observedMonoMs! > 10000)
+    accountId!==undefined&&(typeof accountId!=="string"||!/^[A-Za-z0-9_.-]{1,80}$/.test(accountId))||!Number.isSafeInteger(observedMonoMs)||observedMonoMs! < 0||observedMonoMs! > mono||mono-observedMonoMs! > 600000)
     throw Object.assign(Error("invalid_turn_measurement"),{statusCode:400});
   return mutateRegistry(async()=>{
     const registry=await registryOrEmpty(),existing=registry.runs.find(r=>r.runId===runId);
-    if(existing){if(!existing.measurementOnly||existing.sessionKey!==sessionKey)throw Object.assign(Error("turn_measurement_identity_conflict"),{statusCode:409});return existing.nativeTurn;}
+    if(existing){
+      if(!existing.measurementOnly||existing.sessionKey!==sessionKey||existing.nativeTurn?.accountId&&accountId&&existing.nativeTurn.accountId!==accountId)
+        throw Object.assign(Error("turn_measurement_identity_conflict"),{statusCode:409});
+      if(existing.nativeTurn?.ingressPending&&existing.nativeTurn.clockEpoch===NATIVE_CLOCK_EPOCH){
+        const now=Date.now(),nativeTurn={...existing.nativeTurn,ingressPending:undefined,startedMono:observedMonoMs!,
+          deadlineAt:now+600000-(mono-observedMonoMs!),...(accountId?{accountId}:{})};
+        const updated:StoredRun={...existing,nativeTurn,acceptedAt:now-(mono-observedMonoMs!),updatedAt:now,
+          state:existing.nativeTurn.ended?existing.state:"running"};
+        await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?updated:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+        return nativeTurn;
+      }
+      return existing.nativeTurn;
+    }
     const now=Date.now();const row:StoredRun={runId,sessionKey,sessionId:"whatsapp-"+createHash("sha256").update(sessionKey).digest("hex").slice(0,24),
       executionSource:"gateway",text:"",acceptedAt:now-(mono-observedMonoMs!),updatedAt:now,state:"running",turnSurface:"whatsapp",measurementOnly:true,
       nativeTurn:{version:1,deadlineAt:now+600000-(mono-observedMonoMs!),clockEpoch:NATIVE_CLOCK_EPOCH,startedMono:observedMonoMs!,notice:"cancelled",route:null,
@@ -1036,25 +1051,64 @@ export async function recordNativeWhatsAppIngress(runId:string,sessionKey:string
 export async function nativeTurnProgressState(runId:string){
   const row=(await registryOrEmpty()).runs.find(r=>r.runId===runId&&r.measurementOnly);
   return row?.nativeTurn?{runId,sessionId:row.sessionId,sessionKey:row.sessionKey!,state:row.state,ended:row.nativeTurn.ended,
-    clockEpoch:row.nativeTurn.clockEpoch,deadlineAt:row.nativeTurn.deadlineAt,notice:row.nativeTurn.notice,accountId:row.nativeTurn.accountId}:null;
+    clockEpoch:row.nativeTurn.clockEpoch,deadlineAt:row.nativeTurn.deadlineAt,notice:row.nativeTurn.notice,accountId:row.nativeTurn.accountId,
+    ingressPending:row.nativeTurn.ingressPending,adoptedByRunId:row.nativeTurn.adoptedByRunId}:null;
 }
 /** deadlineAt is this observation’s remaining 10-minute freshness, NOT the L4 delivery budget.
  * Positive observation only: one exact-session live turn in this owner's clock epoch, never the latest turn. */
 export async function activeObservedNativeWhatsAppRun(sessionKey:string,options:{excludeRunId?:string}={}){
   const now=nativeMono();
   const candidates=(await registryOrEmpty()).runs.filter(r=>r.measurementOnly&&r.sessionKey===sessionKey&&r.runId!==options.excludeRunId&&
-    r.state==="running"&&r.nativeTurn&&!r.nativeTurn.ended&&r.nativeTurn.clockEpoch===NATIVE_CLOCK_EPOCH&&
+    r.state==="running"&&r.nativeTurn&&!r.nativeTurn.ingressPending&&!r.nativeTurn.adoptedByRunId&&!r.nativeTurn.ended&&r.nativeTurn.clockEpoch===NATIVE_CLOCK_EPOCH&&
     now>=r.nativeTurn.startedMono&&now-r.nativeTurn.startedMono<=600000);
   if(candidates.length!==1)return null;
   const row=candidates[0];return {runId:row.runId,sessionKey:row.sessionKey!,clockEpoch:row.nativeTurn!.clockEpoch,
     deadlineAt:Date.now()+Math.max(0,600000-(now-row.nativeTurn!.startedMono)),state:"running" as const,observationSource:"sdk_message_received" as const};
 }
-export async function observeNativeTurnEnd(runId:string,_model:string|undefined,success:boolean){
+/** Out-of-order callback placeholders stay in the same bounded ledger and are never active evidence. */
+function pendingNativeObservation(runId:string,sessionKey:string,mono:number):StoredRun {
+  return {runId,sessionKey,sessionId:"whatsapp-"+createHash("sha256").update(sessionKey).digest("hex").slice(0,24),
+    executionSource:"gateway",text:"",acceptedAt:Date.now(),updatedAt:Date.now(),state:"unknown",turnSurface:"whatsapp",measurementOnly:true,
+    nativeTurn:{version:1,deadlineAt:Date.now()+600000,clockEpoch:NATIVE_CLOCK_EPOCH,startedMono:mono,ingressPending:true,
+      notice:"cancelled",route:null,decisionMs:null,toolMs:null}};
+}
+function requireNativeObservationIdentity(runId:string,sessionKey:string){
+  if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(runId)||
+    !/^agent:main:whatsapp:direct:\+?[1-9][0-9]{7,14}$/.test(sessionKey))throw Object.assign(Error("invalid_turn_measurement"),{statusCode:400});
+}
+export async function observeNativeTurnAdoption(runId:string,sessionKey:string,targetRunId:string,observedMonoMs:number){
+  requireNativeObservationIdentity(runId,sessionKey);requireNativeObservationIdentity(targetRunId,sessionKey);
+  const mono=nativeMono();
+  if(runId===targetRunId||!Number.isSafeInteger(observedMonoMs)||observedMonoMs<0||observedMonoMs>mono||mono-observedMonoMs>10000)
+    throw Object.assign(Error("invalid_turn_measurement"),{statusCode:400});
+  return mutateRegistry(async()=>{
+    const registry=await registryOrEmpty(),existing=registry.runs.find(r=>r.runId===runId),target=registry.runs.find(r=>r.runId===targetRunId);
+    const row=existing||pendingNativeObservation(runId,sessionKey,observedMonoMs);
+    if(!row.measurementOnly||row.sessionKey!==sessionKey||!row.nativeTurn||row.nativeTurn.clockEpoch!==NATIVE_CLOCK_EPOCH||
+      row.nativeTurn.adoptedByRunId&&row.nativeTurn.adoptedByRunId!==targetRunId||target&&(!target.measurementOnly||target.sessionKey!==sessionKey||!target.nativeTurn||target.nativeTurn.clockEpoch!==NATIVE_CLOCK_EPOCH||target.nativeTurn.adoptedByRunId||mono-target.nativeTurn.startedMono>600000))
+      throw Object.assign(Error("turn_measurement_identity_conflict"),{statusCode:409});
+    // Never extend freshness or reopen a terminal row. A duplicate keeps the first binding timestamp.
+    if(mono-row.nativeTurn.startedMono>600000)throw Object.assign(Error("turn_measurement_identity_conflict"),{statusCode:409});
+    const ended=target?.nativeTurn?.clockEpoch===NATIVE_CLOCK_EPOCH&&target.nativeTurn.ended===true;
+    const updated:StoredRun={...row,updatedAt:Date.now(),...(ended?{state:target!.state}:{}),nativeTurn:{...row.nativeTurn,
+      adoptedByRunId:targetRunId,adoptedMono:row.nativeTurn.adoptedMono??observedMonoMs,...(ended?{ended:true}:{})}};
+    const rows=existing?registry.runs.map(r=>r.runId===runId?updated:r):[updated,...registry.runs];
+    await writeCompanionRunRegistry(rows,registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+  });
+}
+export async function observeNativeTurnEnd(runId:string,_model:string|undefined,success:boolean,sessionKey?:string){
   await mutateRegistry(async()=>{
-    const registry=await registryOrEmpty(),row=registry.runs.find(r=>r.runId===runId&&r.measurementOnly);
-    if(!row?.nativeTurn||row.nativeTurn.ended)return;
-    const updated:StoredRun={...row,state:success?"done":"failed",updatedAt:Date.now(),nativeTurn:{...row.nativeTurn,ended:true}};
-    await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?updated:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+    const registry=await registryOrEmpty(),existing=registry.runs.find(r=>r.runId===runId);
+    if(!existing&&!sessionKey)return;
+    if(sessionKey)requireNativeObservationIdentity(runId,sessionKey);
+    const row=existing||pendingNativeObservation(runId,sessionKey!,nativeMono());
+    if(!row.measurementOnly||!row.nativeTurn||sessionKey&&row.sessionKey!==sessionKey)throw Object.assign(Error("turn_measurement_identity_conflict"),{statusCode:409});
+    if(row.nativeTurn.clockEpoch!==NATIVE_CLOCK_EPOCH||row.nativeTurn.ended)return;
+    const settle=(r:StoredRun):StoredRun=>({...r,state:success?"done":"failed",updatedAt:Date.now(),nativeTurn:{...r.nativeTurn!,ended:true}});
+    const source=existing?registry.runs:[row,...registry.runs];
+    const rows=source.map(r=>r.runId===runId||r.measurementOnly&&r.sessionKey===row.sessionKey&&r.nativeTurn?.clockEpoch===NATIVE_CLOCK_EPOCH&&
+      r.nativeTurn.adoptedByRunId===runId?settle(r):r);
+    await writeCompanionRunRegistry(rows,registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
   });
 }
 

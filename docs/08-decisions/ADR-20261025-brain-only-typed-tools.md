@@ -67,3 +67,12 @@ La file SDK n’est pas déclarée résolue par ces tests : une observation UUID
 
 
 Audit complémentaire du26/10 : [admission/consommation steer et sérialisation Gemini](../work/samantha-refonte/L3-native-steer-google-audit-20261026.md). Le SDK public installé possède un chemin natif vers le même AgentLoop et conserve son contexte avant agent_end ; le test exécute la boucle capturée avec frontière provider factice. Cela permet une fin naturelle choisie par le cerveau et ne lève pas l’interdiction de selfabort. La sérialisation Google installée utilise parametersJsonSchema et préserve les unions/objets fermés. Les tests capturés sont verts ; le mode effectif et la décision du modèle restent à recetter, le rattachement positif des ingress adoptés reste à raccorder chez le propriétaire existant.
+
+
+### Compatibilité du producteur UUID et adoption confirmée
+
+La lecture du runtime, en plus des types, montre que le producteur `message_received` installé ne fournit pas l’UUID annoncé. Le patch-set hashé `native-turn-provenance` du propriétaire openclaw-compat existant prépare cet UUID au dispatch, le conserve dans les options/followup et dans le transport natif protégé. L’API publique déjà installée `api.runtime.events.onSessionTranscriptUpdate` publie après consommation/persistance la paire ingressRunId/steerTargetRunId ; le plugin la transmet au même writer Companion. Aucune annotation de texte ou clé logique n’est utilisée comme preuve.
+
+L’ordre des callbacks est fusionné dans les rows existantes par marqueurs pending non actifs, binding immuable et clôture native des alias exacts ; aucun autre store, worker, ordonnanceur ou retry. La fraîcheur10min reste issue du véritable ingress et n’est jamais prolongée. L’en-tête HTTP et le JSON d’observation n’autorisent toujours pas un abort ; admissionSDKcourante et lecture positive des activeRunIds restent requises. La description de l’outil explique au cerveau de terminer naturellement son propre tour s’il comprend une demande d’arrêt de ce travail ; aucun lexique/pré-routeur ne prend cette décision.
+
+Le patch de trois modules a ses empreintes avant/après, captures publiques et rollback dans [l’audit](../work/samantha-refonte/L3-native-steer-google-audit-20261026.md). Une version ou un hash inconnu ferme la synchronisation plutôt qu’une application approximative. Les copies Gateway suivent le même propriétaire de déploiement et son redémarrage ; aucune application du patch ni recette réelle n’est revendiquée par la préparation source.
