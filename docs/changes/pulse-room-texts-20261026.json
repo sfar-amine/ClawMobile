@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "id": "pulse-room-texts-20261026",
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Two Pulse room texts, worded by Amine on 26/10. A request outside the room's commands asks to rephrase without naming phases only. A leave request is presented as a constraint: the room acts with Amine's Pulse account, so a leave posted there would be recorded as Amine's.",
+  "reason": "The native room refusal still said « Précise le projet, la phase et l’état souhaité » although the room now also creates projects and offers. The leave text read as a bare refusal; Amine wants the reason given (« ce n'est pas un refus mais une contrainte »).",
+  "files": [
+    "installer/termux-lite/pulse-room.py",
+    "installer/termux-lite/test-pulse-room.py",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+    "openclaw-plugin-mobile-ui/src/pulseRoomFastPath.ts",
+    "docs/changes/pulse-room-texts-20261026.json",
+    "docs/changes/pulse-room-texts-20261026.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+      "status": "passed",
+      "evidence": "Built with npm run build; the native OUTSIDE_SCOPE reply is PULSE_ROOM_NOT_UNDERSTOOD and the leave request reply is LEAVE_REQUEST_REFUSAL, both exported and asserted."
+    },
+    {
+      "name": "installer/termux-lite/test-pulse-room.py",
+      "status": "passed",
+      "evidence": "2 tests: the room agent rules carry the same leave constraint."
+    }
+  ],
+  "documentation": [
+    "docs/changes/pulse-room-texts-20261026.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Texts only; no capability, route or scope change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Two constants and one agent rule line in the existing room adapter."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: room reply texts only; no MCP schema, adapter or endpoint changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Takes effect after a Companion deploy and a refresh of the room agent rules."
+  ],
+  "rollback": "Revert this commit."
+}

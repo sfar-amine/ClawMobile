@@ -54,7 +54,7 @@ async function main() {
   // Outside the room, and the leave request: the coordinator refused before execution; the room gives the form.
   for (const [reply, expected] of [
     [{ outcome: "OUTSIDE_SCOPE", reasonCode: "scope_outside", handled: true }, mod.PULSE_ROOM_REFUSAL],
-    [{ outcome: "DENIED", reasonCode: "scope_leave_request", handled: true }, "Une demande de congé se fait uniquement par Amine."],
+    [{ outcome: "DENIED", reasonCode: "scope_leave_request", handled: true }, mod.LEAVE_REQUEST_REFUSAL],
   ]) {
     r = runner(() => reply);
     assert.deepEqual(await mod.handlePulseRoomFastPath(ev("x"), ctx(), r), { handled: true, reply: { text: expected } });
@@ -165,6 +165,11 @@ async function main() {
     assert.equal(out.reply.text,render.FAILURE_PHRASES.fr[code]);
     assert(!out.reply.text.includes('UNTRUSTED_CANARY'));assert.equal(r.calls.length,1);
   }
+  // Native room: a request outside the room's commands asks to rephrase, never names one use case only.
+  r=runner(()=>({outcome:'OUTSIDE_SCOPE',reasonCode:'scope_outside',handled:true}));
+  assert.equal((await mod.handlePulseRoomFastPath(ev('fais quelque chose'),ctx(),r)).reply.text,mod.PULSE_ROOM_NOT_UNDERSTOOD);
+  assert.match(mod.PULSE_ROOM_NOT_UNDERSTOOD,/créer, modifier ou consulter/);
+  assert.match(mod.LEAVE_REQUEST_REFUSAL,/compte Pulse d’Amine/);assert.doesNotMatch(mod.LEAVE_REQUEST_REFUSAL,/pièce/);
   // Native room: every request of the message gets its own admission (eventRef and text bound), turn and hand-off.
   r=runner((m,o)=>o.dialogue.mode==='turn'?{outcome:'READY',handled:true,pendingHandoff:{goalRef:'g-'+o.dialogue.event.eventRef,klass:'FAST'}}
     :{outcome:'COMPLETED',text:'fait : '+m,handled:true});
