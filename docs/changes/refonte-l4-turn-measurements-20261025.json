@@ -14,6 +14,7 @@
     "installer/termux-lite/companion-acceptance.py",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-turn-measurement/sdk-source-metadata.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-turn-measurement/voice-qa2-observation.json",
+    "openclaw-plugin-mobile-ui/scripts/test-control-comprehension.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-native-turn-progress.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-turn-measurement.cjs",
     "openclaw-plugin-mobile-ui/src/companion/control-health.ts",
@@ -40,6 +41,11 @@
       "name": "Integrated source diff integrity",
       "status": "passed",
       "evidence": "git diff --check PASS après merge normal de74b2, base ancêtre ; validation stricte des fiches et couverture vérifiées séparément avant CI. Aucun comportement supplémentaire qualifié par ce contrôle."
+    },
+    {
+      "name": "Integrated L2/L3/L4 provenance, measurements and comprehension",
+      "status": "passed",
+      "evidence": "TypeScript build PASS after normal merges42422f23c9 and419e002. Five suites PASS: test-turn-measurement, test-native-turn-progress, test-native-turn-observation, test-main-comprehension-provenance, test-control-comprehension. First measurement test used an obsolete native-http label; replaced by an authored strict UUID and rerun all five suites successfully. Full log preserves initial failure and transient missing local dependency symlink, then final PASS; l4-integrated-focused-20261026.log SHA256af9dbc7934aaef4a15a147711e3706d0f6248166d06698fdc5e17447efee2d3a. Actual S24 baseline25runs/9qualifiedlegacy/2CLARIFY preserved; authored main cohort+negative trust-boundary cases PASS; projection5006ms, HTTP35ms. Full canonical exact-head CI and native delivery remain pending."
     }
   ],
   "capabilities": {
