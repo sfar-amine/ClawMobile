@@ -62,6 +62,16 @@
       "name": "Canonical closed run-diagnostic owner regression after full CI refusal",
       "status": "passed",
       "evidence": "Full CI425745504fe refused at stage60 because recordTurnMeasurement introduced a console.log outside runDiagnostic. The direct call is removed; fixed code turn_measurement_recorded is projected by the same runDiagnostic, one console only, unchanged AST ownership guard. Successful turn payload is revalidated, arbitrary fields/prose refuse, secret-looking model identifiers are omitted; persistence/idempotence and failed-sink behavior verified. One focused passage on CPU2,3 with canonical Node26.11.1: TypeScript plus run-owner-diagnostics14/14, turn-measurement, native-turn-progress and gateway-run-observation PASS. Log l4-diagnostic-fix-focused-20261026.log SHA2563bcda4136ef95b3098c6034a13750f3f6e13b1d3f951627d1530ccebd70886c2. This does not convert refused full7455 into PASS; a new exact-head canonical full is required."
+    },
+    {
+      "name": "Historical exact-head isolated full CI",
+      "status": "passed",
+      "evidence": "1ba495c4e1b6ecffcc987dd5bec9a573e71cfc56 / baseD8:3jobs157steps PASS with canonical localci and isolated4CPU, unchanged budgets. Durable proof core425-1ba-isolated-ci-proof-comment.md; log SHA256e8d811c8075629b72f258e4bcbeec604a8d30813dd35ec618062752f62425c4e. This historical result does not qualify c6a, the new diagnostic set or the later combined tree."
+    },
+    {
+      "name": "Preserved C2 transport and diagnostic integration focused validation",
+      "status": "passed",
+      "evidence": "Sourcefcc9743e TypeScript,3Node suites(helper-process Termux shim, capability bridge, run diagnostics) and2Python suites(Companion acceptance settle, native provenance7cases) passed in the single grouped execution. The final perf suite initially refused fixture async/process; corrected by test-only87edde/29446 and executed once at source2f80fdaf:5tests PASS1.526s. Log core425-prep-complement-29446-20261026.log SHA2565f6648d1b2e7c07b98e4bb1b1f84651f5372b82804163acb89baa282e27d0a83. Product SDK manifests unchanged by fixture fixes. Canonical private sourcec6a merged normally; exact combined428 full still required."
     }
   ],
   "capabilities": {
@@ -111,5 +121,15 @@
     "Canonical final head CI on Node26.11.1 and real app/voice/WhatsApp acceptance after L3 gate",
     "Real managed WA typing and >30s notice with exact native account; deferred final audio actually played",
     "Native dispatch timestamp origin must be measured separately from transport arrival/STT; unknown first sign remains null"
-  ]
+  ],
+  "source_integration": {
+    "canonical_base": "c6a8061f7b38804dce4ff1dabac40f53e94a6a21",
+    "preserved_canonical_changes": [
+      "PR437 Gateway-backed readiness",
+      "PR438 helper stdin under the actual Termux shim",
+      "PR440 RFC7396 direct-rule deletion and Pulse room grant"
+    ],
+    "diagnostic_sdk_set": "gateway-prep-stages, three disjoint pinned public modules, explicit root-owned activation only",
+    "qualification": "Historical head1ba/baseD8 full157 steps passed isolated4CPU. The new source union requires exact combined428 canonical CI; no activation or native acceptance inferred."
+  }
 }

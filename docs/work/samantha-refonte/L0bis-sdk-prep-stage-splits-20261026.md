@@ -132,8 +132,9 @@ Le tracker public exact vérifie qu'une aggregate artificielle de75ms reste75ms
 avant/après, même avec71ms de sous-spans explicites. Les appels, résultats et
 erreurs restent identiques, y compris exception runtime et finalisation spéciale.
 
-Le ciblé et la CI canonique finale restent à exécuter ; aucun gain ou PASS S24
-n'est anticipé. Cette livraison corrige le trou de diagnostic, pas encore le coût
+Le ciblé exact2f80fdaf a passé ses5tests en1.526s avec Node26.11.1 ;
+la CI canonique de l’arbre combiné final reste requise, et aucun gain ou PASS S24
+n’est anticipé. Cette livraison corrige le trou de diagnostic, pas encore le coût
 sous-jacent. La mesure suivante doit nommer le propriétaire coûteux avant un
 correctif de performance. La cause du system-prompt et le délai avant réservation
 restent distincts et ouverts ; leurs durées ne sont pas attribuées à un fournisseur.

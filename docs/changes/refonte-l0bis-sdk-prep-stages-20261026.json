@@ -6,7 +6,7 @@
   "kind": "repair",
   "summary": "Split proven slow plugin and system-prompt preparation through existing SDK callbacks/explicit spans and an independently reversible compatibility owner.",
   "reason": "Exact public native run: plugin-tools11154ms but53factories total16ms, system-prompt3496ms. Native source needs closed sub-owner attribution before a performance fix; explicit prompt spans preserve the original aggregate checkpoint.",
-  "rollback": "Use the same pinned whatsapp-network-recovery.py --patch-set gateway-prep-stages --rollback, restart through the existing Gateway owner, verify both original hashes and new ready PID. No runtime config rollback or business-data deletion.",
+  "rollback": "Use the same pinned whatsapp-network-recovery.py --patch-set gateway-prep-stages --rollback, restart through the existing Gateway owner, verify all three original hashes and new ready PID. No runtime config rollback or business-data deletion.",
   "files": [
     ".github/workflows/ci.yml",
     "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
@@ -31,9 +31,9 @@
   ],
   "tests": [
     {
-      "name": "Pinned public native SDK transaction and exact resolver VM behavior",
-      "status": "pending",
-      "evidence": "test-gateway-prep-stages.py registered in the same CI; captured original/patched resolver and system-prompt functions run in VM with inert owners and the exact public stage tracker. Parent aggregate75ms stays75ms despite71ms of explicit child spans. Targeted execution awaits coordinator lane then final combined canonical qualification; no native gain claimed."
+      "name": "Pinned public SDK atomic compatibility transaction and exact resolver/system-prompt VM",
+      "status": "passed",
+      "evidence": "Source2f80fdafa5ac2554804197a1dc5ee73accaed02f, canonical Node26.11.1, isolated4CPU:5Python tests PASS in1.526s, exit0, including original/patched exact resolver and async prompt VM, application/check/idempotence/rollback, unknown version/hash/symlink refusal, paths disjoint and no automatic hook. Fakeclock parent75ms stays75ms despite71ms overlapping child spans. VM environment is a frozen empty env and public argv constants, never host process. Log core425-prep-complement-29446-20261026.log SHA2565f6648d1b2e7c07b98e4bb1b1f84651f5372b82804163acb89baa282e27d0a83. Earlier VM fixture failures async/process remain preserved. No SDK/S24/model/auth effect, performance gain or final combined-head canonical CI claimed."
     }
   ],
   "capabilities": {

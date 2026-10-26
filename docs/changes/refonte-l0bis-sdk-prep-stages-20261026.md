@@ -34,3 +34,5 @@ diagnostic ; aucun gain ni clôture L0bis n'est anticipé.
 
 La procédure et les limites sont dans
 [le runbook L0bis](../work/samantha-refonte/L0bis-sdk-prep-stage-splits-20261026.md).
+
+Focused validation: source2f80fdaf, Node26.11.1,5tests PASS1.526s, exit0; durable log core425-prep-complement-29446-20261026.log SHA2565f6648d1b2e7c07b98e4bb1b1f84651f5372b82804163acb89baa282e27d0a83. Original and patched functions retain behavior and75ms parent aggregate; child spans overlap. Previous VM fixture refusals remain retained. Final combined-head canonical CI and native root-owned attribution remain pending.
