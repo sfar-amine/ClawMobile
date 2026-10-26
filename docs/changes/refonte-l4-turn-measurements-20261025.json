@@ -12,10 +12,15 @@
     "docs/changes/refonte-l4-turn-measurements-20261025.json",
     "docs/changes/refonte-l4-turn-measurements-20261025.md",
     "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/openclaw-compat/native-turn-provenance.json",
+    "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
+    "installer/termux-lite/test-native-turn-provenance.py",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-turn-measurement/sdk-source-metadata.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-turn-measurement/voice-qa2-observation.json",
     "openclaw-plugin-mobile-ui/scripts/test-control-comprehension.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-native-turn-progress.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-native-turn-provenance.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-turn-measurement.cjs",
     "openclaw-plugin-mobile-ui/src/companion/control-health.ts",
     "openclaw-plugin-mobile-ui/src/companion/runs.ts",
@@ -46,6 +51,11 @@
       "name": "Integrated L2/L3/L4 provenance, measurements and comprehension",
       "status": "passed",
       "evidence": "TypeScript build PASS after normal merges42422f23c9 and419e002. Five suites PASS: test-turn-measurement, test-native-turn-progress, test-native-turn-observation, test-main-comprehension-provenance, test-control-comprehension. First measurement test used an obsolete native-http label; replaced by an authored strict UUID and rerun all five suites successfully. Full log preserves initial failure and transient missing local dependency symlink, then final PASS; l4-integrated-focused-20261026.log SHA256af9dbc7934aaef4a15a147711e3706d0f6248166d06698fdc5e17447efee2d3a. Actual S24 baseline25runs/9qualifiedlegacy/2CLARIFY preserved; authored main cohort+negative trust-boundary cases PASS; projection5006ms, HTTP35ms. Full canonical exact-head CI and native delivery remain pending."
+    },
+    {
+      "name": "Integrated actual native ingress/adoption, account-bound notices and terminal timing",
+      "status": "passed",
+      "evidence": "Source975d174a integrates42421a5dd14 and perfcd428c6e by normal merges. TypeScript build and6 Node suites PASS withNode26.12.1 (measurement, native progress/adoption/delivery races, observation, captured provenance/account, Gateway timing, owner admission84). The single passage then stopped on an incorrect command name test-conversations-v2; no product failure. Correct remaining suites executed once with canonicalNode26.11.1: conversation-pages500runs/50sessions and control-comprehension PASS; Python compatibility7tests PASS including pinned predecessor upgrade/rollback and actual-Git changed-manifest rollback guard. First log l4-adoption-perf-focused-20261026.log SHA256f09194c380ad9f34aed6b6b34c0a7d5796dc756a8cbcf80df175ccea197e09e4; complement log l4-adoption-perf-focused-v2-20261026.log SHA256f062388bddde22783e18078fb2fcd6c7ebbf7083c367ae3b85c28fe759da6cf4. No full canonical exact-head CI or native activation claimed."
     }
   ],
   "capabilities": {
@@ -90,5 +100,10 @@
       "capability": "NO_CAPABILITY",
       "reason": "Télémétrie locale fermée des propriétaires existants, sans action métier exposée."
     }
+  ],
+  "pending_validation": [
+    "Canonical final head CI on Node26.11.1 and real app/voice/WhatsApp acceptance after L3 gate",
+    "Real managed WA typing and >30s notice with exact native account; deferred final audio actually played",
+    "Native dispatch timestamp origin must be measured separately from transport arrival/STT; unknown first sign remains null"
   ]
 }
