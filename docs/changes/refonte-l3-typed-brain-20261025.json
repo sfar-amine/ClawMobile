@@ -20,11 +20,14 @@
     "installer/termux-lite/claw-capability.py",
     "installer/termux-lite/companion-acceptance.py",
     "installer/termux-lite/model-fast-path.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-turn-measurement/sdk-source-metadata.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-typed-tools/README.md",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-typed-tools/compiled-agent-tools.json",
     "openclaw-plugin-mobile-ui/openclaw.plugin.json",
     "openclaw-plugin-mobile-ui/scripts/test-brain-only-entry.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-generation-interrupt.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-main-comprehension-provenance.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-native-turn-observation.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
     "openclaw-plugin-mobile-ui/src/brainOnly.ts",
     "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
@@ -33,12 +36,16 @@
     "openclaw-plugin-mobile-ui/src/companion/clawLiveUnderstanding.ts",
     "openclaw-plugin-mobile-ui/src/companion/intent.ts",
     "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/nativeOperation.ts",
     "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
     "openclaw-plugin-mobile-ui/src/companion/server.ts",
     "openclaw-plugin-mobile-ui/src/companion/voiceBrainDelegation.ts",
     "openclaw-plugin-mobile-ui/src/index.ts",
     "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
     "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/nativeTurnProgress.ts",
+    "openclaw-plugin-mobile-ui/src/nativeTurnProgressOwner.ts",
     "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts"
   ],
   "tests": [
@@ -56,6 +63,11 @@
       "name": "Scoped Native Pulse port and owner isolation after retirement",
       "status": "passed",
       "evidence": "l3-resume-pulse-build.log project TypeScript PASS; brain-only-entry, native-pulse-handoff34/34 and intent-interpreter-port PASS. Current sealed contact admitted; forged JSON/correlat/model/text/ref/catalogue, revocation and released lease cause zero provider calls. Authored public identities use independently derived canonical Python refs. No S24/model call; final merged-head canonical CI remains pending."
+    },
+    {
+      "name": "L3 native WhatsApp UUID observation and comprehension provenance",
+      "status": "passed",
+      "evidence": "l3-wa-comprehension-build.log project TypeScript PASS; l3-wa-comprehension-focused.log native-turn-observation/generation-interrupt/brain-only-entry/typed-tools PASS. Main comprehension fixture epoch was first invalid then corrected to authored UUID, l3-main-comprehension-focused-v2.log PASS. Same existing run owner, no model/S24 call. Full canonical final-head CI/live Stop before agent_end remain pending."
     }
   ],
   "documentation": [
@@ -65,7 +77,7 @@
   ],
   "capabilities": {
     "impact": "none",
-    "reason": "Canonical registry belongs to samantha-ui-playbooks. Core implements the paired PB314 declarations samantha.app.conversation.active_generations and samantha.app.conversation.interrupt without duplicating its registry; scoped SDK callback RPC is internal, not a separate user capability."
+    "reason": "Canonical registry belongs to samantha-ui-playbooks. Core implements the paired PB314 declarations samantha.app.conversation.active_generations and samantha.app.conversation.interrupt without duplicating its registry; scoped SDK callback RPC is internal, not a separate user capability. The measurement route carries internal SDK identity observations only (NO_CAPABILITY), never user/model abort authority."
   },
   "architecture": {
     "changed": true,
@@ -108,6 +120,12 @@
       "budget": "1000 ms",
       "capability": "samantha.app.conversation.active_generations",
       "change": "bounded local owner-run metadata only"
+    },
+    {
+      "route": "POST /v1/runs/{id}/measurement",
+      "budget": "1500 ms SDK observation transport",
+      "capability": "NO_CAPABILITY: internal native SDK UUID metadata, not a user command or abort authority",
+      "change": "L3 minimum of existing L4 owner contract: native_ingress/native_end/native_active only; exact configured owner, loopback no browser headers, no message content, budget, deferred notice or metrics"
     }
   ],
   "rollback": "Disable SAMANTHA_BRAIN_ONLY; restore prior paired Companion/playbooks through existing owner deployment scripts."

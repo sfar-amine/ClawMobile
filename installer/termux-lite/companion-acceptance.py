@@ -75,6 +75,7 @@ OWNER_GUARDS = [
     ("POST", "/control/memory/import"),
     ("POST", "/control/memory/" + "a" * 64 + "/forget"),
     ("POST", "/runs/acceptance-probe/approval"),
+    ("POST", "/runs/acceptance-probe/measurement"),  # L3 SDK provenance: no owner header, no registry write.
     # 38 A2 : oublier et « Ce n'est pas ça » refusés sans en-tête propriétaire, avant tout effet.
     ("POST", "/learning/associations/" + "a" * 64 + "/forget"),
     ("POST", "/learning/not-this"),

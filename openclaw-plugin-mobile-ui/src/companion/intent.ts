@@ -184,6 +184,7 @@ async function submitTextIntent(
     return notSubmitted(normalizedSessionId, clientRunId, gateway.message);
   }
 
+  const semanticOwner=brainOnlyEnabled()&&ownerAdmitted?"main" as const:undefined;
   const responseLanguage=publicDecision(fastPathCheck.decision)?.responseLanguage;
   const promptWithAttachments = appendAttachmentContext(normalized, attachments);
   const routed = learningOnly || brainOnlyEnabled() ? null : buildAutoSkillContextForIntent(promptWithAttachments);
@@ -193,13 +194,13 @@ async function submitTextIntent(
   let runId = reservedMemoRunId || `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
   if (reservedMemoRunId) {
-    if (!await claimMemoDispatch(runId, normalized, "gateway", undefined, undefined, () => currentMemoOwner(options.admission, clientRunId, normalizedSessionId), ownerAdmitted)) return notSubmitted(normalizedSessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
+    if (!await claimMemoDispatch(runId, normalized, "gateway", undefined, undefined, () => currentMemoOwner(options.admission, clientRunId, normalizedSessionId), ownerAdmitted, undefined, semanticOwner)) return notSubmitted(normalizedSessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
   } else if (clientRunId) {
     const reservation = await reserveSubmittedRun(
       submittedPrompt,
       normalizedSessionId,
       clientRunId,
-      { userText: visibleUserText, attachments, requestText: normalized, executionSource: "gateway", decision: fastPathCheck.decision, replayOf, ownerAdmitted },
+      { userText: visibleUserText, attachments, requestText: normalized, executionSource: "gateway", decision: fastPathCheck.decision, replayOf, ownerAdmitted, semanticOwner },
     );
     runId = reservation.status.runId;
     duplicate = !reservation.created;
@@ -208,7 +209,7 @@ async function submitTextIntent(
 
   const accepted = acceptedRun(runId, normalizedSessionId, options.voiceDelegation);
   if (!clientRunId) {
-    await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, decision: fastPathCheck.decision, ownerAdmitted });
+    await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, decision: fastPathCheck.decision, ownerAdmitted, semanticOwner });
   }
   void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority,
     learningOnly ? undefined : options.admission, clientRunId, options.voiceDelegation, responseLanguage);

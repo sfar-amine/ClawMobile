@@ -1,3 +1,4 @@
+import {nativeTurnProgressHooks} from './nativeTurnProgress';
 import {ownerFoundationHook} from "./ownerBootstrapContext";
 import {
   android_health,
@@ -189,6 +190,8 @@ function register(api: any) {
   // mobile runtime implementation below.
 
   api.on("before_tool_call", agentCapabilityHook);
+  const nativeProgress=nativeTurnProgressHooks();
+  api.on("agent_end",nativeProgress.ended);
   // Same authenticated Gateway transport as the existing warm port. This method
   // only checks a live SDK callback; Companion remains the sole runs.json writer.
   api.registerGatewayMethod?.(TYPED_CONTROL_ADMISSION_METHOD,typedControlAdmissionHandler,
@@ -198,6 +201,7 @@ function register(api: any) {
   // SDK 2026.9.6 emits this accepted-turn observation without awaiting it.
   // Private QA owners admit an existing DRAFT before any staged bytes are read.
   api.on("message_received", async (event:any,ctx:any) => {
+    await nativeProgress.received(event,ctx);
     await handleQaContactMediaReceived(event,ctx);
   });
 

@@ -23,6 +23,14 @@ import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatu
 
 type GatewayObservation = {version:1; epoch:string; state:"following"|"reconcile"|"settled"; deadlineAt:number; reconciled?:true};
 type StoredRun = {
+  /** Host provenance only: never accepted from a client body or model arguments. */
+  semanticOwner?: "main";
+  internalOperation?: true;
+  /** Native SDK correlation stored by this same owner; hidden from product history. */
+  turnSurface?: "app" | "whatsapp" | "voice";
+  measurementOnly?: true;
+  nativeTurn?: {version:1;deadlineAt:number;clockEpoch:string;startedMono:number;notice:"pending"|"attempted"|"accepted"|"uncertain"|"cancelled";
+    accountId?:string;ended?:boolean;deliveredMono?:number;route:"tool"|"question"|"answer"|"reflex"|null;model?:string;decisionMs:number|null;toolMs:number|null};
   gatewayObservation?: GatewayObservation;
   gatewayProgress?: CompanionRunProgress;
   web?: RunWebResult;
@@ -228,6 +236,8 @@ export async function reserveSubmittedRun(
     memoAttachmentId?: string;
     replayOf?: {sessionId: string; runId: string};
     ownerAdmitted?: boolean;
+    semanticOwner?: "main";
+    internalOperation?: true;
   } = {},
 ): Promise<{ created: boolean; status: CompanionRunStatus }> {
   const clientId = requireClientRunId(clientRunId);
@@ -266,6 +276,8 @@ export async function reserveSubmittedRun(
       requestHash,
       memo: options.memoAttachmentId ? {attachmentId: options.memoAttachmentId, ownerEpoch: MEMO_OWNER_EPOCH, phase: "transcribing", attempts: 1} : undefined,
       executionSource: options.executionSource || "gateway",
+      ...(options.semanticOwner === "main" && options.ownerAdmitted === true && options.executionSource === "gateway" ? {semanticOwner:"main" as const} : {}),
+      ...(options.internalOperation === true ? {internalOperation:true as const} : {}),
       presentation: options.executionSource === "capability_first" ? fallbackReceiptPresentation() : undefined,
       decision: options.decision && typeof options.decision === "object" ? options.decision : undefined,
       clarificationState: String(options.decision?.type || "") === "CLARIFY" ? "pending" : undefined,
@@ -389,7 +401,7 @@ async function resumeDueMemo(runId: string): Promise<boolean> {
 
 export async function claimMemoDispatch(runId: string, text: string, executionSource: "gateway" | "capability_first",
   decision?: Record<string, unknown>, parentClarificationRunId?: string, authorized?: () => boolean, ownerAdmitted = false,
-  dialogueGoalRef?: string): Promise<boolean> {
+  dialogueGoalRef?: string, semanticOwner?: "main"): Promise<boolean> {
   return mutateRegistry(async () => {
     const registry = await registryOrEmpty();
     const row = registry.runs.find(run => run.runId === runId);
@@ -397,6 +409,7 @@ export async function claimMemoDispatch(runId: string, text: string, executionSo
         registry.runDeletions.some(r => r.runId === runId)) return false;
     const now = Date.now();
     const claimed: StoredRun = {...row, attachments: undefined, executionSource, decision, parentClarificationRunId, dialogueGoalRef: dialogueGoalRefOf(dialogueGoalRef), ownerAdmitted: ownerAdmitted === true ? true as const : undefined,
+      ...(semanticOwner === "main" && ownerAdmitted && executionSource === "gateway" ? {semanticOwner:"main" as const} : {}),
       memo: {...row.memo, phase: "dispatched", ownerEpoch: MEMO_OWNER_EPOCH}, updatedAt: now,
       clarificationState: decision?.type === "CLARIFY" ? "pending" : undefined,
       clarificationExpiresAt: decision?.type === "CLARIFY" ? now + CLARIFICATION_PROJECTION_MS : undefined};
@@ -413,13 +426,14 @@ export async function claimMemoDispatch(runId: string, text: string, executionSo
 export async function rememberSubmittedRun(
   text: string,
   result: OpenClawAgentSubmitResult,
-  options: { userText?: string; attachments?: IntentAttachment[]; executionSource?: "gateway" | "capability_first"; decision?: Record<string, unknown>; parentClarificationRunId?: string; dialogueGoalRef?: string; ownerAdmitted?: boolean } = {},
+  options: { userText?: string; attachments?: IntentAttachment[]; executionSource?: "gateway" | "capability_first"; decision?: Record<string, unknown>; parentClarificationRunId?: string; dialogueGoalRef?: string; ownerAdmitted?: boolean; semanticOwner?: "main" } = {},
 ) {
   const existing = submittedRuns.get(result.runId)
     || (await findStoredRun(result.runId).catch(() => null));
   const stored = {
     ...existing,
     executionSource: options.executionSource || existing?.executionSource || "gateway",
+    ...(options.semanticOwner === "main" && options.ownerAdmitted === true && (options.executionSource || existing?.executionSource || "gateway") === "gateway" ? {semanticOwner:"main" as const} : {}),
     presentation: existing?.presentation || (options.executionSource === "capability_first" ? fallbackReceiptPresentation() : undefined),
     runId: result.runId,
     sessionId: result.sessionId,
@@ -968,12 +982,17 @@ export async function markRunNotThis(runId: string, correction: RunCorrection): 
 
 /** 38 M1 : projection minimale des reçus de runs existants (aucun texte). */
 export type ComprehensionRunFact = {acceptedAt: number; decisionType?: string; decisionRisk?: string;
-  learned: boolean; clarificationAnswer: boolean; notThisAt?: number; agent: boolean};
+  learned: boolean; clarificationAnswer: boolean; notThisAt?: number; agent: boolean;
+  semanticOwner?:"main";internalOperation?:true;executionSource?:"gateway"|"capability_first";
+  ownerAdmitted?:true;ownerTransport?:StoredRun["ownerTransport"];gatewayObserved:boolean;state?:StoredRun["state"];hasResult:boolean;decisionQualified:boolean};
 export async function comprehensionRunFacts(): Promise<{facts: ComprehensionRunFact[]; retainedCap: number}> {
   const facts = (await readStoredRuns(false)).map(run => {
     const decision: any = run.decision;
     return {
       acceptedAt: run.acceptedAt,
+      semanticOwner:run.semanticOwner,internalOperation:run.internalOperation,executionSource:run.executionSource,
+      ownerAdmitted:run.ownerAdmitted,ownerTransport:run.ownerTransport,gatewayObserved:!!readGatewayObservation(run.gatewayObservation),
+      state:run.state,hasResult:typeof run.result==="string"&&run.result.trim().length>0,decisionQualified:!!publicDecision(run.decision),
       decisionType: typeof decision?.type === "string" ? String(decision.type) : undefined,
       decisionRisk: typeof decision?.risk === "string" ? String(decision.risk) : undefined,
       learned: typeof decision?.plan?.learned_association === "string" || typeof decision?.learnedAssociation === "string",
@@ -983,6 +1002,60 @@ export async function comprehensionRunFacts(): Promise<{facts: ComprehensionRunF
     };
   });
   return {facts, retainedCap: MAX_PERSISTED_RUNS};
+}
+
+const NATIVE_CLOCK_EPOCH=randomUUID();
+const nativeMono=()=>Number(process.hrtime.bigint()/1000000n);
+function nativeTurnMetadata(v:any):StoredRun["nativeTurn"]{
+  if(!v||v.version!==1||!Number.isFinite(v.deadlineAt)||!Number.isFinite(v.startedMono)||typeof v.clockEpoch!=="string"||
+    !["pending","attempted","accepted","uncertain","cancelled"].includes(v.notice)||
+    (v.route!==null&&!["tool","question","answer","reflex"].includes(v.route)))return undefined;
+  return {version:1,deadlineAt:v.deadlineAt,startedMono:v.startedMono,clockEpoch:v.clockEpoch,notice:v.notice,
+    ...(typeof v.accountId==="string"&&/^[A-Za-z0-9_.-]{1,80}$/.test(v.accountId)?{accountId:v.accountId}:{}),
+    ...(v.ended===true?{ended:true}:{}),...(Number.isSafeInteger(v.deliveredMono)&&v.deliveredMono>=v.startedMono?{deliveredMono:v.deliveredMono}:{}),route:v.route,
+    ...(typeof v.model==="string"&&/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/.test(v.model)?{model:v.model}:{}),
+    decisionMs:Number.isSafeInteger(v.decisionMs)&&v.decisionMs>=0&&v.decisionMs<=600000?v.decisionMs:null,
+    toolMs:Number.isSafeInteger(v.toolMs)&&v.toolMs>=0&&v.toolMs<=600000?v.toolMs:null};
+}
+export async function recordNativeWhatsAppIngress(runId:string,sessionKey:string,accountId?:string,observedMonoMs?:number){
+  const mono=nativeMono();
+  if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(runId)||!/^agent:main:whatsapp:direct:\+?[1-9][0-9]{7,14}$/.test(sessionKey)||
+    accountId!==undefined&&(typeof accountId!=="string"||!/^[A-Za-z0-9_.-]{1,80}$/.test(accountId))||!Number.isSafeInteger(observedMonoMs)||observedMonoMs! < 0||observedMonoMs! > mono||mono-observedMonoMs! > 10000)
+    throw Object.assign(Error("invalid_turn_measurement"),{statusCode:400});
+  return mutateRegistry(async()=>{
+    const registry=await registryOrEmpty(),existing=registry.runs.find(r=>r.runId===runId);
+    if(existing){if(!existing.measurementOnly||existing.sessionKey!==sessionKey)throw Object.assign(Error("turn_measurement_identity_conflict"),{statusCode:409});return existing.nativeTurn;}
+    const now=Date.now();const row:StoredRun={runId,sessionKey,sessionId:"whatsapp-"+createHash("sha256").update(sessionKey).digest("hex").slice(0,24),
+      executionSource:"gateway",text:"",acceptedAt:now-(mono-observedMonoMs!),updatedAt:now,state:"running",turnSurface:"whatsapp",measurementOnly:true,
+      nativeTurn:{version:1,deadlineAt:now+600000-(mono-observedMonoMs!),clockEpoch:NATIVE_CLOCK_EPOCH,startedMono:observedMonoMs!,notice:"cancelled",route:null,
+        decisionMs:null,toolMs:null,...(accountId?{accountId}:{})}};
+    await writeCompanionRunRegistry([row,...registry.runs],registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+    return row.nativeTurn;
+  });
+}
+export async function nativeTurnProgressState(runId:string){
+  const row=(await registryOrEmpty()).runs.find(r=>r.runId===runId&&r.measurementOnly);
+  return row?.nativeTurn?{runId,sessionId:row.sessionId,sessionKey:row.sessionKey!,state:row.state,ended:row.nativeTurn.ended,
+    clockEpoch:row.nativeTurn.clockEpoch,deadlineAt:row.nativeTurn.deadlineAt,notice:row.nativeTurn.notice,accountId:row.nativeTurn.accountId}:null;
+}
+/** deadlineAt is this observation’s remaining 10-minute freshness, NOT the L4 delivery budget.
+ * Positive observation only: one exact-session live turn in this owner's clock epoch, never the latest turn. */
+export async function activeObservedNativeWhatsAppRun(sessionKey:string,options:{excludeRunId?:string}={}){
+  const now=nativeMono();
+  const candidates=(await registryOrEmpty()).runs.filter(r=>r.measurementOnly&&r.sessionKey===sessionKey&&r.runId!==options.excludeRunId&&
+    r.state==="running"&&r.nativeTurn&&!r.nativeTurn.ended&&r.nativeTurn.clockEpoch===NATIVE_CLOCK_EPOCH&&
+    now>=r.nativeTurn.startedMono&&now-r.nativeTurn.startedMono<=600000);
+  if(candidates.length!==1)return null;
+  const row=candidates[0];return {runId:row.runId,sessionKey:row.sessionKey!,clockEpoch:row.nativeTurn!.clockEpoch,
+    deadlineAt:Date.now()+Math.max(0,600000-(now-row.nativeTurn!.startedMono)),state:"running" as const,observationSource:"sdk_message_received" as const};
+}
+export async function observeNativeTurnEnd(runId:string,_model:string|undefined,success:boolean){
+  await mutateRegistry(async()=>{
+    const registry=await registryOrEmpty(),row=registry.runs.find(r=>r.runId===runId&&r.measurementOnly);
+    if(!row?.nativeTurn||row.nativeTurn.ended)return;
+    const updated:StoredRun={...row,state:success?"done":"failed",updatedAt:Date.now(),nativeTurn:{...row.nativeTurn,ended:true}};
+    await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?updated:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+  });
 }
 
 export async function findSubmittedRunByClientRunId(
@@ -2234,7 +2307,7 @@ function reconcileInactiveRuns(targetRunId?:string):void {
 async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadline: number): Promise<void> {
   await registryWrite;
   const initial = await registryOrEmpty(), now = runInactivityClock.now();
-  const eligible = (run: StoredRun, registry: CompanionRunRegistry) => run.modality !== "voice" && !run.gatewayObservation &&
+  const eligible = (run: StoredRun, registry: CompanionRunRegistry) => !run.measurementOnly && run.modality !== "voice" && !run.gatewayObservation &&
     (!run.memo || run.memo.phase === "dispatched") &&
     !run.result && (!run.state || run.state === "running" || run.error === "run_inactivity_expired") &&
     run.acceptedAt >= 1000000000000 && (run.error === "run_inactivity_expired" || !!run.inactivityCorrectionReceipt || now - (run.updatedAt || run.acceptedAt) >= RUN_INACTIVITY_MS) &&
@@ -2331,7 +2404,7 @@ async function readStoredRuns(reconcile = true): Promise<StoredRun[]> {
     });
   }
   return Array.from(byId.values())
-    .filter(run => !deletedRunIds.has(run.runId))
+    .filter(run => !run.measurementOnly && !deletedRunIds.has(run.runId))
     .filter((run) => !archivedSessionIds.has(normalizeCompanionSessionId(run.sessionId || "default")))
     .sort((left, right) => right.acceptedAt - left.acceptedAt);
 }
@@ -2393,6 +2466,11 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
   const parsedRuns: StoredRun[] = runs
       .filter((run: any) => typeof run?.runId === "string")
     .map((run: any) => ({
+      semanticOwner:run.semanticOwner==="main"&&run.ownerAdmitted===true&&run.executionSource==="gateway"?"main":undefined,
+      internalOperation:run.internalOperation===true?true:undefined,
+      turnSurface:["app","whatsapp","voice"].includes(run.turnSurface)?run.turnSurface:undefined,
+      measurementOnly:run.measurementOnly===true?true:undefined,
+      nativeTurn:nativeTurnMetadata(run.nativeTurn),
       inactivityCorrectionReceipt: validInactivityReceipt(run.inactivityCorrectionReceipt, run.runId),
       presentation: readReceiptPresentation(run.presentation),
       provenance: capabilityProvenance(run.provenance),
@@ -2712,7 +2790,7 @@ async function retainedRuns(archiveScope:boolean|null=false):Promise<StoredRun[]
   reconcileInactiveRuns();
   await registryWrite;
   const registry=await registryOrEmpty(),archived=new Set(registry.archivedSessionIds);
-  return registry.runs.filter(x=>archiveScope===null||archived.has(x.sessionId)===archiveScope).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));
+  return registry.runs.filter(x=>!x.measurementOnly&&(archiveScope===null||archived.has(x.sessionId)===archiveScope)).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));
 }
 
 /** The Companion's own retained view of one conversation (no Gateway read). */
@@ -2809,7 +2887,7 @@ const changeEpoch=randomUUID();let changeSequence=0;
 const changeRing:ConversationChange[]=[];
 const changeListeners=new Set<(event:ConversationChange)=>void>();
 function publishConversationChanges(before:StoredRun[],after:StoredRun[],oldArchived:string[],newArchived:string[]){
-  const left=new Map(before.map(r=>[r.runId,r])),right=new Map(after.map(r=>[r.runId,r]));
+  const left=new Map(before.filter(r=>!r.measurementOnly).map(r=>[r.runId,r])),right=new Map(after.filter(r=>!r.measurementOnly).map(r=>[r.runId,r]));
   const sessions=new Set<string>();
   for(const id of new Set([...left.keys(),...right.keys()])){
     const a=left.get(id),b=right.get(id);

@@ -1,3 +1,4 @@
+import {createNativeTurnProgressOwner} from '../nativeTurnProgressOwner';
 import {readAutomationRuns,invalidateAutomationViews} from "./automationRunsPreparation";
 import { callOpenClawGateway, closeOpenClawGateway,expectedCompanionSessionKey } from "./openclawAgentClient";
 import { INTERPRET_METHOD, IMMUNE_PURPOSE } from "../intentInterpreterPort";
@@ -76,6 +77,7 @@ const TERMINAL_COMMAND_TIMEOUT_MS = 30_000;
 const MAX_TERMINAL_SESSION_OUTPUT_CHARS = 128 * 1024;
 const DEFAULT_WHATSAPP_LISTENER_WATCHDOG_MS = 15_000;
 let whatsappListenerWatchdogBusy = false;
+const nativeTurnProgressOwner=createNativeTurnProgressOwner();
 const CWD_SENTINEL_PREFIX = "__CLAWMOBILE_CWD:";
 const CWD_SENTINEL_SUFFIX = "__";
 
@@ -1618,6 +1620,25 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     writeJson(res, 200, {
       runs: summary ? await listRunSummaries({ limit }) : await listRuns({ limit }),
     });
+    return;
+  }
+
+  // L3 provenance shares L4's route contract; no durations, budget or notices are produced here.
+  const measurementMatch = routePath.match(/^\/runs\/([^/]+)\/measurement$/);
+  if(measurementMatch){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||req.headers["x-clawmobile-owner-flow"]!=="v1"){
+      writeJson(res,403,{success:false,error:"native_loopback_owner_required"});return;
+    }
+    if(method!=="POST"){writeJson(res,405,{success:false,error:"method_not_allowed"});return;}
+    try{
+      const body=await readJsonBody<any>(req,4096);
+      const result=await nativeTurnProgressOwner.observe(decodeURIComponent(measurementMatch[1]),body);
+      res.setHeader("Cache-Control","no-store");writeJson(res,200,result);
+    }catch(e:any){
+      const status=[400,403,404,409].includes(e?.statusCode)?e.statusCode:503;
+      const code=["invalid_turn_measurement","run_not_found","turn_measurement_identity_conflict","native_turn_observation_disabled","native_turn_owner_required"].includes(e?.message)?e.message:"turn_measurement_unavailable";
+      writeJson(res,status,{success:false,error:code});
+    }
     return;
   }
 

@@ -90,7 +90,7 @@ async function observedNativeWhatsAppTarget(key:string,currentRunId:string,asser
  await assertNativeWhatsAppOwner(key,assertCurrent);
  if(!target||target.observationSource!=='sdk_message_received'||target.state!=='running'||target.sessionKey!==key||
     target.runId===currentRunId||typeof target.clockEpoch!=='string'||!target.clockEpoch||
-    typeof target.deadlineAt!=='number'||target.deadlineAt<=Date.now()||
+    typeof target.deadlineAt!=='number'||!Number.isFinite(target.deadlineAt)||target.deadlineAt<=Date.now()||
     typeof target.runId!=='string'||!/^[a-f0-9-]{36}$/i.test(target.runId))return null;
  return target;
 }
