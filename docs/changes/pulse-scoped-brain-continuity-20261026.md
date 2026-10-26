@@ -1,0 +1,9 @@
+# Pulse : cerveau dans la pièce accordée et continuité du coordinateur
+
+Avec SAMANTHA_BRAIN_ONLY=1, le message WhatsApp original entier continue vers le cerveau du contact ; il ne passe par aucun split de liste, interprète dédié ou boucle de reprise. Les contraintes globales restent avec la demande. La factory et la preuve SDK courantes n’exposent que samantha_pulse pour contacts-pulse/contacts-projet-pulse avec senderIsOwner=false. La même admission native/People est relue avant effet ; aucun owner=true, catalogue propriétaire, paiement, contrôle système, demande de congé propriétaire ou rotation de certificat n’est accordé. Les règles et allowlists des propriétaires pulse-room/project-room/People évoluent seulement dans ce mode et conservent leurs seals C2.
+
+Le mode false garde le parcours précédent pour baseline/rollback. Ses sous-demandes ont des refs hashées bornées depuis parent/ordinal/texte, un contexte original commun, et les reprises proviennent seulement de la projection durable du coordinateur avec leurs mêmes identités. Erreur, état incertain, non terminal ou replay ne déclenche aucune suite automatique. La queue reste dans son propriétaire PB ; aucune file ou planificateur additionnel.
+
+Ciblés source par CI : TS+Pulse+typedtools+3Python PASS10,709s avec empreintes WIP stables ; port d’interprète natif retiré avant getComplete PASS0,48s. Ces tests sont déjà enregistrés dans la CI canonique. PB paired et nouvelle full sur tête combinée restent nécessaires. Aucun S24/tiers/Pulse métier exécuté.
+
+Point DATA01 à fermer avant activation : le droit de pièce ne qualifie pas un fournisseur arbitraire. Le backend typé ne fait pas d’appel modèle ; l’ancienne attestation professionnelle Gemini doit rester raccordée au candidat/profil réellement choisi pour la projection cerveau. Aucun accès Sol/Luna n’est présumé.

@@ -8,6 +8,8 @@
  * that decision with the graph's existing read-only policy (`capability_first_required` otherwise).
  */
 import {createHash,randomUUID} from 'node:crypto';
+import {contactRoomSession} from './contactRoomProfile';
+import {brainOnlyEnabled} from './brainOnly';
 export const TYPED_CONTROL_ADMISSION_METHOD='samantha.typed-control.admission';
 const typedSeal=Symbol('typed-host-invocation');
 export type AgentCapabilityHookContext = { requester?: { senderIsOwner?: unknown }; runId?: string; sessionKey?: string; sessionId?: string; toolCallId?: string; agentId?: string };
@@ -19,6 +21,7 @@ export const AGENT_CAPABILITY_REFUSAL = "capability_first_required";
 // Current-invocation proof of the existing guard, not a business registry. A
 // tool cannot receive this through model arguments, persisted JSON or replay.
 type TypedProof={at:number;tool:string;runId:string;sessionKey:string;sessionId?:string;args:string;
+  actor?:'native_pulse_contact';agentId?:string;
   control?:{operationId:string;paramsHash:string;expiresAt:number;assertCurrent:()=>void};
   nativePulse?:{admission:import('./nativePulseAdmission').NativePulseContact;event:Record<string,unknown>;expiresAt:number}};
 const typedInvocations = new Map<string, TypedProof>();
@@ -40,17 +43,28 @@ function invocationArgs(value: unknown, depth = 0): unknown {
   return result;
 }
 export function consumeTypedInvocation(callId: unknown, tool: string, args: unknown, context: {
-  senderIsOwner?: boolean; sessionKey?: string; sessionId?: string; assertInvocationCurrent?: () => void;
+  senderIsOwner?: boolean;agentId?:string; sessionKey?: string; sessionId?: string; assertInvocationCurrent?: () => void;
 }) {
   if (typeof callId !== "string") throw Error("typed_host_admission_required");
   const proof = typedInvocations.get(callId);
   typedInvocations.delete(callId); // One execute only, including a refused invocation.
-  if (!proof || Date.now() < proof.at || Date.now() - proof.at > 120000 || proof.tool !== tool || context.senderIsOwner !== true ||
+  const pulse=proof?.actor==='native_pulse_contact'&&scopedPulseActor(context);
+  if (!proof || Date.now() < proof.at || Date.now() - proof.at > 120000 || proof.tool !== tool ||
+      (proof.actor==='native_pulse_contact'?(!pulse||proof.agentId!==context.agentId||tool!=='samantha_pulse'):context.senderIsOwner!==true) ||
       !context.sessionKey || context.sessionKey !== proof.sessionKey ||
       context.sessionId && context.sessionId !== proof.sessionId || typeof context.assertInvocationCurrent !== "function" ||
       JSON.stringify(invocationArgs(args)) !== proof.args) throw Error("typed_host_admission_required");
   context.assertInvocationCurrent();
-  return {owner: true, conversationKey: proof.sessionKey, userRunId: proof.runId, invocationId: callId,[typedSeal]:proof};
+  return {owner:proof.actor!=='native_pulse_contact',
+    conversationKey: proof.sessionKey, userRunId: proof.runId, invocationId: callId,[typedSeal]:proof};
+}
+
+/** Host identity narrows a room already granted by People; it never grants it. */
+export function scopedPulseActor(context:{senderIsOwner?:unknown;agentId?:unknown;sessionKey?:unknown}) {
+ if(!brainOnlyEnabled()||context.senderIsOwner!==false||typeof context.agentId!=='string'||
+   !['contacts-pulse','contacts-projet-pulse'].includes(context.agentId))return null;
+ const profile=contactRoomSession(context.sessionKey);
+ return profile&&profile.agent===context.agentId&&profile.rooms.has('pulse')?profile:null;
 }
 
 /** Keep only this already-admitted SDK callback alive while Companion owns the effect/receipt. */
@@ -156,10 +170,12 @@ export function agentCapabilityHook(
     if (typedName.test(toolName)) {
       const callId = ownData(event, "toolCallId") ?? ownData(context, "toolCallId");
       const runId = ownData(context, "runId"), sessionKey = ownData(context, "sessionKey");
-      if (ownData(ownData(context, "requester"), "senderIsOwner") !== true ||
+      const owner=ownData(ownData(context,'requester'),'senderIsOwner');
+      const pulse=scopedPulseActor({senderIsOwner:owner,agentId:ownData(context,'agentId'),sessionKey});
+      if ((pulse?toolName!=='samantha_pulse':owner!==true) ||
           typeof callId !== "string" || !typedId.test(callId) || typeof runId !== "string" || !typedId.test(runId) ||
           typeof sessionKey !== "string" || !sessionKey || sessionKey.length > 512 ||
-          ownData(context, "agentId") && ownData(context, "agentId") !== "main") return refused();
+          !pulse&&ownData(context, "agentId") && ownData(context, "agentId") !== "main") return refused();
       const at = Date.now();
       for (const [id, proof] of typedInvocations) if (at - proof.at > 120000) typedInvocations.delete(id);
       if (typedInvocations.has(callId)) { typedInvocations.delete(callId); return refused(); }
@@ -169,7 +185,7 @@ export function agentCapabilityHook(
       if (encoded.length > 32768) return refused();
       typedInvocations.set(callId, {at, tool: toolName, runId, sessionKey,
         sessionId: typeof ownData(context, "sessionId") === "string" ? ownData(context, "sessionId") as string : undefined,
-        args: encoded});
+        args: encoded,...(pulse?{actor:'native_pulse_contact' as const,agentId:pulse.agent}:{})});
       return {params};
     }
     if (toolName !== "clawmobile_capability") return undefined;

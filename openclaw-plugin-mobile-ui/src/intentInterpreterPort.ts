@@ -190,13 +190,14 @@ export function createInterpretHandler(getComplete: () => LlmComplete | undefine
     // The shared engineering completion owner survives the C1 interpreter's
     // retirement. No owner request may invoke its old semantic purpose.
     if(params?.purpose===NATIVE_PULSE_PURPOSE){
+      if(brainOnlyEnabled())return respond(false,undefined,{code:'INVALID_REQUEST',message:'dedicated intent interpreter retired'});
       // Native professional DATA01 currently admits this one included profile.
       // The existing governor owns any future extension; a purpose cannot mint a model fallback.
       if(params?.model!==INTERPRETER_PRIMARY)return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse model not admitted'});
       try{await requireNativePulseInterpretation(params);}
       catch{return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse admission required'});}
     }
-    if (brainOnlyEnabled() && params?.purpose !== IMMUNE_PURPOSE && params?.purpose !== NATIVE_PULSE_PURPOSE)
+    if (brainOnlyEnabled() && params?.purpose !== IMMUNE_PURPOSE)
       return respond(false, undefined, {code: "INVALID_REQUEST", message: "dedicated intent interpreter retired"});
     const complete = getComplete();
     if (!complete) return respond(false, undefined, { code: "UNAVAILABLE", message: "llm runtime unavailable" });

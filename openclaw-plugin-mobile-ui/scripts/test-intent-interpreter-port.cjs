@@ -117,6 +117,16 @@ function fake(script) {
     assert.equal(replies[1][2].code, "INVALID_REQUEST");
   }
   // The credential-owner port also serves C2 Sol -> Luna -> Gemini free. C1 still rejects Sol above.
+  {
+    const old=process.env.SAMANTHA_BRAIN_ONLY;process.env.SAMANTHA_BRAIN_ONLY='1';
+    let entered=0;const replies=[];
+    try{
+      const handler=port.createInterpretHandler(()=>{entered++;return async()=>{throw Error('no dedicated model call');};});
+      await handler({params:{systemPrompt:'catalogue',message:'REQUEST={}',purpose:port.NATIVE_PULSE_PURPOSE,model:GEMINI},respond:(...v)=>replies.push(v)});
+      assert.equal(entered,0);assert.equal(replies[0][0],false);
+      assert.equal(replies[0][2].message,'dedicated intent interpreter retired');
+    }finally{if(old===undefined)delete process.env.SAMANTHA_BRAIN_ONLY;else process.env.SAMANTHA_BRAIN_ONLY=old;}
+  }
   assert.deepEqual([...port.IMMUNE_MODELS],['openai/gpt-5.6-sol',LUNA,GEMINI]);
   for(const model of port.IMMUNE_MODELS){
     const google=model===GEMINI;

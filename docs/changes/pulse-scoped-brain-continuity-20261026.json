@@ -1,0 +1,78 @@
+{
+  "version": 2,
+  "id": "pulse-scoped-brain-continuity-20261026",
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Le cerveau scoped Pulse reçoit le message entier ; les outils projettent seulement les droits de pièce déjà accordés, et le parcours legacy conserve les identités et le contexte des demandes en attente.",
+  "reason": "Alignement cerveau seul décideur et fermeture des écarts de continuité constatés dans l’union canonique441 ; aucune extension de droits ou de fournisseur DATA01 implicite.",
+  "files": [
+    "installer/termux-lite/people-trusted.py",
+    "installer/termux-lite/project-room.py",
+    "installer/termux-lite/pulse-room.py",
+    "installer/termux-lite/test-pulse-room.py",
+    "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
+    "openclaw-plugin-mobile-ui/src/dialogueSurface.ts",
+    "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
+    "openclaw-plugin-mobile-ui/src/pulseRoomFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
+    "docs/changes/pulse-scoped-brain-continuity-20261026.md",
+    "docs/changes/pulse-scoped-brain-continuity-20261026.json",
+    "docs/08-decisions/ADR-20261026-pulse-scoped-brain.md"
+  ],
+  "tests": [
+    {
+      "name": "Core441 focused TS / room / typed tools / Python owners",
+      "status": "passed",
+      "evidence": "CI core441-brain-pulse-focused-v1.log : TS + deux suites Node +3Python PASS,10.709s, diff et fichiers WIP identiques avant/après ; aucun fournisseur/S24."
+    },
+    {
+      "name": "Native Pulse dedicated purpose retired in brain-only mode",
+      "status": "passed",
+      "evidence": "CI core441-native-purpose-retired-focused-v1.log : script port existant PASS0.48s, refus avant getComplete, aucune inférence."
+    }
+  ],
+  "documentation": [
+    "docs/changes/pulse-scoped-brain-continuity-20261026.md",
+    "docs/08-decisions/ADR-20261026-pulse-scoped-brain.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "NO_CAPABILITY : mêmes actions/registre/Pulse permissions3291 ; projection host de l’acteur existant, aucun endpoint MCP/capacité créé."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "ADR docs/08-decisions/ADR-20261026-pulse-scoped-brain.md ; cerveau scoped, preuves NativePulse/C2 existantes et queue coordinateur existante, aucun autre mécanisme."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Même catalogue canonique et mêmes schémas/actions MCP ; la projection scoped contact ne peut mint owner/global. L’admission et le transport typed interne sont appariés aux mêmes owners, à requalifier sur union."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Aucune activation native ni fournisseur qualifié par ces ciblés.",
+    "Appariement PB queue/scoped typed puis CI canonique exacte requis.",
+    "DATA01 du candidat réellement utilisé à raccorder avant activation ; aucun profil arbitraire admis."
+  ],
+  "rollback": "SAMANTHA_BRAIN_ONLY=false et mêmes propriétaires provision/rules restaurent le bootstrap legacy ; reçus et queue conservés, aucun effet incertain rejoué."
+}

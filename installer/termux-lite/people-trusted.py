@@ -1266,10 +1266,12 @@ class Contacts:
                    'sessions_list','sessions_history','sessions_send','sessions_spawn','session_status',
                    'sessions_search','memory_search','memory_get','gateway','cron','nodes','clawmobile_capability'}
         allowed={'web_search','transmettre_a_amine','noter_contact'}|({'read'} if agent=='contacts-projet-pulse' else set())
+        if os.environ.get('SAMANTHA_BRAIN_ONLY')=='1':allowed.add('samantha_pulse')
         if (not isinstance(tools,dict) or not isinstance(tools.get('allow'),list) or
                 not isinstance(tools.get('deny'),list) or
                 any(type(v) is not str for v in tools['allow']+tools['deny']) or
                 set(tools['allow'])-allowed or not forbidden.issubset(set(tools['deny'])) or
+                os.environ.get('SAMANTHA_BRAIN_ONLY')=='1' and 'samantha_pulse' not in tools['allow'] or
                 agent=='contacts-pulse' and 'read' not in tools['deny'] or
                 agent=='contacts-projet-pulse' and (tools.get('fs') or {}).get('workspaceOnly') is not True): denied()
         # Only headers and the actual service's complete AGENTS/USER, no snapshot.
