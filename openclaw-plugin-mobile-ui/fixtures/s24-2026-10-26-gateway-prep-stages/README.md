@@ -1,6 +1,6 @@
 # Provenance du diagnostic de préparation
 
-Deux programmes **publics** complets du SDK2026.9.6, compressés gzip déterministe,
+Trois programmes **publics** complets du SDK2026.9.6, compressés gzip déterministe,
 sont byte-identiques aux modules non symlinkés relus sur le S24 avant modification.
 `provenance.json` conserve les SHA256 du tar, des programmes et des reçus nettoyés.
 Aucun journal brut privé, configuration, auth, demande/réponse ou transcript n'est
@@ -12,6 +12,9 @@ factories mais ne prouve ni cache miss, ni loader froid, ni lookup précis. Le
 system-prompt coûte3496ms séparément. Les checkpoints et spans peuvent se recouvrir.
 
 Le patch ajoute des checkpoints à `recordToolPrepStage`, déjà détenu par le SDK.
+Le tracker partagé public exact est aussi conservé en clair pour tester les
+sous-spans system-prompt explicites : ils n'avancent pas le checkpoint parent,
+qui garde la même durée aggregate avant/après ; ne pas additionner parent/enfants.
 Les tests exécutent les fonctions exactes originales/patched avec propriétaires
 inertes et comparent effets, retours, exceptions et bornes. Aucun modèle ni outil
 réel n'est invoqué. Les modules changent uniquement par le propriétaire existant

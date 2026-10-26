@@ -62,6 +62,62 @@
           "\tfactories.report();\n\tparams.recordToolPrepStage?.(\"plugin-tools:factories\");\n\treturn tools;"
         ]
       ]
+    },
+    {
+      "root": "openclaw",
+      "path": "dist/builtin-openclaw-q1hiFm14.mjs",
+      "original": "e4504516aef56cd293e11369e420148c5ad60c80e60128ed64bfb57fb7239e25",
+      "patched": "00f82ec9ee37d9394c05d50f7950d671db1c70d2358dea817e2ec6167aa1951d",
+      "replacements": [
+        [
+          "\tconst toolSchemaDirectoryPrompt = resolveToolSchemaDirectoryPrompt();",
+          "\tconst toolSchemaDirectoryPrompt = params.setup.prepStages.measureSync(\"system-prompt:tool-directory\", resolveToolSchemaDirectoryPrompt);"
+        ],
+        [
+          " = await resolveAgentRuntimePrompt({",
+          " = await params.setup.prepStages.measure(\"system-prompt:runtime-context\", () => resolveAgentRuntimePrompt({"
+        ],
+        [
+          "\t\tchatType: attempt.chatType\n\t});\n\tconst promptMode",
+          "\t\tchatType: attempt.chatType\n\t}));\n\tconst promptMode"
+        ],
+        [
+          "\tconst openClawReferences = await resolveOpenClawReferencePaths({",
+          "\tconst openClawReferences = await params.setup.prepStages.measure(\"system-prompt:references\", () => resolveOpenClawReferencePaths({"
+        ],
+        [
+          "\t\tmoduleUrl: import.meta.url\n\t});\n\tconst promptContributionContext",
+          "\t\tmoduleUrl: import.meta.url\n\t}));\n\tconst promptContributionContext"
+        ],
+        [
+          "\tconst promptContribution = attempt.runtimePlan?.prompt.resolveSystemPromptContribution(promptContributionContext) ?? resolveProviderSystemPromptContribution({",
+          "\tconst promptContribution = params.setup.prepStages.measureSync(\"system-prompt:provider-contribution\", () => attempt.runtimePlan?.prompt.resolveSystemPromptContribution(promptContributionContext) ?? resolveProviderSystemPromptContribution({"
+        ],
+        [
+          "\t\tcontext: promptContributionContext\n\t});\n\tconst includeMemorySection",
+          "\t\tcontext: promptContributionContext\n\t}));\n\tconst includeMemorySection"
+        ],
+        [
+          "\tconst { preparedMemoryPrompt, preparedWatchedSessions } = await prepareToolContextSections(params.effectiveTools, params.capabilityToolNames, sandboxInfo?.enabled === true);",
+          "\tconst { preparedMemoryPrompt, preparedWatchedSessions } = await params.setup.prepStages.measure(\"system-prompt:memory-context\", () => prepareToolContextSections(params.effectiveTools, params.capabilityToolNames, sandboxInfo?.enabled === true));"
+        ],
+        [
+          "\tconst projectMemoryBootstrap = effectivePromptMode === \"full\" && activeProjectKeys.length > 0 ? await prepareProjectMemoryBootstrap({",
+          "\tconst projectMemoryBootstrap = effectivePromptMode === \"full\" && activeProjectKeys.length > 0 ? await params.setup.prepStages.measure(\"system-prompt:project-memory\", () => prepareProjectMemoryBootstrap({"
+        ],
+        [
+          "\t\tactiveProjectKeys\n\t}) : [];\n\tconst projectMemoryWriteInstruction",
+          "\t\tactiveProjectKeys\n\t})) : [];\n\tconst projectMemoryWriteInstruction"
+        ],
+        [
+          "\tconst attemptSystemPrompt = buildAttemptSystemPrompt(promptInputs);",
+          "\tconst attemptSystemPrompt = params.setup.prepStages.measureSync(\"system-prompt:assembly\", () => buildAttemptSystemPrompt(promptInputs));"
+        ],
+        [
+          "\tconst systemPromptReport = buildSystemPromptReport(reportInputs);",
+          "\tconst systemPromptReport = params.setup.prepStages.measureSync(\"system-prompt:report\", () => buildSystemPromptReport(reportInputs));"
+        ]
+      ]
     }
   ]
 }

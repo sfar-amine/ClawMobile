@@ -15,6 +15,13 @@
       "isSymlink": false,
       "bytes": 26994,
       "sha256": "a31975686eddc6a779865ff896b145b3b41bd7c659ac21761448da6861b0d926"
+    },
+    {
+      "name": "builtin-openclaw-q1hiFm14.mjs",
+      "bytes": 957512,
+      "sha256": "e4504516aef56cd293e11369e420148c5ad60c80e60128ed64bfb57fb7239e25",
+      "isSymlink": false,
+      "parityEvidence": "Native source hash already qualified by root; e4504516\u2026 retained for the exact SDK source owner."
     }
   ],
   "receiptSha256": {
@@ -24,5 +31,6 @@
     "probe-exact-sdk-trajectory-receipt.json": "9ed70e955c338cb26479db563fa1605e843ec108b479b2541edc453f2300f8c2",
     "observe-probe1440-receipt.json": "b0f38ade1721ca6f25f08a42666fd7b7b87965a40f4459e794de49570e93b5ee"
   },
-  "scope": "Single public native Bonjour diagnostic; plugin span 11154ms, factory summary16ms/53factories, system-prompt3496ms. No inference of cache miss or specific expensive function yet."
+  "scope": "Single public native Bonjour diagnostic; plugin span 11154ms, factory summary16ms/53factories, system-prompt3496ms. No inference of cache miss or specific expensive function yet.",
+  "trackerPublicSourceSha256": "1d8cfb8dd0717d5198b6cd0ee4a821175a92bcab254ce2ae72b73dc77ad11a38"
 }
