@@ -21,7 +21,8 @@ export class VoiceTurnProtocol {
     private readonly observer?:(event:string,turnId:string,metadata?:Record<string,number|boolean>)=>void,
     private readonly now:()=>number=()=>Number(process.hrtime.bigint()/1_000_000n),
     private readonly warmHit=false,
-    private readonly schedule:(run:()=>void,ms:number)=>any=(run,ms)=>{const timer=setTimeout(run,ms);timer.unref?.();return timer;}) {}
+    private readonly schedule:(run:()=>void,ms:number)=>any=(run,ms)=>{const timer=setTimeout(run,ms);timer.unref?.();return timer;},
+    private readonly asyncToolReadback=false) {}
 
   /**
    * Bounded wait for the provider boundary of an interrupted output. Gemini signals `interrupted` only for a generation
@@ -33,7 +34,7 @@ export class VoiceTurnProtocol {
     const next=this.nextOutput;
     this.boundaryTimer=this.schedule(()=>{
       this.boundaryTimer=null;
-      if(this.closed||this.ambiguous||!next||this.nextOutput!==next||previous.outputEnded||previous.outputSeen)return;
+      if(this.closed||this.ambiguous||!next||this.nextOutput!==next||previous.outputEnded||previous.outputSeen||previous.asyncHandoff)return;
       previous.outputEnded=true;this.observe("output_boundary_without_output",previous.id);
       this.nextOutput=null;this.outputOwner=null;
       if(this.waiting?.id===next&&!this.asrOwner){const pending=this.waiting;this.waiting=null;this.admit(pending);}
@@ -144,11 +145,16 @@ export class VoiceTurnProtocol {
     const t=this.turns.get(id),entry=this.executions.get(id);
     const reason=!text||text.length>PROGRESS_MAX_CHARS?"invalid_text"
       :(t?.progressCount??0)>=PROGRESS_MAX_PER_TURN?"progress_budget"
-      :this.closed||this.asrOwner||this.waiting||this.nextOutput||!t||t.greeting||t.readback||t.interrupted||!t.outputEnded
-        ||this.outputOwner!==id||!entry||entry.result!==undefined?"not_admissible":null;
+      :this.closed||this.asrOwner||this.waiting||this.nextOutput||!t||t.greeting||t.readback||t.interrupted||t.asyncHandoff
+        ||(!t.outputEnded&&!this.asyncReady(t))||this.outputOwner!==id||!entry||entry.result!==undefined?"not_admissible":null;
     if(reason) {this.event({progressRefused:{reason}},id,t?.generation||null);return "refused";}
     if(!t)return "refused";
-    t.progressCount=(t.progressCount??0)+1;t.outputEnded=false;t.generation="out-"+id+"-progress-"+t.progressCount;
+    t.progressCount=(t.progressCount??0)+1;
+    if(this.asyncReady(t)) {
+      this.asyncReadback(t,"out-"+id+"-progress-"+t.progressCount,{text,voice:{verbatim:text},readbackOnly:true},true);
+      return "accepted";
+    }
+    t.outputEnded=false;t.generation="out-"+id+"-progress-"+t.progressCount;
     this.event({outputResumed:{progress:true}},id,t.generation);
     this.forward({clientContent:{turns:[{role:"user",parts:[{text:VERBATIM_READBACK+JSON.stringify(text)}]}],turnComplete:true}});
     return "accepted";
@@ -241,7 +247,17 @@ export class VoiceTurnProtocol {
       const owner=this.toolOwners.get(reply.id),t=owner?this.turns.get(owner):null;
       if(!t||!t.asrFinished)throw new Error("uncorrelated_tool_response");
       if(t.interrupted)continue; // Original Claw receipt persists independently; never speak the old result into a new turn.
-      const webResult=this.executions.get(t.id)?.result;
+      const execution=this.executions.get(t.id);
+      if(this.asyncToolReadback&&t.asyncCall?.id===reply.id&&typeof t.asyncCall.request==="string"&&t.asyncCall.request.trim()===t.input.trim()&&
+        (execution||(reply.response?.result?.state==="running"&&reply.response?.result?.source==="samantha_brain"))) {
+        if(!t.asyncCall.responded) {
+          t.asyncCall.responded=true;
+          accepted.push({id:t.asyncCall.id,name:t.asyncCall.name,willContinue:true,scheduling:"SILENT",
+            response:{state:"running",readbackOnly:true}});
+        }
+        continue; // Only the canonical execution result may close this generator; never trust a client-supplied receipt.
+      }
+      const webResult=execution?.result;
       if(webResult?.voice?.mode==="public_web"){
         const verbatim=imposedVoiceText(webResult);
         if(!verbatim)throw new Error("public_web_readback_language_required");
@@ -249,9 +265,10 @@ export class VoiceTurnProtocol {
       } else accepted.push(reply);
     }
     if(accepted.length)this.forward({toolResponse:{functionResponses:accepted}});
+    for(const t of this.turns.values())if(t.receiptQueued&&t.asyncCall?.responded&&!t.asyncFinalSent)this.receiptReply(t.id);
   }
   provider(value:any) {
-    if(this.ambiguous)return;
+    if(this.closed||this.ambiguous)return;
     const content=value.serverContent;
     const transcriptOwner=this.asrOwner?this.turns.get(this.asrOwner):null;
     if(content?.inputTranscription) {
@@ -261,14 +278,16 @@ export class VoiceTurnProtocol {
     }
     const id=this.outputOwner,t=id?this.turns.get(id):null;
     if(value.toolCall?.functionCalls) {
-      if(t && t.generation.endsWith("-receipt") && this.executions.get(t.id)?.result?.voice?.mode==="public_web") {this.refuseProviderTools(value.toolCall.functionCalls,"public_web_readback",t.id);return;}
+      if(t&&(t.generation.endsWith("-receipt")||t.asyncFinalSent)) {this.refuseProviderTools(value.toolCall.functionCalls,
+        this.executions.get(t.id)?.result?.voice?.mode==="public_web"?"public_web_readback":"receipt_readback",t.id);return;}
       if(!t) {this.refuseProviderTools(value.toolCall.functionCalls,"no_active_turn",null);return;}
       if(t.greeting) {this.refuseProviderTools(value.toolCall.functionCalls,"greeting",t.id);return;}
       if(t.readback) {this.refuseProviderTools(value.toolCall.functionCalls,"readback",t.id);return;}
       if(t.generation.includes("-progress-")) {this.refuseProviderTools(value.toolCall.functionCalls,"progress_readback",t.id);return;}
       const calls=value.toolCall.functionCalls;
       if(!Array.isArray(calls)||calls.length>16) {this.error("tool_call_budget");return;}
-      for(const call of calls) {if(typeof call.id!=="string"||this.toolOwners.size>=128){this.error("tool_call_budget");return;}this.toolOwners.set(call.id,t.id);}
+      for(const call of calls) {if(typeof call.id!=="string"||this.toolOwners.size>=128){this.error("tool_call_budget");return;}this.toolOwners.set(call.id,t.id);
+        if(this.asyncToolReadback&&call.name==="ask_samantha"&&!t.asyncCall)t.asyncCall={id:call.id,name:call.name,request:call.args?.request,responded:false};}
       if(!t.interrupted) {
         if(t.asrFinished)this.event(value,t.id,t.generation);
         else {const pending=this.pendingTools.get(t.id)||[];if(pending.length>=8){this.error("pending_tool_budget");return;}pending.push(calls);this.pendingTools.set(t.id,pending);}
@@ -287,6 +306,18 @@ export class VoiceTurnProtocol {
         // With manual activity detection the provider answers only after activityEnd: output for a turn still being
         // spoken is the tail of the generation it interrupted, never this turn's answer.
         if(!t.inputEnded) {this.observe("provider_output_before_input_end",t.id);return;}
+        if(t.asyncHandoff) {
+          // INTERRUPT retires a generation, not the business turn. All its late PCM/text stay quarantined until the
+          // provider's real turnComplete. generationComplete alone is not a correlation boundary (SDK playback delay).
+          if(output.turnComplete) {
+            t.outputEnded=true;
+            const handoff=t.asyncHandoff;t.asyncHandoff=undefined;
+            if(!t.interrupted&&!this.nextOutput&&!this.waiting&&!this.asrOwner&&!this.closed) {
+              this.resumeAsyncOutput(t,handoff);
+              return;
+            }
+          } else return;
+        }
         t.outputSeen=true;
         if(output.modelTurn?.parts?.some((part:any)=>part.inlineData?.mimeType?.startsWith("audio/")&&part.inlineData?.data)&&!t.audioGenerations?.has(t.generation)){
           (t.audioGenerations??=new Set()).add(t.generation);
@@ -307,6 +338,7 @@ export class VoiceTurnProtocol {
         if(output.interrupted||output.turnComplete) {
           t.outputEnded=true;
           this.verbatimCheck(t);
+          if(t.receiptQueued&&!t.interrupted&&!this.nextOutput&&!this.waiting&&!this.asrOwner)this.receiptReply(t.id);
           if(this.nextOutput) {
             const next=this.nextOutput;this.nextOutput=null;this.outputOwner=null;
             if(this.waiting?.id===next&&!this.asrOwner){const pending=this.waiting;this.waiting=null;this.admit(pending);}
@@ -342,19 +374,52 @@ export class VoiceTurnProtocol {
     const t=this.turns.get(turnId);if(!t)return run();const started=this.now();
     try{return await run();}finally{if(t.capabilityMs===undefined)t.capabilityMs=elapsed(started,this.now());}
   }
+  private asyncReady(t:Turn):boolean {
+    return this.asyncToolReadback&&Boolean(t.asyncCall?.responded)&&!t.asyncFinalSent;
+  }
+  private resumeAsyncOutput(t:Turn,handoff:AsyncHandoff) {
+    t.outputEnded=false;t.outputSeen=false;t.generation=handoff.generation;
+    if(handoff.final)t.receiptRequestedAt=handoff.sentAt;
+    this.event({outputResumed:{...(handoff.final?{}:{progress:true})}},t.id,t.generation);
+    this.observe("async_readback_started",t.id,{receipt:handoff.final});
+  }
+  private asyncReadback(t:Turn,generation:string,result:any,continues:boolean) {
+    const handoff:AsyncHandoff={generation,final:!continues,sentAt:this.now()};
+    // When virtual playback is still open, preserve its owner until interrupted > turnComplete arrives. The official
+    // NON_BLOCKING response interrupts it immediately; no guessed generation identity or relaxed timeout is involved.
+    const pendingBoundary=!t.outputEnded;
+    if(pendingBoundary)t.asyncHandoff=handoff;else this.resumeAsyncOutput(t,handoff);
+    this.observe("async_readback_requested",t.id,{receipt:!continues,pending_boundary:pendingBoundary});
+    const serialized=JSON.stringify(result);
+    // Preserve the existing 48000-character receipt prompt bound, including unusually large results.
+    const bounded=serialized.length<=48000?result:serialized.slice(0,48000);
+    this.forward({toolResponse:{functionResponses:[{id:t.asyncCall!.id,name:t.asyncCall!.name,
+      willContinue:continues,scheduling:"INTERRUPT",response:{result:bounded,...(bounded===result?{}:{truncated:true})}}]}});
+  }
   receiptReply(turnId:string) {
     const t=this.turns.get(turnId),entry=this.executions.get(turnId);
+    if(t?.asyncFinalSent||t?.generation.endsWith("-receipt"))return; // Duplicate request never produces a second answer.
     // No receipt to read (execution never admitted, turn interrupted, or its output still open): an explicit refusal for
     // this turn, never a session-wide protocol error (banc voix S24 18/10 19:45: one refused execution closed the call
     // « la réponse est arrivée incomplète »). The app answers the refusal on that turn and keeps listening.
-    if(!t||t.interrupted||!t.outputEnded||!entry?.result) {
-      const reason=!t?"unknown_turn":t.interrupted?"interrupted":!t.outputEnded?"output_open":"no_execution";
+    if(!t||t.interrupted||this.closed||this.outputOwner!==turnId||this.asrOwner||this.waiting||this.nextOutput||!entry?.result||(!t.outputEnded&&!this.asyncToolReadback)) {
+      const reason=!t?"unknown_turn":t.interrupted?"interrupted":!entry?.result?"no_execution":!t.outputEnded?"output_open":"not_admissible";
       this.event({receiptRefused:{reason}},turnId,t?.generation||null);
       return;
     }
     const imposed=imposedVoiceText(entry.result);
     const publicWeb=entry.result?.voice?.mode==="public_web";
     if(publicWeb&&!imposed)throw new Error("public_web_readback_language_required");
+    if(this.asyncReady(t)) {
+      if(t.asyncHandoff)return; // An already audible progress line keeps its real provider boundary.
+      t.receiptQueued=false;t.asyncFinalSent=true;
+      this.asyncReadback(t,"out-"+turnId+"-receipt",entry.result,false);
+      return;
+    }
+    // A modern app may finish before Gemini has called its tool. Queue once in the existing turn; toolResponse or the
+    // provider boundary completes the handoff. No timer, retry, new execution or fabricated generation completion.
+    if(!t.outputEnded) {t.receiptQueued=true;this.observe("receipt_queued",t.id);return;}
+    t.receiptQueued=false;
     t.outputEnded=false;t.generation="out-"+turnId+"-receipt";t.receiptRequestedAt=this.now();this.outputOwner=turnId;
     this.event({outputResumed:{}},turnId,t.generation);
     const instruction=publicWeb
@@ -377,7 +442,8 @@ export class VoiceTurnProtocol {
 }
 
 type Start={id:string;first:number;activityStarted:boolean};
-type Turn={progressCount?:number;outputSeen?:boolean;greeting?:boolean;readback?:boolean;spoken?:string;verbatimChecked?:boolean;audioGenerations?:Set<string>;interruptionObserved?:boolean;inputEndedAt?:number;receiptRequestedAt?:number;decisionMs?:number;capabilityMs?:number;id:string;end:number;inputEnded:boolean;asrFinished:boolean;outputEnded:boolean;interrupted:boolean;generation:string;input:string;audio:Map<number,string>};
+type AsyncHandoff={generation:string;final:boolean;sentAt:number};
+type Turn={asyncCall?:{id:string;name:string;request:unknown;responded:boolean};asyncHandoff?:AsyncHandoff;asyncFinalSent?:boolean;receiptQueued?:boolean;progressCount?:number;outputSeen?:boolean;greeting?:boolean;readback?:boolean;spoken?:string;verbatimChecked?:boolean;audioGenerations?:Set<string>;interruptionObserved?:boolean;inputEndedAt?:number;receiptRequestedAt?:number;decisionMs?:number;capabilityMs?:number;id:string;end:number;inputEnded:boolean;asrFinished:boolean;outputEnded:boolean;interrupted:boolean;generation:string;input:string;audio:Map<number,string>};
 const ID=/^[A-Za-z0-9._:-]{1,160}$/;
 const OUTPUT_BOUNDARY_MS=2000;
 const READBACK_MAX_CHARS=600;

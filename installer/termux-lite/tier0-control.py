@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/python3
 from __future__ import annotations
-import argparse,contextlib,datetime as dt,hashlib,json,os,shutil,subprocess,tempfile,fcntl,sys
+import argparse,contextlib,datetime as dt,hashlib,json,os,shutil,subprocess,tempfile,fcntl,sys,time,math
 from pathlib import Path
 import runtime_mode
 
@@ -11,6 +11,10 @@ STATE=TIER0/'state.json'
 STOP=TIER0/'emergency-stop.json'
 CURRENT=RELEASES/'current'
 LKG=RELEASES/'last-known-good'
+# Same bounded readiness window already used by runtime-sync (30 observations at its default 4 s cadence).
+# This precedes the soak; neither the 300 s soak nor its manifest-declared startup grace is increased.
+ACTIVATION_READINESS_S=120
+HEALTH=HOME/'.openclaw/health/current.json'
 
 def now():
     return dt.datetime.now(dt.timezone.utc).isoformat()
@@ -61,11 +65,18 @@ def activate_current(delay_s=3):
     if not boot.is_file():
         return
     bash=shutil.which('bash') or '/data/data/com.termux/files/usr/bin/bash'
+    # A detached service does not inherit the caller's transient deployment-lock authority. Python closes its FDs;
+    # leaving the numeric marker would falsely tell later repair_lease callers to require a now-nonexistent FD.
+    child_env=dict(os.environ)
+    child_env.pop('SAMANTHA_DEPLOY_LOCK_FD',None)
+    child_env.pop('SAMANTHA_DEPLOY_LOCK_WAIT_S',None)
     subprocess.Popen(
         [bash,'-c','sleep "$1"; exec "$2" --restart-core','tier0-activate',str(int(delay_s)),str(boot)],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         start_new_session=True,
+        close_fds=True,
+        env=child_env,
     )
 
 def load_state():
@@ -129,17 +140,71 @@ def cmd_promote(a):
     target=RELEASES/a.release_id; meta=verify_release(target)
     old=CURRENT.resolve() if CURRENT.exists() else None
     s=load_state()
+    # A repeated observation of an already activated target never restarts its processes or re-arms its soak.
+    if old==target.resolve() and s.get('current')==a.release_id:
+        if s.get('soak_state') not in ('activating','activation_failed','running','stable'):
+            raise SystemExit('promotion_state_requires_new_release')
+        return s
     # A release still in its LKG hold never becomes the rollback target; the confirmed LKG stays.
     if old and old!=target.resolve() and not (LKG.exists() and s.get('lkg_candidate')==old.name): link_atomic(LKG,old)
     link_atomic(CURRENT,target)
     for key in ('soak_completed_at','rollback_reason','rolled_back_from','last_bad','lkg_candidate','lkg_due_epoch','soak_last_health_generated_at','soak_last_health_sample','soak_sample_log_unavailable'):
         s.pop(key,None)
-    epoch=int(dt.datetime.now().timestamp())
+    epoch=int(time.time())
     s.update({'current':a.release_id,'last_known_good':LKG.resolve().name if LKG.exists() else None,
-        'soak_started_at':now(),'soak_deadline_epoch':epoch+int(meta.get('soak_seconds',300)),
-        'soak_grace_until_epoch':epoch+int(meta.get('startup_grace_seconds',30)),
-        'soak_bad_samples':0,'soak_state':'running','critical_capabilities':meta.get('critical_capabilities',[])})
-    save_state(s); activate_current(); print(json.dumps(s))
+        'activation_started_epoch':epoch,'activation_deadline_epoch':epoch+ACTIVATION_READINESS_S,
+        'soak_bad_samples':0,'soak_state':'activating','critical_capabilities':meta.get('critical_capabilities',[])})
+    for key in ('soak_started_at','soak_deadline_epoch','soak_grace_until_epoch','activation_health_sample','activation_failure'):
+        s.pop(key,None)
+    save_state(s); activate_current(); return s
+
+def activation_health_sample(s, target, at):
+    """Only fresh native evidence produced by the selected immutable runtime may start its soak."""
+    try:
+        value=json.loads(HEALTH.read_text());generated=value.get('generated_at');caps=value.get('capabilities')
+        if (type(generated) not in (int,float) or not math.isfinite(generated)
+                or generated<s['activation_started_epoch'] or generated>at or at-generated>30
+                or value.get('runtime_root')!=str((target/'termux-lite').resolve()) or not isinstance(caps,dict)):
+            return None
+        critical=s.get('critical_capabilities')
+        if not isinstance(critical,list) or not critical:return None
+        states={c:caps.get(c,{}).get('state') if isinstance(caps.get(c),dict) else None for c in critical}
+        if any(v not in ('healthy','ready') for v in states.values()):return None
+        return {'source':'health/current.json','generated_at':generated,'runtime_root':value['runtime_root'],'states':states}
+    except (OSError,ValueError,TypeError,KeyError):return None
+
+def finish_promotion(a, pending):
+    # main retains the deployment guard, but MUST release control.lock before this wait: bootstrap/guardian resolves
+    # the selected root through this very CLI. Holding the lock here would deadlock the native readiness producer.
+    if pending.get('soak_state')!='activating':
+        if pending.get('soak_state')=='activation_failed':raise SystemExit('activation_readiness_failed')
+        return pending
+    target=RELEASES/a.release_id;meta=verify_release(target)
+    deadline=time.monotonic()+max(0,min(ACTIVATION_READINESS_S,pending['activation_deadline_epoch']-time.time()))
+    sample=None
+    while True:
+        if CURRENT.resolve()!=target.resolve():raise SystemExit('activation_target_changed')
+        if STOP.exists():raise SystemExit('emergency_stop_active')
+        sample=activation_health_sample(pending,target,time.time())
+        if sample or time.monotonic()>=deadline:break
+        time.sleep(min(2,max(0,deadline-time.monotonic())))
+    with open(TIER0/'control.lock','a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        s=load_state()
+        if (CURRENT.resolve()!=target.resolve() or s.get('current')!=a.release_id
+                or s.get('soak_state')!='activating' or s.get('activation_started_epoch')!=pending['activation_started_epoch']):
+            raise SystemExit('activation_identity_changed')
+        # Revalidate under the state lock; a stale sample or an intervening failure cannot authorize the soak.
+        sample=activation_health_sample(s,target,time.time()) if sample else None
+        if not sample:
+            s['soak_state']='activation_failed';s['activation_failure']='critical_readiness_unverified';save_state(s)
+            raise SystemExit('activation_readiness_failed')
+        epoch=int(time.time())
+        s.update({'activation_ready_at':now(),'activation_health_sample':sample,
+            'soak_started_at':now(),'soak_deadline_epoch':epoch+int(meta.get('soak_seconds',300)),
+            'soak_grace_until_epoch':epoch+int(meta.get('startup_grace_seconds',30)),
+            'soak_bad_samples':0,'soak_state':'running'})
+        save_state(s);return s
 
 def cmd_rollback(a):
     if not LKG.exists(): raise SystemExit('no_last_known_good')
@@ -225,7 +290,11 @@ def main():
         with guard:
             with open(TIER0/'control.lock','a') as lock:
                 fcntl.flock(lock,fcntl.LOCK_EX)
-                return globals()['cmd_'+a.cmd.replace('-','_')](a)
+                result=globals()['cmd_'+a.cmd.replace('-','_')](a)
+            if a.cmd=='promote':
+                result=finish_promotion(a,result)
+                print(json.dumps(result))
+            return result
     except runtime_mode.DeploymentLockBusy as error:
         print(json.dumps({'success':False,'state':'refused','reason':'deployment_lock_busy','detail':str(error)}),file=sys.stderr)
         raise SystemExit(3)

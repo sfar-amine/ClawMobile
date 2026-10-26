@@ -1,0 +1,7 @@
+# S24 activation observation —25October2026
+
+Read-only authorized observations from the S24 through Remote Desktop Commander, tool output chunks in the conversation at sample epochs1792940342.116,1792940390.603,1792940530.645 and1792940644.505. Sources: `.openclaw/tier0/state.json`, `.openclaw/health/current.json`, numeric heartbeat files, `/proc/<pid>/{cmdline,stat}`, `.openclaw/guardian/guardian.log`, installed/candidate source file existence and SHA256, and candidate manifest. Only closed event/component fields were projected; no incident dossier body, raw answer, secret or account data was copied.
+
+Guardian start/result log times in timezone+01 were converted to exact epoch seconds. The candidate manifest names sourced87bd2494f079a4dc6753b619550d4f76ab600db. Post-rollback healthy data belongs to the old selected release, not the failed candidate. The observation does not retain two distinct pre-rollback health snapshots and does not prove a crash. Resident code staleness is established at least for the AI gate: PID start18October predates the first gate source commit23October; Python does not reload that script in its loop. Its installed file hash proves file contents only, not the resident interpreter contents.
+
+Healthy candidate samples constructed in the offline tests are explicitly synthetic unit scenarios. They are not written to this real fixture and are never labelled live acceptance. No recovery, restart, UI action or deployment was performed by this source observer.

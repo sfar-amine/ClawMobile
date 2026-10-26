@@ -561,9 +561,64 @@ def web_recipe(mode, session_id, core_root, playbooks_root, recipe_id=None, run_
                 **({"judgment": row["judgment"]} if "judgment" in row else {})}, 0 if row["state"] in ("prepared", "passed") else 1
 
 
+# L1: explicit static plan validation in this existing recipe owner. Never sends a request.
+def journey_scenarios_validate(plan_path, playbooks_root):
+    import importlib
+    library = os.environ.get("CLAW_QA_PYTHON_LIB")
+    if library:
+        sys.path.insert(0, library)
+    jsonschema = importlib.import_module("jsonschema")
+    path = pathlib.Path(plan_path)
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 64 * 1024:
+        raise ValueError("journey_plan_unavailable")
+    plan = json.loads(path.read_text())
+    core = pathlib.Path(__file__).resolve().parents[2]
+    schema = json.loads((core / "openclaw-plugin-mobile-ui/fixtures/refonte-parcours-unique/L1-scenarios.schema.json").read_text())
+    jsonschema.Draft202012Validator.check_schema(schema)
+    jsonschema.Draft202012Validator(schema).validate(plan)
+    rows = plan["scenarios"]
+    if len({row["id"] for row in rows}) != len(rows):
+        raise ValueError("journey_duplicate_scenario")
+    peer = pathlib.Path(playbooks_root).resolve()
+    head = subprocess.check_output(["git", "-C", str(peer), "rev-parse", "HEAD"], text=True, timeout=5).strip()
+    if head != plan["provenance"]["contractSource"]["commit"]:
+        raise ValueError("journey_contract_revision_mismatch")
+    registry = json.loads((peer / "capabilities/registry.json").read_text())
+    capabilities = {row["id"] for row in registry["capabilities"]}
+    graph = json.loads((peer / "capabilities/execution_graph.json").read_text())
+    for row in rows:
+        expected = row["expected"]
+        if expected["route"] != "tool":
+            continue
+        domain, intent, capability = (expected[key] for key in ("domain", "intent", "capability"))
+        manifest = json.loads((peer / "skill_intelligence/manifests" / (domain + ".json")).read_text())
+        selected = manifest.get("intents", {}).get(intent)
+        binding = graph.get("skill_intent_capability_map", {}).get(domain + ":" + intent,
+                    graph.get("skill_capability_map", {}).get(domain))
+        if not selected or capability not in capabilities or binding != capability:
+            raise ValueError("journey_contract_binding_mismatch")
+        names = set(); string_names = set()
+        for route in selected.get("routes", []):
+            placeholders = set(re.findall(r"<([a-z_]+)>", route.get("entrypoint", "")))
+            names.update(placeholders); string_names.update(placeholders)
+        contract = selected.get("execution_contract", {})
+        names.update(contract.get("parameter_formats", {})); string_names.update(contract.get("parameter_formats", {}))
+        names.update(pair[0] for pair in contract.get("confirmation_labels", []))
+        if not set(expected["params"]).issubset(names):
+            raise ValueError("journey_parameter_not_in_contract")
+        if any(key in string_names and not isinstance(value, str) for key, value in expected["params"].items()):
+            raise ValueError("journey_parameter_type_mismatch")
+        if set(expected.get("bindings", {})) - names:
+            raise ValueError("journey_binding_not_in_contract")
+    return {"state": "validated", "lot": "L1", "scenarios": len(rows),
+            "surfaceCases": sum(len(row["surfaces"]) for row in rows), "runtimeExecuted": False,
+            "contractCommit": head}
+
+
 if __name__ == "__main__":
     import argparse
     parser=argparse.ArgumentParser(description="Read-only Companion acceptance; session supplied by Claude for metadata budgets")
+    parser.add_argument("--journey-scenarios-validate", help="validate the L1 versioned plan only; no runtime requests")
     parser.add_argument("--session-id")
     parser.add_argument("--baseline", help="previous deployment receipt whose acceptance timings are the comparison")
     parser.add_argument("--web-recipe", choices=("prepare", "judge"))
@@ -574,6 +629,16 @@ if __name__ == "__main__":
     parser.add_argument("--web-client-run-id")
     parser.add_argument("--web-operation", choices=("search", "answer"), default="answer")
     args=parser.parse_args()
+    if args.journey_scenarios_validate:
+        if args.web_recipe or not args.playbooks_root:
+            parser.error("journey plan validation requires --playbooks-root and excludes --web-recipe")
+        try:
+            print(json.dumps(journey_scenarios_validate(args.journey_scenarios_validate, args.playbooks_root)))
+            sys.exit(0)
+        except Exception as error:
+            reason = str(error) if isinstance(error, ValueError) and re.fullmatch(r"journey_[a-z_]+", str(error)) else "journey_plan_invalid"
+            print(json.dumps({"state": "refused", "reason": reason, "runtimeExecuted": False}))
+            sys.exit(2)
     if args.web_recipe:
         try:
             output, code = web_recipe(args.web_recipe, args.session_id, args.web_core_root, args.playbooks_root,

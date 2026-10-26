@@ -28,16 +28,16 @@ const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resol
   const android=live.buildClawLiveSetup('gemini-3.8-live',{home,client:'samantha_android'}).setup;
   const prompt=android.systemInstruction.parts[0].text;
   const tools=android.tools[0].functionDeclarations;
-  await test('android voice declares ask_samantha first, verbatim and blocking',()=>{
+  await test('android voice declares ask_samantha first, verbatim and asynchronous',()=>{
    assert.deepEqual(tools.map(t=>t.name),['ask_samantha','clawmobile_capability']);
-   const ask=tools[0];assert.equal(ask.behavior,'BLOCKING');assert.deepEqual(Object.keys(ask.parameters.properties),['request']);assert.deepEqual(ask.parameters.required,['request']);
+   const ask=tools[0];assert.equal(ask.behavior,'NON_BLOCKING');assert.deepEqual(Object.keys(ask.parameters.properties),['request']);assert.deepEqual(ask.parameters.required,['request']);
    assert.match(ask.description,/every turn/);
   });
   await test('clawmobile_capability is reserved to answering a needs_clarification receipt',()=>{
-   const cap=tools[1];assert.deepEqual(cap.parameters.required,['request','clarificationId']);assert.match(cap.description,/^Only to send/);assert.match(cap.description,/Never for a new request/);
+   const cap=tools[1];assert.equal(cap.behavior,'BLOCKING');assert.deepEqual(cap.parameters.required,['request','clarificationId']);assert.match(cap.description,/^Only to send/);assert.match(cap.description,/Never for a new request/);
   });
   await test('android instruction delegates every turn and forbids answering alone',()=>{
-   assert.match(prompt,/brain delegation v2/);
+   assert.match(prompt,/brain delegation v3/);
    assert.match(prompt,/ABSOLUTE RULE: every time Amine speaks, call ask_samantha/);
    assert.match(prompt,/Only exception, social reflexes: .*without any tool and without any fact, number, state, memory, opinion or promise/);
    assert.match(prompt,/« Oui », « non », « d'accord », a choice or any answer to a question are never reflexes: they go to ask_samantha/);

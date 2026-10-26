@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "immune-gemini-third-fallback-core-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "kind": "capability",
+  "summary": "The Companion interpreter port accepts Gemini free as the third and last immune decider after Sol and Luna.",
+  "reason": "Amine's decision 25/10: a recurring OpenAI quota exhaustion must be handled by switching Sol -> Luna -> Gemini free; on 25/10 the immune admission had no decider and critical supervisors could not be restored.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
+    "docs/changes/immune-gemini-third-fallback-core-20261025.json",
+    "docs/changes/immune-gemini-third-fallback-core-20261025.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
+      "status": "passed",
+      "evidence": "Exact immune model order Sol, Luna, Gemini free; OAuth only for OpenAI; Gemini free profile pinned; unsuffixed or other Gemini refused; provider-error shape per model. No device effect."
+    }
+  ],
+  "documentation": [
+    "docs/changes/immune-gemini-third-fallback-core-20261025.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No new route or business capability; the existing immune admission gains a third governed decider."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same credential owner and allowlist; selection stays in the playbooks governor."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: no MCP schema, adapter or endpoint changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Effective only with the paired playbooks governor change; Companion must be deployed first.",
+    "Live proof: immune decision by Gemini while Sol/Luna are quota-limited, recorded in models.db."
+  ],
+  "rollback": "Revert this commit; immune purpose returns to Sol/Luna."
+}

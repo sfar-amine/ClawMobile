@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "id": "network-guard-test-pid-fixture-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "The Unix forward reconcile test uses fixture PID liveness instead of the host process table.",
+  "reason": "Canonical CI failed deterministically when fixture PID 4242 was a live host process; the guard then correctly reported the owner as UNKNOWN.",
+  "files": [
+    "installer/termux-lite/test-android-network-mutation-guard.py",
+    "docs/changes/network-guard-test-pid-fixture-20261025.json",
+    "docs/changes/network-guard-test-pid-fixture-20261025.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-android-network-mutation-guard.py",
+      "status": "passed",
+      "evidence": "78 tests passed on the CI container where the failure reproduced three times (PID 4242 = kworker). Test-only change; no device effects."
+    }
+  ],
+  "documentation": [
+    "docs/changes/network-guard-test-pid-fixture-20261025.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Test fixture only; no runtime route or capability changes."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuses the os.kill fixture already used by ForwardLeaseTests; production guard unchanged."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: only a unit-test fixture changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the composed final GitHub head remains required."
+  ],
+  "rollback": "Revert this test-only commit normally; no S24 configuration or deployment is changed."
+}
