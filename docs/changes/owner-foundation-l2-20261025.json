@@ -33,6 +33,11 @@
       "name": "Canonical host loader focused assertions",
       "status": "passed",
       "evidence": "Four assertions from the existing owner-foundation test block executed against the canonical shell loader with an authored temporary env file : persisted0/1 and inherited precedence PASS. Proof /workspace/refonte-evidence/l2-core-host-loader-focused.log. node --check and git diff integrity PASS. Voice-context regression case registered but not executed yet; final integrated TS/CI pending."
+    },
+    {
+      "name": "Resumed integrated foundation focused checks",
+      "status": "passed",
+      "evidence": "Source6ebf50ba against delivered basec8d9aca9 : TypeScript build, test-owner-foundation.cjs (including VOICE_CONTEXT and persistent host flag), test-mcp-foundation.cjs and existing test-canonical-agent-bootstrap.cjs PASS. Log l2-focused-resume-20261026.log SHA256ea57def61f5e3e100c73e695501aec9b21ad03426f5a5d922295d53b12c78a66. This is focused validation only; final exact-head canonical CI and live three-surface acceptance remain pending."
     }
   ],
   "capabilities": {
