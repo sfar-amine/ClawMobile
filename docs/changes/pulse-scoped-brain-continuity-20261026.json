@@ -45,7 +45,10 @@
   },
   "architecture": {
     "changed": true,
-    "reason": "ADR docs/08-decisions/ADR-20261026-pulse-scoped-brain.md ; cerveau scoped, preuves NativePulse/C2 existantes et queue coordinateur existante, aucun autre mécanisme."
+    "reason": "ADR docs/08-decisions/ADR-20261026-pulse-scoped-brain.md ; cerveau scoped, preuves NativePulse/C2 existantes et queue coordinateur existante, aucun autre mécanisme.",
+    "documents": [
+      "docs/08-decisions/ADR-20261026-pulse-scoped-brain.md"
+    ]
   },
   "mcp_owner_parity": {
     "tools": {
