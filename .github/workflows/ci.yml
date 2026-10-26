@@ -198,7 +198,10 @@ jobs:
       - name: Context ingest is idempotent across pending to processed race
         run: python3 ../installer/termux-lite/test-context-ingest-race.py
       - name: Test canonical app and authenticated Bixby bootstrap
-        run: node scripts/test-canonical-agent-bootstrap.cjs
+        run: |
+          node scripts/test-canonical-agent-bootstrap.cjs
+          node scripts/test-owner-foundation.cjs
+          node scripts/test-mcp-foundation.cjs
       - name: N4 request language transport
         run: node scripts/test-request-language-transport.cjs
 

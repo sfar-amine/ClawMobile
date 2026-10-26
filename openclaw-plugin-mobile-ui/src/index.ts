@@ -1,3 +1,4 @@
+import {ownerFoundationHook} from "./ownerBootstrapContext";
 import {
   android_health,
   android_screenshot,
@@ -186,6 +187,7 @@ function register(api: any) {
   // mobile runtime implementation below.
 
   api.on("before_tool_call", agentCapabilityHook);
+  api.on("before_prompt_build", ownerFoundationHook);
 
   // SDK 2026.9.6 emits this accepted-turn observation without awaiting it.
   // Private QA owners admit an existing DRAFT before any staged bytes are read.
