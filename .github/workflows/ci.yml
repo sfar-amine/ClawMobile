@@ -108,6 +108,9 @@ jobs:
           python3 ../installer/termux-lite/test-native-turn-provenance.py
           node ../installer/termux-lite/test-agent-exec-auth-scope.cjs
 
+      - name: Gateway preparation splits reuse the pinned existing stage owner
+        run: python3 ../installer/termux-lite/test-gateway-prep-stages.py
+
       - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
         run: python3 ../installer/termux-lite/test-project-room.py
       - name: Pulse room agents (fichier 52 §5)
@@ -227,6 +230,7 @@ jobs:
       - name: Interpreted durable read paired with immutable PB310 admission owner (offline)
         run: |
           node scripts/test-capability-bridge.cjs
+          node scripts/test-helper-process-termux-shim.cjs
           peer=$(mktemp -d "${TMPDIR:-/tmp}/intent-durable-pb310.XXXXXX")
           trap 'rm -rf -- "$peer"' EXIT
           git init "$peer"

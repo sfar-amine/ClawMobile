@@ -14,6 +14,16 @@ MODULE=Path(__file__).with_name('people-trusted.py')
 spec=importlib.util.spec_from_file_location('r17_people',MODULE);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 OWNER='+21610000001';OTHER='+21610000002';NEW='+21610000003'
 
+def merge_patch(base,patch):
+    """The S24 Gateway's config.patch (OpenClaw 2026.9.6 applyMergePatch, RFC 7396): objects merge
+    recursively and only an explicit null removes a key; replacePaths only replaces arrays."""
+    if not isinstance(patch,dict):return copy.deepcopy(patch)
+    out=copy.deepcopy(base) if isinstance(base,dict) else {}
+    for key,value in patch.items():
+        if value is None:out.pop(key,None)
+        else:out[key]=merge_patch(out.get(key),value)
+    return out
+
 class AllowlistTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name);self.now=1800000000
@@ -30,10 +40,9 @@ class AllowlistTests(unittest.TestCase):
         self.calls.append((method,params))
         if method=='config.get':return {'config':copy.deepcopy(self.cfg),'hash':'HASH'}
         if method=='config.patch':
-            self.assertEqual(params['baseHash'],'HASH');raw=json.loads(params['raw']);fields=raw['channels']['whatsapp']
-            self.cfg['channels']['whatsapp'].update(fields)
-            if 'agents' in raw:self.cfg.setdefault('agents',{}).setdefault('entries',{}).update(raw['agents']['entries'])
-            if 'bindings' in raw:self.assertIn('bindings',params['replacePaths']);self.cfg['bindings']=raw['bindings']
+            self.assertEqual(params['baseHash'],'HASH');raw=json.loads(params['raw'])
+            if 'bindings' in raw:self.assertIn('bindings',params['replacePaths'])
+            self.cfg=merge_patch(self.cfg,raw)
             self.save();return {'config':copy.deepcopy(self.cfg)}
         raise AssertionError(method)
     def body(self,action,**fields):
@@ -87,6 +96,20 @@ class AllowlistTests(unittest.TestCase):
         self.cfg['bindings']=[{'agentId':'main','match':{'channel':'whatsapp','accountId':'*','peer':{'kind':'direct','id':OWNER}}},
                               {'agentId':'contacts','match':{'channel':'whatsapp','accountId':'*','peer':{'kind':'direct','id':'*'}}},
                               {'agentId':'main','match':{'channel':'whatsapp','accountId':'*'}}];self.save()
+    def test_lowering_custom_scope_removes_only_the_prompt_with_an_explicit_null(self):
+        # S24 26/10 (Sadok, operation sadok-scope-standard-20261026): custom -> standard sent the whole
+        # direct map under replacePaths; the Gateway merged it (no changed paths) and the receipt was indeterminate.
+        self.cfg['channels']['whatsapp']['allowFrom'].append(NEW)
+        self.cfg['channels']['whatsapp']['direct'][NEW]={'systemPrompt':m.scope_prompt('Authorized contact','custom','Zain Bahrain only'),'other':'stay'}
+        self.save();identity=m.contact_id(NEW);start=len(self.calls)
+        low=self.body('scope',operationId='lower-custom',contactId=identity,scope='standard',scopeText=None)
+        self.assertEqual(self.service.call('scope',low)['state'],'updated')
+        self.assertEqual(self.cfg['channels']['whatsapp']['direct'][NEW],{'other':'stay'})
+        self.assertEqual(self.cfg['channels']['whatsapp']['direct'][OTHER],{'systemPrompt':'KEEP','other':'stay'})
+        sent=[params for method,params in self.calls[start:] if method=='config.patch']
+        self.assertEqual(len(sent),1);self.assertNotIn('channels.whatsapp.direct',sent[0]['replacePaths'])
+        self.assertEqual(json.loads(sent[0]['raw'])['channels']['whatsapp']['direct'],{NEW:{'systemPrompt':None}})
+        self.assertEqual(self.service.metadata(NEW)['scope'],'standard')
     def test_project_room_routes_before_wildcard_with_confirmation_and_narrowing_is_free(self):
         self.add();self.with_rooms_config()
         with self.assertRaises(m.Refused) as e:self.rooms(['projet'],'rooms-unconfirmed',confirm=False)
