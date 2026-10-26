@@ -97,6 +97,18 @@ const clone=value=>JSON.parse(JSON.stringify(value));
   const runStatus=await require('../dist/companion/runs').getRunStatus(uncertain.receipt.runId);
   const reconciled=await api.reconcileModelFlowRunStatus(runStatus);assert.equal(JSON.parse(reconciled.result).state,'completed');assert.equal(effects,count,'status readback reconciles the same receipt without repeating configuration');
   assert.deepEqual(await require('../dist/companion/runs').readModelFlowConfigurationActivity(),[],'verified same-action readback releases admission');
+  const runOwner=require('../dist/companion/runs'),completedValue=JSON.parse(reconciled.result);
+  await runOwner.checkpointModelFlowConfiguration(uncertain.receipt.runId,{success:false,state:'dispatching',receipt:completedValue.receipt,artifact:{preservedSessions:2}});
+  const orphaned=await runOwner.getRunStatus(uncertain.receipt.runId);assert.equal(orphaned.state,'running');
+  assert.equal((await api.reconcileModelFlowRunStatus({...orphaned,sessionId:'authored-ordinary-conversation'})).state,'running','a narrative receipt is not configuration-owner provenance');
+  const forgedPhase={...JSON.parse(orphaned.result),receipt:{...completedValue.receipt,operationId:'different-operation'}};
+  assert.equal((await api.reconcileModelFlowRunStatus({...orphaned,result:JSON.stringify(forgedPhase)})).state,'running','the existing journal must attest the same run, flow and hashed operation identity');
+  const recovered=await api.reconcileModelFlowRunStatus(orphaned);assert.equal(recovered.state,'done');assert.equal(JSON.parse(recovered.result).state,'completed');assert.equal(effects,count,'an orphaned durable dispatch checkpoint is reconciled by exact readback, never replayed');
+  await runOwner.checkpointModelFlowConfiguration(uncertain.receipt.runId,{success:false,state:'dispatching',receipt:{...completedValue.receipt,appliedHash:'0'.repeat(64)},artifact:{preservedSessions:2}});
+  assert.equal((await api.reconcileModelFlowRunStatus(await runOwner.getRunStatus(uncertain.receipt.runId))).state,'running','a non-matching effect remains fenced');
+  await runOwner.checkpointModelFlowConfiguration(uncertain.receipt.runId,{success:false,state:'prepared',receipt:completedValue.receipt});
+  assert.equal((await api.reconcileModelFlowRunStatus(await runOwner.getRunStatus(uncertain.receipt.runId))).state,'running','prepared alone does not prove completed preservation or dispatch');
+  await runOwner.settleSubmittedRun(uncertain.receipt.runId,'done',reconciled.result);
   patchFail=null;
   // Inherit must retain genuine absent SDK defaults, rather than inventing booleans/effort.
   const beforeInheritance=clone(config.agents.entries.main);

@@ -2,7 +2,7 @@ import crypto from "crypto";
 import {readModelOwnerFresh,configuredModelAllow,modelReferenceAllowed,configuredModelFlow,includedModelAccounts,CONTACT_MODEL_AGENTS,observeVerifiedModelOwnerConfig,modelFlowSettingPaths,modelFlowSettingHash,modelFlowSafeValue,MODEL_FLOW_PROVENANCE_PATH,verifiedModelFlowProvenance} from "./modelOwner";
 import {confirmations} from "./confirmations";
 import {callOpenClawGateway} from "./openclawAgentClient";
-import {readPaymentRequests,readOwnerConfirmations,getRunStatus,latestModelFlowConfiguration,checkpointModelFlowConfiguration} from "./runs";
+import {readPaymentRequests,readOwnerConfirmations,getRunStatus,latestModelFlowConfiguration,checkpointModelFlowConfiguration,readModelFlowConfigurationActivity} from "./runs";
 import {memoryRemember} from "./memoryControl";
 import {preserveModelFlowSessions} from "./conversationMetadata";
 import {readModelFlowTurnLatency} from "./control-health";
@@ -237,22 +237,26 @@ function flowContainers(flow:EditableModelFlow):string[][]{return flow==='conver
 function flowSnapshot(config:any,flow:EditableModelFlow){return [...flowPaths(flow).map(path=>{const value=objectAt(config,path);return {path,present:value.present,...(value.present?{value:publicFlowValue((value as any).value)}:{})};}),...flowContainers(flow).map(path=>({path,present:objectAt(config,path).present,container:true}))];}
 function flowHash(value:any){return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');}
 function flowResult(status:any){
- if(status?.state==='done'&&typeof status.result==='string'&&status.result.length<=65536)try{const result=JSON.parse(status.result);if(result?.receipt?.version===2&&result.receipt.action==='agent.config'&&result.receipt.runId===status.runId)return result;}catch{}
+ if(['running','done'].includes(status?.state)&&typeof status.result==='string'&&status.result.length<=65536)try{const result=JSON.parse(status.result);if(result?.receipt?.version===2&&result.receipt.action==='agent.config'&&result.receipt.runId===status.runId)return result;}catch{}
  return {success:false,state:'indeterminate',receipt:null};
 }
 /** Readback of this owner's uncertain effect, invoked only by the existing run-status GET.
  * This does not dispatch configuration or session writes and never retries the action. */
 export async function reconcileModelFlowRunStatus(status:any){
  const result=flowResult(status),receipt=result.receipt;
- if(status?.state!=='done'||result.state!=='indeterminate'||result.artifact?.dispatchAttempted!==true||!receipt||
-  receipt.runId!==status.runId||!modelFlowIds.has(receipt.flow)||!/^[a-f0-9]{64}$/.test(receipt.appliedHash||''))return status;
+ const checkpointedDispatch=status?.state==='running'&&result.state==='dispatching'&&Number.isSafeInteger(result.artifact?.preservedSessions)&&result.artifact.preservedSessions>=0&&result.artifact.preservedSessions<=2000&&!pending.has(receipt?.operationId);
+ const uncertainEffect=result.state==='indeterminate'&&result.artifact?.dispatchAttempted===true;
+ if((!checkpointedDispatch&&!uncertainEffect)||status?.sessionId!=='native-owner-actions'||!receipt||
+  receipt.runId!==status.runId||!modelFlowIds.has(receipt.flow)||typeof receipt.operationId!=='string'||!/^[-A-Za-z0-9_.:]{1,128}$/.test(receipt.operationId)||!/^[a-f0-9]{64}$/.test(receipt.appliedHash||''))return status;
  try{
+  const operationId='agent-operation-'+crypto.createHash('sha256').update(receipt.operationId).digest('hex');
+  if(!(await readModelFlowConfigurationActivity()).some(row=>row.runId===status.runId&&row.operationId===operationId&&row.flow===receipt.flow))return status;
   const observed=await callOpenClawGateway('config.get',{}, {hardTimeoutMs:3000});
   if(flowHash(flowSnapshot(configObject(observed),receipt.flow))!==receipt.appliedHash)return status;
   let continuity='pending';try{const event=await memoryRemember({surface:'app',kind:'completed_action',text:'Modèles par flux : configuration '+receipt.flow+' vérifiée ; reçu '+status.runId+'. Aucun droit ni contexte de contact modifié.'});if(event.state==='recorded')continuity='recorded';}catch{}
   const verified={...result,success:true,state:'completed',artifact:{...result.artifact,configurationRevision:observed.hash,continuity,reconciled:true},receipt:{...receipt,state:'completed'}};
   await settleSubmittedRun(status.runId,'done',JSON.stringify(verified));invalidateAgentConfigCache();invalidateSessionDefaults();
-  return {...status,result:JSON.stringify(verified)};
+  return {...await getRunStatus(status.runId),result:JSON.stringify(verified)};
  }catch{return status;}
 }
 async function readModelFlowConfig(flow:EditableModelFlow){
