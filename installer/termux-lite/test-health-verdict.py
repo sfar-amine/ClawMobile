@@ -105,6 +105,22 @@ class T(unittest.TestCase):
     c.execute('insert into incidents values(?,?,?,?,?,?,?,?,?)',('s','slack_bridge','runtime','failed',980,990,0,None,'old slack failure'));c.commit();c.close()
     self.assertEqual(hv.incidents({})[1],[])
   finally: hv.OC,hv.NOW=old_oc,old_now
+ def test_live_mismatch_uses_namespaced_and_slack_resolution(self):
+  # S24 26/10: active incidents for adb_watchdog and slack_bridge stayed open while live.
+  old_live,old_inc,old_cont,old_maint,old_oc,old_now=hv.live,hv.incidents,hv.continuations,hv.maintenance_view,hv.OC,hv.NOW
+  try:
+   with tempfile.TemporaryDirectory() as td:
+    hv.OC=Path(td);hv.NOW=1000
+    health=hv.OC/'remote-bridge/slack';health.mkdir(parents=True)
+    (health/'health.json').write_text(json.dumps({'state':'healthy','connected':True,'heartbeatAt':999000}))
+    active=[{'id':'a','component':'adb_watchdog'},{'id':'s','component':'slack_bridge'},{'id':'r','component':'remote_watchdog'}]
+    hv.live=lambda:{'immune.adb_watchdog':hv.item('healthy',True),'immune.remote_watchdog':hv.item('down',True)}
+    hv.incidents=lambda caps=None:(active,[],[]);hv.continuations=lambda:{'blocked':0,'resuming':0,'stuck':0,'details':[]}
+    hv.maintenance_view=lambda:{'state':'observed','semantic_state':'healthy','checked_at':hv.NOW,'task_health':{}}
+    found={(w['incident_id'],w['component']) for w in hv.build()['consistency_warnings'] if w['type']=='incident_live_mismatch'}
+    self.assertEqual(found,{('a','adb_watchdog'),('s','slack_bridge')})
+  finally:
+   hv.live,hv.incidents,hv.continuations,hv.maintenance_view,hv.OC,hv.NOW=old_live,old_inc,old_cont,old_maint,old_oc,old_now
  def test_marked_test_fixture_is_excluded_from_health_projection(self):
   old=hv.OC
   try:

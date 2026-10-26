@@ -292,10 +292,10 @@ def build():
  caps['control_plane.nightly_acceptance']=item(nightly['state'],False,reason=nightly['reason'],evidence='nightly acceptance receipt',freshness=nightly.get('freshness_s'))
  caps['control_plane.nightly_acceptance']['checked_at']=nightly.get('checked_at')
  apply_hysteresis(caps,previous_verdict())
- live_components={k.split('.',1)[-1]:v for k,v in caps.items()}
  for i in active:
+  # Same resolver as recent failures: namespaced capabilities and the Slack bridge receipt.
   ck=i['component']
-  if ck in live_components and live_components[ck]['state'] in ('healthy','ready'):warnings.append({'type':'incident_live_mismatch','incident_id':i['id'],'component':ck})
+  if _incident_component_live_state(ck,caps) in ('healthy','ready'):warnings.append({'type':'incident_live_mismatch','incident_id':i['id'],'component':ck})
  if cont['stuck']:warnings.append({'type':'continuation_gap','count':cont['stuck']})
  crit_bad=[k for k,v in caps.items() if v['critical'] and v['state'] not in ('healthy','ready')]
  noncrit_bad=[k for k,v in caps.items() if not v['critical'] and v['state'] not in ('healthy','ready')]

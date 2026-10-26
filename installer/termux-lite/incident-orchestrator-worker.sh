@@ -4,6 +4,8 @@ cd "$HOME" || exit 70
 MAX_DIAG_FAILURES="${INCIDENT_MAX_DIAG_FAILURES:-2}"
 # Intervalles injectables pour les tests (valeurs de production par défaut inchangées).
 POLL_S="${INCIDENT_WORKER_POLL_S:-5}"; OBSERVE_S="${INCIDENT_WORKER_OBSERVE_S:-2}"; DIAG_BACKOFF_S="${INCIDENT_WORKER_DIAG_BACKOFF_S:-15}"
+# Parked incidents get a bounded review: escalated to the owner once instead of waiting forever.
+STALE_REVIEW_S="${INCIDENT_WORKER_STALE_REVIEW_S:-300}"; LAST_STALE_REVIEW=-1
 ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"; DB="$HOME/.openclaw/incidents/orchestrator.db"; LOG="$HOME/.openclaw/incidents/orchestrator-worker.log"
 mkdir -p "$(dirname "$LOG")"; exec 9>"$HOME/.openclaw/incidents/orchestrator-worker.lock"; flock -n 9 || exit 0
 CORRELATION_ID=""
@@ -28,6 +30,11 @@ while :; do
   printf '%s' "$(date +%s)" >"$HOME/.openclaw/health/incident-orchestrator.heartbeat"
   mode=$(python3 "$ROOT/runtime_mode.py" 9>&- 2>/dev/null || true)
   if [ "$mode" != normal ]; then log "state=paused mode=${mode:-unknown}"; sleep 5 9>&-; continue; fi
+  if [ "$LAST_STALE_REVIEW" -lt 0 ] || [ $((SECONDS-LAST_STALE_REVIEW)) -ge "$STALE_REVIEW_S" ]; then
+    LAST_STALE_REVIEW=$SECONDS
+    stale=$("$ROOT/incident-orchestrator.py" escalate-stale 9>&- 2>/dev/null | tr -d '\n ' || true)
+    case "$stale" in *'"escalated":[]'*|'') :;; *) log "stale_review=$stale";; esac
+  fi
   row=$(python3 - "$DB" <<'PY'
 import sqlite3,sys,time
 try:
