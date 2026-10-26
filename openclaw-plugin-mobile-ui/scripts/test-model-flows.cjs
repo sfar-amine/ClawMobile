@@ -113,6 +113,15 @@ const clone=value=>JSON.parse(JSON.stringify(value));
   const afterAuto=await api.changeAgentConfig({...brain,revision:hash,operationId:'brain-edit-native-auto',thinking:'low'});assert.equal(afterAuto.state,'completed');
   const autoRestored=await api.changeAgentConfig({flow:'brain',mode:'revert',revision:hash,operationId:'brain-revert-native-auto',restoreRunId:afterAuto.receipt.runId});
   assert.equal(autoRestored.state,'completed');assert.deepEqual(config.agents.entries.main,autoBefore,'prior SDK automatic speed is restored exactly');assert.equal((await api.readAgentConfig('brain')).fastModeSetting,'auto');
+  // Authored opaque profile labels containing @ model the native delimiter
+  // shape without using account e-mails or private runtime identifiers.
+  const firstProfile='openai:authored-same@one',secondProfile='openai:authored-same@two';
+  auth.providers.find(row=>row.provider==='openai').profiles.push(...[firstProfile,secondProfile].map(profileId=>({profileId,type:'oauth',status:'ok'})));
+  config.agents.entries.main.model={primary:'openai/gpt-5.6-sol@'+firstProfile,fallbacks:[]};
+  config.plugins.entries['openclaw-plugin-mobile-ui'].config.modelFlowSelection.flows.brain={version:1,fieldsHash:owner.modelFlowSettingHash(config,'brain')};
+  const beforeAccountExpansion=effects;
+  await assert.rejects(api.changeAgentConfig({...brain,revision:hash,operationId:'primary-account-full-native-suffix',model:publicModelRef('openai/gpt-5.6-sol@'+secondProfile)}),error=>error.statusCode===403&&error.confirmation.reference==='flow:brain');
+  assert.equal(effects,beforeAccountExpansion,'profile suffix after its first @ is a complete account identity; a same-prefix new account still needs biometrics');
   console.log('L5 real S24 projection; authored local owner effects: included billing admission, account redaction, primary biometric guard, exact CAS/replay/revert, contact isolation, summary preservation and uncertain-effect fence passed');
  }finally{await fs.rm(root,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1});

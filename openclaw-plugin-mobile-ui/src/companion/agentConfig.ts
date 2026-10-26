@@ -319,7 +319,7 @@ function flowAccountSet(value:any,owner:any):Set<string>{
  const profiles=knownProfiles(owner.auth),out=new Set<string>();
  for(const ref of flowRefs(value)){
   const resolved=resolveModelRef(ref,profiles);if(!resolved)continue;
-  if(resolved.includes('@'))out.add(resolved.split('/')[0]+'@'+resolved.split('@')[1]);
+  if(resolved.includes('@'))out.add(resolved.split('/')[0]+'@'+resolved.slice(resolved.indexOf('@')+1));
   else {const provider=owner.auth?.providers?.find((row:any)=>row.provider===resolved.split('/')[0]),healthy=(provider?.profiles||[]).filter((row:any)=>['ok','static','expiring'].includes(row.status));if(healthy.length===1)out.add(provider.provider+'@'+healthy[0].profileId);}
  }
  return out;

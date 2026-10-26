@@ -43,6 +43,11 @@
       "name": "static-contracts",
       "status": "passed",
       "evidence": "git diff --check, node --check des deux scripts L5, JSON plugin/fixtures et Python py_compile companion-acceptance PASS."
+    },
+    {
+      "name": "current-base-native-account-identity",
+      "status": "passed",
+      "evidence": "26/10 : npm run build && test-model-flows.cjs && test-conversation-model-profile.cjs exit0 après fusion425de267f64 ; journal durable l5-union-account-focused-20261026.log. Nouveau primaire avec suffixe natif @ complet exige la biométrie même si préfixe identique, profils/pins451 et CAS couverts. Aucun modèle natif ni CI complète revendiqués."
     }
   ],
   "capabilities": {
