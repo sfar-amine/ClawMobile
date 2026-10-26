@@ -60,7 +60,7 @@
     {
       "name": "Model flow and conversation profile contracts",
       "status": "passed",
-      "evidence": "26/10 : test-model-flows.cjs et test-conversation-model-profile.cjs PASS ; baseline positive rédigée corrigée pour hériter uniquement des modèles inclus ; injection de panne précédente explicitement arrêtée avant les cas suivants. Capture S24 conservée, legacy Copilot refusé avant effet ; 451 lignes I/O rédigées, aucune recette modèle native."
+      "evidence": "26/10 : test-model-flows.cjs et test-conversation-model-profile.cjs PASS ; baseline positive rédigée corrigée pour hériter uniquement des modèles inclus ; injection de panne précédente explicitement arrêtée avant les cas suivants. Capture S24 conservée, legacy Copilot refusé avant effet ; 451 lignes I/O rédigées, aucune recette modèle native. Preuve antérieure au dernier correctif de concurrence legacy préparé ensuite ; ce nouveau ciblé est explicitement en attente, sans réussite revendiquée."
     },
     {
       "name": "SDK exact patchset, setup and compaction",
@@ -113,6 +113,7 @@
   "deployment_state": "not_applied",
   "rollback": "Restaurer et vérifier par R6 les valeurs et leur provenance avant retrait du SDK consommateur ; companion-deploy.sh SHA précédent, patchset rollback exact, aucune suppression de pins/reçus.",
   "pending": [
+    "Ciblé final concurrence legacy avant/pin/candidat/admission : réservé après APK433 et PB313, non exécuté à ce head préparatoire",
     "CI canonique head exact",
     "Activation versions appariées",
     "Recette native nouvelles/anciennes conversations et trois flux, puis restauration prouvée",

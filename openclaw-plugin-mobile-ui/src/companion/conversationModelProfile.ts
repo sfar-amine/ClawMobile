@@ -124,6 +124,19 @@ export function conversationModelProfileHooks(api:any){
  const contextApi=api.runContext||api,contextKey=MODEL_PROFILE_NAMESPACE;
  const getContext=(ctx:any)=>contextApi.getRunContext?.({runId:ctx.runId,namespace:contextKey});
  const setContext=(ctx:any,value:any)=>contextApi.setRunContext?.({runId:ctx.runId,namespace:contextKey,value});
+ const matchingContext=(ctx:any,profile:SessionProfile)=>{
+  const prior=getContext(ctx);return prior?.version===1&&prior.runId===ctx.runId&&prior.sessionId===ctx.sessionId&&prior.sessionKey===ctx.sessionKey&&prior.routingPrepared&&hash(prior.profile)===hash(profile)?prior:undefined;
+ };
+ const observeNeutral=(event:any,ctx:any,entry:any,config:any,owner:Sdk,allowCreate:boolean)=>{
+  if(owner.modelProfileContractVersion!==1||event.modelProfileVersion!==1||!closedText(ctx.runId,160))return false;
+  try{
+   const profile=profileFor(entry,ctx.sessionKey,ctx.agentId,config),prior=matchingContext(ctx,profile);
+   if(event.modelProfileStage==="before_candidates"&&allowCreate)return setContext(ctx,{version:1,runId:ctx.runId,sessionId:ctx.sessionId,sessionKey:ctx.sessionKey,profile,routingPrepared:true})===true;
+   if(!prior)return false;
+   if(["before_runtime","candidate"].includes(event.modelProfileStage))return setContext(ctx,{...prior,...(event.modelProfileStage==="candidate"?{candidatePrepared:true}:{runtimePrepared:true})})===true;
+   return event.modelProfileStage==="before_candidates";
+  }catch{return false;}
+ };
  return {
   extension:{namespace:MODEL_PROFILE_NAMESPACE,description:"Frozen model settings of this canonical conversation; no execution authority.",project:(ctx:any)=>{
    const v=readProfile({sessionId:ctx.sessionId,pluginExtensions:{[PLUGIN]:{[MODEL_PROFILE_NAMESPACE]:ctx.state}}});
@@ -142,8 +155,18 @@ export function conversationModelProfileHooks(api:any){
      // The first R6 change must fence newly-created sessions too, before its
      // config provenance exists. A pre-existing row is captured by R6's list;
      // a later row sees this durable reservation and cannot start unpinned.
-     if((await readModelFlowConfigurationActivity()).length)return {modelSelectionRefused:"configuration_in_progress"};
-     if(!hasConfiguredProfile(config,flow,event.modelProfileStage==="summary"))return undefined;
+     if((await readModelFlowConfigurationActivity()).length){
+      if(observeNeutral(event,ctx,entry,config,owner,false))return undefined;
+      return {modelSelectionRefused:"configuration_in_progress"};
+     }
+     if(!hasConfiguredProfile(config,flow,event.modelProfileStage==="summary")){
+      // Keep the legacy selection neutral. The attested native prefix can
+      // observe this run's original settings without pinning or overriding
+      // them. If R6 freezes the same session mid-run, only an exact match to
+      // that earlier observation may continue; no preparation is invented.
+      observeNeutral(event,ctx,entry,config,owner,true);
+      return undefined;
+     }
     }
     if(owner.modelProfileContractVersion!==1||event.modelProfileVersion!==1||!["before_candidates","before_runtime","candidate","summary"].includes(event.modelProfileStage))return {modelSelectionRefused:"model_profile_contract_unavailable"};
     if(!frozen)frozen=await pin(owner,ctx.agentId,ctx.sessionKey,entry,profileFor(entry,ctx.sessionKey,ctx.agentId,config));
@@ -152,12 +175,12 @@ export function conversationModelProfileHooks(api:any){
     const s=frozen.selection,explicitModel=["user","default"].includes(entry.modelOverrideSource)||entry.modelSelectionLocked===true;
     const primary=parseModel(s.model.primary),current={provider:ctx.modelProviderId,model:ctx.modelId};
     if(event.modelProfileStage==="before_candidates"){
-     if(!closedText(ctx.runId,160)||setContext(ctx,{version:1,sessionId:ctx.sessionId,sessionKey:ctx.sessionKey,profile:frozen,routingPrepared:true})!==true)return {modelSelectionRefused:"run_context_unavailable"};
+     if(!closedText(ctx.runId,160)||setContext(ctx,{version:1,runId:ctx.runId,sessionId:ctx.sessionId,sessionKey:ctx.sessionKey,profile:frozen,routingPrepared:true})!==true)return {modelSelectionRefused:"run_context_unavailable"};
      const pinnedAccount=["user","user-link"].includes(entry.authProfileOverrideSource)?entry.authProfileOverride:undefined;
      return {...(!explicitModel?{providerOverride:primary.provider,modelOverride:primary.model,modelFallbacksOverride:s.model.fallbacks,authProfileId:pinnedAccount??primary.profile??null,authProfileIdSource:pinnedAccount||primary.profile?"user":null}:{}),summaryModelOverride:frozen.summaryModel};
     }
     const prepared=getContext(ctx);
-    if(prepared?.version!==1||prepared.sessionId!==ctx.sessionId||prepared.sessionKey!==ctx.sessionKey||!prepared.routingPrepared||hash(prepared.profile)!==hash(frozen))return {modelSelectionRefused:"model_profile_route_unprepared"};
+    if(prepared?.version!==1||prepared.runId!==ctx.runId||prepared.sessionId!==ctx.sessionId||prepared.sessionKey!==ctx.sessionKey||!prepared.routingPrepared||hash(prepared.profile)!==hash(frozen))return {modelSelectionRefused:"model_profile_route_unprepared"};
     const candidate=[s.model.primary,...s.model.fallbacks].map(parseModel).find(v=>v.provider===current.provider&&v.model===current.model);
     const userAccount=["user","user-link"].includes(entry.authProfileOverrideSource)&&closedText(entry.authProfileOverride,512)?entry.authProfileOverride:undefined;
     const account=userAccount??candidate?.profile??(candidate?.provider===primary.provider?primary.profile:undefined);
@@ -172,13 +195,15 @@ export function conversationModelProfileHooks(api:any){
    if(!["main",...CONTACT_MODEL_AGENTS].includes(ctx?.agentId))return undefined;
    try{const owner=await sdk(),config=owner.getRuntimeConfig(),flow=flowFor(ctx?.agentId,ctx?.sessionKey,config);if(!flow)return undefined;
     const entry=owner.getSessionEntry({agentId:ctx.agentId,sessionKey:ctx.sessionKey,readConsistency:"latest"});
-    if(!readProfile(entry)){
-     if((await readModelFlowConfigurationActivity()).length)throw refusal();
+    if(entry?.sessionId!==ctx.sessionId)throw refusal();
+    const frozen=readProfile(entry);
+    if(!frozen){
+     if((await readModelFlowConfigurationActivity()).length&&!matchingContext(ctx,profileFor(entry,ctx.sessionKey,ctx.agentId,config))?.candidatePrepared)throw refusal();
      if(!hasConfiguredProfile(config,flow))return undefined;
     }
     if(owner.modelProfileContractVersion!==1)throw refusal();
     const proof=validIdentity(ctx)&&getContext(ctx);
-    return proof?.version===1&&proof.sessionId===ctx.sessionId&&proof.sessionKey===ctx.sessionKey&&proof.candidatePrepared?{outcome:"pass"}:
+    return proof?.version===1&&proof.runId===ctx.runId&&proof.sessionId===ctx.sessionId&&proof.sessionKey===ctx.sessionKey&&proof.candidatePrepared&&frozen&&hash(proof.profile)===hash(frozen)?{outcome:"pass"}:
      {outcome:"block",reason:"model_profile_consumer_unverified",category:"configuration",message:"Les réglages de cette conversation ne sont pas encore prêts. Aucune demande n’a été exécutée."};
    }catch{return {outcome:"block",reason:"model_profile_owner_unavailable",category:"configuration",message:"Les réglages de cette conversation restent à vérifier."};}
   }
