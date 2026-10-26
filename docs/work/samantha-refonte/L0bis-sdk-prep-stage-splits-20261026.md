@@ -128,8 +128,8 @@ branches registre déjà détenu/chargement, early return, propagation des label
 Chaque module complet patched est aussi vérifié par le parseur Node, sans imports.
 La fonction exacte de préparation system-prompt est exécutée en VM avec des
 propriétaires inertes (seule import.meta.url reçoit une URL fixture publique).
-Le tracker public exact vérifie qu'une aggregate artificielle de85ms reste85ms
-avant/après, même avec81ms de sous-spans explicites. Les appels, résultats et
+Le tracker public exact vérifie qu'une aggregate artificielle de75ms reste75ms
+avant/après, même avec71ms de sous-spans explicites. Les appels, résultats et
 erreurs restent identiques, y compris exception runtime et finalisation spéciale.
 
 Le ciblé et la CI canonique finale restent à exécuter ; aucun gain ou PASS S24

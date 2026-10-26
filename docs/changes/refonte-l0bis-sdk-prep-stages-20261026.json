@@ -33,7 +33,7 @@
     {
       "name": "Pinned public native SDK transaction and exact resolver VM behavior",
       "status": "pending",
-      "evidence": "test-gateway-prep-stages.py registered in the same CI; captured original/patched resolver and system-prompt functions run in VM with inert owners and the exact public stage tracker. Parent aggregate85ms stays85ms despite81ms of explicit child spans. Targeted execution awaits coordinator lane then final combined canonical qualification; no native gain claimed."
+      "evidence": "test-gateway-prep-stages.py registered in the same CI; captured original/patched resolver and system-prompt functions run in VM with inert owners and the exact public stage tracker. Parent aggregate75ms stays75ms despite71ms of explicit child spans. Targeted execution awaits coordinator lane then final combined canonical qualification; no native gain claimed."
     }
   ],
   "capabilities": {

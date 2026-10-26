@@ -181,9 +181,9 @@ async function systemPrompt({failRuntime = false, settled = false} = {}) {
   assert.equal(JSON.stringify(result.systemPromptReport), '{"ok":true}');
   assert.deepEqual(effects, ['policy', 'sandbox', 'reasoning', 'tool-directory', 'runtime-context',
     'references', 'provider-contribution', 'memory', 'watched', 'project-memory', 'assembly', 'report']);
-  assert.equal(parent.durationMs, 85, 'explicit spans must NOT advance parent checkpoint');
-  assert.equal(parent.elapsedMs, 85);
-  assert.equal(tracker.snapshot().totalMs, 85);
+  assert.equal(parent.durationMs, 75, 'explicit spans must NOT advance parent checkpoint');
+  assert.equal(parent.elapsedMs, 75);
+  assert.equal(tracker.snapshot().totalMs, 75);
   const children = stages.filter((entry) => entry.name.startsWith('system-prompt:'));
   assert.deepEqual(children.map((entry) => [entry.name, entry.durationMs]), staged ? [
     ['system-prompt:tool-directory', 4], ['system-prompt:runtime-context', 11],
