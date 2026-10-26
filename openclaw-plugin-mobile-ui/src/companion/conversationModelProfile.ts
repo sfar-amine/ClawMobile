@@ -1,7 +1,7 @@
 /** Settings of the existing conversation metadata owner, stored in the native SessionEntry only. */
 import {createHash} from "crypto";
 import {loadInstalledSessionStoreSdk} from "./ownerTurnGateway";
-import {configuredModelFlow,CONTACT_MODEL_AGENTS} from "./modelOwner";
+import {configuredModelFlow,CONTACT_MODEL_AGENTS,verifiedModelFlowProvenance} from "./modelOwner";
 import {publicModelRef} from "./accountIdentity";
 import {contactRoomSession} from "../contactRoomProfile";
 import {readModelFlowConfigurationActivity} from "./runs";
@@ -58,7 +58,7 @@ function readProfile(entry:any):SessionProfile|undefined {
  if(v===undefined)return undefined;
  // A reset creates a new canonical session id; old-generation extension data is never inherited.
  if(v?.sessionId!==entry.sessionId)return undefined;
- if(v.version!==1||!Object.hasOwn(v,"summaryModel")||v.summaryModel!==null&&!ref(v.summaryModel)||Buffer.byteLength(JSON.stringify(v))>MAX_BYTES)throw refusal();
+ if(v.version!==1||!Object.prototype.hasOwnProperty.call(v,"summaryModel")||v.summaryModel!==null&&!ref(v.summaryModel)||Buffer.byteLength(JSON.stringify(v))>MAX_BYTES)throw refusal();
  if(v.selection){
   const s=v.selection;if(!["brain","whatsapp"].includes(v.flow)||!ref(s?.model?.primary)||!Array.isArray(s.model.fallbacks)||s.model.fallbacks.length>20||s.model.fallbacks.some((x:any)=>!ref(x))||s.thinkingDefault!==null&&!levels.includes(s.thinkingDefault)||s.fastModeDefault!==null&&typeof s.fastModeDefault!=="boolean"&&s.fastModeDefault!=="auto")throw refusal();
  }
@@ -109,7 +109,15 @@ export async function preserveConversationModelProfiles(flow:ModelFlow,beforeCon
  return {state:"verified",preserved};
 }
 function parseModel(reference:string){const slash=reference.indexOf("/"),at=reference.indexOf("@",slash);return {provider:reference.slice(0,slash),model:reference.slice(slash+1,at<0?undefined:at),profile:at<0?undefined:reference.slice(at+1)};}
-function hasConfiguredProfile(config:any){return config?.plugins?.entries?.[PLUGIN]?.config?.modelFlowSelection?.version===1;}
+function hasConfiguredProfile(config:any,flow:"brain"|"whatsapp"|undefined,summaryOnly=false){
+ // A version label is not an admitted R6 profile. Check the owned settings hash
+ // for each applicable flow; an unrelated WhatsApp profile cannot activate main.
+ const summary=verifiedModelFlowProvenance(config,"conversation_summary");
+ if(summaryOnly)return summary;
+ const own=flow?verifiedModelFlowProvenance(config,flow):false;
+ const inheritedBrain=flow==="whatsapp"?verifiedModelFlowProvenance(config,"brain"):false;
+ return own||inheritedBrain||summary;
+}
 function validIdentity(ctx:any){return closedText(ctx?.agentId,64)&&closedText(ctx?.sessionKey,512)&&ctx.sessionKey.startsWith("agent:"+ctx.agentId+":")&&closedText(ctx.sessionId,128);}
 /** Uses only native session metadata and the existing SDK per-run context. Neither is an execution authority. */
 export function conversationModelProfileHooks(api:any){
@@ -130,9 +138,15 @@ export function conversationModelProfileHooks(api:any){
     const entry=owner.getSessionEntry({agentId:ctx.agentId,sessionKey:ctx.sessionKey,readConsistency:"latest"});
     if(entry?.sessionId!==ctx.sessionId)return {modelSelectionRefused:"session_identity_changed"};
     let frozen=readProfile(entry);
-    if(!frozen&&!hasConfiguredProfile(config))return undefined;
+    if(!frozen){
+     // The first R6 change must fence newly-created sessions too, before its
+     // config provenance exists. A pre-existing row is captured by R6's list;
+     // a later row sees this durable reservation and cannot start unpinned.
+     if((await readModelFlowConfigurationActivity()).length)return {modelSelectionRefused:"configuration_in_progress"};
+     if(!hasConfiguredProfile(config,flow,event.modelProfileStage==="summary"))return undefined;
+    }
     if(owner.modelProfileContractVersion!==1||event.modelProfileVersion!==1||!["before_candidates","before_runtime","candidate","summary"].includes(event.modelProfileStage))return {modelSelectionRefused:"model_profile_contract_unavailable"};
-    if(!frozen){if((await readModelFlowConfigurationActivity()).length)return {modelSelectionRefused:"configuration_in_progress"};frozen=await pin(owner,ctx.agentId,ctx.sessionKey,entry,profileFor(entry,ctx.sessionKey,ctx.agentId,config));}
+    if(!frozen)frozen=await pin(owner,ctx.agentId,ctx.sessionKey,entry,profileFor(entry,ctx.sessionKey,ctx.agentId,config));
     if(event.modelProfileStage==="summary")return {summaryModelOverride:frozen.summaryModel};
     if(!frozen.selection||frozen.flow!==flow)return {modelSelectionRefused:"model_profile_scope_changed"};
     const s=frozen.selection,explicitModel=["user","default"].includes(entry.modelOverrideSource)||entry.modelSelectionLocked===true;
@@ -158,7 +172,10 @@ export function conversationModelProfileHooks(api:any){
    if(!["main",...CONTACT_MODEL_AGENTS].includes(ctx?.agentId))return undefined;
    try{const owner=await sdk(),config=owner.getRuntimeConfig(),flow=flowFor(ctx?.agentId,ctx?.sessionKey,config);if(!flow)return undefined;
     const entry=owner.getSessionEntry({agentId:ctx.agentId,sessionKey:ctx.sessionKey,readConsistency:"latest"});
-    if(!readProfile(entry)&&!hasConfiguredProfile(config))return undefined;
+    if(!readProfile(entry)){
+     if((await readModelFlowConfigurationActivity()).length)throw refusal();
+     if(!hasConfiguredProfile(config,flow))return undefined;
+    }
     if(owner.modelProfileContractVersion!==1)throw refusal();
     const proof=validIdentity(ctx)&&getContext(ctx);
     return proof?.version===1&&proof.sessionId===ctx.sessionId&&proof.sessionKey===ctx.sessionKey&&proof.candidatePrepared?{outcome:"pass"}:

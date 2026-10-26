@@ -16,6 +16,7 @@
     "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
     "installer/termux-lite/runtime-sync.sh",
     "installer/termux-lite/test-model-flow-compaction.cjs",
+    "installer/termux-lite/test-model-flow-native-session.cjs",
     "installer/termux-lite/test-model-flow-selection.py",
     "installer/termux-lite/test-model-flow-setup.cjs",
     "installer/termux-lite/test-runtime-sync.py",
@@ -31,6 +32,7 @@
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/host-hook-state-DEUXoydK.mjs",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/index-DUVQdPAn.d.ts.gz",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/model-ref-profile-BIKs-96s.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/native-session-cas-snippets.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/plugin-entry-CACNQ1z6.d.ts.gz",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/run-entry-Bg2j-prG.mjs",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/runtime-api-CkahAQr_.d.ts.gz",
@@ -41,16 +43,34 @@
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/setup-B7DuERIi.mjs",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/type-contract-pins.json",
     "openclaw-plugin-mobile-ui/scripts/test-conversation-model-profile.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-model-flows.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
     "openclaw-plugin-mobile-ui/src/companion/conversationMetadata.ts",
     "openclaw-plugin-mobile-ui/src/companion/conversationModelProfile.ts",
     "openclaw-plugin-mobile-ui/src/companion/ownerTurnGateway.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
     "openclaw-plugin-mobile-ui/src/index.ts"
   ],
   "tests": [
     {
+      "name": "Focused offphone TypeScript and existing R6 contract",
+      "status": "passed",
+      "evidence": "26/10 : npm run build PASS après remplacement Object.hasOwn incompatible ES2021 par hasOwnProperty ; test-agent-config.cjs PASS."
+    },
+    {
+      "name": "Model flow and conversation profile contracts",
+      "status": "passed",
+      "evidence": "26/10 : test-model-flows.cjs et test-conversation-model-profile.cjs PASS ; baseline positive rédigée corrigée pour hériter uniquement des modèles inclus ; injection de panne précédente explicitement arrêtée avant les cas suivants. Capture S24 conservée, legacy Copilot refusé avant effet ; 451 lignes I/O rédigées, aucune recette modèle native."
+    },
+    {
       "name": "SDK exact patchset, setup and compaction",
       "status": "passed",
-      "evidence": "test-model-flow-selection.py 4tests PASS ; test-model-flow-setup.cjs PASS ; test-model-flow-compaction.cjs PASS, contrôles hors téléphone sur sources SDK natives capturées."
+      "evidence": "26/10 : test-model-flow-selection.py 4 tests PASS ; test-model-flow-setup.cjs PASS ; test-model-flow-compaction.cjs PASS, sources SDK natives capturées."
+    },
+    {
+      "name": "Actual SDK functions over authored SQLite ports",
+      "status": "passed",
+      "evidence": "26/10 : Node 26.11.1 test-model-flow-native-session.cjs PASS, 451 lignes SQLite locales, conflits génération et metadata depuis processus distinct ; fonctions publiques SDK capturées. Aucun appel modèle ni base privée S24."
     }
   ],
   "documentation": [
@@ -93,8 +113,6 @@
   "deployment_state": "not_applied",
   "rollback": "Restaurer et vérifier par R6 les valeurs et leur provenance avant retrait du SDK consommateur ; companion-deploy.sh SHA précédent, patchset rollback exact, aucune suppression de pins/reçus.",
   "pending": [
-    "Union provenance config R6 par flux",
-    "Build TS et suites profils/R6",
     "CI canonique head exact",
     "Activation versions appariées",
     "Recette native nouvelles/anciennes conversations et trois flux, puis restauration prouvée",

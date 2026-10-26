@@ -685,6 +685,9 @@ jobs:
           node-version: 26.11.1
           cache: npm
           cache-dependency-path: openclaw-plugin-mobile-ui/package-lock.json
+      - name: L5 native SDK session CAS over real SQLite connections
+        run: node ../installer/termux-lite/test-model-flow-native-session.cjs
+
       - name: Install integration plugin dependencies
         run: npm ci
       - name: Build integration plugin

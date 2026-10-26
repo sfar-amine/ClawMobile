@@ -13,11 +13,11 @@
       "root": "openclaw",
       "path": "dist/cli-backend.types-B-oosdMB.d.ts",
       "original": "f8e936a76225d872f7c6ee8b846983d1f2c90e3c986ddef539f414410404adb8",
-      "patched": "cbe2e98fbe26ffe6b7ae76fba795ac7516bf06fede315aefae0bcdc111df169b",
+      "patched": "bb354fdc53fd31870a291c658cd4259d88e1a01e7f3865be7f92348a7533403f",
       "replacements": [
         [
           "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n};",
-          "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n  /** Versioned native run settings, consumed before auth/preparation. Null restores the native default. */\n  authProfileId?: string | null;\n  authProfileIdSource?: \"auto\" | \"user\" | null;\n  thinkLevel?: \"off\" | \"minimal\" | \"low\" | \"medium\" | \"high\" | \"xhigh\" | \"adaptive\" | null;\n  fastMode?: boolean | \"auto\" | null;\n  modelFallbacksOverride?: string[];\n  summaryModelOverride?: string | null;\n  /** A settings refusal must stop before model inference; never treated as a route acknowledgement. */\n  modelSelectionRefused?: string;\n};"
+          "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n  /** Versioned native run settings, consumed before auth/preparation. Null restores the native default. */\n  authProfileId?: string | null;\n  authProfileIdSource?: \"auto\" | \"user\" | null;\n  thinkLevel?: \"off\" | \"minimal\" | \"low\" | \"medium\" | \"high\" | \"xhigh\" | \"adaptive\" | \"max\" | \"ultra\" | null;\n  fastMode?: boolean | \"auto\" | null;\n  modelFallbacksOverride?: string[];\n  summaryModelOverride?: string | null;\n  /** A settings refusal must stop before model inference; never treated as a route acknowledgement. */\n  modelSelectionRefused?: string;\n};"
         ],
         [
           "  attachments?: PluginHookBeforeModelResolveAttachment[];\n};",
@@ -33,11 +33,11 @@
       "root": "openclaw",
       "path": "dist/hook-runner-global-CDmmGFJp.d.ts",
       "original": "d066e0a30921eb05d79f7ef6b7f425b7e1628b912634b660b13ac324e6bb7c1d",
-      "patched": "9533823532c9fbec0027b2f7616aedcd61f386de695cb349184e1b9db340a9a8",
+      "patched": "76392884d1a13235eac26acb34969a71de4474fd1bef65fd20a21176f3be4c66",
       "replacements": [
         [
           "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n};",
-          "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n  /** Versioned native run settings, consumed before auth/preparation. Null restores the native default. */\n  authProfileId?: string | null;\n  authProfileIdSource?: \"auto\" | \"user\" | null;\n  thinkLevel?: \"off\" | \"minimal\" | \"low\" | \"medium\" | \"high\" | \"xhigh\" | \"adaptive\" | null;\n  fastMode?: boolean | \"auto\" | null;\n  modelFallbacksOverride?: string[];\n  summaryModelOverride?: string | null;\n  /** A settings refusal must stop before model inference; never treated as a route acknowledgement. */\n  modelSelectionRefused?: string;\n};"
+          "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n  /** Versioned native run settings, consumed before auth/preparation. Null restores the native default. */\n  authProfileId?: string | null;\n  authProfileIdSource?: \"auto\" | \"user\" | null;\n  thinkLevel?: \"off\" | \"minimal\" | \"low\" | \"medium\" | \"high\" | \"xhigh\" | \"adaptive\" | \"max\" | \"ultra\" | null;\n  fastMode?: boolean | \"auto\" | null;\n  modelFallbacksOverride?: string[];\n  summaryModelOverride?: string | null;\n  /** A settings refusal must stop before model inference; never treated as a route acknowledgement. */\n  modelSelectionRefused?: string;\n};"
         ],
         [
           "  attachments?: PluginHookBeforeModelResolveAttachment[];\n};",
@@ -53,11 +53,11 @@
       "root": "openclaw",
       "path": "dist/index-DUVQdPAn.d.ts",
       "original": "be1cdb699cf6f1a0c63ef1edc0f9d57ad9efe97ee3d74bfeee7e91b530a8d4f1",
-      "patched": "751f96f7bad24ea208408f9c0f8041bc900c444b2ab19f514f4d8824d79217e0",
+      "patched": "dab4be758aa7600c8c3338709dd1757205a1c0bbf66848e991a4914789e068d2",
       "replacements": [
         [
           "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n};",
-          "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n  /** Versioned native run settings, consumed before auth/preparation. Null restores the native default. */\n  authProfileId?: string | null;\n  authProfileIdSource?: \"auto\" | \"user\" | null;\n  thinkLevel?: \"off\" | \"minimal\" | \"low\" | \"medium\" | \"high\" | \"xhigh\" | \"adaptive\" | null;\n  fastMode?: boolean | \"auto\" | null;\n  modelFallbacksOverride?: string[];\n  summaryModelOverride?: string | null;\n  /** A settings refusal must stop before model inference; never treated as a route acknowledgement. */\n  modelSelectionRefused?: string;\n};"
+          "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n  /** Versioned native run settings, consumed before auth/preparation. Null restores the native default. */\n  authProfileId?: string | null;\n  authProfileIdSource?: \"auto\" | \"user\" | null;\n  thinkLevel?: \"off\" | \"minimal\" | \"low\" | \"medium\" | \"high\" | \"xhigh\" | \"adaptive\" | \"max\" | \"ultra\" | null;\n  fastMode?: boolean | \"auto\" | null;\n  modelFallbacksOverride?: string[];\n  summaryModelOverride?: string | null;\n  /** A settings refusal must stop before model inference; never treated as a route acknowledgement. */\n  modelSelectionRefused?: string;\n};"
         ],
         [
           "  attachments?: PluginHookBeforeModelResolveAttachment[];\n};",
@@ -73,11 +73,11 @@
       "root": "openclaw",
       "path": "dist/plugin-entry-CACNQ1z6.d.ts",
       "original": "9fd65c751427edc8b2d1e297bcd85bca5b6fc4f6432e1cf3a44e5b291bace951",
-      "patched": "a75eb488c6812a8281f0a4bd96ff9aa19d360b89f4af8df31e4cb4600ec3a6c7",
+      "patched": "f888f8097687e690557ae99fb9e503e3226bfb011ea96271720c11b4fc2d0cc5",
       "replacements": [
         [
           "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n};",
-          "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n  /** Versioned native run settings, consumed before auth/preparation. Null restores the native default. */\n  authProfileId?: string | null;\n  authProfileIdSource?: \"auto\" | \"user\" | null;\n  thinkLevel?: \"off\" | \"minimal\" | \"low\" | \"medium\" | \"high\" | \"xhigh\" | \"adaptive\" | null;\n  fastMode?: boolean | \"auto\" | null;\n  modelFallbacksOverride?: string[];\n  summaryModelOverride?: string | null;\n  /** A settings refusal must stop before model inference; never treated as a route acknowledgement. */\n  modelSelectionRefused?: string;\n};"
+          "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n  /** Versioned native run settings, consumed before auth/preparation. Null restores the native default. */\n  authProfileId?: string | null;\n  authProfileIdSource?: \"auto\" | \"user\" | null;\n  thinkLevel?: \"off\" | \"minimal\" | \"low\" | \"medium\" | \"high\" | \"xhigh\" | \"adaptive\" | \"max\" | \"ultra\" | null;\n  fastMode?: boolean | \"auto\" | null;\n  modelFallbacksOverride?: string[];\n  summaryModelOverride?: string | null;\n  /** A settings refusal must stop before model inference; never treated as a route acknowledgement. */\n  modelSelectionRefused?: string;\n};"
         ],
         [
           "  attachments?: PluginHookBeforeModelResolveAttachment[];\n};",
@@ -93,11 +93,11 @@
       "root": "openclaw",
       "path": "dist/runtime-api-DpOeiZhR.d.ts",
       "original": "28074b055321f2103c7fd104722a3854c878967e80d0492432b057e44e9a1b45",
-      "patched": "a8f15a7f6ef426ec22eb68f21021c01eb71364905cdc468c3f8fbdf265ed8c87",
+      "patched": "dc402bc8c0d52e289523190a1e0dc9e326d683954972a0c7e691d82677767b3e",
       "replacements": [
         [
           "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n};",
-          "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n  /** Versioned native run settings, consumed before auth/preparation. Null restores the native default. */\n  authProfileId?: string | null;\n  authProfileIdSource?: \"auto\" | \"user\" | null;\n  thinkLevel?: \"off\" | \"minimal\" | \"low\" | \"medium\" | \"high\" | \"xhigh\" | \"adaptive\" | null;\n  fastMode?: boolean | \"auto\" | null;\n  modelFallbacksOverride?: string[];\n  summaryModelOverride?: string | null;\n  /** A settings refusal must stop before model inference; never treated as a route acknowledgement. */\n  modelSelectionRefused?: string;\n};"
+          "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n  /** Versioned native run settings, consumed before auth/preparation. Null restores the native default. */\n  authProfileId?: string | null;\n  authProfileIdSource?: \"auto\" | \"user\" | null;\n  thinkLevel?: \"off\" | \"minimal\" | \"low\" | \"medium\" | \"high\" | \"xhigh\" | \"adaptive\" | \"max\" | \"ultra\" | null;\n  fastMode?: boolean | \"auto\" | null;\n  modelFallbacksOverride?: string[];\n  summaryModelOverride?: string | null;\n  /** A settings refusal must stop before model inference; never treated as a route acknowledgement. */\n  modelSelectionRefused?: string;\n};"
         ],
         [
           "  attachments?: PluginHookBeforeModelResolveAttachment[];\n};",
@@ -113,11 +113,11 @@
       "root": "openclaw",
       "path": "dist/runtime-api-CkahAQr_.d.ts",
       "original": "d6ad5295f3fb417cc0f86f68734fab42c1f3085e984d4a4c3515d9058dfdffcc",
-      "patched": "daab5f2a8cf3d46b2bd7dae378aae0fe91dc59494e6ad64784e2603da4ae9994",
+      "patched": "b25db679c1d7ab56b75e823c92222144cc548d996ad45dca6cd69c43cc969558",
       "replacements": [
         [
           "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n};",
-          "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n  /** Versioned native run settings, consumed before auth/preparation. Null restores the native default. */\n  authProfileId?: string | null;\n  authProfileIdSource?: \"auto\" | \"user\" | null;\n  thinkLevel?: \"off\" | \"minimal\" | \"low\" | \"medium\" | \"high\" | \"xhigh\" | \"adaptive\" | null;\n  fastMode?: boolean | \"auto\" | null;\n  modelFallbacksOverride?: string[];\n  summaryModelOverride?: string | null;\n  /** A settings refusal must stop before model inference; never treated as a route acknowledgement. */\n  modelSelectionRefused?: string;\n};"
+          "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n  /** Versioned native run settings, consumed before auth/preparation. Null restores the native default. */\n  authProfileId?: string | null;\n  authProfileIdSource?: \"auto\" | \"user\" | null;\n  thinkLevel?: \"off\" | \"minimal\" | \"low\" | \"medium\" | \"high\" | \"xhigh\" | \"adaptive\" | \"max\" | \"ultra\" | null;\n  fastMode?: boolean | \"auto\" | null;\n  modelFallbacksOverride?: string[];\n  summaryModelOverride?: string | null;\n  /** A settings refusal must stop before model inference; never treated as a route acknowledgement. */\n  modelSelectionRefused?: string;\n};"
         ],
         [
           "  attachments?: PluginHookBeforeModelResolveAttachment[];\n};",
@@ -131,4 +131,3 @@
     }
   ]
 }
-

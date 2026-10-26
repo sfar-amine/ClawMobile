@@ -260,10 +260,11 @@ async function readModelFlowConfig(flow:EditableModelFlow){
  const config=configObject(owner.raw),current=configuredModelFlow(config,flow),model=current.model,primary=typeof model==='string'?model:model?.primary;
  const fallbacks=model&&typeof model==='object'&&Array.isArray(model.fallbacks)?model.fallbacks:[];
  const choices=selectedFlowModels(owner,flow,defaults),snapshot=flowSnapshot(config,flow),revert=latest?.receipt?.appliedHash===flowHash(snapshot)?latest.receipt.runId:null;
+ let restorable=true;try{assertFlowRestorable(snapshot,owner,choices);}catch{restorable=false;}
  return {success:true,state:'ok',receipt:null,schemaVersion:2,flow,revision:owner.raw.hash,model:publicModelRef(primary),fallbacks:fallbacks.map((ref:string)=>publicModelRef(ref)),thinking:current.thinkingDefault??null,
-  fastMode:typeof current.fastModeDefault==='boolean'?current.fastModeDefault:null,inheritsFrom:current.inheritsFrom,origins:current.origins,mixedFields:current.mixedFields,source:'gateway_config',models:choices,
-  writeFields:flow==='conversation_summary'?['model']:['model','thinking','fallbacks','fastMode'],writeAvailable:choices.length>0,
-  previousReceiptRunId:revert,issues:[...(!choices.length?['included_model_authentication_proof_unavailable']:[])],
+  fastMode:typeof current.fastModeDefault==='boolean'?current.fastModeDefault:null,fastModeSetting:current.fastModeDefault==='auto'?'auto':typeof current.fastModeDefault==='boolean'?(current.fastModeDefault?'on':'off'):'inherited',inheritsFrom:current.inheritsFrom,origins:current.origins,mixedFields:current.mixedFields,source:'gateway_config',models:choices,
+  writeFields:flow==='conversation_summary'?['model']:['model','thinking','fallbacks','fastMode'],writeAvailable:choices.length>0&&restorable,
+  previousReceiptRunId:revert,issues:[...(!choices.length?['included_model_authentication_proof_unavailable']:[]),...(!restorable?['model_flow_previous_version_unavailable']:[])],
   appliesTo:'new_sessions',metrics:projectModelFlowMetrics(flow,latency)};
 }
 
@@ -307,6 +308,12 @@ function restoreFlowValue(value:any,owner:any,models:any[]):any{
  if(value&&typeof value==='object'&&Object.keys(value).every(key=>['version','model','primary','fallbacks','thinkingDefault','fastModeDefault'].includes(key)))return Object.fromEntries(Object.entries(value).map(([key,row])=>[key,restoreFlowValue(row,owner,models)]));
  throw nativeError('model_flow_receipt_invalid',409);
 }
+/** A reversible settings action must not knowingly strand its previous state.
+ * Unknown legacy billing/account eligibility is never silently re-admitted by rollback. */
+function assertFlowRestorable(previous:any[],owner:any,models:any[]):void{
+ try{for(const row of previous)if(row.present&&!row.container)restoreFlowValue(row.value,owner,models);}
+ catch{throw nativeError('model_flow_previous_version_unavailable',409);}
+}
 function flowRefs(value:any):string[]{const model=value?.model??value;return typeof model==='string'?[model]:model&&typeof model==='object'?[model.primary,...(Array.isArray(model.fallbacks)?model.fallbacks:[])].filter((ref:any)=>typeof ref==='string'):[];}
 function flowAccountSet(value:any,owner:any):Set<string>{
  const profiles=knownProfiles(owner.auth),out=new Set<string>();
@@ -327,7 +334,12 @@ function validateEffectiveFlow(config:any,flow:EditableModelFlow,owner:any,model
  for(const ref of flowRefs(selected))canonicalFlowReference(ref,owner,models,true);
  if(flow!=='conversation_summary'){
   const primary=flowRefs(selected)[0],choice=models.find(row=>row.ref?.split('@')[0]===primary?.split('@')[0]);
-  if(!choice||!choice.thinkingLevels.includes(selected.thinkingDefault)||typeof selected.fastModeDefault!=='boolean'||selected.fastModeDefault&&!choice.fastModeSupported)throw nativeError('model_flow_options_unsupported',409);
+  // Missing fields are native inheritance, not an invalid explicit setting.
+  // Revert also preserves the SDK's existing automatic speed mode exactly.
+  const effort=selected.thinkingDefault,speed=selected.fastModeDefault;
+  if(!choice||effort!==undefined&&!choice.thinkingLevels.includes(effort)||
+     speed!==undefined&&typeof speed!=='boolean'&&speed!=='auto'||
+     (speed===true||speed==='auto')&&!choice.fastModeSupported)throw nativeError('model_flow_options_unsupported',409);
  }
 }
 async function changeModelFlowConfigOnce(body:any){
@@ -348,6 +360,7 @@ async function changeModelFlowConfigOnce(body:any){
  if(!config.agents?.entries?.main||!config.plugins?.entries?.['openclaw-plugin-mobile-ui']||config.plugins.entries['openclaw-plugin-mobile-ui'].enabled===false||flow==='whatsapp'&&CONTACT_MODEL_AGENTS.some(id=>!config.agents?.entries?.[id]))throw nativeError('model_flow_owner_shape_unsupported',409);
  const models=selectedFlowModels(owner,flow,defaults);if(!models.length)throw nativeError('included_model_policy_unavailable',409);
  const previous=flowSnapshot(config,flow),next=JSON.parse(JSON.stringify(config));
+ assertFlowRestorable(previous,owner,models);
  if(mode==='set'){
   const model=canonicalFlowReference(body.model,owner,models),fallbacks=flow==='conversation_summary'?[]:body.fallbacks.map((ref:string)=>canonicalFlowReference(ref,owner,models));
   const choice=models.find(row=>row.ref===publicModelRef(model));
