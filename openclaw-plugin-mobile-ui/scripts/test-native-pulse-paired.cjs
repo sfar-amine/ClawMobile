@@ -51,28 +51,25 @@ async function input(text,eventRef,requestContext){
  const onlyGlobalContext=process.argv.includes('--only-global-context');
  if(!onlyGlobalContext){
  const request=await input('  démarre la phase Build du projet 20495\n','native-request');
- const question=await dialogueTurn(runner,request);
- check(question.outcome==='NEEDS_CONFIRMATION',JSON.stringify(question));
- check(question.question.text.includes('5309')&&question.question.text.includes('20495'),'one exact whole-command confirmation');
- const accepted=await input('  oui\n','native-accept');
- const ready=await dialogueTurn(runner,accepted);
- check(ready.outcome==='READY'&&ready.pendingHandoff,JSON.stringify(ready));
- const done=await dialogueHandoff(runner,accepted,ready.pendingHandoff.goalRef);
+ const ready=await dialogueTurn(runner,request);
+ check(ready.outcome==='READY'&&ready.reasonCode==='pulse_room_direct_write',JSON.stringify(ready));
+ check(ready.pendingHandoff?.klass==='DURABLE'&&!ready.question,'complete native room request is prepared on its own event, without a confirmation question');
+ const done=await dialogueHandoff(runner,request,ready.pendingHandoff.goalRef);
  check(done.outcome==='COMPLETED',JSON.stringify(done));
  const rows=fs.readFileSync(process.env.C16_PAIRED_LOG,'utf8').trim().split('\n').map(JSON.parse);
- check(rows.filter(r=>r.kind==='interpretation').length===2,'exactly one interpretation per human event');
+ check(rows.filter(r=>r.kind==='interpretation').length===1,'exactly one interpretation for the complete native request event');
  const expectedMessageRef=input=>{
    const hash=(value,n)=>crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0,n);
    const conversation='conv-'+hash(['dialogue-conversation-v1','pulse_room',input.conversationKey.trim()],24);
    return 'evt-'+hash(['dialogue-event-v1','pulse_room',conversation,input.eventRef.trim()],32);
  };
- check(JSON.stringify(rows.filter(r=>r.kind==='interpretation').map(r=>r.message_ref))===JSON.stringify([request,accepted].map(expectedMessageRef)),
-   'model-safe opaque message references match both exact admitted host events');
- check(rows[0].text===request.text&&rows[1].text===accepted.text&&rows.every(r=>r.kind!=='interpretation'||r.provenance==='server_verified'),'original text/provenance bound on real private stream');
+ check(JSON.stringify(rows.filter(r=>r.kind==='interpretation').map(r=>r.message_ref))===JSON.stringify([request].map(expectedMessageRef)),
+   'model-safe opaque message reference matches the exact admitted request event');
+ check(rows[0].text===request.text&&rows.every(r=>r.kind!=='interpretation'||r.provenance==='server_verified'),'original text/provenance bound on real private stream');
  check(rows.filter(r=>r.kind==='MOCK_NATIVE_WRITE').length===1,'exactly one simulated native CLI write after actual grants/fences');
- const replay=await dialogueTurn(runner,accepted);
+ const replay=await dialogueTurn(runner,request);
  check(replay.outcome==='COMPLETED'&&replay.replayed,'lost result/replay uses canonical processed event');
- check(fs.readFileSync(process.env.C16_PAIRED_LOG,'utf8').trim().split('\n').length===3,'replay invokes neither model nor effect');
+ check(fs.readFileSync(process.env.C16_PAIRED_LOG,'utf8').trim().split('\n').length===2,'replay invokes neither model nor effect');
  const receipts=fs.readdirSync(path.join(root,'.openclaw','remote-bridge','requests')).map(f=>JSON.parse(fs.readFileSync(path.join(root,'.openclaw','remote-bridge','requests',f))));
  check(receipts.length===1&&receipts[0].mutationRisk==='write'&&receipts[0].state==='completed','one canonical durable Bridge receipt');
  check(reads>=6,'authority was re-read at turn, prepare, dispatch and observation');
@@ -86,19 +83,19 @@ async function input(text,eventRef,requestContext){
  const actualRunner=async(text,options)=>{const out=await runner(text,options);observed.push(out);return out;};
  const hostCall=(content,messageId)=>handlePulseRoomBeforeDispatch({content,messageId,sessionKey,channel:'whatsapp',isGroup:false},
    {messageId,sessionKey,channelId:'whatsapp'},actualRunner);
- const hookQuestion=await hostCall(request.text,'hook-request');
- check(hookQuestion.handled&&hookQuestion.text.includes('5309'),'actual contacts-pulse hook uses the prepared whole-command question');
- const hookDone=await hostCall(accepted.text,'hook-accepted');
- check(hookDone.handled&&hookDone.text.includes('vérifié'),'actual contacts-pulse hook completes only after settled native receipt');
+ const hookDone=await hostCall(request.text,'hook-request');
+ check(hookDone.handled&&hookDone.text.includes('vérifié'),'actual contacts-pulse hook runs a complete request directly and completes only after settled native receipt');
+ const hookRows=fs.readFileSync(process.env.C16_PAIRED_LOG,'utf8');
+ const hookReplay=await hostCall(request.text,'hook-request');
+ check(hookReplay.handled&&observed.at(-1).replayed&&fs.readFileSync(process.env.C16_PAIRED_LOG,'utf8')===hookRows,
+   'actual hook replay of the same request invokes neither interpretation nor effect');
  process.env.C16_RESULT_MODE='pre_submit_refusal';
- const refusedQuestion=await hostCall(request.text,'refused-request');
- check(refusedQuestion.handled&&refusedQuestion.text.includes('5309'),'native refusal starts with the same whole-command consent');
- const refusedAnswer=await hostCall(accepted.text,'refused-accepted');
+ const refusedAnswer=await hostCall(request.text,'refused-request');
  const refusal=observed.at(-1);
  check(refusedAnswer.handled&&refusal.outcome==='FAILED'&&refusal.reasonCode==='pulse_native_contract_changed',
    'known native pre-effect refusal closes T2 with owner cause: '+JSON.stringify(refusal));
  const beforeReplay=fs.readFileSync(process.env.C16_PAIRED_LOG,'utf8');
- const refusedReplay=await hostCall(accepted.text,'refused-accepted');
+ const refusedReplay=await hostCall(request.text,'refused-request');
  check(refusedReplay.handled&&observed.at(-1).replayed&&observed.at(-1).reasonCode==='pulse_native_contract_changed',
    'native refusal replay keeps the same terminal cause');
  check(fs.readFileSync(process.env.C16_PAIRED_LOG,'utf8')===beforeReplay,'native refusal replay invokes neither model nor effect');
@@ -109,6 +106,20 @@ async function input(text,eventRef,requestContext){
    'canonical terminal Bridge receipt carries native refusal and zero submission');
  const failedStat=spawnSync('python3',['-m','skill_intelligence.continuum_ingress','status','--task-id',refusedReceipt.taskId],{cwd:pb,env:process.env,encoding:'utf8'});
  check(failedStat.status===0&&JSON.parse(failedStat.stdout).state==='failed','known pre-effect refusal closes existing Continuum, no retry');
+ delete process.env.C16_RESULT_MODE;
+ process.env.C16_RESULT_MODE='missing_state';
+ const beforeMissing=fs.readFileSync(process.env.C16_PAIRED_LOG,'utf8').trim().split('\n').map(JSON.parse).filter(r=>r.kind==='MOCK_NATIVE_WRITE').length;
+ const missing=await hostCall('change la phase Build du projet 20495','missing-state-request');
+ const missingRaw=observed.at(-1);
+ check(missing.handled&&missingRaw.outcome==='NEEDS_INPUT'&&!missingRaw.pendingHandoff,
+   'an incomplete room write asks for its missing value before any handoff: '+JSON.stringify(missingRaw));
+ check(fs.readFileSync(process.env.C16_PAIRED_LOG,'utf8').trim().split('\n').map(JSON.parse).filter(r=>r.kind==='MOCK_NATIVE_WRITE').length===beforeMissing,
+   'the missing-value question causes no effect');
+ const completedMissing=await hostCall('démarré','missing-state-answer');
+ check(completedMissing.handled&&completedMissing.text.includes('vérifié')&&observed.at(-1).goalRef===missingRaw.goalRef,
+   'the admitted answer completes the same goal directly, without an extra confirmation');
+ check(fs.readFileSync(process.env.C16_PAIRED_LOG,'utf8').trim().split('\n').map(JSON.parse).filter(r=>r.kind==='MOCK_NATIVE_WRITE').length===beforeMissing+1,
+   'the completed request writes exactly once');
  delete process.env.C16_RESULT_MODE;
  for(const mode of ['data_closed','invalid','unsupported','ambiguous','unqualified']){
    process.env.C16_RESULT_MODE=mode;
@@ -142,13 +153,13 @@ async function input(text,eventRef,requestContext){
  const global={surface:'pulse_room',graphSurface:'whatsapp',conversationKey:contextAdmission.conversationKey,eventRef:child.eventRef,text:child.text,
    caller:'owner',nativePulse:contextAdmission,requestContext,queuedRequests:[waiting],policy:{scope:'pulse_room',modelAllowed:false,deferHandoff:true}};
  const globalReply=await dialogueTurn(runner,global);
- check(globalReply.outcome==='NEEDS_CONFIRMATION',JSON.stringify(globalReply));
+ check(globalReply.outcome==='READY'&&globalReply.reasonCode==='pulse_room_direct_write'&&globalReply.pendingHandoff?.klass==='DURABLE',JSON.stringify(globalReply));
  const finalRows=fs.readFileSync(process.env.C16_PAIRED_LOG,'utf8').trim().split('\n').map(JSON.parse);
  const lastIR=finalRows.filter(r=>r.kind==='interpretation').at(-1);
  check(lastIR.text===dialogueRequestText(child.text,requestContext),'exact original constraints plus active child view reaches the real paired IR');
  check(globalReply.requestQueue?.items?.some(item=>item.eventRef===waiting.eventRef&&item.parentEventRef===requestContext.parentEventRef),
    'durable sibling identity is retained in the existing coordinator projection');
- check(finalRows.filter(r=>r.kind==='MOCK_NATIVE_WRITE').length===writesBefore,'no confirmation or effect was sent for the additional context probe');
+ check(finalRows.filter(r=>r.kind==='MOCK_NATIVE_WRITE').length===writesBefore,'the additional context probe remains a deferred handoff with zero effect');
  const evidence={schema:'native-pulse-paired.v1',qualification:'MOCK_ONLY',core_sha:coreHead.stdout.trim(),
   playbooks_sha:peerHead.stdout.trim(),source_state:{core_dirty:coreDirty,playbooks_dirty:playbooksDirty},checks:n,passed:n,provider_calls:0,real_business_effects:0};
  if(process.env.C16_EVIDENCE_PATH)fs.writeFileSync(process.env.C16_EVIDENCE_PATH,JSON.stringify(evidence,null,2)+'\n');

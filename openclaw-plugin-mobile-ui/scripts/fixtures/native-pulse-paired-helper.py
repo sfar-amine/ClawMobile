@@ -36,6 +36,14 @@ def result(request):
     if mode=='ambiguous':return proposal(None,domain_id=None,status='ambiguous',question_proposal='Quel projet et quelle phase souhaites-tu préciser ?')
     if mode=='unqualified':return proposal('project.assign_collaborator',parameters=[
         param('project_query','20495',ref=request['message']['ref']),param('person','Fixture Collaborator',ref=request['message']['ref'])])
+    if mode=='missing_state':
+        if request.get('active_goal'):
+            return proposal('project.phase.set_status',message_kind='slot_answer',
+                referenced_goal=request['active_goal']['goalRef'],
+                parameters=[param('state','started','démarré',ref=request['message']['ref'])])
+        return proposal('project.phase.set_status',parameters=[
+            param('project_query','20495',ref=request['message']['ref']),
+            param('phase','Build',ref=request['message']['ref'])],unresolved=['state'])
     pending=request.get('pending_confirmation')
     if pending:
         return proposal('project.phase.set_status',message_kind='confirmation_answer',

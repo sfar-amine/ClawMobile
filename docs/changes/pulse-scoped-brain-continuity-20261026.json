@@ -32,6 +32,11 @@
       "name": "Native Pulse actual Node/Python/IR/Graph paired owners",
       "status": "passed",
       "evidence": "CI core428-pb8588-native-paired-final-v8.log :47/47 PASS8.635s avec PB85883aa31be7dd7633a12abaebf0dbe01242d140 propre ; source Core3661+WIP explicitée dans source_state et snapshots CI stables. Global-only4/4 PASS également. Aucun fournisseur/réseau/effet professionnel réel ; C2source est MOCK_ONLY ici et son WholeProjection/R17 réel est couvert séparément dans les191testsPB. Source40/40 NativeHandoff après refus parentuntracked vérifiée dans ciblév4, sans attribuer son échecglobal historique au succès final. PinCI C16 mis àjour vers le propriétaire effectivement testé."
+    },
+    {
+      "name": "Final canonical PB8bbd room-policy paired contract",
+      "status": "pending",
+      "evidence": "PB8bbd00ccb848d0b52773f2fa1b8d16fc87b83136 includes canonical #326: decision ec0ec646/EVT3305 makes a complete admitted Pulse room write READY directly. Earlier c8deb paired refusal retained in core428-c8deb45f-pb8bbd-paired-v1.log; fixture updated only for the canonical request-event policy, same native grants/one-shot transport/refusal/replay guards. New missing-value question followed by same-goal answer case; exact targeted replay pending."
     }
   ],
   "documentation": [
