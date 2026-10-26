@@ -47,6 +47,10 @@ function arm(taskId,requestId,params){
  await assert.rejects(admitNativePulseContact({sessionKey,eventRef:child.eventRef,text:child.text,isGroup:false,
   requestContext:{...requestContext,parentEventRef:'different-parent'}},read),/event_mismatch/);n++;
  check(Object.isFrozen(contextual.requestContext),'global context is bound immutably to the same admitted professional event');
+ const untrackedParent='untracked:authored-fallback',untrackedChild=dialogueChildRequest(untrackedParent,child.text,1);
+ await assert.rejects(admitNativePulseContact({sessionKey,eventRef:untrackedChild.eventRef,text:child.text,isGroup:false,
+  requestContext:{...requestContext,parentEventRef:untrackedParent}},read),/event_mismatch/);n++;
+
  const comboSession=sessionKey.replace('contacts-pulse','contacts-projet-pulse');
  const combo=await admitNativePulseContact({sessionKey:comboSession,eventRef,text,isGroup:false},read);
  check(combo.conversationKey.includes(':contacts-projet-pulse:'),'exact combined profile admitted to private transport; Python independently requires its ACL');

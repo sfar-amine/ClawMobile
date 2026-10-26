@@ -48,7 +48,7 @@ export async function admitNativePulseContact(input:{sessionKey:string;eventRef:
   if(input.requestContext!==undefined){
     const value=input.requestContext;
     if(!value||Object.keys(value).sort().join(',')!=='originalText,parentEventRef'||
-      typeof value.parentEventRef!=='string'||!value.parentEventRef||value.parentEventRef.length>300||
+      typeof value.parentEventRef!=='string'||!value.parentEventRef||value.parentEventRef.length>300||value.parentEventRef.startsWith('untracked:')||
       typeof value.originalText!=='string'||!value.originalText||value.originalText.length>4000||
       !splitRequests(value.originalText).some((text,n)=>text===input.text&&
         dialogueChildRequest(value.parentEventRef,text,n+1).eventRef===input.eventRef))throw Error('native_pulse_event_mismatch');

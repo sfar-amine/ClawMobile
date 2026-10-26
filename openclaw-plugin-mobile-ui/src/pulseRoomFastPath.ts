@@ -136,7 +136,7 @@ export const pulseChildRequest=dialogueChildRequest;
 function preservedRequests(reply:DialogueReply):{requests:DialogueRequest[];context?:DialogueRequestContext} {
   const context=reply.requestContext;
   if(!context||Object.keys(context).sort().join(',')!=='originalText,parentEventRef'||
-    typeof context.parentEventRef!=='string'||!context.parentEventRef||context.parentEventRef.length>300||
+    typeof context.parentEventRef!=='string'||!context.parentEventRef||context.parentEventRef.length>300||context.parentEventRef.startsWith('untracked:')||
     typeof context.originalText!=='string'||!context.originalText||context.originalText.length>MAX_MESSAGE_CHARS||
     !Array.isArray(reply.resumeRequests)||reply.resumeRequests.length>MAX_SPLIT_REQUESTS)return {requests:[]};
   const parts=splitRequests(context.originalText),seen=new Set<string>();

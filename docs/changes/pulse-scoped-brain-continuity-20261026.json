@@ -17,13 +17,21 @@
     "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
     "docs/changes/pulse-scoped-brain-continuity-20261026.md",
     "docs/08-decisions/ADR-20261026-pulse-scoped-brain.md",
-    "docs/changes/pulse-scoped-brain-continuity-20261026.json"
+    "docs/changes/pulse-scoped-brain-continuity-20261026.json",
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/scripts/test-native-pulse-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/native-pulse-paired-helper.py"
   ],
   "tests": [
     {
       "name": "Owner scope / professional Pulse continuity focused source",
       "status": "passed",
       "evidence": "CI core441-owner-scope-restored-focused-v1.log : TS +4scripts existants (room, intent port, NativePulse39/39 mocks, typedowner isolation), PASS8.218s ; WIP source/diff hashes identiques avant/après. Garde acteurSDK propriétaire, contexte lié/forgé/absent, refs longues/stables, reprises de la queue existante, stop erreur/inconnu/replay et purpose professionnel conservé sous flagowner."
+    },
+    {
+      "name": "Native Pulse actual Node/Python/IR/Graph paired owners",
+      "status": "passed",
+      "evidence": "CI core428-pb8588-native-paired-final-v8.log :47/47 PASS8.635s avec PB85883aa31be7dd7633a12abaebf0dbe01242d140 propre ; source Core3661+WIP explicitée dans source_state et snapshots CI stables. Global-only4/4 PASS également. Aucun fournisseur/réseau/effet professionnel réel ; C2source est MOCK_ONLY ici et son WholeProjection/R17 réel est couvert séparément dans les191testsPB. Source40/40 NativeHandoff après refus parentuntracked vérifiée dans ciblév4, sans attribuer son échecglobal historique au succès final. PinCI C16 mis àjour vers le propriétaire effectivement testé."
     }
   ],
   "documentation": [
@@ -64,9 +72,9 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "limitations": [
-    "Les contrôles TS/Node sont des fixtures authored et mocks ; aucun fournisseur ni effet professionnel réel.",
-    "Le propriétaire PB apparié doit qualifier la persistance CAS/WholeProjection/context puis nouvelle CI canonique exacte de l’union.",
-    "Aucune activation ou recette S24 n’est attestée par cette fiche."
+    "Les contrôles unitaires et appariés sont MOCK_ONLY, sans fournisseur/S24/effet professionnel.",
+    "Les refus préparatoires et snapshots WIP restent conservés ; ils ne sont pas des verdicts de cette tête publiée.",
+    "CI canonique complète de la nouvelle union et activation/recette S24 restent requises."
   ],
   "rollback": "Revert du correctif apparié Core/PB après rapprochement des reçus ; conserver queue/reçus, ne jamais rejouer un effet incertain. Le flag cerveau propriétaire ne change pas les admissions professionnelles contact."
 }

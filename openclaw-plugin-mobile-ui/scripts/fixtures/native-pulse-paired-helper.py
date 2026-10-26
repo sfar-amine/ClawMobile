@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import sys
 import subprocess
+import traceback
 from types import SimpleNamespace
 from unittest import mock
 
@@ -27,13 +28,15 @@ log=Path(os.environ['C16_PAIRED_LOG'])
 def record(value):
     with log.open('a') as out:out.write(json.dumps(value,ensure_ascii=False)+'\n')
 def result(request):
-    record({'kind':'interpretation','conversation':request['conversation_ref'],
+    record({'kind':'interpretation','message_ref':request['message']['ref'],
         'text':request['message']['text'],'provenance':request['message']['provenance']})
     mode=os.environ.get('C16_RESULT_MODE')
     if mode=='invalid':return proposal('project.phase.set_status',route='forged')
     if mode=='unsupported':return proposal(None,domain_id=None,status='unsupported')
     if mode=='ambiguous':return proposal(None,domain_id=None,status='ambiguous',question_proposal='Quel projet et quelle phase souhaites-tu préciser ?')
-    pending=request['pending_confirmation']
+    if mode=='unqualified':return proposal('project.assign_collaborator',parameters=[
+        param('project_query','20495',ref=request['message']['ref']),param('person','Fixture Collaborator',ref=request['message']['ref'])])
+    pending=request.get('pending_confirmation')
     if pending:
         return proposal('project.phase.set_status',message_kind='confirmation_answer',
             referenced_goal=request['active_goal']['goalRef'],referenced_confirmation=pending['ref'],confirmation_response='accept')
@@ -43,9 +46,38 @@ def result(request):
 def prepare(resolution,**bindings):
     return admit_project_preparation(resolution['decision'],fixture['prepared'],
         requester=resolution['caller'],policy_revision=resolution['capability_revision'],**bindings)
+# Closed authored-fixture diagnostics: no request, arguments, exception text, source line or private path.
+original_interpret_turn=intent_dialogue.interpret_turn
+def diagnostic_interpret_turn(*args,**kwargs):
+    try:
+        return original_interpret_turn(*args,**kwargs)
+    except Exception as error:
+        from skill_intelligence.intent_interpreter import VALIDATION_REASONS
+        code=str(error)
+        record({'kind':'MOCK_ONLY_ADMISSION_EXCEPTION','exception_type':type(error).__name__,
+            **({'reason':code} if code in VALIDATION_REASONS else {}),
+            'frames':[{'module':Path(frame.filename).name,'line':frame.lineno,'function':frame.name}
+                for frame in traceback.extract_tb(error.__traceback__)[-8:]]})
+        raise
+intent_dialogue.interpret_turn=diagnostic_interpret_turn
+class DiagnosticRecordedRunner(RecordedRunner):
+    def request_interpretation_governed(self,*args,**kwargs):
+        validator=kwargs.get('result_validator')
+        def checked(result):
+            try:
+                return validator(result)
+            except (ValueError,TypeError,KeyError,RecursionError) as error:
+                from skill_intelligence.intent_interpreter import VALIDATION_REASONS
+                code=str(error)
+                record({'kind':'MOCK_ONLY_VALIDATION_REJECTED',
+                    'reason':code if code in VALIDATION_REASONS else 'validation_failed',
+                    'frames':[{'module':Path(frame.filename).name,'line':frame.lineno,'function':frame.name}
+                        for frame in traceback.extract_tb(error.__traceback__)[-5:]]})
+                raise
+        return super().request_interpretation_governed(*args,**{**kwargs,'result_validator':checked})
 old_factory=intent_dialogue.make_intent_dialogue_port
 def factory(ui_root,**kwargs):
-    kwargs.update(runner=RecordedRunner(result),context_projection=lambda *args:{})
+    kwargs.update(runner=DiagnosticRecordedRunner(result),context_projection=lambda *args:{})
     if os.environ.get('C16_RESULT_MODE')!='unqualified':kwargs['prepare_command']=prepare
     else:
         def real_unqualified(resolution,**bindings):
