@@ -81,5 +81,9 @@
       "budget": "<=6000estimated UTF8/4 tokens; producer subprocess1500ms bound",
       "capability": "NO_CAPABILITY: context read only"
     }
+  ],
+  "pending_validation": [
+    "Exact final MCP adapter transport checks and complete private-view calibration after compilation",
+    "Canonical exact-head CI and real three-surface native acceptance"
   ]
 }
