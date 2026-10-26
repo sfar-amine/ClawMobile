@@ -2,7 +2,8 @@ import crypto from "node:crypto";
 import {FAILURE_PHRASES,hasFailurePhrase} from "./companion/receiptPresentation";
 import { contactRoomSession } from "./contactRoomProfile";
 import {admitNativePulseContact} from "./nativePulseAdmission";
-import { admittedAtMs, dialogueTurn, dialogueHandoff, transportEventRef } from "./dialogueSurface";
+import { admittedAtMs, dialogueTurn, dialogueHandoff, isQuestionReply, MAX_SPLIT_REQUESTS, splitRequests, transportEventRef,
+  type DialogueReply } from "./dialogueSurface";
 import { runModelFastPath, type FastPathResult, type RunnerOptions } from "./modelFastPath";
 
 /**
@@ -108,24 +109,79 @@ export async function handlePulseRoomFastPath(
   if (!message || message.length > MAX_MESSAGE_CHARS) return modelOr(TEXT_ONLY);
   // The requester stays visible: the conversation is the room's host session (room, contact).
   const eventRef=transportEventRef(ctx.runId,event.runId,event.id);
+  const room: RoomTurn = { agent, contactId, sessionKey: String(ctx.sessionKey ?? event.sessionKey ?? ""),
+    isGroup: event.isGroup === true, admittedAt: admittedAtMs(event.timestamp) };
+  const parts = splitRequests(message);
+  if (parts.length === 1) {
+    const one = await roomTurn(runner, room, { text: originalMessage, eventRef }, []);
+    if (!one.out.handled || !one.resumeRequests.length) return one.out;
+    return { handled: true, reply: { text: await runRequests(runner, room,
+      one.resumeRequests.map((text, n) => ({ text, eventRef: subRef(eventRef, `#r${n + 1}`) })), [one.out.reply!.text]) } };
+  }
+  return { handled: true, reply: { text: await runRequests(runner, room,
+    parts.map((text, n) => ({ text, eventRef: subRef(eventRef, `#${n + 1}`) })), []) } };
+}
+
+type RoomTurn = { agent: string; contactId: string; sessionKey: string; isGroup: boolean; admittedAt?: number };
+type RoomRequest = { text: string; eventRef: string };
+type RoomOut = { handled: boolean; reply?: { text: string } };
+const MAX_ROOM_REQUESTS = 20;
+const subRef = (eventRef: string, suffix: string) => eventRef.slice(0, 300 - suffix.length) + suffix;
+
+/**
+ * Several requests of one message, one after the other, each its own admitted event (`<messageId>#n`, replayable).
+ * A question stops the run: the requests behind it wait in the coordinator's conversation state and come back as
+ * `resumeRequests` with the turn that answers it. No local queue, no timer, no retry.
+ */
+async function runRequests(runner: Runner, room: RoomTurn, work: RoomRequest[], texts: string[]): Promise<string> {
+  let note = "";
+  for (let i = 0; i < work.length && i < MAX_ROOM_REQUESTS; i++) {
+    const item = work[i];
+    const turn = await roomTurn(runner, room, item, work.slice(i + 1, i + 1 + MAX_SPLIT_REQUESTS).map((w) => w.text));
+    texts.push(turn.out.handled ? turn.out.reply!.text : PULSE_ROOM_HELP);
+    work.push(...turn.resumeRequests.map((text, n) => ({ text, eventRef: subRef(item.eventRef, `#r${n + 1}`) })));
+    if (turn.question) {
+      if (turn.queuedCount > 0) note = turn.queuedCount === 1 ? "J’ai gardé l’autre demande de ton message : je la traite dès ta réponse."
+        : `J’ai gardé les ${turn.queuedCount} autres demandes de ton message : je les traite dès ta réponse.`;
+      else if (i + 1 < work.length) note = "Les autres demandes de ton message n’ont pas été traitées : renvoie-les après ta réponse.";
+      break;
+    }
+  }
+  const body = texts.length === 1 ? texts[0] : texts.map((text, n) => `${n + 1}) ${text}`).join("\n\n");
+  return note ? `${body}\n\n${note}` : body;
+}
+
+async function roomTurn(runner: Runner, room: RoomTurn, request: RoomRequest, queuedRequests: string[]):
+    Promise<{ out: RoomOut; question: boolean; queuedCount: number; resumeRequests: string[] }> {
+  const { agent, contactId, sessionKey } = room;
+  const message = request.text.trim();
   let nativePulse;
   if(PULSE_ROOM_AGENTS.has(agent)&&process.env.SAMANTHA_NATIVE_PULSE_HANDOFF==='1'){
-    try{nativePulse=await admitNativePulseContact({sessionKey:String(ctx.sessionKey??event.sessionKey??''),
-      eventRef,text:originalMessage,isGroup:event.isGroup===true});}
-    catch{return {handled:true,reply:{text:'L’accès à la pièce Pulse n’est pas confirmé. Rien n’a été exécuté.'}};}
+    try{nativePulse=await admitNativePulseContact({sessionKey,eventRef:request.eventRef,text:request.text,isGroup:room.isGroup});}
+    catch{return {out:{handled:true,reply:{text:'L’accès à la pièce Pulse n’est pas confirmé. Rien n’a été exécuté.'}},
+      question:false,queuedCount:0,resumeRequests:[]};}
   }
   const input={
     surface: "pulse_room" as const, graphSurface: "whatsapp",
-    conversationKey: `pulse-room:${agent}:${contactId}:${String(ctx.sessionKey ?? event.sessionKey ?? "")}`,
-    eventRef, text: nativePulse?originalMessage:message, caller: "owner" as const,
+    conversationKey: `pulse-room:${agent}:${contactId}:${sessionKey}`,
+    eventRef: request.eventRef, text: nativePulse?request.text:message, caller: "owner" as const,
+    ...(queuedRequests.length?{queuedRequests}:{}),
     ...(nativePulse?{nativePulse}:{}),
-    admittedAt: admittedAtMs(event.timestamp),
+    admittedAt: room.admittedAt,
     policy: { scope: "pulse_room", modelAllowed: nativePulse?false:pulseRoomMayUseModel(agent, message),
       ...(nativePulse?{deferHandoff:true}:{}) },
     timeoutSeconds: 75,
   };
-  let reply=await dialogueTurn(runner,input);
+  const turn=await dialogueTurn(runner,input);
+  let reply=turn;
   if(nativePulse&&reply.pendingHandoff)reply=await dialogueHandoff(runner,input,reply.pendingHandoff.goalRef);
+  const resume=[turn.resumeRequests,reply.resumeRequests].find((value)=>Array.isArray(value)&&value.length)??[];
+  return { out: roomReply(reply, !!nativePulse), question: isQuestionReply(turn),
+    queuedCount: typeof turn.queuedCount === "number" ? turn.queuedCount : 0,
+    resumeRequests: resume.filter((text): text is string => typeof text === "string" && !!text.trim()) };
+}
+
+function roomReply(reply: DialogueReply, nativePulse: boolean): RoomOut {
   if (!reply.handled) return nativePulse?{handled:true,reply:{text:nativeFailureText(reply.reasonCode)}}:{ handled: false };
   const text = String(reply.text || "").trim();
   switch (reply.outcome) {
