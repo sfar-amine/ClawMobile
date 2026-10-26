@@ -539,6 +539,7 @@ jobs:
           node ../cloud/voice-relay/test-mcp.mjs
 
           node ../cloud/voice-relay/test-long-action.mjs
+          node ../cloud/voice-relay/test-voice-brain-budget.mjs
       - name: MCP private read paired with immutable PB263 context owners (MOCK only)
         run: |
           peer=$(mktemp -d "${TMPDIR:-/tmp}/c8-mcp-playbooks.XXXXXX")
