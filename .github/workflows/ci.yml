@@ -105,6 +105,9 @@ jobs:
           python3 ../installer/termux-lite/test-native-turn-provenance.py
           node ../installer/termux-lite/test-agent-exec-auth-scope.cjs
 
+      - name: Gateway preparation splits reuse the pinned existing stage owner
+        run: python3 ../installer/termux-lite/test-gateway-prep-stages.py
+
       - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
         run: python3 ../installer/termux-lite/test-project-room.py
       - name: Pulse room agents (fichier 52 §5)
