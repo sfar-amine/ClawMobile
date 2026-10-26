@@ -37,7 +37,7 @@
     {
       "name": "model-flows-targeted",
       "status": "passed",
-      "evidence": "npm ci, npm run build et scripts test-model-flows/model-roles/agent-config PASS, logs l5-core-build-v2.log et l5-core-test-*-v2.log ; arbre testé avant correction de libellés d’héritage et changements documentaires, union provenance R6 non testée par ces logs, ciblé final requis, détails et limites dans la note Markdown."
+      "evidence": "Ciblés du 26/10 : npm run build, test-model-flows.cjs, test-agent-config.cjs et test-conversation-model-profile.cjs PASS, après corrections ES2021 et isolation des scénarios rédigés ; union provenance R6/SDK couverte. test-model-roles.cjs PASS dans les logs v2 antérieurs, sa projection inchangée par cette jonction. CI canonique exacte et recette S24 encore requises."
     },
     {
       "name": "static-contracts",
