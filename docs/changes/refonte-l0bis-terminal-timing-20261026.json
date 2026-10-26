@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "id": "refonte-l0bis-terminal-timing-20261026",
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Separate SDK terminal reception from the existing run-owner queue and durable settlement, using closed timing metadata.",
+  "reason": "Native D1 shows a Gateway terminal response logged about13.9s before the registry updatedAt. That field alone cannot attribute the delay or prove first visible response time.",
+  "rollback": "Revert this instrumentation and deploy by companion-deploy.sh; added optional numbers are ignored by earlier versions, with no migration or data deletion.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-gateway-run-observation.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-terminal-timing/native-timing.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-terminal-timing/provenance.json",
+    "docs/changes/refonte-l0bis-terminal-timing-20261026.json",
+    "docs/changes/refonte-l0bis-terminal-timing-20261026.md"
+  ],
+  "documentation": [
+    "docs/changes/refonte-l0bis-terminal-timing-20261026.md"
+  ],
+  "tests": [
+    {
+      "name": "TypeScript and existing observation/admission/conversation owner regressions",
+      "status": "passed",
+      "evidence": "TypeScript PASS6.459s; corrected asynchronous test and all3 Node suites PASS8.136s onNode26.11.1: Gateway observation,84owner admission cases, conversation pagination500runs/50sessions. First test synchronization failure retained in perf422-terminal-timing-focused.log SHA2569fbe4ee99a3db4e1c19df50ce60325d4f9626f4aec69e5543cf370edf949796f; successful Node log perf422-terminal-timing-focused-v2.log SHA256fb0933a7bd5ac08c98516415e680f453094c9a39407d71be03d2b312b9810cfe. runs.ts unchanged after TypeScript (SHA256177a389ff44e7173b9fae5cec746ffd298b1d81f2e96c1ce5d44c932dfaaf1d0). Full canonical CI remains pending after integration into425, no native activation."
+    }
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "NO_CAPABILITY: existing private run-owner observation metadata and bounded diagnostic sink only; no new route, action, setting or MCP primitive."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same GatewayObservation under the existing run-store writer, same SDK expectFinal and diagnostic sink. No new store, polling, routing, retry, service or agent."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Private numeric observation data only; all public MCP and owner HTTP schemas, adapters, admissions and effects unchanged."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "canonical_ci": "pending_after_integration_into_L4_425",
+  "native_acceptance": "pending_post_activation_timing_no_gain_claim"
+}

@@ -159,4 +159,41 @@ grep -q 'ADB recovery readiness' "$T/closings"
 test ! -e "$H/.openclaw/watchdogs/adb-recovery-readiness-notified"
 test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.state")" = ready
 test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.failures")" = 0
+
+# S24 26/10 (a3e972e2): Wi-Fi off gives standby/wifi_disabled_recovery_standby. Nothing can be
+# armed, so the watchdog never asks the immune gate (no model call, no incident).
+cat >"$H/.openclaw/releases/current/termux-lite/immune-action.sh" <<AI_FIXTURE
+immune_action(){ printf '%s\n' "\$1 \$2" >>"$T/immune-calls"; shift 2; "\$@"; }
+immune_observe(){ :; }
+AI_FIXTURE
+cat >"$H/fake-readiness-wifi-off" <<'WIFI_OFF'
+#!/data/data/com.termux/files/usr/bin/bash
+echo '{"state":"standby","reason":"wifi_disabled_recovery_standby","requires_owner_action":false}'
+WIFI_OFF
+chmod +x "$H/fake-readiness-wifi-off"
+rm -f "$T/armed" "$T/adb-calls" "$T/immune-calls" "$H/.openclaw/watchdogs/adb-recovery-readiness-arm.last"
+printf ready >"$H/.openclaw/watchdogs/adb-recovery-readiness.state"
+host_adapt_shebangs "$T"
+PATH="$T/bin:$PATH" \
+ADB_RECOVERY_HOME="$H" \
+CLAW_RUNTIME_ROOT="$H/.openclaw/releases/current/termux-lite" \
+ADB_RECOVERY_READINESS_HELPER="$H/fake-readiness-wifi-off" \
+ADB_RECOVERY_INTERVAL=0 \
+ADB_RECOVERY_MAX_LOOPS=1 \
+bash "$R/adb-recovery-watchdog.sh"
+# `! grep` never fails under set -e: assert explicitly.
+if grep -q 'device.adb.recovery_readiness' "$T/immune-calls" 2>/dev/null; then echo 'immune gate asked with Wi-Fi off' >&2; exit 1; fi
+if grep -q 'settings put global adb_wifi_enabled 1' "$T/adb-calls" 2>/dev/null; then echo 'arm attempted with Wi-Fi off' >&2; exit 1; fi
+test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.state")" = standby
+
+# A disabled Wireless Debugging (Wi-Fi on) still goes through the immune gate.
+rm -f "$T/immune-calls"
+PATH="$T/bin:$PATH" \
+ADB_RECOVERY_HOME="$H" \
+CLAW_RUNTIME_ROOT="$H/.openclaw/releases/current/termux-lite" \
+ADB_RECOVERY_READINESS_HELPER="$H/fake-readiness-standby" \
+ADB_RECOVERY_INTERVAL=0 \
+ADB_RECOVERY_MAX_LOOPS=1 \
+bash "$R/adb-recovery-watchdog.sh"
+grep -q 'device.adb.recovery_readiness bounded-wireless-readiness-arm' "$T/immune-calls"
 echo 'adb recovery readiness closed loop: OK'

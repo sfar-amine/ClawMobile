@@ -1,0 +1,29 @@
+{
+  "captured_at": "2026-10-26",
+  "source": "Installed public SDK on S24, readonly claw_exec l3-sdk-queue-20261026/sdk-google-adapter and sdk-loop-schema-maps; no config/auth/model call. Function strings copied exactly; authored schemas only in tests.",
+  "modules": [
+    {
+      "source": "google-messages-DB7GKkDk.mjs",
+      "sha256": "9d043610723f4c9c6a87ce13ea096ca39ebc74922819b0ab658ff69aa512f19c",
+      "bytes": 19038,
+      "functions": {
+        "convertGoogleTools": "function convertGoogleTools(tools) {\n\tif (tools.length === 0) return;\n\treturn [{ functionDeclarations: sortPromptCacheToolsByName(tools).map((tool) => ({\n\t\tname: tool.name,\n\t\tdescription: tool.description,\n\t\tparametersJsonSchema: tool.parameters\n\t})) }];\n}"
+      }
+    },
+    {
+      "source": "google-shared-Bok4I6zB.mjs",
+      "sha256": "d3ff8552e78bd86c8df3d983d997e8a3791b633451211e52337a03eed072630f",
+      "bytes": 7744,
+      "functions": {
+        "buildGoogleGenerateContentParams": "function buildGoogleGenerateContentParams(model, context, options = {}) {\n\tconst contents = convertMessages(model, context);\n\tconst generationConfig = {};\n\tif (options.temperature !== void 0) generationConfig.temperature = options.temperature;\n\tif (options.maxTokens !== void 0) generationConfig.maxOutputTokens = options.maxTokens;\n\tif (options.stop !== void 0 && options.stop.length > 0) generationConfig.stopSequences = options.stop;\n\tconst config = {\n\t\t...Object.keys(generationConfig).length > 0 && generationConfig,\n\t\t...context.systemPrompt && { systemInstruction: sanitizeSurrogates(stripSystemPromptCacheBoundary(context.systemPrompt)) },\n\t\t...context.tools && context.tools.length > 0 && { tools: convertGoogleTools(context.tools) }\n\t};\n\tif (context.tools && context.tools.length > 0 && options.toolChoice) config.toolConfig = { functionCallingConfig: { mode: mapToolChoice(options.toolChoice) } };\n\telse config.toolConfig = void 0;\n\tif (options.thinking?.enabled && model.reasoning) {\n\t\tconst thinkingConfig = { includeThoughts: true };\n\t\tif (options.thinking.level !== void 0) thinkingConfig.thinkingLevel = ThinkingLevel[options.thinking.level];\n\t\telse if (options.thinking.budgetTokens !== void 0) thinkingConfig.thinkingBudget = options.thinking.budgetTokens;\n\t\tconfig.thinkingConfig = thinkingConfig;\n\t} else if (model.reasoning && options.thinking && !options.thinking.enabled) {\n\t\tconst disabledThinkingConfig = getDisabledGoogleThinkingConfig(model);\n\t\tif (Object.keys(disabledThinkingConfig).length > 0) config.thinkingConfig = disabledThinkingConfig;\n\t}\n\tif (options.signal) {\n\t\tif (options.signal.aborted) throw new Error(\"Request aborted\");\n\t\tconfig.abortSignal = options.signal;\n\t}\n\treturn {\n\t\tmodel: model.id,\n\t\tcontents,\n\t\tconfig\n\t};\n}"
+      }
+    }
+  ],
+  "genai": {
+    "source": "@google/genai/dist/node/index.mjs",
+    "sha256": "05c68ed403695c904167d53613a10852e18df9b9eb6cd671c889d34c318996d0",
+    "bytes": 1058047,
+    "schema_map_excerpt_sha256": "cf72c84cb16c89738bef0d1e205db97159d4c06523e22090d16696a073ce6422",
+    "schema_map_source": "function tTool(tool) {\n    if (tool.functionDeclarations) {\n        for (const functionDeclaration of tool.functionDeclarations) {\n            if (functionDeclaration.parameters) {\n                if (!Object.keys(functionDeclaration.parameters).includes('$schema')) {\n                    functionDeclaration.parameters = processJsonSchema(functionDeclaration.parameters);\n                }\n                else {\n                    if (!functionDeclaration.parametersJsonSchema) {\n                        functionDeclaration.parametersJsonSchema =\n                            functionDeclaration.parameters;\n                        delete functionDeclaration.parameters;\n                    }\n                }\n            }\n            if (functionDeclaration.response) {\n                if (!Object.keys(functionDeclaration.response).includes('$schema')) {\n                    functionDeclaration.response = processJsonSchema(functionDeclaration.response);\n                }\n                else {\n                    if (!functionDeclaration.responseJsonSchema) {\n                        functionDeclaration.responseJsonSchema =\n                            functionDeclaration.response;\n                        delete functionDeclaration.response;\n                    }\n                }\n            }\n        }\n    }\n    return tool;\n}\nfunction mcpToGeminiTool(mcpTool, config = {}) {\n    const mcpToolSchema = mcpTool;\n    const functionDeclaration = {\n        name: mcpToolSchema['name'],\n        description: mcpToolSchema['description'],\n        parametersJsonSchema: mcpToolSchema['inputSchema'],\n    };\n    if (mcpToolSchema['outputSchema']) {\n        functionDeclaration['responseJsonSchema'] = mcpToolSchema['outputSchema'];\n    }\n    if (config.behavior) {\n        functionDeclaration['behavior'] = config.behavior;\n    }\n    const geminiTool = {\n        functionDeclarations: [\n            functionDeclaration,\n        ],\n    };\n    return geminiTool;\n}\n/**\n * Converts a list of MCP tools to a single Gemini tool with a list of function\n * declarations.\n */"
+  }
+}

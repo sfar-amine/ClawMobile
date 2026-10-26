@@ -133,6 +133,26 @@ def recover_by_id(i,source,reason):
  if row['state']!='verifying':transition(i,'verifying',source,reason)
  return transition(i,'recovered',source,reason)
 
+# An incident parked for verification must not wait forever unseen (S24 26/10: route
+# incidents open since 17/10). After the bound it goes to the owner once, by the existing
+# notification queue. Immune interventions have their own review (immune_intervention).
+STALE_AFTER_S=86400
+def escalate_stale(max_age_s=STALE_AFTER_S,limit=10,home=None,notify=None):
+ home=Path.home() if home is None else Path(home)
+ c=connect();rows=[dict(r) for r in c.execute("SELECT id,component,scope,updated,summary FROM incidents WHERE state='awaiting_deterministic_recovery' AND updated<=? ORDER BY updated LIMIT ?",(time.time()-max_age_s,limit))];c.close()
+ if notify is None:
+  def notify(message,action):
+   subprocess.run([str(Path(__file__).with_name("incident-notify.sh")),"human_required",message,action],check=False,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=20)
+ out=[]
+ for r in rows:
+  if (home/".openclaw/continuations/foreground"/("immune:"+r["id"]+".json")).exists():continue
+  days=max(1,int((time.time()-float(r["updated"]))//86400))
+  transition(r["id"],"human_required","incident-stale-review",f"no verification for {days} day(s) in awaiting_deterministic_recovery",True)
+  notify(f"Incident sans suivi : {r['component']} attend une vérification depuis {days} jour(s) (incident {r['id']}).",
+         "Vérifier la route ou le composant, puis le réparer ou clore l'incident ; Claude ou Codex peut le requalifier.")
+  out.append(r["id"])
+ return {"escalated":out}
+
 # Components the worker repairs itself; others may be covered by a trusted engineering-repair profile.
 DIRECT_HANDLERS=("adb","gateway-secretref-exec","openclaw-agent-headless","remote_desktop")
 def handled(component,direct_only=False):
@@ -153,6 +173,7 @@ def main():
  r=s.add_parser("recover");r.add_argument("component");r.add_argument("scope");r.add_argument("--source",required=True);r.add_argument("--reason",default="verified service recovery")
  g=s.add_parser("show");g.add_argument("id")
  z=s.add_parser('recover-id');z.add_argument('id');z.add_argument('--source',required=True);z.add_argument('--reason',required=True)
+ x=s.add_parser("escalate-stale");x.add_argument("--older-than",type=int,default=STALE_AFTER_S)
  h=s.add_parser("handled");h.add_argument("component");h.add_argument("--direct",action="store_true")
  a=p.parse_args()
  if a.cmd=="open": out=open_incident(a.component,a.scope,a.source,a.summary,a.correlation_id,a.observation_kind)
@@ -161,6 +182,7 @@ def main():
  elif a.cmd=="recover": out=recover_incident(a.component,a.scope,a.source,a.reason)
  elif a.cmd=='recover-id':out=recover_by_id(a.id,a.source,a.reason)
  elif a.cmd=="handled": sys.exit(0 if handled(a.component,a.direct) else 1)
+ elif a.cmd=="escalate-stale": out=escalate_stale(a.older_than)
  else: out=show(a.id)
  print(json.dumps(out,ensure_ascii=False,indent=2))
 if __name__=="__main__": main()

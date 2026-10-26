@@ -71,7 +71,7 @@ class RuntimeSync(unittest.TestCase):
         for name in ("runtime-sync.sh", "runtime_mode.py", "lib.sh", "companion-deploy.sh", "companion-acceptance.py", "project-room.py", "pulse-room.py", "contacts-agent.md"):
             shutil.copy2(HERE / name, self.root / name)
         compat = self.root / "openclaw-compat"; compat.mkdir()
-        (compat / "whatsapp-network-recovery.py").write_text('import json,os,sys\nstate=os.environ.get("STUB_MODEL_PATCH" if "model-flow-selection" in sys.argv else "STUB_WA_PATCH","unchanged")\nprint(json.dumps({"ok":state!="refused","state":state}))\nsys.exit(1 if state=="refused" else 0)\n')
+        (compat / "whatsapp-network-recovery.py").write_text('import json,os,sys\nstate=os.environ.get("STUB_MODEL_PATCH" if "model-flow-selection" in sys.argv else "STUB_NATIVE_PATCH" if "native-turn-provenance" in sys.argv else "STUB_WA_PATCH","unchanged")\nprint(json.dumps({"ok":state!="refused","state":state}))\nsys.exit(1 if state=="refused" else 0)\n')
         (self.root / "install-tier0-control.py").write_text(TIER0_STUB)
         plugin = repo / PLUGIN_ID; (plugin / "dist").mkdir(parents=True)
         (plugin / "package.json").write_text('{"name":"openclaw-plugin-mobile-ui"}')
@@ -315,6 +315,21 @@ class RuntimeSync(unittest.TestCase):
         rc, out, _ = self.sync(check=True, STUB_MODEL_PATCH="refused")
         self.assertNotEqual(rc, 0)
         self.assertIn("openclaw:model_flow_selection", out["drift"])
+
+    def test_new_native_provenance_patch_restarts_even_when_plugin_matches(self):
+        self.sync(); Companion.calls.clear()
+        rc, out, err = self.sync(STUB_NATIVE_PATCH="applied")
+        self.assertEqual(0, rc, err)
+        self.assertEqual("restarted", out["gateway"])
+        self.assertIn(("POST", "/v1/runtime/restart"), Companion.calls)
+
+    def test_unsupported_native_provenance_patch_refuses_and_reports_drift(self):
+        rc, out, _ = self.sync(STUB_NATIVE_PATCH="refused")
+        self.assertEqual((1, "native_turn_provenance_refused"), (rc, out["reason"]))
+        self.assertEqual([], Companion.calls)
+        rc, out, _ = self.sync(check=True, STUB_NATIVE_PATCH="refused")
+        self.assertEqual(1, rc)
+        self.assertIn("openclaw:native_turn_provenance", out["drift"])
 
     def test_unsupported_whatsapp_patch_refuses_sync_and_is_reported_as_drift(self):
         rc, out, _ = self.sync(STUB_WA_PATCH="refused")

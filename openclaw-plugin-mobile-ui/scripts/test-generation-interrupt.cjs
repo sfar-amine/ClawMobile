@@ -125,7 +125,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
   Module._load=function(request,parent,isMain){
    if(request==='../nativeTurnProgress')return {activeObservedNativeWhatsAppRun:async(key,options)=>{
     assert.equal(key,waKey);assert.equal(options.excludeRunId,currentId);
-    return nativeObserved?{runId:nativeId,sessionKey:waKey,clockEpoch:'observed-companion-epoch',deadlineAt:Date.now()+60000,state:'running',observationSource:'sdk_message_received'}:null;
+    return nativeObserved?{runId:nativeId,sessionKey:waKey,clockEpoch:'observed-companion-epoch',deadlineAt:Date.now()+60000,state:'running',observationSource:'companion_native_turn_owner'}:null;
    }};
    return load.call(this,request,parent,isMain);
   };

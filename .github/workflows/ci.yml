@@ -105,6 +105,7 @@ jobs:
       - name: Native agent exec resolves auth secrets in its existing scoped owner
         run: |
           python3 ../installer/termux-lite/test-agent-exec-auth-scope.py
+          python3 ../installer/termux-lite/test-native-turn-provenance.py
           node ../installer/termux-lite/test-agent-exec-auth-scope.cjs
 
       - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
@@ -386,6 +387,7 @@ jobs:
         run: node scripts/test-automation-detail.cjs
       - name: Test laptop owner pairing and biometric scope
         run: node scripts/test-laptop-access.cjs
+      # L0bis: observation regression also covers the native D1 timing anchors, blocked owner read and independent monotonic waits.
       - name: P1 admission native des tours owner (preuve Keystore, anti-rejeu, connexion admin dédiée, révocation)
         run: node scripts/test-owner-turn-admission.cjs && node scripts/test-gateway-run-observation.cjs
       - name: P1 recette — alerte transport owner indisponible et gardes d'admission
@@ -570,6 +572,9 @@ jobs:
           node scripts/test-generation-interrupt.cjs
           node scripts/test-native-turn-observation.cjs
           node scripts/test-main-comprehension-provenance.cjs
+          node scripts/test-google-typed-schema.cjs
+          node scripts/test-sdk-steering-loop.cjs
+          node scripts/test-native-turn-provenance.cjs
 
       - name: E3 agent cannot run operator or transaction capabilities outside the harness
         run: |

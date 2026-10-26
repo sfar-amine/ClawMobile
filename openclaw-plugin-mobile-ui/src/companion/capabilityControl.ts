@@ -88,7 +88,7 @@ async function observedNativeWhatsAppTarget(key:string,currentRunId:string,asser
  if(typeof owner.activeObservedNativeWhatsAppRun!=='function')return null;
  const target=await owner.activeObservedNativeWhatsAppRun(key,{excludeRunId:currentRunId});
  await assertNativeWhatsAppOwner(key,assertCurrent);
- if(!target||target.observationSource!=='sdk_message_received'||target.state!=='running'||target.sessionKey!==key||
+ if(!target||target.observationSource!=='companion_native_turn_owner'||target.state!=='running'||target.sessionKey!==key||
     target.runId===currentRunId||typeof target.clockEpoch!=='string'||!target.clockEpoch||
     typeof target.deadlineAt!=='number'||!Number.isFinite(target.deadlineAt)||target.deadlineAt<=Date.now()||
     typeof target.runId!=='string'||!/^[a-f0-9-]{36}$/i.test(target.runId))return null;

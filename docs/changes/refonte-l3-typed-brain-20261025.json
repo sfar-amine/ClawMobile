@@ -9,25 +9,48 @@
   "canonical_ci": "pending_full_ci",
   "live_recipe": "not_run",
   "summary": "Bascule hôte du cerveau seul décideur, outils typés issus des contrats canoniques et contrôle exact de génération avec admission courante.",
-  "reason": "Owner principal brain chooses semantics; typed mechanical admission reuses existing Graph/dialogue/confirmation owners and current SDK authority. Source draft only; structural eligibility never means CI or live acceptance.",
+  "reason": "Owner principal brain chooses semantics; typed mechanical admission reuses existing Graph/dialogue/confirmation owners and current SDK authority. Source draft only; structural eligibility never means CI or live acceptance. Native runtime producer UUID mismatch found after type-level tests; pinned existing compatibility owner and public post-commit adoption binding are prepared. New patch/hook/ordering focused tests passed; canonical final-head CI and paired live recipe remain required. Projection source tag now truthfully names companion_native_turn_owner, since optional received and public transcript events share this existing writer; final-head canonical CI must validate the paired tag.",
   "files": [
     ".github/workflows/ci.yml",
     "cloud/voice-relay/src/mcp.mjs",
     "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
     "docs/changes/refonte-l3-typed-brain-20261025.json",
     "docs/changes/refonte-l3-typed-brain-20261025.md",
+    "docs/work/samantha-refonte/L3-native-steer-google-audit-20261026.md",
     "docs/work/samantha-refonte/README.md",
     "installer/termux-lite/claw-capability.py",
     "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/gateway-start.sh",
     "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/openclaw-compat/NOTICE.md",
+    "installer/termux-lite/openclaw-compat/native-turn-provenance.json",
+    "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
+    "installer/termux-lite/runtime-sync.sh",
+    "installer/termux-lite/test-native-turn-provenance.py",
+    "installer/termux-lite/test-runtime-sync.py",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-turn-measurement/sdk-source-metadata.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-typed-tools/README.md",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-typed-tools/compiled-agent-tools.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-native-sdk/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-native-sdk/compat/agent-runner.runtime-DH-TOu7I.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-native-sdk/compat/dispatch-from-config-Cu599NRF.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-native-sdk/compat/get-reply-DXzvDRjY.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-native-sdk/compat/message-hook-mappers-RPSrPEKP.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-native-sdk/compat/session-accessor-DLYTHSBj.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-native-sdk/compat/transcript-events-DukKauix.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-native-sdk/compat/user-turn-transcript-BkLX9Oj1.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-native-sdk/compat/user-turn-transcript.metadata-BY4PdwgQ.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-native-sdk/google-schema-serializer.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-native-sdk/steering-loop.json",
     "openclaw-plugin-mobile-ui/openclaw.plugin.json",
     "openclaw-plugin-mobile-ui/scripts/test-brain-only-entry.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-generation-interrupt.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-google-typed-schema.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-main-comprehension-provenance.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-native-turn-observation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-native-turn-provenance.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-sdk-steering-loop.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
     "openclaw-plugin-mobile-ui/src/brainOnly.ts",
     "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
@@ -68,11 +91,22 @@
       "name": "L3 native WhatsApp UUID observation and comprehension provenance",
       "status": "passed",
       "evidence": "l3-wa-comprehension-build.log project TypeScript PASS; l3-wa-comprehension-focused.log native-turn-observation/generation-interrupt/brain-only-entry/typed-tools PASS. Main comprehension fixture epoch was first invalid then corrected to authored UUID, l3-main-comprehension-focused-v2.log PASS. Same existing run owner, no model/S24 call. Full canonical final-head CI/live Stop before agent_end remain pending."
+    },
+    {
+      "name": "Installed native SDK steering loop and Google schema serializer",
+      "status": "passed",
+      "evidence": "l3-sdk-focused-v1.log :2NodePASS in0.18s; captured installed functions and full source hashes, no model/network in tests. Exact original context+new user entry committed before agent_end; every canonical typed schema traverses parametersJsonSchema unchanged including anyOf/oneOf/closed objects. Actual live provider/mode/decision and ingress-adoption mapping remain recipe gates."
+    },
+    {
+      "name": "Native dispatch identity, public input/adoption binding and reversible existing compat owner",
+      "status": "passed",
+      "evidence": "l3-compat-focused-v1.log : npm project TypeScript build +8Node suites +5Python compatibility cases all PASS in10.93s. Real complete captured dispatcher/mapper reproduce missing UUID, keep one UUID across refresh/direct/followup, preserve protected clock and identity, reject forged hook annotations, publish original inputs and adoption only after native commit. Owner tests cover alias/pending/end ordering and immutable freshness; patcher tests pin all3modules, refuse unknown version/hash before writing, apply/check/idempotence/rollback and checkout-owned gateway rollback. Existing runtime-sync suite adds2cases for native patch restart/refusal; full canonical CI remains pending, no native S24 change/model call."
     }
   ],
   "documentation": [
     "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
     "docs/changes/refonte-l3-typed-brain-20261025.md",
+    "docs/work/samantha-refonte/L3-native-steer-google-audit-20261026.md",
     "docs/work/samantha-refonte/README.md"
   ],
   "capabilities": {
@@ -125,7 +159,7 @@
       "route": "POST /v1/runs/{id}/measurement",
       "budget": "1500 ms SDK observation transport",
       "capability": "NO_CAPABILITY: internal native SDK UUID metadata, not a user command or abort authority",
-      "change": "L3 minimum of existing L4 owner contract: native_ingress/native_end/native_active only; exact configured owner, loopback no browser headers, no message content, budget, deferred notice or metrics"
+      "change": "L3 same L4 owner: native_ingress/native_end/native_adoption/native_active; native callback after confirmed transcript commit, pending observations merged in existing bounded ledger, no content/budget/notice/metric/abort authority"
     }
   ],
   "rollback": "Disable SAMANTHA_BRAIN_ONLY; restore prior paired Companion/playbooks through existing owner deployment scripts."
