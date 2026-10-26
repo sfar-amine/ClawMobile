@@ -21,7 +21,10 @@ import { intentCanvas } from "./canvas";
 import { callOpenClawGateway, expectedCompanionSessionKey, normalizeCompanionSessionId, type OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatus, CompanionRunTokenUsage, IntentAttachment, ReplayLink } from "./types";
 
-type GatewayObservation = {version:1; epoch:string; state:"following"|"reconcile"|"settled"; deadlineAt:number; reconciled?:true};
+type GatewayObservationTiming = {requestSentAt?:number; terminalReceivedAt?:number; progressDrainedAt?:number;
+  settlementStartedAt?:number; progressWaitMs?:number; settlementWaitMs?:number};
+type GatewayObservation = {version:1; epoch:string; state:"following"|"reconcile"|"settled"; deadlineAt:number;
+  reconciled?:true; timing?:GatewayObservationTiming};
 type StoredRun = {
   gatewayObservation?: GatewayObservation;
   gatewayProgress?: CompanionRunProgress;
@@ -80,9 +83,10 @@ export function publicReasonClass(value: unknown): string | undefined {
  */
 function runDiagnostic(
   level: "warn" | "error",
-  code: "memo_attachment_cleanup_unavailable" | "invalid_run_deletion_receipts_ignored" | "submitted_run_failed",
+  code: "memo_attachment_cleanup_unavailable" | "invalid_run_deletion_receipts_ignored" | "submitted_run_failed" | "gateway_observation_settlement_delayed",
   run?: Pick<StoredRun, "runId" | "clientRunId" | "reasonClass">,
   count?: number,
+  timings?: {commitMs:number;progressWaitMs:number;settlementWaitMs:number},
 ) {
   const fields: Record<string, string | number> = {};
   for (const key of ["runId", "clientRunId"] as const) {
@@ -93,6 +97,10 @@ function runDiagnostic(
   const reasonClass = publicReasonClass(run?.reasonClass);
   if (reasonClass) fields.reasonClass = reasonClass;
   if (typeof count === "number" && Number.isSafeInteger(count) && count >= 0) fields.count = count;
+  for (const key of ["commitMs", "progressWaitMs", "settlementWaitMs"] as const) {
+    const value = timings?.[key];
+    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= 300000) fields[key] = value;
+  }
   // Fixed component, level, bounded correlation fields and code. Never interpolate free strings.
   // A broken diagnostic sink cannot change the result of the existing registry mutation.
   const suffix = Object.entries(fields).map(([key, value]) => key + "=" + value).join(" ");
@@ -444,10 +452,20 @@ export async function rememberSubmittedRun(
 }
 
 /** Volatile observation metadata lives with its existing durable run, never a new execution store. */
+function readGatewayObservationTiming(raw:any):GatewayObservationTiming|undefined {
+  if(!raw||typeof raw!=="object"||Array.isArray(raw))return undefined;
+  const timing:GatewayObservationTiming={};
+  for(const key of ["requestSentAt","terminalReceivedAt","progressDrainedAt","settlementStartedAt"] as const)
+    if(Number.isSafeInteger(raw[key])&&raw[key]>=1000000000000&&raw[key]<=4000000000000)timing[key]=raw[key];
+  for(const key of ["progressWaitMs","settlementWaitMs"] as const)
+    if(Number.isSafeInteger(raw[key])&&raw[key]>=0&&raw[key]<=300000)timing[key]=raw[key];
+  return Object.keys(timing).length?timing:undefined;
+}
 function readGatewayObservation(v:any):GatewayObservation|undefined {
   if(v?.version!==1||typeof v.epoch!=="string"||!/^[a-f0-9-]{36}$/.test(v.epoch)||
     !["following","reconcile","settled"].includes(v.state)||!Number.isFinite(v.deadlineAt))return undefined;
-  return {version:1,epoch:v.epoch,state:v.state,deadlineAt:v.deadlineAt,...(v.reconciled===true?{reconciled:true as const}:{})};
+  const timing=readGatewayObservationTiming(v.timing);
+  return {version:1,epoch:v.epoch,state:v.state,deadlineAt:v.deadlineAt,...(v.reconciled===true?{reconciled:true as const}:{}),...(timing?{timing}:{})};
 }
 function readGatewayProgress(v:any):CompanionRunProgress|undefined {
   if(!v||!Array.isArray(v.events))return undefined;
@@ -522,7 +540,11 @@ export async function observeGatewayRun(runId:string,sessionKey:string):Promise<
       gatewayObservation:{...r.gatewayObservation!,state:"reconcile"}}:undefined);
   };
   return {
-    sent(){enqueue(async()=>{await updateObservedRun(runId,r=>bound(r)?{...r,ownerTransport:"admin_admitted"}:undefined);});},
+    sent(){
+      const requestSentAt=Date.now(); // Capture the actual SDK send callback, before this owner's write queue.
+      enqueue(async()=>{await updateObservedRun(runId,r=>bound(r)?{...r,ownerTransport:"admin_admitted",
+        gatewayObservation:{...r.gatewayObservation!,timing:{...r.gatewayObservation?.timing,requestSentAt}}}:undefined);});
+    },
     event(frame:any){
       if(closed||frame?.event!=="agent")return;
       const p=frame.payload;
@@ -552,12 +574,26 @@ export async function observeGatewayRun(runId:string,sessionKey:string):Promise<
       });});
     },
     async final(value:unknown){
+      const terminalReceivedAt=Date.now(),progressStart=performance.now();
       closed=true;await chain;
+      const progressDrainedAt=Date.now(),progressWaitMs=Math.round(performance.now()-progressStart);
       const terminal=gatewayTerminalResult(value,runId);
       if(!terminal){await lost(true);return;}
-      await updateObservedRun(runId,r=>r.sessionKey===sessionKey&&r.gatewayObservation?.epoch===GATEWAY_OBSERVER_EPOCH&&
-        ["following","reconcile"].includes(r.gatewayObservation.state)&&!["done","failed"].includes(r.state||"")?{...r,state:terminal.state,result:terminal.state==="done"?terminal.text:undefined,error:terminal.state==="failed"?terminal.text:undefined,updatedAt:Date.now(),ownerTransport:"admin_admitted",
-        gatewayObservation:{...r.gatewayObservation!,state:"settled"}}:undefined);
+      const settlementStart=performance.now();let settlementWaitMs=0,commitStart:number|undefined;
+      const settled=await updateObservedRun(runId,r=>{
+        if(r.sessionKey!==sessionKey||r.gatewayObservation?.epoch!==GATEWAY_OBSERVER_EPOCH||
+          !["following","reconcile"].includes(r.gatewayObservation.state)||["done","failed"].includes(r.state||""))return undefined;
+        const settlementStartedAt=Date.now();settlementWaitMs=Math.round(performance.now()-settlementStart);commitStart=performance.now();
+        return {...r,state:terminal.state,result:terminal.state==="done"?terminal.text:undefined,error:terminal.state==="failed"?terminal.text:undefined,
+          updatedAt:settlementStartedAt,ownerTransport:"admin_admitted",gatewayObservation:{...r.gatewayObservation,state:"settled",
+            timing:{...r.gatewayObservation.timing,terminalReceivedAt,progressDrainedAt,settlementStartedAt,progressWaitMs,settlementWaitMs}}};
+      });
+      // Existing bounded diagnostic sink; no extra registry write just to measure its own fsync/rename.
+      if(settled&&commitStart!==undefined){
+        const commitMs=Math.round(performance.now()-commitStart);
+        if(Math.max(commitMs,progressWaitMs,settlementWaitMs)>=1000)
+          runDiagnostic("warn","gateway_observation_settlement_delayed",settled,undefined,{commitMs,progressWaitMs,settlementWaitMs});
+      }
     },lost,
   };
 }
