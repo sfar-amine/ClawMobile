@@ -106,7 +106,7 @@ function toolAllowed(profile, tool) {
   return true;
 }
 
-function toolResult(value, auth) {
+function toolResult(value, auth, tool) {
   const base = value && typeof value === "object" ? value : { value };
   const normalized = {
     ...base,
@@ -117,10 +117,13 @@ function toolResult(value, auth) {
       read_only: auth?.profile !== "chat-owner",
     },
   };
-  return {
-    content: [{ type: "text", text: JSON.stringify(normalized) }],
-    structuredContent: normalized,
-  };
+  const content = [{ type: "text", text: JSON.stringify(normalized) }];
+  // L2 has no outputSchema: its complete required text remains readable by every MCP client.
+  // Avoid sending that owner foundation again as structuredContent; the official client already
+  // parses a single JSON text block. Other tools and legacy context keep their established shape.
+  if (tool === "claw_context" && normalized.bundle?.foundation?.version === 1 &&
+      normalized.bundle.foundation.read_required === true) return { content };
+  return { content, structuredContent: normalized };
 }
 
 function toolError(error) {
@@ -187,7 +190,7 @@ function registerTools(server, auth, invoke) {
         requestId,
         mcpRequestId: extra?.requestId ?? null,
       });
-      return toolResult(value, auth);
+      return toolResult(value, auth, tool);
     } catch (error) {
       return toolError(error);
     }
