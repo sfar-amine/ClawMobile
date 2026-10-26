@@ -565,6 +565,8 @@ jobs:
           node scripts/test-generation-interrupt.cjs
           node scripts/test-native-turn-observation.cjs
           node scripts/test-main-comprehension-provenance.cjs
+          node scripts/test-google-typed-schema.cjs
+          node scripts/test-sdk-steering-loop.cjs
 
       - name: E3 agent cannot run operator or transaction capabilities outside the harness
         run: |

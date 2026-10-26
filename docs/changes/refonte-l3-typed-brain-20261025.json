@@ -16,6 +16,7 @@
     "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
     "docs/changes/refonte-l3-typed-brain-20261025.json",
     "docs/changes/refonte-l3-typed-brain-20261025.md",
+    "docs/work/samantha-refonte/L3-native-steer-google-audit-20261026.md",
     "docs/work/samantha-refonte/README.md",
     "installer/termux-lite/claw-capability.py",
     "installer/termux-lite/companion-acceptance.py",
@@ -23,11 +24,16 @@
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-turn-measurement/sdk-source-metadata.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-typed-tools/README.md",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-typed-tools/compiled-agent-tools.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-native-sdk/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-native-sdk/google-schema-serializer.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-native-sdk/steering-loop.json",
     "openclaw-plugin-mobile-ui/openclaw.plugin.json",
     "openclaw-plugin-mobile-ui/scripts/test-brain-only-entry.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-generation-interrupt.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-google-typed-schema.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-main-comprehension-provenance.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-native-turn-observation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-sdk-steering-loop.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
     "openclaw-plugin-mobile-ui/src/brainOnly.ts",
     "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
@@ -68,11 +74,17 @@
       "name": "L3 native WhatsApp UUID observation and comprehension provenance",
       "status": "passed",
       "evidence": "l3-wa-comprehension-build.log project TypeScript PASS; l3-wa-comprehension-focused.log native-turn-observation/generation-interrupt/brain-only-entry/typed-tools PASS. Main comprehension fixture epoch was first invalid then corrected to authored UUID, l3-main-comprehension-focused-v2.log PASS. Same existing run owner, no model/S24 call. Full canonical final-head CI/live Stop before agent_end remain pending."
+    },
+    {
+      "name": "Installed native SDK steering loop and Google schema serializer",
+      "status": "passed",
+      "evidence": "l3-sdk-focused-v1.log :2NodePASS in0.18s; captured installed functions and full source hashes, no model/network in tests. Exact original context+new user entry committed before agent_end; every canonical typed schema traverses parametersJsonSchema unchanged including anyOf/oneOf/closed objects. Actual live provider/mode/decision and ingress-adoption mapping remain recipe gates."
     }
   ],
   "documentation": [
     "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
     "docs/changes/refonte-l3-typed-brain-20261025.md",
+    "docs/work/samantha-refonte/L3-native-steer-google-audit-20261026.md",
     "docs/work/samantha-refonte/README.md"
   ],
   "capabilities": {
