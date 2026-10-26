@@ -38,6 +38,15 @@ class GatewayPrepStages(unittest.TestCase):
             raw = gzip.decompress((FIXTURE / (Path(item['path']).name + '.gz')).read_bytes())
             self.assertEqual(hashlib.sha256(raw).hexdigest(), item['original'])
             (self.root / item['path']).write_bytes(raw)
+        # This fixture program consumes a prepared SDK root and its original
+        # repository-relative tracker path. Preserve its bytes and layout under
+        # this test's existing private temporary fixture, not a new test runner.
+        self.harness = self.root / 'installer/termux-lite/resolver-prompt-harness.cjs'
+        tracker = self.root / 'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/stage-timing-BUG4Fnsv.mjs'
+        self.harness.parent.mkdir(parents=True)
+        tracker.parent.mkdir(parents=True)
+        shutil.copyfile(FIXTURE / 'resolver-prompt-harness.cjs', self.harness)
+        shutil.copyfile(FIXTURE / tracker.name, tracker)
 
     def cli(self, mode):
         return subprocess.run([sys.executable, str(OWNER), '--patch-set', 'gateway-prep-stages',
@@ -86,7 +95,7 @@ class GatewayPrepStages(unittest.TestCase):
             if staged:
                 applied = self.cli('apply')
                 self.assertEqual(applied.returncode, 0, applied.stdout)
-            result = subprocess.run([NODE, str(HERE / 'test-gateway-prep-stages.cjs'), str(self.root)],
+            result = subprocess.run([NODE, str(self.harness), str(self.root)],
                                     capture_output=True, text=True, timeout=5)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIs(json.loads(result.stdout)['staged'], staged)

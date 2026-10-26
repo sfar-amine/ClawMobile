@@ -25,6 +25,16 @@ effets, erreurs, callback optionnel, branches registre réutilisé/chargé et
 conservation de l'aggregate parent avec le tracker SDK exact. La
 vérification ciblée et la CI canonique combinée restent à exécuter.
 
+L'entrée exécutable demeure
+`GatewayPrepStages.test_captured_resolver_behavior_and_stage_boundaries`, lancée
+réellement par `python3 ../installer/termux-lite/test-gateway-prep-stages.py`
+dans le workflow. `resolver-prompt-harness.cjs` est un harness VM **écrit pour le
+test**, pas une capture S24 : il exécute les corps SDK publics capturés et exige
+le root temporaire préparé par ce propriétaire Python. Ses octets sont déplacés
+sans changement vers la fixture ; le wrapper copie son layout relatif avec le
+tracker et l'exécute toujours via Node26 sur les modules originaux et patchés.
+La garde `test-ci-registration.py` reste inchangée et doit passer réellement.
+
 **NO_CAPABILITY** : ensemble ponctuel du propriétaire privé existant, aucune
 route ou action app/voix/MCP ajoutée ; parité MCP sans impact. Le paiement reste
 intact. Retour arrière par le même owner `--patch-set gateway-prep-stages
