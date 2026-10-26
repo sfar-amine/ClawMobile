@@ -683,6 +683,14 @@ class Refused(Exception):
 def fail(code, status=400): raise Refused(code, status)
 def digest(value): return hashlib.sha256(value.encode('utf-8')).hexdigest()
 def canonical(value): return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+def merge_diff(old, new):
+    """RFC 7396 patch turning old into new, as the Gateway's config.patch applies it."""
+    if not isinstance(old, dict) or not isinstance(new, dict): return new
+    out={key: None for key in old if key not in new}
+    for key,value in new.items():
+        if key not in old: out[key]=value
+        elif old[key]!=value: out[key]=merge_diff(old[key], value)
+    return out
 def contact_id(number): return 'wa-' + digest(number)[:16]
 def utc(timestamp): return datetime.fromtimestamp(timestamp, timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
 def stamp(value):
@@ -1667,8 +1675,9 @@ class Contacts:
         patch={'channels':{'whatsapp':{}}}; replacements=[]
         if a!=olda: patch['channels']['whatsapp']['allowFrom']=a;replacements.append('channels.whatsapp.allowFrom')
         if d!=oldd:
-            # Replace exact direct map under CAS: JSON merge cannot remove a property safely.
-            patch['channels']['whatsapp']['direct']=d;replacements.append('channels.whatsapp.direct')
+            # The Gateway merges objects (replacePaths only replaces arrays): a removed
+            # rule or field must be an explicit null, under the same CAS baseHash.
+            patch['channels']['whatsapp']['direct']=merge_diff(oldd,d)
         if after.get('bindings')!=before.get('bindings'): patch['bindings']=after.get('bindings') or [];replacements.append('bindings')
         after_agents=(after.get('agents') or {}).get('entries') or {}
         if after_agents!=before_agents:
