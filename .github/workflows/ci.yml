@@ -310,10 +310,10 @@ jobs:
           peer=$(mktemp -d "${TMPDIR:-/tmp}/c16-native-playbooks.XXXXXX")
           trap 'rm -rf -- "$peer"' EXIT
           git init "$peer"
-          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git 7615bc96958818b86083e639a89cf4ba0523d818
+          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git 067fb028df0209d0b023ec30cacfdb29a3a2cc9e
           git -C "$peer" checkout --detach FETCH_HEAD
           npm ci --prefix "$peer/billing/direct-runtime" --ignore-scripts --no-audit --no-fund
-          C16_PLAYBOOKS_ROOT="$peer" C16_EXPECTED_PB_SHA=7615bc96958818b86083e639a89cf4ba0523d818 C16_EVIDENCE_PATH="$RUNNER_TEMP/c16-native-paired-result.json" node scripts/test-native-pulse-paired.cjs
+          C16_PLAYBOOKS_ROOT="$peer" C16_EXPECTED_PB_SHA=067fb028df0209d0b023ec30cacfdb29a3a2cc9e C16_EVIDENCE_PATH="$RUNNER_TEMP/c16-native-paired-result.json" node scripts/test-native-pulse-paired.cjs
 
       - name: C18 native FAST reads paired with immutable canonical owners (MOCK only)
         run: |
