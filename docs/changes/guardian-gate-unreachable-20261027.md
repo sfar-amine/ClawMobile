@@ -11,4 +11,6 @@ What changes in `samantha-root-guardian.sh` (approved by Amine on 27/10):
 3. With the Gateway up (for example no internet), the AI keeps the decision. A supervisor running from another release is never replaced without the AI.
 4. A refusal is logged once (`action=wait reason=ai_gate_refused`) until the supervisor is healthy again.
 
-Tests: `test-root-guardian-gate.py` (registered in CI), 4 cases, all failing on the previous guardian. Rollback: revert this commit.
+The same loop held the Companion: after the health manager was started by hand at 14:55, the Companion stayed down, because its repair is gated by the same AI gate. In `samantha-health-manager.sh`, when the gate refuses, there is no Companion process and the Gateway does not answer, the existing bounded repair runs directly (same lease, restart budget of 3 per hour and canonical mode). Log: `service=companion action=direct_repair reason=ai_gate_unreachable`. A refusal is logged (`state=ai_gate_refused action=wait`) and retried after 60 s. A live Companion is never replaced without the AI.
+
+Tests: `test-health-deploy-lock.py` (3 new cases) and `test-root-guardian-gate.py` (registered in CI), 4 cases, all failing on the previous guardian. Rollback: revert this commit.
