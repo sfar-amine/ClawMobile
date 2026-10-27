@@ -52,6 +52,12 @@ let checks=0;
  const result=await submitIntent('test transport cause','f2-test',[],{clientRunId:'f2-propagation'});
  assert.equal(result.state,'failed');assert.equal(result.failure.reasonCode,'execution_cancelled');checks++;
  assert.equal(render.receiptPresentationCounters().genericDisplayRenders,2);checks++;
+ // S24 27/10 17:38: a refused interpretation reached a WhatsApp contact as internal jargon.
+ // The phrase is for the person who wrote: plain words, no pipeline vocabulary.
+ for(const locale of ['fr','en']){
+  const phrase=render.FAILURE_PHRASES[locale].host_interpretation_failed;
+  assert(!/interpr|admis|admitted|conforme|match/i.test(phrase),phrase);checks++;
+ }
  // Native unknown outcomes stay unknown at display/status/replay; no
  // translation may claim a zero effect or invite another execution.
  for(const code of ['native_pulse_protocol_required','native_pulse_execution_unknown','native_pulse_handoff_unavailable']){
