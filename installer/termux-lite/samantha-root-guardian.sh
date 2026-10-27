@@ -41,14 +41,36 @@ ensure_supervisor_effect(){
     log "event=$name-start result=failed runtime_root=$ROOT"
   fi
 }
+# The AI gate reaches its models only through the Gateway, which the companion owns and
+# only the health manager starts. With the Gateway down the gate can never answer: after a
+# reboot nothing came back by itself and every refusal was silent (S24 27/10).
+gate_reachable(){ timeout 3 curl -fsS http://127.0.0.1:18789/healthz 9>&- >/dev/null 2>&1; }
+DIRECT_START_MIN_S=60
+direct_start_due(){
+  local f="$D/$1.direct-start" now last
+  now=$(date +%s); last=$(cat "$f" 2>/dev/null) || last=0
+  [ $((now-${last:-0})) -ge "$DIRECT_START_MIN_S" ] || return 1
+  printf '%s' "$now" >"$f"
+}
+declare -A REFUSAL_LOGGED=()
 # A healthy sample never calls a model. A missing/drifting supervisor is a
-# proposal to the existing engineering AI owner, not restart authority.
+# proposal to the existing engineering AI owner, not restart authority; only a
+# missing one is started directly, and only while the gate itself is unreachable.
 ensure_supervisor(){
   local name="$1" pat="$2" script="$3"
   if proc "$pat" && process_uses_script "$pat" "$script"; then
-    immune_observe "$name" --healthy; return 0
+    REFUSAL_LOGGED[$name]=; immune_observe "$name" --healthy; return 0
   fi
-  IMMUNE_OBSERVATION="$(immune_supervisor_facts "$name" "$pat" "$script" 2>/dev/null)" immune_action "$name" bounded-supervisor-restore ensure_supervisor_effect "$@" || true
+  if IMMUNE_OBSERVATION="$(immune_supervisor_facts "$name" "$pat" "$script" 2>/dev/null)" immune_action "$name" bounded-supervisor-restore ensure_supervisor_effect "$@"; then
+    REFUSAL_LOGGED[$name]=; return 0
+  fi
+  if ! proc "$pat" && ! gate_reachable; then
+    direct_start_due "$name" || return 0
+    log "event=$name-missing action=direct_start reason=ai_gate_unreachable"
+    ensure_supervisor_effect "$@"; REFUSAL_LOGGED[$name]=; return 0
+  fi
+  [ -n "${REFUSAL_LOGGED[$name]:-}" ] || log "event=$name-restore action=wait reason=ai_gate_refused"
+  REFUSAL_LOGGED[$name]=1
 }
 refresh_root
 if [ -f "$ROOT/immune-action.sh" ]; then . "$ROOT/immune-action.sh"; else
