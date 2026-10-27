@@ -123,6 +123,7 @@ jobs:
           node scripts/test-gateway-tools-metadata-preparation.cjs
           node scripts/test-gateway-maintenance-recovery.cjs
           python3 ../installer/termux-lite/test-health-deploy-lock.py
+          python3 ../installer/termux-lite/test-health-boot-reset.py
       - name: I5 bounded restart escalation, Tier0 rollback and notification dedupe
         run: python3 ../installer/termux-lite/test-health-restart-escalation.py
       - name: Runtime scripts resolve the Tier0 release root, never the working copy (R10/R12)

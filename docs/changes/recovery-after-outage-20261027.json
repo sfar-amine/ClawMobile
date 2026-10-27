@@ -1,0 +1,80 @@
+{
+  "version": 2,
+  "id": "recovery-after-outage-20261027",
+  "date": "2026-10-27",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "After a night without internet and a reboot, Samantha comes back by itself once the network is back. Three changes, all inside the existing health manager and gateway memory guard: (1) a Companion with no process is restarted without the idle proof, which only protects work owned by a live Companion; (2) the idle proof no longer reads Remote Bridge receipts written before the current boot; (3) on a new boot the health manager resets its service states to unknown and clears their backoffs.",
+  "reason": "S24 27/10: after the outage and a reboot the Companion stayed down. The health manager logged state=idle_unproven action=skip_repair every 15 s because gateway-memory-guard.py --idle-proof read all 31 366 Remote Bridge receipts and exceeded its 3 s deadline (measured 3.28 s, reason remote_bridge_scan_partial). There was no Companion process, so nothing could be interrupted. The state files also still said healthy for dead services (sshd, slack_bridge, …) and kept a 15 min companion backoff from the previous boot. Amine decided on 27/10 that nothing restarts while offline; these changes only act once the services are checked again.",
+  "files": [
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/gateway-memory-guard.py",
+    "installer/termux-lite/test-health-deploy-lock.py",
+    "installer/termux-lite/test-gateway-memory-guard.py",
+    "installer/termux-lite/test-health-boot-reset.py",
+    ".github/workflows/ci.yml",
+    "docs/changes/recovery-after-outage-20261027.json",
+    "docs/changes/recovery-after-outage-20261027.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-health-deploy-lock.py",
+      "status": "passed",
+      "evidence": "5 tests. New: a Companion with no process is repaired even when the idle proof fails (fails before the change: idle_unproven, no start). Kept: a live but unhealthy Companion is not replaced without the idle proof; the deploy lock still skips the repair."
+    },
+    {
+      "name": "installer/termux-lite/test-gateway-memory-guard.py",
+      "status": "passed",
+      "evidence": "20 tests. New: receipts written before the boot (including one claiming a live pid) are not read and do not count; the deadline still yields remote_bridge_scan_partial; a receipt written after the boot by a live instance still counts."
+    },
+    {
+      "name": "installer/termux-lite/test-health-boot-reset.py",
+      "status": "passed",
+      "evidence": "The 27/10 state files (healthy for dead services, companion degraded with failures 6 and a future next) become unknown with failures 0 and next 0 on a new boot; canonical_mode is untouched; a second start on the same boot keeps the states. Fails without the reset call."
+    },
+    {
+      "name": "health suites",
+      "status": "passed",
+      "evidence": "test-health-restart-escalation, test-health-resource-policy, test-health-hysteresis, test-health-verdict, test-health-verdict-f5, test-health-qa-queue pass."
+    }
+  ],
+  "documentation": [
+    "docs/changes/recovery-after-outage-20261027.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Recovery behaviour of existing supervisors only; no capability, route or scope change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same health manager, same idle proof, same state files and lease; no new store, daemon, scheduler or retry engine. Nothing restarts while offline: the existing immune gate still decides supervisor restores."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: health supervision scripts only; no MCP schema, adapter or endpoint changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "With a live Companion the idle proof still reads every receipt written since the boot; a very long uptime can again exceed the deadline (refusal stays conservative).",
+    "Live proof: Wi-Fi cut of 10 minutes then restored, Samantha back without a manual action (with Amine)."
+  ],
+  "rollback": "Revert this commit."
+}

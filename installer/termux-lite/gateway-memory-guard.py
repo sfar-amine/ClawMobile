@@ -86,6 +86,17 @@ def probe_metrics(pid):
     return policy.metrics_from_owner_observation(proc_status, meminfo, uptime)
 
 
+def _boot_time():
+    """Kernel boot time (epoch s), or None when unreadable (then nothing is skipped)."""
+    try:
+        for line in Path("/proc/stat").read_text().splitlines():
+            if line.startswith("btime "):
+                return int(line.split()[1])
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
 def _pid_alive(pid):
     try:
         os.kill(pid, 0)
@@ -96,7 +107,7 @@ def _pid_alive(pid):
         return True
 
 
-def idle_proof(now, oc=None, deadline_s=3.0):
+def idle_proof(now, oc=None, deadline_s=3.0, boot=None):
     """Exhaustive over the existing owners; any unreadable source -> None (busy/unknown)."""
     oc = Path(oc or OC)
     deadline = time.monotonic() + deadline_s
@@ -135,10 +146,16 @@ def idle_proof(now, oc=None, deadline_s=3.0):
     # Remote Bridge requests still owned by a live instance (claw_exec, capabilities).
     try:
         live = 0
+        # Every owner of a receipt written before this boot died with it: skip those
+        # without reading them. On S24 27/10, 31 366 receipts made the full read exceed
+        # the deadline after a reboot, so the proof failed and a dead Companion stayed down.
+        booted = _boot_time() if boot is None else boot
         for entry in os.scandir(oc / "remote-bridge/requests"):
             if time.monotonic() > deadline:
                 return None, "remote_bridge_scan_partial"
             if not entry.name.endswith(".json") or not entry.is_file(follow_symlinks=False):
+                continue
+            if booted is not None and entry.stat(follow_symlinks=False).st_mtime < booted:
                 continue
             try:
                 row = json.loads(Path(entry.path).read_text())

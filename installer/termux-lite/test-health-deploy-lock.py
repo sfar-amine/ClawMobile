@@ -12,7 +12,8 @@ MANAGER = ROOT / "samantha-health-manager.sh"
 
 
 class HealthDeployLockTests(unittest.TestCase):
-    def run_check(self, hold_lock: bool, idle_proven: bool = True, missing_lock: bool = False) -> str:
+    def run_check(self, hold_lock: bool, idle_proven: bool = True, missing_lock: bool = False,
+                  companion_alive: bool = False) -> str:
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
             deploys = home / ".openclaw/deploys"
@@ -27,7 +28,8 @@ class HealthDeployLockTests(unittest.TestCase):
             probe = home / "probe.sh"
             # Server down, no process: without the lock the manager starts a repair (start is stubbed).
             idle = "return 0" if idle_proven else "return 1"
-            probe.write_text(prefix + f"\nhttp(){{ return 1; }}; proc(){{ return 1; }}; sleep(){{ :; }}; companion_idle_proven(){{ {idle}; }}; start(){{ echo STARTED >>\"$HOME/started\"; }}\n"
+            alive = "return 0" if companion_alive else "return 1"
+            probe.write_text(prefix + f"\nhttp(){{ return 1; }}; proc(){{ {alive}; }}; sleep(){{ :; }}; pkill(){{ :; }}; companion_idle_proven(){{ {idle}; }}; start(){{ echo STARTED >>\"$HOME/started\"; }}\n"
                              "immune_action(){ shift 2; \"$@\"; }; immune_observe(){ :; }\n"
                              "check_http companion http://127.0.0.1:1/ 'nomatch-[x]' /bin/true 0 0\n")
             env = dict(os.environ, HOME=str(home), CLAW_RUNTIME_ROOT=str(ROOT))
@@ -54,10 +56,19 @@ class HealthDeployLockTests(unittest.TestCase):
         self.assertIn("STARTED", out)
 
     def test_companion_repair_requires_existing_idle_proof(self):
-        out = self.run_check(hold_lock=False, idle_proven=False)
+        # A live but unhealthy Companion may own runs: no replacement without the idle proof.
+        out = self.run_check(hold_lock=False, idle_proven=False, companion_alive=True)
         self.assertIn("state=idle_unproven action=skip_repair", out)
         self.assertNotIn("action=repair", out)
         self.assertNotIn("STARTED", out)
+
+    def test_dead_companion_restarts_without_idle_proof(self):
+        # S24 27/10: the proof failed (remote_bridge_scan_partial) for a Companion with no
+        # process at all, and Samantha stayed down after internet came back.
+        out = self.run_check(hold_lock=False, idle_proven=False, companion_alive=False)
+        self.assertNotIn("idle_unproven", out)
+        self.assertIn("action=repair", out)
+        self.assertIn("STARTED", out)
 
 
 if __name__ == "__main__":
