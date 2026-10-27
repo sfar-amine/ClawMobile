@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "host-interpretation-message-20261027",
+  "date": "2026-10-27",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The phrase shown when Samantha cannot take a message into account (host_interpretation_failed) is now plain words for the person who wrote, in French and English, instead of pipeline vocabulary.",
+  "reason": "S24 27/10 17:38: Sadok (Pulse WhatsApp room) received « L’interprétation reçue n’est pas conforme à la demande admise. Rien n’a été exécuté. » Amine: this is not a user-oriented message. The underlying refusal (one-field-only slot answers) is fixed separately in samantha-ui-playbooks.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/receiptPresentation.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-failure-presentation.cjs",
+    "docs/changes/host-interpretation-message-20261027.json",
+    "docs/changes/host-interpretation-message-20261027.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-failure-presentation.cjs",
+      "status": "passed",
+      "evidence": "New check: the fr and en phrases for host_interpretation_failed contain no pipeline vocabulary (interprétation, admise, conforme, admitted, match). It fails on the previous phrases. Existing checks (same keys in fr and en, typed failure propagation) are unchanged."
+    }
+  ],
+  "documentation": [
+    "docs/changes/host-interpretation-message-20261027.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Text of one failure phrase only."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same renderer table and reason code; no new store, route or owner."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: one presentation phrase; no MCP schema, adapter or endpoint changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Other failure phrases in the same table are not reviewed in this change."
+  ],
+  "rollback": "Revert this commit."
+}
