@@ -417,16 +417,17 @@ check_supervisor(){
  if proc "$2" && supervisor_on_current_root "$2" "$3"; then healthy "$1"; return; fi
  IMMUNE_OBSERVATION="$(immune_supervisor_facts "$1" "$2" "$3" 2>/dev/null)" immune_action "$1" bounded-supervisor-restore check_supervisor_effect "$@" || true
 }
-# The AI gate reaches its models only through the Gateway, which the Companion owns: with no
-# Companion the gate always answered unavailable and the Companion never came back after a
-# reboot (S24 27/10). With no Companion process and no Gateway, the existing bounded repair
-# runs directly (same lease, restart budget and canonical mode); otherwise the AI decides.
+# The AI gate reaches its models only through the Companion itself (/v1/intent/interpret): with no
+# Companion process the gate always answers unavailable, whether the Gateway runs or not, and the
+# Companion never came back (S24 27/10, after a reboot and again at 22:27 with the Gateway up).
+# With no Companion process the existing bounded repair runs directly (same lease, restart budget
+# and canonical mode); a live Companion is never replaced without the AI.
 repair_http_under_lease(){
  local rc
  if http "$2"; then healthy "$1"; return; fi
  IMMUNE_OBSERVATION="$1 HTTP probe failed: $2 did not answer within 3 s (curl -fsS). The bounded operation restarts only this service under the existing lease and budget, then probes it again." immune_action "$1" bounded-http-service-restore repair_http_effect_under_lease "$@"; rc=$?
  [ "$rc" -eq 75 ] || return 0
- if [ "$1" = companion ] && ! proc "$3" && ! http http://127.0.0.1:18789/healthz; then
+ if [ "$1" = companion ] && ! proc "$3"; then
   log "service=$1 action=direct_repair reason=ai_gate_unreachable"
   repair_http_effect_under_lease "$@"; return 0
  fi

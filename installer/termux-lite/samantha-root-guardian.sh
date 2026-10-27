@@ -41,10 +41,12 @@ ensure_supervisor_effect(){
     log "event=$name-start result=failed runtime_root=$ROOT"
   fi
 }
-# The AI gate reaches its models only through the Gateway, which the companion owns and
-# only the health manager starts. With the Gateway down the gate can never answer: after a
-# reboot nothing came back by itself and every refusal was silent (S24 27/10).
-gate_reachable(){ timeout 3 curl -fsS http://127.0.0.1:18789/healthz 9>&- >/dev/null 2>&1; }
+# The AI gate reaches its models only through the Companion (/v1/intent/interpret), which
+# only the health manager starts. With the Companion down the gate can never answer: after a
+# reboot nothing came back by itself and every refusal was silent (S24 27/10). The Gateway
+# alone is not enough: at 22:27 it answered while the Companion was gone and every model call
+# of the gate came back unavailable.
+gate_reachable(){ timeout 3 curl -fsS "http://127.0.0.1:${CLAWMOBILE_COMPANION_PORT:-8765}/" 9>&- >/dev/null 2>&1; }
 DIRECT_START_MIN_S=60
 direct_start_due(){
   local f="$D/$1.direct-start" now last

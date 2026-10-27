@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "id": "ai-gate-via-companion-20261027",
+  "date": "2026-10-27",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The AI gate of the immune system reaches its models through the Companion (/v1/intent/interpret), not the Gateway. The health manager now repairs a Companion with no process directly when the gate refuses, whether the Gateway answers or not. The root guardian judges the gate reachable only when the Companion answers on its port, not when the Gateway does. A live Companion still waits for the AI; a supervisor from another release still waits for the AI.",
+  "reason": "S24 27/10 22:27 Tunis: the Companion died while the Gateway kept answering /healthz 200. The health manager asked the AI gate every 60 s for 15 minutes (state=ai_gate_refused action=wait); models.db shows every gate call unavailable (Sol, Luna, Gemini free), because the gate's transport goes through 127.0.0.1:8765, the dead Companion. #444 had assumed the gate depended on the Gateway (port 18789), so its direct repair only applied when the Gateway was also down. Amine had to start the Companion by hand. Covered by Amine's 27/10 go on the recovery and refonte work.",
+  "files": [
+    "installer/termux-lite/samantha-root-guardian.sh",
+    "installer/termux-lite/test-root-guardian-gate.py",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-health-deploy-lock.py",
+    "docs/changes/ai-gate-via-companion-20261027.json",
+    "docs/changes/ai-gate-via-companion-20261027.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-health-deploy-lock.py",
+      "status": "passed",
+      "evidence": "9 tests. New: a dead Companion is repaired directly when the gate refuses even though the Gateway answers (fails on the previous manager); a live Companion with the Gateway up still waits for the AI."
+    },
+    {
+      "name": "installer/termux-lite/test-root-guardian-gate.py",
+      "status": "passed",
+      "evidence": "5 tests. New: gate_reachable probes 127.0.0.1:8765/ and never 18789 (fails on the previous guardian). The 4 previous cases pass unchanged."
+    }
+  ],
+  "documentation": [
+    "docs/changes/ai-gate-via-companion-20261027.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Recovery behaviour of the health manager and root guardian only; no capability, route or scope change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same lease, restart budget, canonical mode and bounded repair; only the reachability condition changes. No new store, daemon, scheduler or retry engine. The gate is still asked first."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: recovery shell scripts only; no MCP schema, adapter or endpoint changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "A live but hung Companion still waits for the AI, whose only route is that same Companion: not changed here.",
+    "Live proof: Companion killed with the Gateway up, back without a manual action."
+  ],
+  "rollback": "Revert this commit."
+}

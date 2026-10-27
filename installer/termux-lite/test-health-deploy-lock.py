@@ -73,15 +73,23 @@ class HealthDeployLockTests(unittest.TestCase):
         self.assertIn("STARTED", out)
 
     def test_dead_companion_restarts_when_the_ai_gate_cannot_answer(self):
-        # S24 27/10 reboot: the gate reaches its models through the Gateway, which the
-        # Companion owns; it always refused and the Companion never came back.
+        # S24 27/10 reboot: the gate reaches its models through the Companion itself; it
+        # always refused and the Companion never came back.
         out = self.run_check(hold_lock=False, gate_refuses=True, gateway_up=False)
         self.assertIn("service=companion action=direct_repair reason=ai_gate_unreachable", out)
         self.assertIn("action=restart_authorized", out)
         self.assertIn("STARTED", out)
 
-    def test_reachable_gate_keeps_the_decision(self):
+    def test_dead_companion_restarts_even_when_the_gateway_answers(self):
+        # S24 27/10 22:27: Gateway healthz 200, Companion gone, every gate model call
+        # unavailable; the manager waited 60 s at a time for 15 minutes.
         out = self.run_check(hold_lock=False, gate_refuses=True, gateway_up=True)
+        self.assertIn("service=companion action=direct_repair reason=ai_gate_unreachable", out)
+        self.assertNotIn("ai_gate_refused", out)
+        self.assertIn("STARTED", out)
+
+    def test_live_companion_waits_for_the_ai_even_with_the_gateway_up(self):
+        out = self.run_check(hold_lock=False, gate_refuses=True, gateway_up=True, companion_alive=True)
         self.assertIn("service=companion state=ai_gate_refused action=wait", out)
         self.assertNotIn("direct_repair", out)
         self.assertNotIn("STARTED", out)
