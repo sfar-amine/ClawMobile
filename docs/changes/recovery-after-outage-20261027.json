@@ -30,12 +30,12 @@
     {
       "name": "installer/termux-lite/test-health-boot-reset.py",
       "status": "passed",
-      "evidence": "The 27/10 state files (healthy for dead services, companion degraded with failures 6 and a future next) become unknown with failures 0 and next 0 on a new boot; canonical_mode is untouched; a second start on the same boot keeps the states. Fails without the reset call."
+      "evidence": "The 27/10 state files (healthy for dead services, companion degraded with failures 6 and a future next) become unknown with failures 0 and next 0 on a new boot; canonical_mode is untouched; a second start on the same boot keeps the states. Fails without the reset call. On the first start of this version (no boot record) the states are kept and only the boot is recorded, so in-flight degraded states still close their incidents (test-incident-deterministic-recovery)."
     },
     {
       "name": "health suites",
       "status": "passed",
-      "evidence": "test-health-restart-escalation, test-health-resource-policy, test-health-hysteresis, test-health-verdict, test-health-verdict-f5, test-health-qa-queue pass."
+      "evidence": "All 22 termux-lite suites that load the health manager pass, including test-incident-deterministic-recovery, test-immune-action, test-capability-recovery, test-tier0-lkg-hold and test-health-restart-escalation."
     }
   ],
   "documentation": [

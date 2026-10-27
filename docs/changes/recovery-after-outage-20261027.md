@@ -11,6 +11,6 @@ What changes:
 
 1. `samantha-health-manager.sh`: the idle proof is required only to replace a live Companion. With no Companion process the existing repair (lease, deploy lock, canonical mode) runs directly.
 2. `gateway-memory-guard.py`: the idle proof skips receipts written before the current boot; their owners died with it.
-3. `samantha-health-manager.sh`: on a new boot (`boot_id`), each `healthy` or `degraded` service state becomes `unknown`, with its failures and backoff cleared, so it is checked again at once.
+3. `samantha-health-manager.sh`: on a new boot (`boot_id`), each `healthy` or `degraded` service state becomes `unknown`, with its failures and backoff cleared, so it is checked again at once. On the first start of this version the boot is only recorded.
 
 Tests: `test-health-deploy-lock.py`, `test-gateway-memory-guard.py` and the new `test-health-boot-reset.py` (registered in CI) reproduce the S24 situation and pass; the other health suites pass. Rollback: revert this commit.

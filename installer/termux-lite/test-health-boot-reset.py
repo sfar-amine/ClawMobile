@@ -46,6 +46,18 @@ class HealthBootResetTests(unittest.TestCase):
             self.run_prefix(home)
             self.assertEqual(read("sshd.status"), "healthy")
 
+    def test_first_start_without_record_keeps_states(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            state = home / ".openclaw/health/state"
+            state.mkdir(parents=True)
+            (state / "companion.status").write_text("degraded")
+            (state / "companion.failures").write_text("3")
+            self.run_prefix(home)
+            self.assertEqual((state / "companion.status").read_text(), "degraded")
+            self.assertEqual((state / "companion.failures").read_text(), "3")
+            self.assertEqual((state / "boot_id").read_text(), BOOT_ID.read_text().strip())
+
 
 if __name__ == "__main__":
     unittest.main()

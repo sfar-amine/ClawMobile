@@ -450,10 +450,13 @@ check_slack_bridge(){
 # reboot they said "healthy" for dead services and kept a 15 min backoff (S24 27/10):
 # on a new boot each service state becomes unknown and is checked again at once.
 reset_states_on_new_boot(){
- local boot f n
+ local boot previous f n
  boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null) || return 0
  [ -n "$boot" ] || return 0
- [ "$(cat "$S/boot_id" 2>/dev/null)" = "$boot" ] && return 0
+ previous=$(cat "$S/boot_id" 2>/dev/null)
+ [ "$previous" = "$boot" ] && return 0
+ # No record yet (first start of this version): the states' boot is unknown, keep them.
+ if [ -z "$previous" ]; then printf '%s' "$boot" >"$S/boot_id"; return 0; fi
  for f in "$S"/*.status; do
   [ -e "$f" ] || continue
   case "$(cat "$f" 2>/dev/null)" in
