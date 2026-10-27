@@ -43,7 +43,7 @@ class PulseRoomTests(unittest.TestCase):
         self.assertEqual(entries['contacts-projet']['workspace'], both['workspace']); self.assertEqual(['web_search', 'read', 'transmettre_a_amine', 'noter_contact'], both['tools']['allow'])
         for entry in (pulse, both):
             self.assertIn('clawmobile_capability', entry['tools']['deny']); self.assertNotEqual(entries['main'].get('tools'), entry['tools'])
-        self.assertIn('Une demande de congé se fait uniquement par Amine', (self.target / 'AGENTS.md').read_text())
+        self.assertIn('Les demandes de congé ne sont pas prises en compte ici', (self.target / 'AGENTS.md').read_text())
         self.assertTrue((self.target / 'SOUL.md').is_file())
         again = self.provision(); self.assertEqual('present', json.loads(again.stdout)['agents'])
         log = (Path(str(self.state) + '.log')).read_text().splitlines(); self.assertEqual(2, len(log))  # dry-run + apply, once

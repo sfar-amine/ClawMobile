@@ -191,7 +191,9 @@ check_http(){
  fi
  # Idle proof is outside EX to avoid conflicting with our own lease. A campaign
  # starting after this observation prevents the exclusive acquisition below.
- if [ "$n" = companion ] && ! companion_idle_proven; then
+ # It protects work owned by a live Companion only: with no Companion process there is
+ # nothing to interrupt, and requiring it kept a dead Companion down (S24 27/10).
+ if [ "$n" = companion ] && proc "$pat" && ! companion_idle_proven; then
   log "service=$n state=idle_unproven action=skip_repair"; put "$n" next $(( $(now)+15 )); return
  fi
  with_repair_lease repair_http_under_lease "$n" "$url" "$pat" "$script" "$grace" "$stop_wait"
@@ -415,9 +417,20 @@ check_supervisor(){
  if proc "$2" && supervisor_on_current_root "$2" "$3"; then healthy "$1"; return; fi
  IMMUNE_OBSERVATION="$(immune_supervisor_facts "$1" "$2" "$3" 2>/dev/null)" immune_action "$1" bounded-supervisor-restore check_supervisor_effect "$@" || true
 }
+# The AI gate reaches its models only through the Gateway, which the Companion owns: with no
+# Companion the gate always answered unavailable and the Companion never came back after a
+# reboot (S24 27/10). With no Companion process and no Gateway, the existing bounded repair
+# runs directly (same lease, restart budget and canonical mode); otherwise the AI decides.
 repair_http_under_lease(){
+ local rc
  if http "$2"; then healthy "$1"; return; fi
- IMMUNE_OBSERVATION="$1 HTTP probe failed: $2 did not answer within 3 s (curl -fsS). The bounded operation restarts only this service under the existing lease and budget, then probes it again." immune_action "$1" bounded-http-service-restore repair_http_effect_under_lease "$@" || true
+ IMMUNE_OBSERVATION="$1 HTTP probe failed: $2 did not answer within 3 s (curl -fsS). The bounded operation restarts only this service under the existing lease and budget, then probes it again." immune_action "$1" bounded-http-service-restore repair_http_effect_under_lease "$@"; rc=$?
+ [ "$rc" -eq 75 ] || return 0
+ if [ "$1" = companion ] && ! proc "$3" && ! http http://127.0.0.1:18789/healthz; then
+  log "service=$1 action=direct_repair reason=ai_gate_unreachable"
+  repair_http_effect_under_lease "$@"; return 0
+ fi
+ log "service=$1 state=ai_gate_refused action=wait retry_in_s=60"; put "$1" next $(( $(now)+60 ))
 }
 check_adb(){
  if adb_ok; then check_adb_effect; return; fi
@@ -443,6 +456,28 @@ check_slack_bridge(){
  if [ "$readiness" -eq 2 ] && ! proc '[c]law-slack-bridge.mjs'; then check_slack_bridge_effect; return; fi
  IMMUNE_OBSERVATION="slack_bridge readiness probe exit=$readiness (0 ready, 2 down, 3 degraded); bridge process present=$(proc '[c]law-slack-bridge.mjs' && echo yes || echo no). The bounded operation restarts only the Slack bridge on the current release, then probes readiness again." immune_action slack_bridge bounded-slack-bridge-restore check_slack_bridge_effect || true
 }
+
+# Service states and backoffs describe processes of the boot that wrote them. After a
+# reboot they said "healthy" for dead services and kept a 15 min backoff (S24 27/10):
+# on a new boot each service state becomes unknown and is checked again at once.
+reset_states_on_new_boot(){
+ local boot previous f n
+ boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null) || return 0
+ [ -n "$boot" ] || return 0
+ previous=$(cat "$S/boot_id" 2>/dev/null)
+ [ "$previous" = "$boot" ] && return 0
+ # No record yet (first start of this version): the states' boot is unknown, keep them.
+ if [ -z "$previous" ]; then printf '%s' "$boot" >"$S/boot_id"; return 0; fi
+ for f in "$S"/*.status; do
+  [ -e "$f" ] || continue
+  case "$(cat "$f" 2>/dev/null)" in
+   healthy|degraded) n=$(basename "$f" .status); put "$n" status unknown; put "$n" failures 0; put "$n" next 0;;
+  esac
+ done
+ printf '%s' "$boot" >"$S/boot_id"
+ log 'event=new_boot action=reset_service_states'
+}
+reset_states_on_new_boot
 
 log 'event=start result=ok state=persistent_backoff'
 
