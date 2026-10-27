@@ -1,0 +1,362 @@
+{
+  "runId": "run_1793025469931_6dce961b",
+  "sdkSessionId": "3f02dfd0-3765-494a-afde-b9bc96d2eef2",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "tools": 0,
+  "modelRounds": 1,
+  "inputTokens": 17419,
+  "outputTokens": 8,
+  "cacheRead": 0,
+  "wallEpochDurationsMs": {
+    "tapMarker_to_localReservation": 12472,
+    "reservation_to_sessionStarted": 20756,
+    "sessionStarted_to_promptSubmitted": 311,
+    "promptSubmitted_to_modelCompleted": 2800,
+    "providerObserved_to_modelCompleted": 1853,
+    "modelCompleted_to_sdkEnded": 254,
+    "sdkEnded_to_localTerminalUpdate": 319,
+    "reservation_to_localTerminalUpdate": 24440
+  },
+  "prepDateNowStages": [
+    {
+      "time": "2026-10-26T14:37:53.965+00:00",
+      "phase": "auth",
+      "totalMs": 45,
+      "stages": [
+        {
+          "stage": "scope",
+          "durationMs": 0,
+          "elapsedMs": 0
+        },
+        {
+          "stage": "store",
+          "durationMs": 4,
+          "elapsedMs": 4
+        },
+        {
+          "stage": "prepare-plan",
+          "durationMs": 31,
+          "elapsedMs": 35
+        },
+        {
+          "stage": "harness",
+          "durationMs": 1,
+          "elapsedMs": 36
+        },
+        {
+          "stage": "controller",
+          "durationMs": 2,
+          "elapsedMs": 38
+        },
+        {
+          "stage": "initialize",
+          "durationMs": 7,
+          "elapsedMs": 45
+        }
+      ],
+      "stageTokens": 6
+    },
+    {
+      "time": "2026-10-26T14:37:53.985+00:00",
+      "phase": "attempt-dispatch",
+      "totalMs": 770,
+      "stages": [
+        {
+          "stage": "workspace",
+          "durationMs": 0,
+          "elapsedMs": 0
+        },
+        {
+          "stage": "harness-selection",
+          "durationMs": 2,
+          "elapsedMs": 2
+        },
+        {
+          "stage": "prepared-runtime",
+          "durationMs": 2,
+          "elapsedMs": 4
+        },
+        {
+          "stage": "runtime-context",
+          "durationMs": 91,
+          "elapsedMs": 95
+        },
+        {
+          "stage": "runtime-plugins",
+          "durationMs": 0,
+          "elapsedMs": 95
+        },
+        {
+          "stage": "hooks",
+          "durationMs": 5,
+          "elapsedMs": 100
+        },
+        {
+          "stage": "model-resolution",
+          "durationMs": 604,
+          "elapsedMs": 704
+        },
+        {
+          "stage": "auth",
+          "durationMs": 48,
+          "elapsedMs": 752
+        },
+        {
+          "stage": "context-engine",
+          "durationMs": 9,
+          "elapsedMs": 761
+        },
+        {
+          "stage": "attempt-workspace",
+          "durationMs": 7,
+          "elapsedMs": 768
+        },
+        {
+          "stage": "attempt-prompt",
+          "durationMs": 0,
+          "elapsedMs": 768
+        },
+        {
+          "stage": "attempt-runtime-plan",
+          "durationMs": 1,
+          "elapsedMs": 769
+        },
+        {
+          "stage": "attempt-dispatch",
+          "durationMs": 0,
+          "elapsedMs": 769
+        }
+      ],
+      "stageTokens": 13
+    },
+    {
+      "time": "2026-10-26T14:38:05.462+00:00",
+      "phase": "core-plugin-tools",
+      "totalMs": 11332,
+      "stages": [
+        {
+          "stage": "tool-policy",
+          "durationMs": 58,
+          "elapsedMs": 58
+        },
+        {
+          "stage": "workspace-policy",
+          "durationMs": 1,
+          "elapsedMs": 59
+        },
+        {
+          "stage": "base-coding-tools",
+          "durationMs": 6,
+          "elapsedMs": 65
+        },
+        {
+          "stage": "shell-tools",
+          "durationMs": 0,
+          "elapsedMs": 65
+        },
+        {
+          "stage": "openclaw-tools:session-workspace",
+          "durationMs": 8,
+          "elapsedMs": 73
+        },
+        {
+          "stage": "openclaw-tools:image-tool",
+          "durationMs": 4,
+          "elapsedMs": 77
+        },
+        {
+          "stage": "openclaw-tools:image-generate-tool",
+          "durationMs": 4,
+          "elapsedMs": 81
+        },
+        {
+          "stage": "openclaw-tools:video-generate-tool",
+          "durationMs": 9,
+          "elapsedMs": 90
+        },
+        {
+          "stage": "openclaw-tools:music-generate-tool",
+          "durationMs": 3,
+          "elapsedMs": 93
+        },
+        {
+          "stage": "openclaw-tools:pdf-tool",
+          "durationMs": 0,
+          "elapsedMs": 93
+        },
+        {
+          "stage": "openclaw-tools:web-search-tool",
+          "durationMs": 1,
+          "elapsedMs": 94
+        },
+        {
+          "stage": "openclaw-tools:web-fetch-tool",
+          "durationMs": 0,
+          "elapsedMs": 94
+        },
+        {
+          "stage": "openclaw-tools:message-tool",
+          "durationMs": 14,
+          "elapsedMs": 108
+        },
+        {
+          "stage": "openclaw-tools:nodes-tool",
+          "durationMs": 1,
+          "elapsedMs": 109
+        },
+        {
+          "stage": "openclaw-tools:core-tool-list",
+          "durationMs": 30,
+          "elapsedMs": 139
+        },
+        {
+          "stage": "openclaw-tools:plugin-tools",
+          "durationMs": 11154,
+          "elapsedMs": 11293
+        },
+        {
+          "stage": "openclaw-tools:client-capabilities",
+          "durationMs": 1,
+          "elapsedMs": 11294
+        },
+        {
+          "stage": "openclaw-tools",
+          "durationMs": 3,
+          "elapsedMs": 11297
+        },
+        {
+          "stage": "message-provider-policy",
+          "durationMs": 1,
+          "elapsedMs": 11298
+        },
+        {
+          "stage": "model-provider-policy",
+          "durationMs": 2,
+          "elapsedMs": 11300
+        },
+        {
+          "stage": "authorization-policy",
+          "durationMs": 4,
+          "elapsedMs": 11304
+        },
+        {
+          "stage": "schema-normalization",
+          "durationMs": 21,
+          "elapsedMs": 11325
+        },
+        {
+          "stage": "tool-hooks",
+          "durationMs": 3,
+          "elapsedMs": 11328
+        },
+        {
+          "stage": "abort-wrappers",
+          "durationMs": 1,
+          "elapsedMs": 11329
+        },
+        {
+          "stage": "deferred-followup-descriptions",
+          "durationMs": 1,
+          "elapsedMs": 11330
+        },
+        {
+          "stage": "attempt:create-openclaw-coding-tools",
+          "durationMs": 2,
+          "elapsedMs": 11332
+        },
+        {
+          "stage": "attempt:tools-allow",
+          "durationMs": 0,
+          "elapsedMs": 11332
+        }
+      ],
+      "stageTokens": 27
+    },
+    {
+      "time": "2026-10-26T14:38:10.748+00:00",
+      "phase": "stream-ready",
+      "totalMs": 16627,
+      "stages": [
+        {
+          "stage": "workspace-sandbox",
+          "durationMs": 4,
+          "elapsedMs": 4
+        },
+        {
+          "stage": "skills",
+          "durationMs": 4,
+          "elapsedMs": 8
+        },
+        {
+          "stage": "core-plugin-tools",
+          "durationMs": 11333,
+          "elapsedMs": 11341
+        },
+        {
+          "stage": "bootstrap-context",
+          "durationMs": 228,
+          "elapsedMs": 11569
+        },
+        {
+          "stage": "bundle-tools",
+          "durationMs": 671,
+          "elapsedMs": 12242
+        },
+        {
+          "stage": "tool-catalog",
+          "durationMs": 27,
+          "elapsedMs": 12287
+        },
+        {
+          "stage": "tool-preparation",
+          "durationMs": 718,
+          "elapsedMs": 12287
+        },
+        {
+          "stage": "system-prompt",
+          "durationMs": 3496,
+          "elapsedMs": 15783
+        },
+        {
+          "stage": "session-resource-loader",
+          "durationMs": 278,
+          "elapsedMs": 16061
+        },
+        {
+          "stage": "agent-session",
+          "durationMs": 485,
+          "elapsedMs": 16546
+        },
+        {
+          "stage": "stream-setup",
+          "durationMs": 81,
+          "elapsedMs": 16627
+        }
+      ],
+      "stageTokens": 11
+    }
+  ],
+  "restoration": "verified_absence_restored_hot_same_gateway",
+  "limitations": [
+    "tap marker is not HTTP request dispatch; pre-reservation interval owner not yet attributed",
+    "provider observation is not pure remote compute timing",
+    "stage checkpoints and explicit spans may overlap; do not sum all durations",
+    "trace active is diagnostic condition, not isolated production gain",
+    "SDK exact run proves 0 model tools, not 0 independent Gateway calls",
+    "UI first useful response latency not measured"
+  ],
+  "sources": {
+    "sdk": "9ed70e955c338cb26479db563fa1605e843ec108b479b2541edc453f2300f8c2",
+    "prep": "cdc3607ad3683337e1c9fe51b28fe9762681f8e3b310eb581a71f1d28a8462f3",
+    "operational": "b0f38ade1721ca6f25f08a42666fd7b7b87965a40f4459e794de49570e93b5ee"
+  },
+  "L0bisClosed": false,
+  "factorySummary": {
+    "totalMs": 16,
+    "factoryCount": 53,
+    "shown": 20,
+    "omitted": 33,
+    "shownMaxFactoryMs": 2
+  }
+}

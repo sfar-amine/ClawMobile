@@ -1,4 +1,7 @@
 import crypto from "crypto";
+import {brainOnlyEnabled} from "../brainOnly";
+import {TURN_BUDGET_MS, remainingTurnBudgetMs} from "./turnBudget";
+import {gatewayTerminalResult} from "./runs";
 import {compactOwnerAgentContext} from "./clawLive";
 import fs from "fs";
 import os from "os";
@@ -43,6 +46,7 @@ type PendingConversation = {
   originalRequest: string;
   target?: string;
   agentSessionId?: string;
+  brain?: boolean;
   at: number;
 };
 
@@ -56,6 +60,7 @@ const CONFIG_PATH =
 const MAX_REQUEST_CHARS = 12000;
 const RECENT_TTL_MS = 10 * 60_000;
 const CONVERSATION_TTL_MS = 30 * 60_000;
+const MAX_BRAIN_CONVERSATIONS = 256;
 const ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 // A socket that is not authenticated within this delay is abandoned: after a network
 // switch a dead TCP connection can stay CONNECTING or CLOSING without ever emitting close.
@@ -444,12 +449,15 @@ async function runAgentTurn(
   sessionId: string,
   requestId: string,
   message: string,
+  mainBrain = false,
 ) {
+  const startedAt = performance.now();
   lastRelayTurn = null; // a free agent turn has no harness understanding to correct
-  const sessionKey = expectedCompanionSessionKey(sessionId);
+  const sessionKey = expectedCompanionSessionKey(sessionId, mainBrain ? "main" : undefined);
   const canonical=compactOwnerAgentContext({authority:"owner"});
   const params = {
       sessionKey,
+      ...(mainBrain ? {agentId: "main"} : {}),
       label: "Bixby Voice",
       message,
       deliver: false,
@@ -458,10 +466,28 @@ async function runAgentTurn(
       idempotencyKey: requestId,
   };
   assertCanonicalAgentPayload(params);
+  const budget = mainBrain ? remainingTurnBudgetMs(startedAt, performance.now()) : 20_000;
+  if (mainBrain && !budget) throw new Error("voice_brain_budget_exhausted");
   const raw = await callOpenClawGateway(
     "agent", params,
-    { expectFinal: true, timeoutMs: 20_000 },
+    { expectFinal: true, timeoutMs: budget, ...(mainBrain ? {hardTimeoutMs: budget} : {}) },
   );
+  if (mainBrain) {
+    // A late/empty/failed receipt does not prove absence of an effect. Never retry here.
+    if (performance.now() - startedAt >= TURN_BUDGET_MS) throw new Error("voice_brain_budget_exhausted");
+    if (raw?.success === false || ["error", "failed", "aborted", "timeout", "unknown"].includes(String(raw?.state || raw?.status || ""))) {
+      throw new Error("voice_brain_gateway_unverified");
+    }
+    // Reuse the canonical installed-SDK terminal renderer: summary=completed is not an answer.
+    const terminal = typeof raw?.runId === "string" && raw.runId
+      ? gatewayTerminalResult(raw, raw.runId) : null;
+    if (!terminal || terminal.state !== "done") throw new Error("voice_brain_empty_receipt");
+    // Output projection only: the main brain already chose and spoke the question.
+    // Reuse the capsule's existing clarification protocol; never classify the input here.
+    const explicit = explicitClarificationQuestion(raw);
+    return explicit ? {state: "needs_clarification" as const, question: explicit}
+      : classifyAgentTurn({text: terminal.text});
+  }
   return classifyAgentTurn(raw);
 }
 
@@ -492,7 +518,42 @@ function realignmentResponse(context: VoiceTurnContext, learning: any) {
   });
 }
 
+/** Existing authenticated relay channel only: no native P1 ticket is minted from its bearer.
+ * The Gateway and typed tool guards retain their own least-privilege admission checks. */
+async function runRelayBrainTurn(requestId: string, message: string, conversationId: string, pending: PendingConversation) {
+  cleanupConversations();
+  if (!conversations.has(conversationId) && conversations.size >= MAX_BRAIN_CONVERSATIONS)
+    return {success: false, state: "failed", source: "samantha_brain", error: "voice_conversation_capacity", retrySafe: false};
+  const sessionId = pending.agentSessionId || "voice-" + conversationId;
+  // Reuse the existing transport binding before awaiting, so an uncertain receipt keeps continuity.
+  const enteringLegacy = pending.brain !== true && pending.kind !== "agent";
+  const input = enteringLegacy
+    ? "Contexte de la demande précédente (ne prouve aucune exécution) :\n" + pending.originalRequest
+      + "\n\nNouveau message utilisateur :\n" + message
+    : message;
+  conversations.set(conversationId, {...pending, kind: "agent", brain: true, agentSessionId: sessionId, at: Date.now()});
+  try {
+    const turn = await runAgentTurn(sessionId, requestId, input, true);
+    if (turn.state === "needs_clarification") return clarificationResponse(conversationId, "samantha_brain", turn.question);
+    return {success: true, state: "done", source: "samantha_brain", conversationId, text: turn.text};
+  } catch (error: unknown) {
+    const reason = error instanceof Error ? error.message : "";
+    // Only machine-readable refusal codes from the existing official Gateway client are projected.
+    const gateway = error as {name?: unknown; gatewayCode?: unknown; details?: {code?: unknown}} | undefined;
+    const code = gateway?.name === "GatewayClientRequestError" && gateway?.details?.code === "MISSING_SCOPE"
+      ? "missing_scope" : reason;
+    const authority = /^(?:voice_owner_admission_required|owner_admission_required|missing_scope|insufficient_scope|unauthorized|forbidden)$/.test(code);
+    return {success: false, state: authority ? "failed" : "unknown", source: "samantha_brain", conversationId,
+      error: authority ? code : reason.startsWith("voice_brain_") ? reason : "voice_brain_gateway_unverified",
+      retrySafe: false};
+  }
+}
+
 async function runVoiceRequest(requestId: string, request: string) {
+  if (brainOnlyEnabled()) {
+    const conversationId = "brain-" + requestHash({channel: VOICE_SURFACE, requestId});
+    return runRelayBrainTurn(requestId, request, conversationId, {kind: "agent", brain: true, originalRequest: request, at: Date.now()});
+  }
   // V2: a listed correction gesture within 2 minutes of the last voice turn reopens the guided realignment.
   const previous = lastRelayTurn;
   if (previous && isVoiceRealignment(request, previous.at)) {
@@ -622,6 +683,7 @@ async function runVoiceContinuation(
   }
 
   pending.at = Date.now();
+  if (brainOnlyEnabled() || pending.brain) return runRelayBrainTurn(requestId, answer, conversationId, pending);
 
   if (pending.kind === "realignment" && pending.realignment) {
     // The answer goes through the normal path (E1); an ordinal/label picks that candidate.

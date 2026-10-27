@@ -1,3 +1,4 @@
+import {nativeTurnProgressHooks} from "./nativeTurnProgress";
 import {ownerFoundationHook} from "./ownerBootstrapContext";
 import {
   android_health,
@@ -52,7 +53,10 @@ import { clawmobile_batch_execute } from "./tools/batch";
 import { handleOwnerBeforeDispatch, handleOwnerFastPath } from "./modelFastPath";
 import { handlePulseRoomBeforeDispatch } from "./pulseRoomFastPath";
 import { createCapabilityTool } from "./capabilityTool";
-import { agentCapabilityHook } from "./capabilityAgentGuard";
+import {conversationModelProfileHooks} from "./companion/conversationModelProfile";
+import {brainOnlyEnabled} from "./brainOnly";
+import {createTypedCapabilityTools, readTypedToolCatalogue} from "./typedCapabilityTools";
+import { agentCapabilityHook,TYPED_CONTROL_ADMISSION_METHOD,typedControlAdmissionHandler } from "./capabilityAgentGuard";
 import { createContactTool } from "./contactTools";
 import { handleContactRoomBeforeDispatch } from "./contactRoomFastPath";
 import { handleQaContactMediaReceived } from "./qaContactMediaOwner";
@@ -187,11 +191,31 @@ function register(api: any) {
   // mobile runtime implementation below.
 
   api.on("before_tool_call", agentCapabilityHook);
+  const nativeProgress=nativeTurnProgressHooks();
+  // Existing public SDK event; only native committed user metadata is observed, with no text copied.
+  const transcriptUpdates=api.runtime?.events?.onSessionTranscriptUpdate;
+  if(typeof transcriptUpdates==='function'){
+    const unsubscribe=transcriptUpdates((event:any)=>{void nativeProgress.transcript(event).catch(()=>{});});
+    if(typeof unsubscribe==='function')api.on("gateway_stop",()=>{unsubscribe();});
+  }
+  api.on("agent_end",nativeProgress.ended);
+  api.on("message_sent",nativeProgress.sent);
+  api.on("model_call_ended",(event:any,ctx:any)=>nativeProgress.stage(event,ctx,"model"));
+  api.on("after_tool_call",(event:any,ctx:any)=>nativeProgress.stage(event,ctx,"tool"));
+  const modelProfiles=conversationModelProfileHooks(api);
+  api.session?.state?.registerSessionExtension?.(modelProfiles.extension);
+  api.on("before_model_resolve",modelProfiles.resolve,{priority:1000});
+  api.on("before_agent_run",modelProfiles.admit,{priority:1000});
+  // Same authenticated Gateway transport as the existing warm port. This method
+  // only checks a live SDK callback; Companion remains the sole runs.json writer.
+  api.registerGatewayMethod?.(TYPED_CONTROL_ADMISSION_METHOD,typedControlAdmissionHandler,
+    {scope:"operator.write",profileAccess:"independent"});
   api.on("before_prompt_build", ownerFoundationHook);
 
   // SDK 2026.9.6 emits this accepted-turn observation without awaiting it.
   // Private QA owners admit an existing DRAFT before any staged bytes are read.
   api.on("message_received", async (event:any,ctx:any) => {
+    await nativeProgress.received(event,ctx);
     await handleQaContactMediaReceived(event,ctx);
   });
 
@@ -228,10 +252,12 @@ function register(api: any) {
 
   // The factory receives OpenClaw's trusted current-turn context. The first
   // execute argument is a tool-call id, not an authorization context.
-  api.registerTool(
-    (ctx: any) => createCapabilityTool(ctx),
-    { name: "clawmobile_capability" },
-  );
+  if (brainOnlyEnabled()) {
+    api.registerTool({contextVersion: 2, create: (ctx: any) => createTypedCapabilityTools(ctx)},
+      {names: [...readTypedToolCatalogue().map(tool => tool.name), "samantha_catalogue"]});
+  } else {
+    api.registerTool((ctx: any) => createCapabilityTool(ctx), {name: "clawmobile_capability"});
+  }
   api.registerTool((ctx: any) => createContactTool("transmettre_a_amine", ctx), { name: "transmettre_a_amine" });
   api.registerTool((ctx: any) => createContactTool("noter_contact", ctx), { name: "noter_contact" });
 

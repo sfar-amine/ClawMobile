@@ -11,6 +11,7 @@ import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
 import { runModelFastPath, type FastPathResult } from "../modelFastPath";
+import {brainOnlyEnabled} from "../brainOnly";
 import { dialogueHandoff, dialogueTurn, isDoneReply, isQuestionReply, transportEventRef, type DialogueInput, type DialogueReply } from "../dialogueSurface";
 import { turnAdmission, type AdmissionTicket } from "./ownerTurnAdmission";
 import {phoneDateTimeDecision} from "./phoneDateTime";
@@ -136,7 +137,7 @@ async function submitTextIntent(
   // n'est jamais reprise par un tour admis (aucun texte dérivé d'un tiers sur la connexion admin).
   const ownerAdmitted = currentOwner();
   const caller = ownerAdmitted ? "owner" as const : "other" as const;
-  const phoneAnswer=ownerAdmitted?phoneDateTimeDecision(normalized,options.phoneDateTime):null;
+  const phoneAnswer=ownerAdmitted&&!brainOnlyEnabled()?phoneDateTimeDecision(normalized,options.phoneDateTime):null;
   if(phoneAnswer){
     // SAM-MIG V2.2: the dialogue coordinator owns any pending question (it expires there, D-D); nothing to touch here.
     return executePhoneDateTimeFirst(normalizedSessionId,visibleUserText,attachments,clientRunId,phoneAnswer,options.admission,options.voiceDelegation,ownerAdmitted);
@@ -146,7 +147,7 @@ async function submitTextIntent(
   // admitted one, and conversely. The hand-off is deferred so the ticket is revalidated before any effect.
   let dialogue: DialogueReply | undefined;
   let dialogueInput: DialogueInput | undefined;
-  if (attachments.length === 0 && !learningOnly) {
+  if (attachments.length === 0 && !learningOnly && !brainOnlyEnabled()) {
     dialogueInput = {
       surface: "app", graphSurface: "claw_live",
       conversationKey: `app:${normalizedSessionId}:${ownerAdmitted ? "owner" : "other"}`,
@@ -183,22 +184,23 @@ async function submitTextIntent(
     return notSubmitted(normalizedSessionId, clientRunId, gateway.message);
   }
 
+  const semanticOwner=brainOnlyEnabled()&&ownerAdmitted?"main" as const:undefined;
   const responseLanguage=publicDecision(fastPathCheck.decision)?.responseLanguage;
   const promptWithAttachments = appendAttachmentContext(normalized, attachments);
-  const routed = learningOnly ? null : buildAutoSkillContextForIntent(promptWithAttachments);
+  const routed = learningOnly || brainOnlyEnabled() ? null : buildAutoSkillContextForIntent(promptWithAttachments);
   const contextualPrompt = learningOnly ? promptWithAttachments : await appendVoiceConversationContext(routed?.prompt || promptWithAttachments, normalizedSessionId);
   const submittedPrompt = replay ? appendReplayContext(contextualPrompt, replay.seed) : contextualPrompt;
 
   let runId = reservedMemoRunId || `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
   if (reservedMemoRunId) {
-    if (!await claimMemoDispatch(runId, normalized, "gateway", undefined, undefined, () => currentMemoOwner(options.admission, clientRunId, normalizedSessionId), ownerAdmitted)) return notSubmitted(normalizedSessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
+    if (!await claimMemoDispatch(runId, normalized, "gateway", undefined, undefined, () => currentMemoOwner(options.admission, clientRunId, normalizedSessionId), ownerAdmitted, undefined, semanticOwner)) return notSubmitted(normalizedSessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
   } else if (clientRunId) {
     const reservation = await reserveSubmittedRun(
       submittedPrompt,
       normalizedSessionId,
       clientRunId,
-      { userText: visibleUserText, attachments, requestText: normalized, executionSource: "gateway", decision: fastPathCheck.decision, replayOf, ownerAdmitted },
+      { userText: visibleUserText, attachments, requestText: normalized, executionSource: "gateway", decision: fastPathCheck.decision, replayOf, ownerAdmitted, semanticOwner },
     );
     runId = reservation.status.runId;
     duplicate = !reservation.created;
@@ -207,7 +209,7 @@ async function submitTextIntent(
 
   const accepted = acceptedRun(runId, normalizedSessionId, options.voiceDelegation);
   if (!clientRunId) {
-    await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, decision: fastPathCheck.decision, ownerAdmitted });
+    await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, decision: fastPathCheck.decision, ownerAdmitted, semanticOwner });
   }
   void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority,
     learningOnly ? undefined : options.admission, clientRunId, options.voiceDelegation, responseLanguage);

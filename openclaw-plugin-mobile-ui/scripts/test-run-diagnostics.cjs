@@ -180,7 +180,48 @@ function decoded(line) {
         region.name+' must remain byte-identical to the explicitly excluded source scope');
     }
   });
-  originalLog(JSON.stringify({suite:'run-owner-diagnostics',passed,total:12,voiceScope:'excluded'}));
+  await check(async () => {
+    // The real run owner persists first and emits its closed turn projection only once.
+    const row=record('run_measurement_owner',{state:'done',result:PRIVATE,executionSource:'gateway'});
+    write([row]);const before=lines.length;
+    const measurement={version:1,surface:'app',route:null,firstSignMs:null,decisionMs:null,toolMs:null,usefulMs:12,totalMs:13};
+    await api.recordTurnMeasurement(row.runId,row.sessionId,measurement);
+    await api.recordTurnMeasurement(row.runId,row.sessionId,measurement);
+    const emitted=lines.slice(before);
+    assert.equal(emitted.length,1);
+    assert.equal(emitted[0],'[turn] surface=app route=- model=- first_sign_ms=- decision_ms=- tool_ms=- useful_ms=12 total_ms=13');
+    assert.doesNotMatch(emitted[0],/PRIVATE|Bearer|@|run_measurement_owner|diagnostic-test/);
+    assert.deepEqual(JSON.parse(fs.readFileSync(file)).runs[0].turnMeasurement,measurement);
+    write([record('run_measurement_sink_down',{state:'done',result:PRIVATE,executionSource:'gateway'})]);
+    console.log=()=>{throw Error('sink unavailable')};
+    try{await api.recordTurnMeasurement('run_measurement_sink_down',row.sessionId,measurement)}
+    finally{console.log=(...values)=>lines.push(values.join(' '))}
+    assert.deepEqual(JSON.parse(fs.readFileSync(file)).runs[0].turnMeasurement,measurement);
+  });
+  await check(() => {
+    // Exercise the actual private projection; the AST owner guard above remains unchanged.
+    const text=fs.readFileSync(path.join(__dirname,'../src/companion/runs.ts'),'utf8');
+    const source=ts.createSourceFile('runs.ts',text,ts.ScriptTarget.Latest,true);
+    const helper=source.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='runDiagnostic');
+    const js=ts.transpileModule(helper.getText(source),{compilerOptions:{target:ts.ScriptTarget.ES2020}}).outputText;
+    const emitted=[],budget=require('../dist/companion/turnBudget');
+    const context={console:{log:line=>emitted.push(line)},publicReasonClass:api.publicReasonClass,...budget,module:{exports:{}}};
+    vm.runInNewContext(js+'\nmodule.exports=runDiagnostic;',context);const project=context.module.exports;
+    const measurement={version:1,surface:'voice',route:'answer',model:'openai/gpt-5.6-sol',firstSignMs:100,decisionMs:null,toolMs:null,usefulMs:200,totalMs:210};
+    project('info','turn_measurement_recorded',undefined,undefined,undefined,measurement);
+    assert.match(emitted[0],/^\[turn\] surface=voice route=answer model=openai\/gpt-5\.6-sol /);
+    const before=emitted.length;
+    project('info','turn_measurement_recorded',undefined,undefined,undefined,{...measurement,text:PRIVATE});
+    project('info','turn_measurement_recorded',undefined,undefined,undefined,{...measurement,route:PRIVATE});
+    project('warn','turn_measurement_recorded',undefined,undefined,undefined,measurement);
+    assert.equal(emitted.length,before,'unknown fields, prose and wrong event level refuse rather than echo');
+    project('info','turn_measurement_recorded',undefined,undefined,undefined,{...measurement,model:'sk-private-token'});
+    assert.match(emitted.at(-1),/ model=- /);assert.doesNotMatch(emitted.join('\n'),/PRIVATE|sk-private|Bearer|@/);
+    assert.ok(emitted.every(line=>Buffer.byteLength(line)<=512));
+    context.console.log=()=>{throw Error('sink unavailable')};
+    assert.doesNotThrow(()=>project('info','turn_measurement_recorded',undefined,undefined,undefined,measurement));
+  });
+  originalLog(JSON.stringify({suite:'run-owner-diagnostics',passed,total:14,voiceScope:'excluded'}));
 })().catch(error => { originalError(error); process.exitCode=1; }).finally(() => {
   console.error=originalError;console.log=originalLog;attachmentOwner.removeAttachments=originalRemove;
   fs.rmSync(root,{recursive:true,force:true});

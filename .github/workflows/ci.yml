@@ -96,13 +96,20 @@ jobs:
 
       - name: WhatsApp survives extended network outages without retry storms
         run: |
+          python3 ../installer/termux-lite/test-model-flow-selection.py
+          node ../installer/termux-lite/test-model-flow-compaction.cjs
+          node ../installer/termux-lite/test-model-flow-setup.cjs
           python3 ../installer/termux-lite/test-whatsapp-network-recovery.py
           node ../installer/termux-lite/test-whatsapp-network-recovery.cjs
 
       - name: Native agent exec resolves auth secrets in its existing scoped owner
         run: |
           python3 ../installer/termux-lite/test-agent-exec-auth-scope.py
+          python3 ../installer/termux-lite/test-native-turn-provenance.py
           node ../installer/termux-lite/test-agent-exec-auth-scope.cjs
+
+      - name: Gateway preparation splits reuse the pinned existing stage owner
+        run: python3 ../installer/termux-lite/test-gateway-prep-stages.py
 
       - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
         run: python3 ../installer/termux-lite/test-project-room.py
@@ -261,6 +268,7 @@ jobs:
 
       - name: Run Claw relay reconnect contract
         run: |
+          node scripts/test-voice-relay-brain-only.cjs
           node scripts/test-voice-relay.cjs
           node scripts/test-voice-relay-reconnect.cjs
 
@@ -302,10 +310,10 @@ jobs:
           peer=$(mktemp -d "${TMPDIR:-/tmp}/c16-native-playbooks.XXXXXX")
           trap 'rm -rf -- "$peer"' EXIT
           git init "$peer"
-          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git dfd92662d2c9054647db584b71a5fc9356673313
+          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git 067fb028df0209d0b023ec30cacfdb29a3a2cc9e
           git -C "$peer" checkout --detach FETCH_HEAD
           npm ci --prefix "$peer/billing/direct-runtime" --ignore-scripts --no-audit --no-fund
-          C16_PLAYBOOKS_ROOT="$peer" C16_EXPECTED_PB_SHA=dfd92662d2c9054647db584b71a5fc9356673313 C16_EVIDENCE_PATH="$RUNNER_TEMP/c16-native-paired-result.json" node scripts/test-native-pulse-paired.cjs
+          C16_PLAYBOOKS_ROOT="$peer" C16_EXPECTED_PB_SHA=067fb028df0209d0b023ec30cacfdb29a3a2cc9e C16_EVIDENCE_PATH="$RUNNER_TEMP/c16-native-paired-result.json" node scripts/test-native-pulse-paired.cjs
 
       - name: C18 native FAST reads paired with immutable canonical owners (MOCK only)
         run: |
@@ -342,6 +350,8 @@ jobs:
           node scripts/test-claw-live-warm.cjs
           node scripts/test-claw-live-warm-cancellation.cjs
           node scripts/test-voice-latency-budget.cjs
+          node scripts/test-turn-measurement.cjs
+          node scripts/test-native-turn-progress.cjs
           python3 scripts/test-voice-latency-report.py
           TMPDIR=/tmp node scripts/test-claw-live.cjs
           node scripts/test-companion-runs.cjs
@@ -384,6 +394,7 @@ jobs:
         run: node scripts/test-automation-detail.cjs
       - name: Test laptop owner pairing and biometric scope
         run: node scripts/test-laptop-access.cjs
+      # L0bis: observation regression also covers the native D1 timing anchors, blocked owner read and independent monotonic waits.
       - name: P1 admission native des tours owner (preuve Keystore, anti-rejeu, connexion admin dédiée, révocation)
         run: node scripts/test-owner-turn-admission.cjs && node scripts/test-gateway-run-observation.cjs
       - name: P1 recette — alerte transport owner indisponible et gardes d'admission
@@ -400,7 +411,7 @@ jobs:
         run: node scripts/test-control-automations-latency.cjs
 
       - name: Run agent configuration owner contract
-        run: node scripts/test-agent-config.cjs
+        run: node scripts/test-agent-config.cjs && node scripts/test-model-flows.cjs && node scripts/test-conversation-model-profile.cjs
       - name: Agent config concurrent owner reads
         working-directory: openclaw-plugin-mobile-ui
         run: node scripts/test-agent-config-flight.cjs
@@ -530,6 +541,7 @@ jobs:
           node ../cloud/voice-relay/test-mcp.mjs
 
           node ../cloud/voice-relay/test-long-action.mjs
+          node ../cloud/voice-relay/test-voice-brain-budget.mjs
       - name: MCP private read paired with immutable PB263 context owners (MOCK only)
         run: |
           peer=$(mktemp -d "${TMPDIR:-/tmp}/c8-mcp-playbooks.XXXXXX")
@@ -563,6 +575,14 @@ jobs:
         run: |
           node scripts/test-capability-tool.cjs
           node scripts/test-capability-admission.cjs
+          node scripts/test-typed-capability-tools.cjs
+          node scripts/test-brain-only-entry.cjs
+          node scripts/test-generation-interrupt.cjs
+          node scripts/test-native-turn-observation.cjs
+          node scripts/test-main-comprehension-provenance.cjs
+          node scripts/test-google-typed-schema.cjs
+          node scripts/test-sdk-steering-loop.cjs
+          node scripts/test-native-turn-provenance.cjs
 
       - name: E3 agent cannot run operator or transaction capabilities outside the harness
         run: |
@@ -699,6 +719,9 @@ jobs:
           node-version: 26.11.1
           cache: npm
           cache-dependency-path: openclaw-plugin-mobile-ui/package-lock.json
+      - name: L5 native SDK session CAS over real SQLite connections
+        run: node ../installer/termux-lite/test-model-flow-native-session.cjs
+
       - name: Install integration plugin dependencies
         run: npm ci
       - name: Build integration plugin

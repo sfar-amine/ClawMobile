@@ -4,6 +4,7 @@ const home=fs.mkdtempSync(path.join(os.tmpdir(),'gateway-observation-'));
 process.env.OPENCLAW_STATE_DIR=home;process.env.CLAWMOBILE_AGENT_ID='main';
 const captured=require('../fixtures/s24-2026-10-25-gateway-observation/native-timing.json');
 const sdkContract=require('../fixtures/s24-2026-10-25-gateway-observation/sdk-contract.json');
+const nativeTerminal=require('../fixtures/s24-2026-10-26-gateway-terminal-timing/native-timing.json');
 const client=require('../dist/companion/openclawAgentClient');
 let calls=[],recovery,serial=0;
 client.callOpenClawGateway=async(method,params,options)=>{
@@ -22,6 +23,10 @@ function event(id,sid,seq,data,stream='tool'){return {type:'event',event:'agent'
  assert.equal(Math.round((captured.metrics.brain_session_started-captured.metrics.brain_run_accepted)*1000),21798);
  assert.equal(sdkContract.capture.runtimeCapture,true);assert.ok(sdkContract.parts.every(p=>p.found&&/^[a-f0-9]{64}$/.test(p.sha256)));assert.match(sdkContract.parts[0].excerpt,/pending.expectFinal/);assert.match(sdkContract.parts[1].excerpt,/\n\t\t\tresult/);
  assert.equal(captured.brain.tool_calls,0);assert.equal(captured.ownerTransport,'admin_admitted');
+ assert.equal(nativeTerminal.metrics.sessionStartedAt-nativeTerminal.metrics.acceptedAt,10035);
+ assert.equal(nativeTerminal.metrics.terminalRpcLoggedAt-nativeTerminal.metrics.sessionEndedAt,194);
+ assert.equal(nativeTerminal.metrics.registryUpdatedAt-nativeTerminal.metrics.terminalRpcLoggedAt,13904);
+ assert.equal(nativeTerminal.metrics.usefulUiMs,null,'a later UI capture cannot fabricate the first visible answer timestamp');
  const id=await create('observed');const o=await runs.observeGatewayRun(id,expected('observed'));
  assert.equal(await runs.activeObservedGatewayRun(id,expected('observed')),false,'admission without actual send is not active transport proof');
  o.sent();await runs.getRunStatus(id);
@@ -43,6 +48,45 @@ function event(id,sid,seq,data,stream='tool'){return {type:'event',event:'agent'
  const done=await runs.getRunStatus(id);assert.equal(done.state,'done');assert.equal(done.result,'Réponse finale vérifiée.');assert.equal(done.ownerTransport,'admin_admitted');assert.equal(calls.length,0);
  assert.ok(done.progress.events.some(e=>e.callId==='call1'));assert.ok(done.progress.events.every(e=>!['late','duplicate'].includes(e.callId)));assert.ok(!JSON.stringify(done).includes('Wrong session'));
  await runs.listRuns();assert.equal(calls.length,0,'list views of followed runs remain local');
+ // A blocked owner read must not move the SDK terminal-receipt timestamp. Wall-clock jumps
+ // cannot become queue durations: those elapsed waits use only performance.now().
+ const timed=await create('timed-terminal'),timedObserver=await runs.observeGatewayRun(timed,expected('timed-terminal'));
+ const realNow=Date.now,originalRead=fs.promises.readFile,performanceDescriptor=Object.getOwnPropertyDescriptor(globalThis,'performance');
+ let clock=realNow(),monotonic=1000,entered,release;
+ const enteredRead=new Promise(resolve=>{entered=resolve}),readGate=new Promise(resolve=>{release=resolve});
+ try{
+  Date.now=()=>clock;Object.defineProperty(globalThis,'performance',{configurable:true,value:{now:()=>monotonic}});
+  const sentAt=clock;timedObserver.sent();await runs.activeObservedGatewayRun(timed,expected('timed-terminal'));
+  const file=path.join(home,'clawmobile-companion/runs.json');let registry;
+  // sent() intentionally does not await its queue. Observe its durable effect before
+  // blocking the later terminal read, rather than racing that first queued write.
+  const sendDeadline=process.hrtime.bigint()+2000000000n;
+  for(;;){
+   registry=JSON.parse(fs.readFileSync(file));
+   if(registry.runs.find(r=>r.runId===timed)?.gatewayObservation?.timing?.requestSentAt===sentAt)break;
+   assert.ok(process.hrtime.bigint()<sendDeadline,'SDK send observation was not durably recorded');
+   await new Promise(resolve=>setTimeout(resolve,1));
+  }
+  const row=registry.runs.find(r=>r.runId===timed);assert.equal(row.gatewayObservation.timing.requestSentAt,sentAt);
+  row.gatewayObservation.timing.prompt='must-not-enter-timing';row.gatewayObservation.timing.progressWaitMs=-1;fs.writeFileSync(file,JSON.stringify(registry));
+  let block=true;fs.promises.readFile=async function(file,...args){
+   if(block&&String(file)===path.join(home,'clawmobile-companion/runs.json')){block=false;entered();await readGate;}
+   return originalRead.call(this,file,...args);
+  };
+  clock+=1000;const receivedAt=clock,pending=timedObserver.final(terminal(timed,'Exact terminal response.'));await enteredRead;
+  clock+=14000;monotonic+=7;release();await pending;
+  const observed=JSON.parse(fs.readFileSync(file)).runs.find(r=>r.runId===timed).gatewayObservation;
+  assert.equal(observed.state,'settled');assert.equal(observed.timing.requestSentAt,sentAt);
+  assert.equal(observed.timing.terminalReceivedAt,receivedAt);assert.equal(observed.timing.progressDrainedAt,receivedAt);
+  assert.equal(observed.timing.settlementStartedAt,clock);assert.equal(observed.timing.settlementWaitMs,7,'no subtraction of wall-clock stamps for elapsed queue duration');
+  assert.ok(observed.timing.progressWaitMs>=0);assert.ok(!JSON.stringify(observed).includes('must-not-enter-timing'));
+  assert.ok(Object.values(observed.timing).every(Number.isSafeInteger));
+ }finally{release?.();Date.now=realNow;fs.promises.readFile=originalRead;Object.defineProperty(globalThis,'performance',performanceDescriptor);}
+ const ackOnly=await create('timed-ack-only'),ackObserver=await runs.observeGatewayRun(ackOnly,expected('timed-ack-only'));
+ ackObserver.sent();await ackObserver.final({runId:ackOnly,status:'accepted'});
+ const ackRecord=JSON.parse(fs.readFileSync(path.join(home,'clawmobile-companion/runs.json'))).runs.find(r=>r.runId===ackOnly);
+ assert.equal(ackRecord.state,'unknown');assert.equal(ackRecord.gatewayObservation.state,'reconcile');
+ assert.ok(!('terminalReceivedAt' in (ackRecord.gatewayObservation.timing||{})),'an acknowledgement has no accepted terminal timing');
  const denied=await create('not-admitted',false);await assert.rejects(runs.observeGatewayRun(denied,expected('not-admitted')),/not_admitted/);
  const lost=await create('lost');const lo=await runs.observeGatewayRun(lost,expected('lost'));await lo.lost(true);
  await Promise.all(Array.from({length:20},()=>runs.getRunStatus(lost)));assert.equal(calls.filter(c=>c.method==='sessions.list').length,1,'concurrent loss recovery claims one bounded exact-session read');

@@ -1,5 +1,7 @@
+import {TURN_BUDGET_MS} from "./turnBudget";
 import type {AdmissionTicket} from "./ownerTurnAdmission";
 import type {CompanionRunStatus, IntentSubmitResponse} from "./types";
+import {brainOnlyEnabled} from "../brainOnly";
 
 /**
  * Brain delegation of a model-only Samantha Voix turn the dialogue coordinator left unresolved (Amine 25/10/2026: « il
@@ -8,7 +10,7 @@ import type {CompanionRunStatus, IntentSubmitResponse} from "./types";
  * the turn's own admission ticket and clientRunId, then a bounded read of that run. A run still active at the budget
  * keeps going and lands in the discussion, as with ask_samantha (app DELEGATION_BUDGET_MS = 30 s).
  */
-export const VOICE_BRAIN_BUDGET_MS = 30_000;
+export const VOICE_BRAIN_BUDGET_MS = TURN_BUDGET_MS;
 export const VOICE_BRAIN_POLL_MS = 500;
 export const VOICE_BRAIN_SOURCE = "samantha_brain";
 const VERBATIM_MAX_CHARS = 600;
@@ -72,6 +74,10 @@ export type UnresolvedVoiceDeps = VoiceBrainDeps & {
 
 /** /claw-live/capability, coordinator `continue`: executable turns keep their executor, model-only turns go to the brain. */
 export async function routeUnresolvedVoiceTurn(request: string, ctx: VoiceBrainContext, deps: UnresolvedVoiceDeps) {
+  if (brainOnlyEnabled()) {
+    ctx.assertCurrent();
+    return withTiming(await delegateVoiceTurnToBrain(request, ctx, deps), {route: "brain", resolveMs: 0});
+  }
   const now = deps.now || (() => Date.now());
   const started = now();
   let resolution: unknown = null;

@@ -21,10 +21,24 @@ import { intentCanvas } from "./canvas";
 import { callOpenClawGateway, expectedCompanionSessionKey, normalizeCompanionSessionId, type OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatus, CompanionRunTokenUsage, IntentAttachment, ReplayLink } from "./types";
 
-type GatewayObservation = {version:1; epoch:string; state:"following"|"reconcile"|"settled"; deadlineAt:number; reconciled?:true};
+import {TURN_BUDGET_MS, validateTurnMeasurement, turnMeasurementLogLine, type TurnMeasurement} from "./turnBudget";
+
+type GatewayObservationTiming = {requestSentAt?:number; terminalReceivedAt?:number; progressDrainedAt?:number;
+  settlementStartedAt?:number; progressWaitMs?:number; settlementWaitMs?:number};
+type GatewayObservation = {version:1; epoch:string; state:"following"|"reconcile"|"settled"; deadlineAt:number;
+  reconciled?:true; timing?:GatewayObservationTiming};
 type StoredRun = {
+  /** Host provenance only: never accepted from a client body or model arguments. */
+  semanticOwner?: "main";
+  internalOperation?: true;
   gatewayObservation?: GatewayObservation;
   gatewayProgress?: CompanionRunProgress;
+  /** Host-owned surface for native turns; absence on retained text runs means app. */
+  turnSurface?: "app" | "whatsapp" | "voice";
+  measurementOnly?: true;
+  nativeTurn?: {version:1;deadlineAt:number;clockEpoch:string;startedMono:number;ingressPending?:true;adoptedByRunId?:string;adoptedMono?:number;notice:"pending"|"attempted"|"accepted"|"uncertain"|"cancelled";
+    accountId?:string;ended?:boolean;deliveredMono?:number;route:"tool"|"question"|"answer"|"reflex"|null;model?:string;decisionMs:number|null;toolMs:number|null};
+  turnMeasurement?: TurnMeasurement;
   web?: RunWebResult;
   memo?: {attachmentId: string; ownerEpoch: string; phase: "transcribing" | "transcription_pending" | "ready" | "dispatched"; attempts: number; nextAttemptAt?: number};
   presentation?: ReceiptPresentation;
@@ -79,11 +93,24 @@ export function publicReasonClass(value: unknown): string | undefined {
  * No Error/message, request, result, attachment path or arbitrary metadata may enter this projection.
  */
 function runDiagnostic(
-  level: "warn" | "error",
-  code: "memo_attachment_cleanup_unavailable" | "invalid_run_deletion_receipts_ignored" | "submitted_run_failed",
+  level: "info" | "warn" | "error",
+  code: "memo_attachment_cleanup_unavailable" | "invalid_run_deletion_receipts_ignored" | "submitted_run_failed" | "gateway_observation_settlement_delayed" | "turn_measurement_recorded",
   run?: Pick<StoredRun, "runId" | "clientRunId" | "reasonClass">,
   count?: number,
+  timings?: {commitMs:number;progressWaitMs:number;settlementWaitMs:number},
+  measurement?: TurnMeasurement,
 ) {
+  // A successful turn is another closed projection of this same sink, never a free log call.
+  // Revalidate at the output boundary; no user text, identifiers or arbitrary metadata enters [turn].
+  let turnLine: string | undefined;
+  if (code === "turn_measurement_recorded") {
+    if (level !== "info") return;
+    const verified = validateTurnMeasurement(measurement);
+    if (!verified) return;
+    // Model metadata is an identifier, not a place to echo an accidentally supplied credential.
+    if (verified.model && /^(?:sk-|gh[pousr]_|github_pat_|bearer|AIza)/i.test(verified.model)) delete verified.model;
+    turnLine = turnMeasurementLogLine(verified);
+  } else if (level === "info") return;
   const fields: Record<string, string | number> = {};
   for (const key of ["runId", "clientRunId"] as const) {
     const value = run?.[key];
@@ -93,10 +120,14 @@ function runDiagnostic(
   const reasonClass = publicReasonClass(run?.reasonClass);
   if (reasonClass) fields.reasonClass = reasonClass;
   if (typeof count === "number" && Number.isSafeInteger(count) && count >= 0) fields.count = count;
+  for (const key of ["commitMs", "progressWaitMs", "settlementWaitMs"] as const) {
+    const value = timings?.[key];
+    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= 300000) fields[key] = value;
+  }
   // Fixed component, level, bounded correlation fields and code. Never interpolate free strings.
   // A broken diagnostic sink cannot change the result of the existing registry mutation.
   const suffix = Object.entries(fields).map(([key, value]) => key + "=" + value).join(" ");
-  try { console.log("component=runs level=" + level + " event=" + code + (suffix ? " " + suffix : "")); } catch {}
+  try { console.log(turnLine ?? ("component=runs level=" + level + " event=" + code + (suffix ? " " + suffix : ""))); } catch {}
 }
 
 /** 38 A2 « Ce n'est pas ça » (D3) : trace bornée sur le run existant, sans texte ni montant. */
@@ -228,6 +259,8 @@ export async function reserveSubmittedRun(
     memoAttachmentId?: string;
     replayOf?: {sessionId: string; runId: string};
     ownerAdmitted?: boolean;
+    semanticOwner?: "main";
+    internalOperation?: true;
   } = {},
 ): Promise<{ created: boolean; status: CompanionRunStatus }> {
   const clientId = requireClientRunId(clientRunId);
@@ -266,6 +299,8 @@ export async function reserveSubmittedRun(
       requestHash,
       memo: options.memoAttachmentId ? {attachmentId: options.memoAttachmentId, ownerEpoch: MEMO_OWNER_EPOCH, phase: "transcribing", attempts: 1} : undefined,
       executionSource: options.executionSource || "gateway",
+      ...(options.semanticOwner === "main" && options.ownerAdmitted === true && options.executionSource === "gateway" ? {semanticOwner:"main" as const} : {}),
+      ...(options.internalOperation === true ? {internalOperation:true as const} : {}),
       presentation: options.executionSource === "capability_first" ? fallbackReceiptPresentation() : undefined,
       decision: options.decision && typeof options.decision === "object" ? options.decision : undefined,
       clarificationState: String(options.decision?.type || "") === "CLARIFY" ? "pending" : undefined,
@@ -389,7 +424,7 @@ async function resumeDueMemo(runId: string): Promise<boolean> {
 
 export async function claimMemoDispatch(runId: string, text: string, executionSource: "gateway" | "capability_first",
   decision?: Record<string, unknown>, parentClarificationRunId?: string, authorized?: () => boolean, ownerAdmitted = false,
-  dialogueGoalRef?: string): Promise<boolean> {
+  dialogueGoalRef?: string, semanticOwner?: "main"): Promise<boolean> {
   return mutateRegistry(async () => {
     const registry = await registryOrEmpty();
     const row = registry.runs.find(run => run.runId === runId);
@@ -397,6 +432,7 @@ export async function claimMemoDispatch(runId: string, text: string, executionSo
         registry.runDeletions.some(r => r.runId === runId)) return false;
     const now = Date.now();
     const claimed: StoredRun = {...row, attachments: undefined, executionSource, decision, parentClarificationRunId, dialogueGoalRef: dialogueGoalRefOf(dialogueGoalRef), ownerAdmitted: ownerAdmitted === true ? true as const : undefined,
+      ...(semanticOwner === "main" && ownerAdmitted && executionSource === "gateway" ? {semanticOwner:"main" as const} : {}),
       memo: {...row.memo, phase: "dispatched", ownerEpoch: MEMO_OWNER_EPOCH}, updatedAt: now,
       clarificationState: decision?.type === "CLARIFY" ? "pending" : undefined,
       clarificationExpiresAt: decision?.type === "CLARIFY" ? now + CLARIFICATION_PROJECTION_MS : undefined};
@@ -413,13 +449,14 @@ export async function claimMemoDispatch(runId: string, text: string, executionSo
 export async function rememberSubmittedRun(
   text: string,
   result: OpenClawAgentSubmitResult,
-  options: { userText?: string; attachments?: IntentAttachment[]; executionSource?: "gateway" | "capability_first"; decision?: Record<string, unknown>; parentClarificationRunId?: string; dialogueGoalRef?: string; ownerAdmitted?: boolean } = {},
+  options: { userText?: string; attachments?: IntentAttachment[]; executionSource?: "gateway" | "capability_first"; decision?: Record<string, unknown>; parentClarificationRunId?: string; dialogueGoalRef?: string; ownerAdmitted?: boolean; semanticOwner?: "main" } = {},
 ) {
   const existing = submittedRuns.get(result.runId)
     || (await findStoredRun(result.runId).catch(() => null));
   const stored = {
     ...existing,
     executionSource: options.executionSource || existing?.executionSource || "gateway",
+    ...(options.semanticOwner === "main" && options.ownerAdmitted === true && (options.executionSource || existing?.executionSource || "gateway") === "gateway" ? {semanticOwner:"main" as const} : {}),
     presentation: existing?.presentation || (options.executionSource === "capability_first" ? fallbackReceiptPresentation() : undefined),
     runId: result.runId,
     sessionId: result.sessionId,
@@ -444,10 +481,20 @@ export async function rememberSubmittedRun(
 }
 
 /** Volatile observation metadata lives with its existing durable run, never a new execution store. */
+function readGatewayObservationTiming(raw:any):GatewayObservationTiming|undefined {
+  if(!raw||typeof raw!=="object"||Array.isArray(raw))return undefined;
+  const timing:GatewayObservationTiming={};
+  for(const key of ["requestSentAt","terminalReceivedAt","progressDrainedAt","settlementStartedAt"] as const)
+    if(Number.isSafeInteger(raw[key])&&raw[key]>=1000000000000&&raw[key]<=4000000000000)timing[key]=raw[key];
+  for(const key of ["progressWaitMs","settlementWaitMs"] as const)
+    if(Number.isSafeInteger(raw[key])&&raw[key]>=0&&raw[key]<=300000)timing[key]=raw[key];
+  return Object.keys(timing).length?timing:undefined;
+}
 function readGatewayObservation(v:any):GatewayObservation|undefined {
   if(v?.version!==1||typeof v.epoch!=="string"||!/^[a-f0-9-]{36}$/.test(v.epoch)||
     !["following","reconcile","settled"].includes(v.state)||!Number.isFinite(v.deadlineAt))return undefined;
-  return {version:1,epoch:v.epoch,state:v.state,deadlineAt:v.deadlineAt,...(v.reconciled===true?{reconciled:true as const}:{})};
+  const timing=readGatewayObservationTiming(v.timing);
+  return {version:1,epoch:v.epoch,state:v.state,deadlineAt:v.deadlineAt,...(v.reconciled===true?{reconciled:true as const}:{}),...(timing?{timing}:{})};
 }
 function readGatewayProgress(v:any):CompanionRunProgress|undefined {
   if(!v||!Array.isArray(v.events))return undefined;
@@ -522,7 +569,11 @@ export async function observeGatewayRun(runId:string,sessionKey:string):Promise<
       gatewayObservation:{...r.gatewayObservation!,state:"reconcile"}}:undefined);
   };
   return {
-    sent(){enqueue(async()=>{await updateObservedRun(runId,r=>bound(r)?{...r,ownerTransport:"admin_admitted"}:undefined);});},
+    sent(){
+      const requestSentAt=Date.now(); // Capture the actual SDK send callback, before this owner's write queue.
+      enqueue(async()=>{await updateObservedRun(runId,r=>bound(r)?{...r,ownerTransport:"admin_admitted",
+        gatewayObservation:{...r.gatewayObservation!,timing:{...r.gatewayObservation?.timing,requestSentAt}}}:undefined);});
+    },
     event(frame:any){
       if(closed||frame?.event!=="agent")return;
       const p=frame.payload;
@@ -552,12 +603,26 @@ export async function observeGatewayRun(runId:string,sessionKey:string):Promise<
       });});
     },
     async final(value:unknown){
+      const terminalReceivedAt=Date.now(),progressStart=performance.now();
       closed=true;await chain;
+      const progressDrainedAt=Date.now(),progressWaitMs=Math.round(performance.now()-progressStart);
       const terminal=gatewayTerminalResult(value,runId);
       if(!terminal){await lost(true);return;}
-      await updateObservedRun(runId,r=>r.sessionKey===sessionKey&&r.gatewayObservation?.epoch===GATEWAY_OBSERVER_EPOCH&&
-        ["following","reconcile"].includes(r.gatewayObservation.state)&&!["done","failed"].includes(r.state||"")?{...r,state:terminal.state,result:terminal.state==="done"?terminal.text:undefined,error:terminal.state==="failed"?terminal.text:undefined,updatedAt:Date.now(),ownerTransport:"admin_admitted",
-        gatewayObservation:{...r.gatewayObservation!,state:"settled"}}:undefined);
+      const settlementStart=performance.now();let settlementWaitMs=0,commitStart:number|undefined;
+      const settled=await updateObservedRun(runId,r=>{
+        if(r.sessionKey!==sessionKey||r.gatewayObservation?.epoch!==GATEWAY_OBSERVER_EPOCH||
+          !["following","reconcile"].includes(r.gatewayObservation.state)||["done","failed"].includes(r.state||""))return undefined;
+        const settlementStartedAt=Date.now();settlementWaitMs=Math.round(performance.now()-settlementStart);commitStart=performance.now();
+        return {...r,state:terminal.state,result:terminal.state==="done"?terminal.text:undefined,error:terminal.state==="failed"?terminal.text:undefined,
+          updatedAt:settlementStartedAt,ownerTransport:"admin_admitted",gatewayObservation:{...r.gatewayObservation,state:"settled",
+            timing:{...r.gatewayObservation.timing,terminalReceivedAt,progressDrainedAt,settlementStartedAt,progressWaitMs,settlementWaitMs}}};
+      });
+      // Existing bounded diagnostic sink; no extra registry write just to measure its own fsync/rename.
+      if(settled&&commitStart!==undefined){
+        const commitMs=Math.round(performance.now()-commitStart);
+        if(Math.max(commitMs,progressWaitMs,settlementWaitMs)>=1000)
+          runDiagnostic("warn","gateway_observation_settlement_delayed",settled,undefined,{commitMs,progressWaitMs,settlementWaitMs});
+      }
     },lost,
   };
 }
@@ -966,14 +1031,284 @@ export async function markRunNotThis(runId: string, correction: RunCorrection): 
   return checked;
 }
 
+/** L5 preparation lives in this existing run journal before any configuration/session mutation. */
+export async function checkpointModelFlowConfiguration(runId:string,value:any):Promise<void>{
+ const run=await findStoredRun(runId,false);
+ if(!run||run.sessionId!=='native-owner-actions'||run.decision?.capability!=='agent.config'||!['brain','conversation_summary','whatsapp'].includes(String(run.decision?.modelFlow)))throw Object.assign(new Error('model_flow_operation_unavailable'),{statusCode:409});
+ const encoded=JSON.stringify(value);if(Buffer.byteLength(encoded)>65536)throw Object.assign(new Error('model_flow_snapshot_too_large'),{statusCode:409});
+ await saveStoredRun({...run,state:'running',result:encoded,updatedAt:Date.now()});
+}
+/** Read-only admission observation for the existing session/model owner; no new lock or lease store. */
+export async function readModelFlowConfigurationActivity(){
+ const rows=await readStoredRuns(false);
+ return rows.filter(run=>{
+  if(run.sessionId!=='native-owner-actions'||run.decision?.capability!=='agent.config'||!['brain','conversation_summary','whatsapp'].includes(String(run.decision?.modelFlow)))return false;
+  if(run.state!=='done'&&run.state!=='failed')return true;
+  if(typeof run.result!=='string'||run.result.length>65536)return true;
+  try{return !['completed','refused','failed'].includes(JSON.parse(run.result)?.state);}catch{return true;}
+ })
+  .map(run=>({runId:run.runId,operationId:run.clientRunId,flow:run.decision?.modelFlow,state:run.state??'unknown',acceptedAt:run.acceptedAt}));
+}
+
+/** L5: newest retained successful R6 flow receipt, read once from this existing run owner. */
+export async function latestModelFlowConfiguration(flow:'brain'|'conversation_summary'|'whatsapp'):Promise<any|null>{
+ const rows=await readStoredRuns(false);
+ for(const row of rows){
+  if(row.sessionId!=='native-owner-actions'||row.state!=='done'||typeof row.result!=='string'||row.result.length>65536)continue;
+  try{const result=JSON.parse(row.result);if(result?.receipt?.version===2&&result.receipt.action==='agent.config'&&result.receipt.flow===flow&&result.receipt.runId===row.runId&&result.state==='completed')return result;}catch{}
+ }
+ return null;
+}
+
+const NATIVE_CLOCK_EPOCH=randomUUID();
+const nativeMono=()=>Number(process.hrtime.bigint()/1000000n);
+function nativeTurnMetadata(v:any):StoredRun["nativeTurn"]{
+  if(!v||v.version!==1||!Number.isFinite(v.deadlineAt)||!Number.isFinite(v.startedMono)||typeof v.clockEpoch!=="string"||
+    !["pending","attempted","accepted","uncertain","cancelled"].includes(v.notice)||
+    (v.route!==null&&!["tool","question","answer","reflex"].includes(v.route)))return undefined;
+  return {version:1,deadlineAt:v.deadlineAt,startedMono:v.startedMono,clockEpoch:v.clockEpoch,notice:v.notice,
+    ...(v.ingressPending===true?{ingressPending:true as const}:{}),
+    ...(/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(v.adoptedByRunId||'')?{adoptedByRunId:v.adoptedByRunId}:{}),
+    ...(Number.isSafeInteger(v.adoptedMono)&&v.adoptedMono>=0?{adoptedMono:v.adoptedMono}:{}),
+    ...(typeof v.accountId==="string"&&/^[A-Za-z0-9_.-]{1,80}$/.test(v.accountId)?{accountId:v.accountId}:{}),
+    ...(v.ended===true?{ended:true}:{}),...(Number.isSafeInteger(v.deliveredMono)&&v.deliveredMono>=v.startedMono?{deliveredMono:v.deliveredMono}:{}),route:v.route,
+    ...(typeof v.model==="string"&&/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/.test(v.model)?{model:v.model}:{}),
+    decisionMs:Number.isSafeInteger(v.decisionMs)&&v.decisionMs>=0&&v.decisionMs<=600000?v.decisionMs:null,
+    toolMs:Number.isSafeInteger(v.toolMs)&&v.toolMs>=0&&v.toolMs<=600000?v.toolMs:null};
+}
+export async function recordNativeWhatsAppIngress(runId:string,sessionKey:string,accountId?:string,observedMonoMs?:number){
+  const mono=nativeMono();
+  if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(runId)||!/^agent:main:whatsapp:direct:\+?[1-9][0-9]{7,14}$/.test(sessionKey)||
+    accountId!==undefined&&(typeof accountId!=="string"||!/^[A-Za-z0-9_.-]{1,80}$/.test(accountId))||!Number.isSafeInteger(observedMonoMs)||observedMonoMs! < 0||observedMonoMs! > mono||mono-observedMonoMs! > 600000)
+    throw Object.assign(Error("invalid_turn_measurement"),{statusCode:400});
+  const observed=await mutateRegistry(async()=>{
+    const registry=await registryOrEmpty(),existing=registry.runs.find(r=>r.runId===runId);
+    if(existing){
+      if(!existing.measurementOnly||existing.sessionKey!==sessionKey||existing.nativeTurn?.accountId&&accountId&&existing.nativeTurn.accountId!==accountId)
+        throw Object.assign(Error("turn_measurement_identity_conflict"),{statusCode:409});
+      if(existing.nativeTurn?.ingressPending&&existing.nativeTurn.clockEpoch===NATIVE_CLOCK_EPOCH){
+        const now=Date.now(),nativeTurn={...existing.nativeTurn,ingressPending:undefined,startedMono:observedMonoMs!,
+          deadlineAt:now+TURN_BUDGET_MS-(mono-observedMonoMs!),
+          notice:!existing.nativeTurn.ended&&!existing.nativeTurn.adoptedByRunId?"pending" as const:existing.nativeTurn.notice,
+          ...(accountId?{accountId}:{})};
+        const updated:StoredRun={...existing,nativeTurn,acceptedAt:now-(mono-observedMonoMs!),updatedAt:now,
+          state:existing.nativeTurn.ended?existing.state:"running"};
+        await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?updated:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+        return nativeTurn;
+      }
+      if(accountId&&existing.nativeTurn&&!existing.nativeTurn.accountId&&existing.nativeTurn.clockEpoch===NATIVE_CLOCK_EPOCH){
+        const nativeTurn={...existing.nativeTurn,accountId};
+        await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?{...r,nativeTurn}:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+        return nativeTurn;
+      }
+      return existing.nativeTurn;
+    }
+    const now=Date.now();const row:StoredRun={runId,sessionKey,sessionId:"whatsapp-"+createHash("sha256").update(sessionKey).digest("hex").slice(0,24),
+      executionSource:"gateway",text:"",acceptedAt:now-(mono-observedMonoMs!),updatedAt:now,state:"running",turnSurface:"whatsapp",measurementOnly:true,
+      nativeTurn:{version:1,deadlineAt:now+TURN_BUDGET_MS-(mono-observedMonoMs!),clockEpoch:NATIVE_CLOCK_EPOCH,startedMono:observedMonoMs!,notice:"pending",route:null,
+        decisionMs:null,toolMs:null,...(accountId?{accountId}:{})}};
+    await writeCompanionRunRegistry([row,...registry.runs],registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+    return row.nativeTurn;
+  });
+  await finalizeNativeBindingMeasurements(runId);
+  return observed;
+}
+export async function nativeTurnProgressState(runId:string){
+  const row=(await registryOrEmpty()).runs.find(r=>r.runId===runId&&r.measurementOnly);
+  return row?.nativeTurn?{runId,sessionId:row.sessionId,sessionKey:row.sessionKey!,state:row.state,ended:row.nativeTurn.ended,
+    clockEpoch:row.nativeTurn.clockEpoch,deadlineAt:row.nativeTurn.deadlineAt,notice:row.nativeTurn.notice,accountId:row.nativeTurn.accountId,
+    ingressPending:row.nativeTurn.ingressPending,adoptedByRunId:row.nativeTurn.adoptedByRunId}:null;
+}
+/** deadlineAt is 10-minute observation freshness, separate from the stored 30-second delivery budget.
+ * Positive observation only: one exact-session live turn in this owner's clock epoch, never the latest turn. */
+export async function activeObservedNativeWhatsAppRun(sessionKey:string,options:{excludeRunId?:string}={}){
+  const now=nativeMono();
+  const candidates=(await registryOrEmpty()).runs.filter(r=>r.measurementOnly&&r.sessionKey===sessionKey&&r.runId!==options.excludeRunId&&
+    r.state==="running"&&r.nativeTurn&&!r.nativeTurn.ingressPending&&!r.nativeTurn.adoptedByRunId&&!r.nativeTurn.ended&&r.nativeTurn.clockEpoch===NATIVE_CLOCK_EPOCH&&
+    now>=r.nativeTurn.startedMono&&now-r.nativeTurn.startedMono<=600000);
+  if(candidates.length!==1)return null;
+  const row=candidates[0];return {runId:row.runId,sessionKey:row.sessionKey!,clockEpoch:row.nativeTurn!.clockEpoch,
+    deadlineAt:Date.now()+Math.max(0,600000-(now-row.nativeTurn!.startedMono)),state:"running" as const,observationSource:"companion_native_turn_owner" as const};
+}
+export async function reserveNativeProgressNotice(runId:string){
+  return mutateRegistry(async()=>{
+    const registry=await registryOrEmpty(),row=registry.runs.find(r=>r.runId===runId&&r.measurementOnly);
+    if(!row?.nativeTurn||row.state!=="running"||row.nativeTurn.ended||row.nativeTurn.ingressPending||row.nativeTurn.adoptedByRunId||row.nativeTurn.notice!=="pending"||
+      row.nativeTurn.clockEpoch!==NATIVE_CLOCK_EPOCH||nativeMono()-row.nativeTurn.startedMono<TURN_BUDGET_MS||nativeMono()-row.nativeTurn.startedMono>600000)return false;
+    const updated={...row,nativeTurn:{...row.nativeTurn,notice:"attempted" as const}};
+    await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?updated:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+    return true;
+  });
+}
+export async function settleNativeProgressNotice(runId:string,state:"accepted"|"uncertain"){
+  await mutateRegistry(async()=>{const registry=await registryOrEmpty(),row=registry.runs.find(r=>r.runId===runId&&r.measurementOnly);
+    if(!row?.nativeTurn||row.nativeTurn.notice!=="attempted")return;
+    const updated={...row,nativeTurn:{...row.nativeTurn,notice:state}};
+    await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?updated:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+  });
+}
+/** Out-of-order callback placeholders stay in the same bounded ledger and are never active evidence. */
+function pendingNativeObservation(runId:string,sessionKey:string,mono:number):StoredRun {
+  return {runId,sessionKey,sessionId:"whatsapp-"+createHash("sha256").update(sessionKey).digest("hex").slice(0,24),
+    executionSource:"gateway",text:"",acceptedAt:Date.now(),updatedAt:Date.now(),state:"unknown",turnSurface:"whatsapp",measurementOnly:true,
+    nativeTurn:{version:1,deadlineAt:Date.now()+600000,clockEpoch:NATIVE_CLOCK_EPOCH,startedMono:mono,ingressPending:true,
+      notice:"cancelled",route:null,decisionMs:null,toolMs:null}};
+}
+function requireNativeObservationIdentity(runId:string,sessionKey:string){
+  if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(runId)||
+    !/^agent:main:whatsapp:direct:\+?[1-9][0-9]{7,14}$/.test(sessionKey))throw Object.assign(Error("invalid_turn_measurement"),{statusCode:400});
+}
+export async function observeNativeTurnAdoption(runId:string,sessionKey:string,targetRunId:string,observedMonoMs:number){
+  requireNativeObservationIdentity(runId,sessionKey);requireNativeObservationIdentity(targetRunId,sessionKey);
+  const mono=nativeMono();
+  if(runId===targetRunId||!Number.isSafeInteger(observedMonoMs)||observedMonoMs<0||observedMonoMs>mono||mono-observedMonoMs>10000)
+    throw Object.assign(Error("invalid_turn_measurement"),{statusCode:400});
+  await mutateRegistry(async()=>{
+    const registry=await registryOrEmpty(),existing=registry.runs.find(r=>r.runId===runId),target=registry.runs.find(r=>r.runId===targetRunId);
+    const row=existing||pendingNativeObservation(runId,sessionKey,observedMonoMs);
+    if(!row.measurementOnly||row.sessionKey!==sessionKey||!row.nativeTurn||row.nativeTurn.clockEpoch!==NATIVE_CLOCK_EPOCH||
+      row.nativeTurn.adoptedByRunId&&row.nativeTurn.adoptedByRunId!==targetRunId||target&&(!target.measurementOnly||target.sessionKey!==sessionKey||!target.nativeTurn||target.nativeTurn.clockEpoch!==NATIVE_CLOCK_EPOCH||target.nativeTurn.adoptedByRunId||mono-target.nativeTurn.startedMono>600000))
+      throw Object.assign(Error("turn_measurement_identity_conflict"),{statusCode:409});
+    // Never extend freshness or reopen a terminal row. A duplicate keeps the first binding timestamp.
+    if(mono-row.nativeTurn.startedMono>600000)throw Object.assign(Error("turn_measurement_identity_conflict"),{statusCode:409});
+    const ended=target?.nativeTurn?.clockEpoch===NATIVE_CLOCK_EPOCH&&target.nativeTurn.ended===true;
+    const updated:StoredRun={...row,updatedAt:Date.now(),...(ended?{state:target!.state}:{}),nativeTurn:{...row.nativeTurn,
+      adoptedByRunId:targetRunId,adoptedMono:row.nativeTurn.adoptedMono??observedMonoMs,
+      notice:row.nativeTurn.notice==="pending"?"cancelled":row.nativeTurn.notice,
+      ...(target?.nativeTurn?.deliveredMono!==undefined?{deliveredMono:target.nativeTurn.deliveredMono}:{}),
+      ...(target?.nativeTurn?.model?{model:target.nativeTurn.model}:{}),...(ended?{ended:true}:{})}};
+    const rows=existing?registry.runs.map(r=>r.runId===runId?updated:r):[updated,...registry.runs];
+    await writeCompanionRunRegistry(rows,registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+  });
+  await finalizeNativeBindingMeasurements(runId);
+}
+export async function observeNativeTurnEnd(runId:string,model:string|undefined,success:boolean,sessionKey?:string){
+  const closed=await mutateRegistry(async()=>{
+    const registry=await registryOrEmpty(),existing=registry.runs.find(r=>r.runId===runId);
+    if(!existing&&!sessionKey)return [] as string[];
+    if(sessionKey)requireNativeObservationIdentity(runId,sessionKey);
+    const row=existing||pendingNativeObservation(runId,sessionKey!,nativeMono());
+    if(!row.measurementOnly||!row.nativeTurn||sessionKey&&row.sessionKey!==sessionKey)throw Object.assign(Error("turn_measurement_identity_conflict"),{statusCode:409});
+    if(row.nativeTurn.clockEpoch!==NATIVE_CLOCK_EPOCH||row.nativeTurn.ended)return [] as string[];
+    const settle=(r:StoredRun):StoredRun=>({...r,state:success?"done":"failed",updatedAt:Date.now(),nativeTurn:{...r.nativeTurn!,ended:true,
+      notice:r.nativeTurn!.notice==="pending"?"cancelled":r.nativeTurn!.notice,
+      ...(model&&/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/.test(model)?{model}:{})}});
+    const source=existing?registry.runs:[row,...registry.runs];
+    const rows=source.map(r=>r.runId===runId||r.measurementOnly&&r.sessionKey===row.sessionKey&&r.nativeTurn?.clockEpoch===NATIVE_CLOCK_EPOCH&&
+      r.nativeTurn.adoptedByRunId===runId?settle(r):r);
+    await writeCompanionRunRegistry(rows,registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+    return rows.filter(r=>r.measurementOnly&&r.sessionKey===row.sessionKey&&r.nativeTurn?.clockEpoch===NATIVE_CLOCK_EPOCH&&
+      (r.runId===runId||r.nativeTurn.adoptedByRunId===runId)).map(r=>r.runId);
+  });
+  await finalizeNativeBindingMeasurements(runId);
+  return closed;
+}
+/** Native SDK stage metadata uses the same atomic writer as finalization and progress reservation. */
+export async function observeNativeTurnStage(runId:string,kind:"model"|"tool",durationMs:unknown,model?:string,sessionKey?:string,outcome?:string){
+  await mutateRegistry(async()=>{
+    if(!sessionKey)return;
+    requireNativeObservationIdentity(runId,sessionKey);
+    const registry=await registryOrEmpty(),existing=registry.runs.find(r=>r.runId===runId);
+    const row=existing||pendingNativeObservation(runId,sessionKey,nativeMono());
+    if(!row.measurementOnly||!row.nativeTurn||row.nativeTurn.clockEpoch!==NATIVE_CLOCK_EPOCH||row.nativeTurn.ended||row.nativeTurn.adoptedByRunId||row.sessionKey!==sessionKey)return;
+    const native={...row.nativeTurn};
+    if(model&&/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/.test(model))native.model=model;
+    if(kind==="tool")native.route=["NEEDS_INPUT","NEEDS_CHOICE"].includes(outcome||"")?"question":"tool";
+    if(typeof durationMs==="number"&&Number.isSafeInteger(durationMs)&&durationMs>=0&&durationMs<=600000){
+      const key=kind==="model"?"decisionMs":"toolMs";
+      const sum=(native[key]??0)+durationMs;native[key]=sum<=600000?sum:null;
+    }
+    const updated:StoredRun={...row,nativeTurn:native};
+    await writeCompanionRunRegistry(existing?registry.runs.map(r=>r.runId===runId?updated:r):[updated,...registry.runs],registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+  });
+}
+async function finalizeNativeMeasurement(runId:string){
+  const row=(await registryOrEmpty()).runs.find(r=>r.runId===runId&&r.measurementOnly);
+  if(!row?.nativeTurn?.ended||row.nativeTurn.ingressPending||row.nativeTurn.deliveredMono===undefined||row.turnMeasurement)return;
+  const elapsed=row.nativeTurn.clockEpoch===NATIVE_CLOCK_EPOCH?row.nativeTurn.deliveredMono-row.nativeTurn.startedMono:null;
+  const duration=elapsed!==null&&elapsed>=0&&elapsed<=600000?elapsed:null;
+  return recordTurnMeasurement(runId,row.sessionId,{version:1,surface:"whatsapp",route:row.nativeTurn.route,
+    ...(row.nativeTurn.model?{model:row.nativeTurn.model}:{}),firstSignMs:null,decisionMs:row.nativeTurn.decisionMs,toolMs:row.nativeTurn.toolMs,
+    usefulMs:duration,totalMs:duration});
+}
+async function finalizeNativeBindingMeasurements(runId:string){
+  const rows=(await registryOrEmpty()).runs;
+  const observed=rows.find(r=>r.runId===runId&&r.measurementOnly&&r.nativeTurn?.clockEpoch===NATIVE_CLOCK_EPOCH);
+  if(!observed)return;
+  const targetId=observed.nativeTurn!.adoptedByRunId||runId;
+  const ids=rows.filter(r=>r.measurementOnly&&r.sessionKey===observed.sessionKey&&r.nativeTurn?.clockEpoch===NATIVE_CLOCK_EPOCH&&
+    (r.runId===targetId||r.runId===runId||r.nativeTurn.adoptedByRunId===targetId)).map(r=>r.runId);
+  for(const id of ids)await finalizeNativeMeasurement(id);
+}
+export async function observeNativeTurnDelivery(runId:string,sessionKey?:string,observedMonoMs=nativeMono()){
+  const now=nativeMono();
+  if(!Number.isSafeInteger(observedMonoMs)||observedMonoMs<0||observedMonoMs>now||now-observedMonoMs>600000)
+    throw Object.assign(Error("invalid_turn_measurement"),{statusCode:400});
+  await mutateRegistry(async()=>{
+    const registry=await registryOrEmpty(),existing=registry.runs.find(r=>r.runId===runId);
+    if(!existing&&!sessionKey)return;
+    if(sessionKey)requireNativeObservationIdentity(runId,sessionKey);
+    const row=existing||pendingNativeObservation(runId,sessionKey!,observedMonoMs);
+    if(!row.measurementOnly||!row.nativeTurn||row.nativeTurn.clockEpoch!==NATIVE_CLOCK_EPOCH||sessionKey&&row.sessionKey!==sessionKey)
+      throw Object.assign(Error("turn_measurement_identity_conflict"),{statusCode:409});
+    // The exact agent run's managed send callback covers only its positively adopted aliases.
+    const rows=(existing?registry.runs:[row,...registry.runs]).map(r=>r.measurementOnly&&r.sessionKey===row.sessionKey&&
+      r.nativeTurn?.clockEpoch===NATIVE_CLOCK_EPOCH&&(r.runId===runId||r.nativeTurn.adoptedByRunId===runId)&&r.nativeTurn.deliveredMono===undefined
+        ?{...r,nativeTurn:{...r.nativeTurn,deliveredMono:observedMonoMs,...(row.nativeTurn!.model?{model:row.nativeTurn!.model}:{})}}:r);
+    await writeCompanionRunRegistry(rows,registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+  });
+  await finalizeNativeBindingMeasurements(runId);
+}
+
+/** Metadata only in the existing run owner. Never executes, settles or resubmits a turn. */
+export async function recordTurnMeasurement(runId: string, sessionId: string, raw: unknown) {
+  const measurement = validateTurnMeasurement(raw);
+  if (!measurement || !/^[A-Za-z0-9_.:-]{1,160}$/.test(runId) || !/^[A-Za-z0-9-]{1,80}$/.test(sessionId))
+    throw Object.assign(new Error("invalid_turn_measurement"), {statusCode: 400});
+  return mutateRegistry(async () => {
+    const registry = await registryOrEmpty();
+    const row = registry.runs.find(run => run.runId === runId);
+    if (!row || registry.runDeletions.some(r => r.runId === runId))
+      throw Object.assign(new Error("run_not_found"), {statusCode: 404});
+    if (row.sessionId !== sessionId || (row.turnSurface || (row.modality === "voice" ? "voice" : "app")) !== measurement.surface)
+      throw Object.assign(new Error("turn_measurement_identity_conflict"), {statusCode: 409});
+    if (row.turnMeasurement) {
+      if (JSON.stringify(row.turnMeasurement) !== JSON.stringify(measurement))
+        throw Object.assign(new Error("turn_measurement_already_final"), {statusCode: 409});
+      return {success: true, state: "recorded", measurement: row.turnMeasurement};
+    }
+    const terminal = row.modality === "voice" ? ["completed", "interrupted"].includes(row.transcriptState || "")
+      : ["done", "failed"].includes(row.state || "");
+    if (!terminal) throw Object.assign(new Error("turn_measurement_not_final"), {statusCode: 409});
+    const updated: StoredRun = {...row, turnMeasurement: measurement};
+    await writeCompanionRunRegistry(registry.runs.map(run => run.runId === runId ? updated : run), registry.archivedSessionIds, registry.paymentRequests, registry.ownerConfirmations, registry.runDeletions);
+    if(!row.measurementOnly)submittedRuns.set(runId, updated);
+    // Metadata is durable before projection to the existing bounded process log. Idempotent reports never log twice.
+    runDiagnostic("info", "turn_measurement_recorded", undefined, undefined, undefined, measurement);
+    return {success: true, state: "recorded", measurement};
+  });
+}
+
+export async function turnMeasurementFacts() {
+  const rows = await readStoredRuns(false,true);
+  return {facts: rows.flatMap(run => run.turnMeasurement ? [{acceptedAt: run.acceptedAt, measurement: run.turnMeasurement}] : []),
+    retainedRuns: rows.length, retainedCap: MAX_PERSISTED_RUNS,
+    oldestRunAt: rows.length ? Math.min(...rows.map(run => run.acceptedAt)) : null};
+}
+
 /** 38 M1 : projection minimale des reçus de runs existants (aucun texte). */
 export type ComprehensionRunFact = {acceptedAt: number; decisionType?: string; decisionRisk?: string;
-  learned: boolean; clarificationAnswer: boolean; notThisAt?: number; agent: boolean};
+  learned: boolean; clarificationAnswer: boolean; notThisAt?: number; agent: boolean;
+  semanticOwner?:"main";internalOperation?:true;executionSource?:"gateway"|"capability_first";
+  ownerAdmitted?:true;ownerTransport?:StoredRun["ownerTransport"];gatewayObserved:boolean;state?:StoredRun["state"];hasResult:boolean;decisionQualified:boolean};
 export async function comprehensionRunFacts(): Promise<{facts: ComprehensionRunFact[]; retainedCap: number}> {
   const facts = (await readStoredRuns(false)).map(run => {
     const decision: any = run.decision;
     return {
       acceptedAt: run.acceptedAt,
+      semanticOwner:run.semanticOwner,internalOperation:run.internalOperation,executionSource:run.executionSource,
+      ownerAdmitted:run.ownerAdmitted,ownerTransport:run.ownerTransport,gatewayObserved:!!readGatewayObservation(run.gatewayObservation),
+      state:run.state,hasResult:typeof run.result==="string"&&run.result.trim().length>0,decisionQualified:!!publicDecision(run.decision),
       decisionType: typeof decision?.type === "string" ? String(decision.type) : undefined,
       decisionRisk: typeof decision?.risk === "string" ? String(decision.risk) : undefined,
       learned: typeof decision?.plan?.learned_association === "string" || typeof decision?.learnedAssociation === "string",
@@ -1278,7 +1613,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     ...(stored.transcriptState === "interrupted" ? {status: "interrupted"} : {}),
     message: stored.transcriptState || "partial", userText: stored.userText || "",
     result: stored.result || "", submittedAt: stored.acceptedAt, updatedAt: stored.updatedAt,
-    modality: "voice", transcriptState: stored.transcriptState, playback: stored.playback,
+    modality: "voice", transcriptState: stored.transcriptState, playback: stored.playback, turnMeasurement: stored.turnMeasurement,
     ...replayFields(stored),
   };
 
@@ -1296,6 +1631,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
         : "OpenClaw is still working on this run.";
   return {
     success: !failed,
+    turnMeasurement: stored.turnMeasurement,
     provenance: capabilityProvenance(stored.provenance),
     web: readRunWebResult(stored.web),
     memoTranscription: stored.memo ? {phase: stored.memo.phase, attempts: stored.memo.attempts,
@@ -2234,7 +2570,7 @@ function reconcileInactiveRuns(targetRunId?:string):void {
 async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadline: number): Promise<void> {
   await registryWrite;
   const initial = await registryOrEmpty(), now = runInactivityClock.now();
-  const eligible = (run: StoredRun, registry: CompanionRunRegistry) => run.modality !== "voice" && !run.gatewayObservation &&
+  const eligible = (run: StoredRun, registry: CompanionRunRegistry) => !run.measurementOnly && run.modality !== "voice" && !run.gatewayObservation &&
     (!run.memo || run.memo.phase === "dispatched") &&
     !run.result && (!run.state || run.state === "running" || run.error === "run_inactivity_expired") &&
     run.acceptedAt >= 1000000000000 && (run.error === "run_inactivity_expired" || !!run.inactivityCorrectionReceipt || now - (run.updatedAt || run.acceptedAt) >= RUN_INACTIVITY_MS) &&
@@ -2313,7 +2649,7 @@ async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadli
   });
 }
 
-async function readStoredRuns(reconcile = true): Promise<StoredRun[]> {
+async function readStoredRuns(reconcile = true, includeMeasurements = false): Promise<StoredRun[]> {
   if (reconcile) reconcileInactiveRuns();
   for (const run of submittedRuns.values()) {
     if (!run.sessionId) run.sessionId = "default";
@@ -2331,7 +2667,7 @@ async function readStoredRuns(reconcile = true): Promise<StoredRun[]> {
     });
   }
   return Array.from(byId.values())
-    .filter(run => !deletedRunIds.has(run.runId))
+    .filter(run => !deletedRunIds.has(run.runId) && (includeMeasurements || !run.measurementOnly))
     .filter((run) => !archivedSessionIds.has(normalizeCompanionSessionId(run.sessionId || "default")))
     .sort((left, right) => right.acceptedAt - left.acceptedAt);
 }
@@ -2393,6 +2729,12 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
   const parsedRuns: StoredRun[] = runs
       .filter((run: any) => typeof run?.runId === "string")
     .map((run: any) => ({
+      turnMeasurement: validateTurnMeasurement(run.turnMeasurement),
+      turnSurface: ["app","whatsapp","voice"].includes(run.turnSurface) ? run.turnSurface : undefined,
+      measurementOnly: run.measurementOnly===true ? true : undefined,
+      nativeTurn: nativeTurnMetadata(run.nativeTurn),
+      semanticOwner:run.semanticOwner==="main"&&run.ownerAdmitted===true&&run.executionSource==="gateway"?"main":undefined,
+      internalOperation:run.internalOperation===true?true:undefined,
       inactivityCorrectionReceipt: validInactivityReceipt(run.inactivityCorrectionReceipt, run.runId),
       presentation: readReceiptPresentation(run.presentation),
       provenance: capabilityProvenance(run.provenance),
@@ -2712,7 +3054,7 @@ async function retainedRuns(archiveScope:boolean|null=false):Promise<StoredRun[]
   reconcileInactiveRuns();
   await registryWrite;
   const registry=await registryOrEmpty(),archived=new Set(registry.archivedSessionIds);
-  return registry.runs.filter(x=>archiveScope===null||archived.has(x.sessionId)===archiveScope).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));
+  return registry.runs.filter(x=>!x.measurementOnly&&(archiveScope===null||archived.has(x.sessionId)===archiveScope)).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));
 }
 
 /** The Companion's own retained view of one conversation (no Gateway read). */
@@ -2809,7 +3151,7 @@ const changeEpoch=randomUUID();let changeSequence=0;
 const changeRing:ConversationChange[]=[];
 const changeListeners=new Set<(event:ConversationChange)=>void>();
 function publishConversationChanges(before:StoredRun[],after:StoredRun[],oldArchived:string[],newArchived:string[]){
-  const left=new Map(before.map(r=>[r.runId,r])),right=new Map(after.map(r=>[r.runId,r]));
+  const left=new Map(before.filter(r=>!r.measurementOnly).map(r=>[r.runId,r])),right=new Map(after.filter(r=>!r.measurementOnly).map(r=>[r.runId,r]));
   const sessions=new Set<string>();
   for(const id of new Set([...left.keys(),...right.keys()])){
     const a=left.get(id),b=right.get(id);

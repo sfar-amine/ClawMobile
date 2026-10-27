@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "capture": {
+    "runtimeCapture": true,
+    "sanitized": true,
+    "kind": "installed SDK public code only",
+    "device": "S24",
+    "date": "2026-10-25",
+    "openclaw": "2026.9.6"
+  },
+  "files": [
+    {
+      "module": "setup-B7DuERIi.mjs",
+      "bytes": 7295,
+      "sha256": "1caa8afe68ac8a5271786fd885fc465e6d5729db738a0452574071ff5c2defbf"
+    },
+    {
+      "module": "hooks-CKanWLsK.mjs",
+      "bytes": 54254,
+      "sha256": "e3d29c0cc98b4e70a309a7a98e33692fd0799d80226eab2065eef35ed713ec4d"
+    },
+    {
+      "module": "embedded-agent-BaH7wGBd.mjs",
+      "bytes": 445717,
+      "sha256": "e3cf2c540ae617a766b7f78f56ed252b233839b1f9cf8eef6d7ff8ef37829dd6"
+    },
+    {
+      "module": "run-entry-Bg2j-prG.mjs",
+      "bytes": 24005,
+      "sha256": "876ee6b766528ed340b888aac72657a0d6fc2db1749b69d77018209b9340b8ce"
+    },
+    {
+      "module": "compact-lmmQAHsq.mjs",
+      "bytes": 111006,
+      "sha256": "ea05e2d13ba20eb901da20ff5157ef78eed778b94df63b721fdda352752520bc"
+    },
+    {
+      "module": "hook-runner-global-CDmmGFJp.d.ts",
+      "bytes": 79494,
+      "sha256": "d066e0a30921eb05d79f7ef6b7f425b7e1628b912634b660b13ac324e6bb7c1d"
+    },
+    {
+      "module": "session-store-runtime-CFwDfZAM.mjs",
+      "bytes": 19559,
+      "sha256": "a0b0634046986a45cb025ebe95e50c9b173adec1db60af811ac441e1f0a2bc09"
+    },
+    {
+      "module": "host-hook-state-DEUXoydK.mjs",
+      "bytes": 14006,
+      "sha256": "289b36406d62423b6e99928f5ebc08b0a80fc74d9f5e2e2c2391d3654df3d335"
+    },
+    {
+      "module": "session-accessor.sqlite-entry-UCl9kr-O.mjs",
+      "bytes": 38102,
+      "sha256": "647e108483719559057c7782a22de15180e853c6520b5eb51fdc4a7297c6b00e"
+    },
+    {
+      "module": "context-engine-maintenance-VqmqPz8h.mjs",
+      "bytes": 52910,
+      "sha256": "a7ebbc0ccdb36dc5a3121d2148d5bde62e39599766a938bc6dbe1603fbb16ce0"
+    },
+    {
+      "module": "model-ref-profile-BIKs-96s.mjs",
+      "bytes": 1355,
+      "sha256": "fe69f465d19623064f796fe556b8bf91078f64f0578caf6f533c55d256c7c225"
+    },
+    {
+      "module": "runtime-api-CkahAQr_.d.ts",
+      "fixture": "runtime-api-CkahAQr_.d.ts.gz",
+      "bytes": 2070322,
+      "sha256": "d6ad5295f3fb417cc0f86f68734fab42c1f3085e984d4a4c3515d9058dfdffcc"
+    },
+    {
+      "module": "plugin-entry-CACNQ1z6.d.ts",
+      "fixture": "plugin-entry-CACNQ1z6.d.ts.gz",
+      "bytes": 1894637,
+      "sha256": "9fd65c751427edc8b2d1e297bcd85bca5b6fc4f6432e1cf3a44e5b291bace951"
+    },
+    {
+      "module": "index-DUVQdPAn.d.ts",
+      "fixture": "index-DUVQdPAn.d.ts.gz",
+      "bytes": 1571179,
+      "sha256": "be1cdb699cf6f1a0c63ef1edc0f9d57ad9efe97ee3d74bfeee7e91b530a8d4f1"
+    },
+    {
+      "module": "runtime-api-DpOeiZhR.d.ts",
+      "fixture": "runtime-api-DpOeiZhR.d.ts.gz",
+      "bytes": 2643548,
+      "sha256": "28074b055321f2103c7fd104722a3854c878967e80d0492432b057e44e9a1b45"
+    },
+    {
+      "module": "cli-backend.types-B-oosdMB.d.ts",
+      "fixture": "cli-backend.types-B-oosdMB.d.ts.gz",
+      "bytes": 2574490,
+      "sha256": "f8e936a76225d872f7c6ee8b846983d1f2c90e3c986ddef539f414410404adb8"
+    },
+    {
+      "module": "session-accessor.sqlite-transcript-write-B3rTdvkb.mjs",
+      "bytes": 68735,
+      "sha256": "16d828a9cc78c807081ca32a6216342df056ace246119a67218c8bb862e62227"
+    }
+  ]
+}

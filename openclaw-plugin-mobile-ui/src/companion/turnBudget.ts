@@ -9,7 +9,7 @@ export function remainingTurnBudgetMs(startedAt: number, now: number): number {
 export type TurnSurface = "app" | "whatsapp" | "voice";
 export type TurnRoute = "tool" | "question" | "answer" | "reflex";
 export type TurnMeasurement = {
-  version: 1; surface: TurnSurface; route: TurnRoute; model?: string;
+  version: 1; surface: TurnSurface; route: TurnRoute | null; model?: string;
   firstSignMs: number | null; decisionMs: number | null; toolMs: number | null;
   usefulMs: number | null; totalMs: number | null;
 };
@@ -24,14 +24,14 @@ export function validateTurnMeasurement(raw: unknown): TurnMeasurement | undefin
   const v = raw as Record<string, unknown>;
   if (Object.keys(v).some(k => !keys.has(k)) || v.version !== 1 ||
       !["app", "whatsapp", "voice"].includes(String(v.surface)) ||
-      !["tool", "question", "answer", "reflex"].includes(String(v.route)) ||
+      (v.route !== null && !["tool", "question", "answer", "reflex"].includes(String(v.route))) ||
       !durations.every(k => duration(v[k])) ||
       (v.model !== undefined && (typeof v.model !== "string" ||
         !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/.test(v.model)))) return undefined;
   const n = (k: typeof durations[number]) => v[k] as number | null;
   if (n("firstSignMs") !== null && n("usefulMs") !== null && n("firstSignMs")! > n("usefulMs")! ||
       n("usefulMs") !== null && n("totalMs") !== null && n("usefulMs")! > n("totalMs")!) return undefined;
-  return {version: 1, surface: v.surface as TurnSurface, route: v.route as TurnRoute,
+  return {version: 1, surface: v.surface as TurnSurface, route: v.route as TurnRoute | null,
     ...(v.model === undefined ? {} : {model: v.model as string}),
     firstSignMs: n("firstSignMs"), decisionMs: n("decisionMs"), toolMs: n("toolMs"),
     usefulMs: n("usefulMs"), totalMs: n("totalMs")};
@@ -42,7 +42,7 @@ export function turnMeasurementLogLine(value: TurnMeasurement): string {
   const v = validateTurnMeasurement(value);
   if (!v) throw new Error("invalid_turn_measurement");
   const show = (n: number | null) => n === null ? "-" : String(n);
-  return `[turn] surface=${v.surface} route=${v.route} model=${v.model || "-"}` +
+  return `[turn] surface=${v.surface} route=${v.route || "-"} model=${v.model || "-"}` +
     ` first_sign_ms=${show(v.firstSignMs)} decision_ms=${show(v.decisionMs)}` +
     ` tool_ms=${show(v.toolMs)} useful_ms=${show(v.usefulMs)} total_ms=${show(v.totalMs)}`;
 }
@@ -57,6 +57,7 @@ export function summarizeTurnMeasurements(values: unknown[]) {
     return {surface, turns: group.length, usefulSamples: n, firstSignSamples: signs.length,
       medianUsefulMs: n ? (useful[Math.floor((n - 1) / 2)] + useful[Math.floor(n / 2)]) / 2 : null,
       p95UsefulMs: n ? useful[Math.ceil(n * .95) - 1] : null,
+      unknownRouteSamples: group.filter(v => v.route === null).length,
       firstSignUnder1s: signs.filter(v => v < 1000).length};
   });
 }

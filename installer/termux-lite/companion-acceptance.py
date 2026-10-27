@@ -32,6 +32,8 @@ READS = [
     ("/notifications/sources", 6.0),
     ("/runs?limit=50", 4.0),
     ("/runs?limit=40&summary=1", 1.0),  # F4 : écran Notifications (80 ms capturés), projection structurée
+    # L3: metadata-only, local observed generation projection; no Gateway call per row.
+    ("/conversations/acceptance-probe/active-generations", 1.0),
     ("/runs?contract=2&view=conversations&limit=20", 0.3),
     # E4: archived subset of the same local projection, read warm after its sibling (never the first cold read).
     ("/runs?contract=2&view=conversations&archived=1&limit=20", 0.3),
@@ -41,6 +43,9 @@ READS = [
     ("/updates", 4.0),
     ("/control/memory?limit=20", 3.0),
     ("/agent/config", 9.0),
+    ("/agent/config?flow=brain", 9.0),
+    ("/agent/config?flow=conversation_summary", 9.0),
+    ("/agent/config?flow=whatsapp", 9.0),
     ("/laptop-access/computers", 6.0),
     # P1 : état d'enrôlement de l'admission native (lecture d'un fichier local, aucune clé privée).
     ("/owner-admission", 0.5),
@@ -57,6 +62,7 @@ READS = [
 ]
 # Mutations sent WITHOUT the owner header must be refused before any effect.
 OWNER_GUARDS = [
+    ("POST", "/runs/acceptance-probe/measurement"),
     ("POST", "/lighting/d073d5225b23/state"),
     ("POST", "/conversations/acceptance-probe/archive"),
     ("POST", "/conversations/acceptance-probe/unarchive"),
@@ -67,11 +73,13 @@ OWNER_GUARDS = [
     ("POST", "/control/requests/REQ-0/cancel"),
     ("POST", "/agent/config"),
     ("POST", "/conversations/x/metadata"),
+    ("POST", "/conversations/x/interrupt"),
     ("POST", "/skills/learn"),
     ("POST", "/control/memory/import/preview"),
     ("POST", "/control/memory/import"),
     ("POST", "/control/memory/" + "a" * 64 + "/forget"),
     ("POST", "/runs/acceptance-probe/approval"),
+    ("POST", "/runs/acceptance-probe/measurement"),  # L3 SDK provenance: no owner header, no registry write.
     # 38 A2 : oublier et « Ce n'est pas ça » refusés sans en-tête propriétaire, avant tout effet.
     ("POST", "/learning/associations/" + "a" * 64 + "/forget"),
     ("POST", "/learning/not-this"),

@@ -1469,6 +1469,7 @@ class FastPathPorts:
         # Doc 71: voice uses the same interpreter; Claude's own live session
         # (claw_live) and private QA ingress keep their existing owners.
         self._semantic_enabled = (os.environ.get("SAMANTHA_INTENT_INTERPRETER") == "1" and
+            not (os.environ.get("SAMANTHA_BRAIN_ONLY") == "1" and self.caller == "owner" and self.intent_surface != "pulse_room") and
             self.intent_surface != "claw_live" and _QA_INGRESS_CONTEXT is None)
         if self._semantic_enabled:
             self.interpret_turn = self._interpret_semantic_turn
@@ -1676,12 +1677,13 @@ def run_intent_mcp_read(message, *, ui_root, caller, timeout, event):
             "intentReadProtocol": "mcp-read.v1"}
 
 
-def _native_context_for_event(native_event,*,store,original_text,ui_root):
+def _native_context_for_event(native_event,*,store,original_text,ui_root,request_context=None):
     from skill_intelligence import interpretation_native_context as native_context
     if not Path(native_context.__file__).resolve().is_relative_to(ui_root.resolve()/'skill_intelligence'):
         raise ValueError('NATIVE_ROOM_ACCESS_UNVERIFIED')
     evidence=native_context._admit_native_room_context(native_event,store=store,
-        original_text=original_text,home=Path.home(),core_owner_root=Path(__file__).resolve().parent)
+        original_text=original_text,**({'request_context':request_context} if request_context is not None else {}),
+        home=Path.home(),core_owner_root=Path(__file__).resolve().parent)
     if type(evidence) is not native_context.NativeRoomContextReadEvidence:
         raise ValueError('NATIVE_ROOM_ACCESS_UNVERIFIED')
     return evidence
@@ -1828,7 +1830,8 @@ def main() -> int:
             _NATIVE_PULSE_HANDOFF=native_handoff.NativePulseHandoff(_NATIVE_PULSE_EVENT)
             try:
                 _NATIVE_CONTEXT_READ_EVIDENCE=_native_context_for_event(_NATIVE_PULSE_EVENT,
-                    store=_NATIVE_PULSE_HANDOFF.store,original_text=private['request'],ui_root=args.ui_root)
+                    store=_NATIVE_PULSE_HANDOFF.store,original_text=private['request'],ui_root=args.ui_root,
+                    request_context=event.get('requestContext'))
                 if _NATIVE_FAST_READ_SCOPE_OWNER is None:
                     _NATIVE_FAST_READ_SCOPE_OWNER=_native_read_scope_owner
                 out=run_native_pulse(private['request'],args=args,event=event,policy=policy)

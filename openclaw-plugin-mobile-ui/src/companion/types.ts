@@ -120,6 +120,7 @@ export type IntentSubmitResponse = {
 };
 
 export type CompanionRunStatus = {
+  turnMeasurement?: import("./turnBudget").TurnMeasurement;
   web?: import("./runWeb").RunWebResult;
   /** P1 : tour admis par preuve native, et connexion Gateway finalement utilisée. */
   ownerAdmitted?: boolean;

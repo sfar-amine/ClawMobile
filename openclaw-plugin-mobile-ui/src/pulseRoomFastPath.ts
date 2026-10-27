@@ -2,8 +2,8 @@ import crypto from "node:crypto";
 import {FAILURE_PHRASES,hasFailurePhrase} from "./companion/receiptPresentation";
 import { contactRoomSession } from "./contactRoomProfile";
 import {admitNativePulseContact} from "./nativePulseAdmission";
-import { admittedAtMs, dialogueTurn, dialogueHandoff, isQuestionReply, MAX_SPLIT_REQUESTS, splitRequests, transportEventRef,
-  type DialogueReply } from "./dialogueSurface";
+import { admittedAtMs, dialogueTurn, dialogueHandoff, dialogueChildRequest, isQuestionReply, MAX_SPLIT_REQUESTS, splitRequests, transportEventRef,
+  type DialogueReply, type DialogueRequest, type DialogueRequestContext } from "./dialogueSurface";
 import { runModelFastPath, type FastPathResult, type RunnerOptions } from "./modelFastPath";
 
 /**
@@ -75,7 +75,8 @@ function refusal(verdict: "leave_request" | "outside") {
 }
 
 type BeforeDispatchEvent = { messageId?: string; content?: string; body?: string; channel?: string; sessionKey?: string; isGroup?: boolean; timestamp?: number };
-type BeforeDispatchContext = { messageId?: string; channelId?: string; sessionKey?: string };
+type BeforeDispatchContext = {messageId?:string;channelId?:string;sessionKey?:string;agentId?:string;
+  requester?:{senderIsOwner?:unknown}};
 
 /**
  * S24 12/10: the Gateway fires `inbound_claim` only for plugin-owned conversation bindings, so an ordinary
@@ -87,6 +88,10 @@ export async function handlePulseRoomBeforeDispatch(
   ctx: BeforeDispatchContext,
   runner: Runner = runModelFastPath,
 ): Promise<{ handled: boolean; text?: string }> {
+  // Scope comes from the SDK actor, never a phone number or the message text.
+  // The owner's L3 path cannot invoke the contact's professional AI even if
+  // a stale binding supplied a contact-room session key.
+  if(ctx?.requester?.senderIsOwner===true||ctx?.agentId==='main')return {handled:false};
   const sessionKey = String(ctx?.sessionKey ?? event?.sessionKey ?? "");
   const out = await handlePulseRoomFastPath(
     // content is the sender's text; body may carry the channel envelope (« [WhatsApp …] … : »), used only as a fallback.
@@ -117,19 +122,37 @@ export async function handlePulseRoomFastPath(
   const parts = splitRequests(message);
   if (parts.length === 1) {
     const one = await roomTurn(runner, room, { text: originalMessage, eventRef }, []);
-    if (!one.out.handled || !one.resumeRequests.length) return one.out;
+    if (!one.out.handled || !one.completed || !one.resumeRequests.length || !one.requestContext) return one.out;
     return { handled: true, reply: { text: await runRequests(runner, room,
-      one.resumeRequests.map((text, n) => ({ text, eventRef: subRef(eventRef, `#r${n + 1}`) })), [one.out.reply!.text]) } };
+      one.resumeRequests.map(request => ({...request, requestContext: one.requestContext!})), [one.out.reply!.text]) } };
   }
+  const requestContext={parentEventRef:eventRef,originalText:originalMessage};
   return { handled: true, reply: { text: await runRequests(runner, room,
-    parts.map((text, n) => ({ text, eventRef: subRef(eventRef, `#${n + 1}`) })), []) } };
+    parts.map((text, n) => ({...pulseChildRequest(eventRef,text,n+1),requestContext})), []) } };
 }
 
 type RoomTurn = { agent: string; contactId: string; sessionKey: string; isGroup: boolean; admittedAt?: number };
-type RoomRequest = { text: string; eventRef: string };
+type RoomRequest = {text:string;eventRef:string;parentEventRef?:string;ordinal?:number;requestContext?:DialogueRequestContext};
 type RoomOut = { handled: boolean; reply?: { text: string } };
 const MAX_ROOM_REQUESTS = 20;
-const subRef = (eventRef: string, suffix: string) => eventRef.slice(0, 300 - suffix.length) + suffix;
+export const pulseChildRequest=dialogueChildRequest;
+function preservedRequests(reply:DialogueReply):{requests:DialogueRequest[];context?:DialogueRequestContext} {
+  const context=reply.requestContext;
+  if(!context||Object.keys(context).sort().join(',')!=='originalText,parentEventRef'||
+    typeof context.parentEventRef!=='string'||!context.parentEventRef||context.parentEventRef.length>300||context.parentEventRef.startsWith('untracked:')||
+    typeof context.originalText!=='string'||!context.originalText||context.originalText.length>MAX_MESSAGE_CHARS||
+    !Array.isArray(reply.resumeRequests)||reply.resumeRequests.length>MAX_SPLIT_REQUESTS)return {requests:[]};
+  const parts=splitRequests(context.originalText),seen=new Set<string>();
+  const requests:DialogueRequest[]=[];
+  for(const item of reply.resumeRequests){
+    if(!item||Object.keys(item).sort().join(',')!=='eventRef,ordinal,parentEventRef,text'||
+      !Number.isSafeInteger(item.ordinal)||item.ordinal<1||item.ordinal>parts.length||
+      item.parentEventRef!==context.parentEventRef||item.text!==parts[item.ordinal-1]||
+      item.eventRef!==pulseChildRequest(item.parentEventRef,item.text,item.ordinal).eventRef||seen.has(item.eventRef))return {requests:[]};
+    seen.add(item.eventRef);requests.push(item);
+  }
+  return {requests,context};
+}
 
 /**
  * Several requests of one message, one after the other, each its own admitted event (`<messageId>#n`, replayable).
@@ -138,37 +161,49 @@ const subRef = (eventRef: string, suffix: string) => eventRef.slice(0, 300 - suf
  */
 async function runRequests(runner: Runner, room: RoomTurn, work: RoomRequest[], texts: string[]): Promise<string> {
   let note = "";
-  for (let i = 0; i < work.length && i < MAX_ROOM_REQUESTS; i++) {
-    const item = work[i];
-    const turn = await roomTurn(runner, room, item, work.slice(i + 1, i + 1 + MAX_SPLIT_REQUESTS).map((w) => w.text));
+  let remaining=work;
+  for (let i = 0; remaining.length && i < MAX_ROOM_REQUESTS; i++) {
+    const [item,...siblings]=remaining;
+    const queued=siblings.slice(0,MAX_SPLIT_REQUESTS).filter(w=>w.parentEventRef===item.parentEventRef)
+      .map(({text,eventRef,parentEventRef,ordinal})=>({text,eventRef,parentEventRef:parentEventRef!,ordinal:ordinal!}));
+    const turn = await roomTurn(runner, room, item, queued);
     texts.push(turn.out.handled ? turn.out.reply!.text : PULSE_ROOM_HELP);
-    work.push(...turn.resumeRequests.map((text, n) => ({ text, eventRef: subRef(item.eventRef, `#r${n + 1}`) })));
     if (turn.question) {
       if (turn.queuedCount > 0) note = turn.queuedCount === 1 ? "J’ai gardé l’autre demande de ton message : je la traite dès ta réponse."
         : `J’ai gardé les ${turn.queuedCount} autres demandes de ton message : je les traite dès ta réponse.`;
-      else if (i + 1 < work.length) note = "Les autres demandes de ton message n’ont pas été traitées : renvoie-les après ta réponse.";
+      else if (siblings.length) note = "Les autres demandes de ton message n’ont pas été traitées : renvoie-les après ta réponse.";
       break;
     }
+    if(!turn.completed){
+      if(siblings.length)note="Les autres demandes restent en attente : le résultat de cette action doit d’abord être vérifié.";
+      break;
+    }
+    // Only the coordinator's durable projection supplies the next work.
+    // An old/invalid reply never silently promotes our local siblings.
+    remaining=turn.requestContext?turn.resumeRequests.map(request=>({...request,requestContext:turn.requestContext})):[];
+    if(siblings.length&&!remaining.length)note="Les autres demandes restent en attente auprès du coordinateur ; leur reprise n’est pas encore confirmée.";
   }
   const body = texts.length === 1 ? texts[0] : texts.map((text, n) => `${n + 1}) ${text}`).join("\n\n");
   return note ? `${body}\n\n${note}` : body;
 }
 
-async function roomTurn(runner: Runner, room: RoomTurn, request: RoomRequest, queuedRequests: string[]):
-    Promise<{ out: RoomOut; question: boolean; queuedCount: number; resumeRequests: string[] }> {
+async function roomTurn(runner: Runner, room: RoomTurn, request: RoomRequest, queuedRequests: DialogueRequest[]):
+    Promise<{out:RoomOut;question:boolean;completed:boolean;queuedCount:number;resumeRequests:DialogueRequest[];requestContext?:DialogueRequestContext}> {
   const { agent, contactId, sessionKey } = room;
   const message = request.text.trim();
   let nativePulse;
   if(PULSE_ROOM_AGENTS.has(agent)&&process.env.SAMANTHA_NATIVE_PULSE_HANDOFF==='1'){
-    try{nativePulse=await admitNativePulseContact({sessionKey,eventRef:request.eventRef,text:request.text,isGroup:room.isGroup});}
+    try{nativePulse=await admitNativePulseContact({sessionKey,eventRef:request.eventRef,text:request.text,isGroup:room.isGroup,
+      ...(request.requestContext?{requestContext:request.requestContext}:{})});}
     catch{return {out:{handled:true,reply:{text:'L’accès à la pièce Pulse n’est pas confirmé. Rien n’a été exécuté.'}},
-      question:false,queuedCount:0,resumeRequests:[]};}
+      question:false,completed:false,queuedCount:0,resumeRequests:[]};}
   }
   const input={
     surface: "pulse_room" as const, graphSurface: "whatsapp",
     conversationKey: `pulse-room:${agent}:${contactId}:${sessionKey}`,
     eventRef: request.eventRef, text: nativePulse?request.text:message, caller: "owner" as const,
     ...(queuedRequests.length?{queuedRequests}:{}),
+    ...(request.requestContext?{requestContext:request.requestContext}:{}),
     ...(nativePulse?{nativePulse}:{}),
     admittedAt: room.admittedAt,
     policy: { scope: "pulse_room", modelAllowed: nativePulse?false:pulseRoomMayUseModel(agent, message),
@@ -178,10 +213,12 @@ async function roomTurn(runner: Runner, room: RoomTurn, request: RoomRequest, qu
   const turn=await dialogueTurn(runner,input);
   let reply=turn;
   if(nativePulse&&reply.pendingHandoff)reply=await dialogueHandoff(runner,input,reply.pendingHandoff.goalRef);
-  const resume=[turn.resumeRequests,reply.resumeRequests].find((value)=>Array.isArray(value)&&value.length)??[];
+  const completed=reply.outcome==='COMPLETED'&&reply.replayed!==true&&!reply.pendingHandoff;
+  const resume=completed?preservedRequests(reply):{requests:[]};
   return { out: roomReply(reply, !!nativePulse), question: isQuestionReply(turn),
+    completed,
     queuedCount: typeof turn.queuedCount === "number" ? turn.queuedCount : 0,
-    resumeRequests: resume.filter((text): text is string => typeof text === "string" && !!text.trim()) };
+    resumeRequests:resume.requests,...('context' in resume&&resume.context?{requestContext:resume.context}:{}) };
 }
 
 function roomReply(reply: DialogueReply, nativePulse: boolean): RoomOut {

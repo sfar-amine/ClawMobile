@@ -36,8 +36,22 @@ export type DialogueReply = {
   /** A question keeps the requests behind it waiting in the coordinator's conversation state. */
   queuedCount?: number;
   /** Waiting requests handed back once their question no longer is open; the host runs them next. */
-  resumeRequests?: string[];
+  resumeRequests?: DialogueRequest[];
+  requestContext?: DialogueRequestContext;
+  requestQueue?: unknown;
 };
+
+export type DialogueRequest = {text: string; eventRef: string; parentEventRef: string; ordinal: number};
+export type DialogueRequestContext = {parentEventRef: string; originalText: string};
+export function dialogueChildRequest(parentEventRef:string,text:string,ordinal:number):DialogueRequest {
+  return {text,parentEventRef,ordinal,eventRef:'pulse-sub:'+crypto.createHash('sha256')
+    .update(JSON.stringify([parentEventRef,ordinal,text])).digest('hex')};
+}
+/** Same quoted view as the canonical coordinator; all bytes remain source-attested user data. */
+export function dialogueRequestText(text:string,context?:Readonly<DialogueRequestContext>){
+  return context?'Message original (contexte et contraintes à conserver) :\n'+context.originalText+
+    '\n\nDemande actuellement traitée :\n'+text:text;
+}
 
 export type DialogueRunner = (message: string, options?: RunnerOptions) => Promise<FastPathResult>;
 
@@ -51,7 +65,8 @@ export type DialogueInput = {
   eventRef: string;
   text: string;
   /** Requests of the same message not run yet; kept by the coordinator only if this one asks a question. */
-  queuedRequests?: string[];
+  queuedRequests?: DialogueRequest[];
+  requestContext?: DialogueRequestContext;
   caller?: "owner" | "trusted" | "other";
   admittedAt?: number;
   policy?: Record<string, unknown>;
@@ -121,7 +136,8 @@ function runnerOptions(input: DialogueInput, mode: DialogueMode): RunnerOptions 
 function eventOf(input: DialogueInput) {
   return { surface: input.surface, conversationKey: input.conversationKey, eventRef: input.eventRef,
     caller: input.caller || "owner", ...(input.admittedAt ? { admittedAt: input.admittedAt } : {}),
-    ...(input.queuedRequests?.length ? { queuedRequests: input.queuedRequests } : {}) };
+    ...(input.queuedRequests?.length ? { queuedRequests: input.queuedRequests } : {}),
+    ...(input.requestContext ? {requestContext: input.requestContext} : {}) };
 }
 
 export const MAX_SPLIT_REQUESTS = 10;

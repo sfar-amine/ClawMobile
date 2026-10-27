@@ -36,6 +36,21 @@ function arm(taskId,requestId,params){
  for(const changes of [{state:'suspended'},{expiresAt:'2000-01-01T00:00:00Z'},{rooms:['conversation']},{owner:true},{e164:'+21610000001'}]){
   const saved=authority;authority={...authority,...changes};await assert.rejects(admission.packet(event,text),/contact_revoked/);n++;authority=saved;
  }
+ const {dialogueChildRequest}=require('../dist/dialogueSurface');
+ const requestContext={parentEventRef:'parent-native-'+('x'.repeat(260)),originalText:'1. Lis le projet sans modification\n2. Explique ses phases'};
+ const child=dialogueChildRequest(requestContext.parentEventRef,'Lis le projet sans modification',1);
+ const contextual=await admitNativePulseContact({sessionKey,eventRef:child.eventRef,text:child.text,isGroup:false,requestContext},read);
+ const contextualEvent={surface:'pulse_room',conversationKey:contextual.conversationKey,eventRef:child.eventRef,requestContext};
+ await contextual.packet(contextualEvent,child.text);n++;
+ await assert.rejects(contextual.packet({...contextualEvent,requestContext:{...requestContext,originalText:'forged'}},child.text),/event_mismatch/);n++;
+ await assert.rejects(contextual.packet({...contextualEvent,requestContext:undefined},child.text),/event_mismatch/);n++;
+ await assert.rejects(admitNativePulseContact({sessionKey,eventRef:child.eventRef,text:child.text,isGroup:false,
+  requestContext:{...requestContext,parentEventRef:'different-parent'}},read),/event_mismatch/);n++;
+ check(Object.isFrozen(contextual.requestContext),'global context is bound immutably to the same admitted professional event');
+ const untrackedParent='untracked:authored-fallback',untrackedChild=dialogueChildRequest(untrackedParent,child.text,1);
+ await assert.rejects(admitNativePulseContact({sessionKey,eventRef:untrackedChild.eventRef,text:child.text,isGroup:false,
+  requestContext:{...requestContext,parentEventRef:untrackedParent}},read),/event_mismatch/);n++;
+
  const comboSession=sessionKey.replace('contacts-pulse','contacts-projet-pulse');
  const combo=await admitNativePulseContact({sessionKey:comboSession,eventRef,text,isGroup:false},read);
  check(combo.conversationKey.includes(':contacts-projet-pulse:'),'exact combined profile admitted to private transport; Python independently requires its ACL');

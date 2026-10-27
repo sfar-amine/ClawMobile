@@ -49,7 +49,20 @@
       "tx_clipboard_get",
       "tx_clipboard_set",
       "tx_battery_status",
-      "android_shell"
+      "android_shell",
+      "samantha_agenda",
+      "samantha_laptop_s24_termux",
+      "samantha_maxit_tunisie",
+      "samantha_pulse",
+      "samantha_sonede",
+      "samantha_steg",
+      "samantha_topnet",
+      "samantha_tunisie_telecom",
+      "samantha_utility_billing",
+      "samantha_whatsapp",
+      "samantha_zain_bahrain",
+      "samantha_app",
+      "samantha_catalogue"
     ]
   },
   "configSchema": {
@@ -75,6 +88,138 @@
           "protocolModel": {
             "type": "string",
             "maxLength": 160
+          }
+        }
+      },
+      "whatsappModelFlow": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "model",
+          "thinkingDefault",
+          "fastModeDefault"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "const": 1
+          },
+          "model": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "primary",
+              "fallbacks"
+            ],
+            "properties": {
+              "primary": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9._:/+@-]{1,200}$"
+              },
+              "fallbacks": {
+                "type": "array",
+                "maxItems": 20,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[A-Za-z0-9._:/+@-]{1,200}$"
+                }
+              }
+            }
+          },
+          "thinkingDefault": {
+            "type": "string",
+            "enum": [
+              "off",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "adaptive",
+              "max",
+              "ultra"
+            ]
+          },
+          "fastModeDefault": {
+            "type": "boolean"
+          }
+        }
+      },
+      "modelFlowSelection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "flows"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "const": 1
+          },
+          "flows": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "brain": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "version",
+                  "fieldsHash"
+                ],
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "const": 1
+                  },
+                  "fieldsHash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                }
+              },
+              "conversation_summary": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "version",
+                  "fieldsHash"
+                ],
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "const": 1
+                  },
+                  "fieldsHash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                }
+              },
+              "whatsapp": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "version",
+                  "fieldsHash"
+                ],
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "const": 1
+                  },
+                  "fieldsHash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                }
+              }
+            }
           }
         }
       }

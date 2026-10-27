@@ -74,6 +74,8 @@ if [ "$mode" = check ]; then
   dispatch_contract || drift+=(openclaw:before_dispatch_missing)
   python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --check >/dev/null 2>&1 || drift+=(openclaw:whatsapp_network_recovery)
   python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set agent-exec-auth-scope --check >/dev/null 2>&1 || drift+=(openclaw:agent_exec_auth_scope)
+  python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set model-flow-selection --check >/dev/null 2>&1 || drift+=(openclaw:model_flow_selection)
+  python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set native-turn-provenance --check >/dev/null 2>&1 || drift+=(openclaw:native_turn_provenance)
   list=$(printf '"%s",' "${drift[@]}"); list="[${list%,}]"; [ "${#drift[@]}" -eq 0 ] && list='[]'
   printf '{"ok":%s,"commit":"%s","drift":%s}\n' "$([ "${#drift[@]}" -eq 0 ] && echo true || echo false)" "$commit" "$list"
   [ "${#drift[@]}" -eq 0 ]; exit $?
@@ -82,6 +84,9 @@ fi
 dispatch_contract || fail openclaw_before_dispatch_missing
 wa_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --apply) || fail whatsapp_network_recovery_refused
 auth_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set agent-exec-auth-scope --apply) || fail agent_exec_auth_scope_refused
+native_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set native-turn-provenance --apply) || fail native_turn_provenance_refused
+
+model_flow_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set model-flow-selection --apply) || fail model_flow_selection_refused
 
 # 1. Gateway plugin. Forced: after a rollback the restored dist is older than the install stamp.
 if ! same_plugin; then
@@ -93,7 +98,7 @@ fi
 # 2. The Gateway loads its plugin at start only: restart it gracefully when the plugin changed, then wait for it.
 # Before the Tier0 promotion: a restart inside the soak window reads as a health regression (S24 12/10, 17:31 —
 # release 5631a6aa rolled back to the 11/10 release after one bad sample).
-if [ "$plugin" = synced ] || [[ "$wa_patch" == *'"applied"'* ]]; then
+if [ "$plugin" = synced ] || [[ "$wa_patch" == *'"applied"'* ]] || [[ "$auth_patch" == *'"applied"'* ]] || [[ "$native_patch" == *'"applied"'* ]] || [[ "$model_flow_patch" == *'"applied"'* ]]; then
   if [ -n "${SAMANTHA_DEPLOY_LOCK_FD:-}" ]; then
     # Companion cannot inherit our flock over HTTP. Run its SAME stop/start
     # owner in this process tree, with the verified inherited EX description.
@@ -124,7 +129,9 @@ fi
 # Prepare the official read-only tool catalogue once after a real restart and native readiness. The Gateway/SDK
 # retains its own registry/module caches; no model turn, tool.execute, schema injection or parallel cache/poller.
 # A performance preparation failure is explicit but never starts a new recovery/rollback cycle or retries a request.
-if [ "$gateway" = restarted ]; then
+# The inherited-EX CLI restart owner prepares before returning; retain this
+# fallback only for the existing HTTP restart path, so each restart warms once.
+if [ "$gateway" = restarted ] && [ -z "${SAMANTHA_DEPLOY_LOCK_FD:-}" ]; then
   timeout --kill-after=1 25 node "$PLUGIN/dist/companion/openclawGatewayClient.js" --prepare-main-tools >&2 ||
     echo '{"component":"runtime-preparation","state":"unverified","reason":"tools_catalog_unavailable"}' >&2
 fi

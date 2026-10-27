@@ -12,7 +12,14 @@ const ev = (content, over = {}) => ({ content, senderIsOwner: false, isGroup: fa
 
 function runner(script) {
   const calls = [];
-  const fn = async (message, options = {}) => { calls.push({ message, ...options }); return script(message, options, calls.length); };
+  const fn = async (message, options = {}) => {
+    calls.push({message,...options});
+    const result=script(message,options,calls.length);
+    // Authored coordinator contract only; the paired suite covers its real CAS owner.
+    if(result.outcome==='COMPLETED'&&!result.resumeRequests&&options.dialogue?.event?.requestContext)
+      return {...result,resumeRequests:options.dialogue.event.queuedRequests||[],requestContext:options.dialogue.event.requestContext};
+    return result;
+  };
   fn.calls = calls;
   return fn;
 }
@@ -132,12 +139,12 @@ async function main() {
   assert.deepEqual(await mod.handlePulseRoomFastPath(ev(sadok), ctx({ runId: "AC0815" }), r), { handled: true, reply: { text:
     "1) ZAIN BAHRAIN - PHASE 5 : Réalisation débutée.\n\n2) Phase Réalisation du projet 20495 : Non débuté." } });
   assert.deepEqual(r.calls.map((c) => [c.message, c.dialogue.event.eventRef, c.dialogue.event.queuedRequests]), [
-    ["État su projet zain phase 5", "AC0815#1", ["Passe la phase réalisation du projet 20495 a non débuté"]],
-    ["Passe la phase réalisation du projet 20495 a non débuté", "AC0815#2", undefined]]);
+    ["État su projet zain phase 5", mod.pulseChildRequest("AC0815",split(sadok)[0],1).eventRef, [mod.pulseChildRequest("AC0815",split(sadok)[1],2)]],
+    ["Passe la phase réalisation du projet 20495 a non débuté", mod.pulseChildRequest("AC0815",split(sadok)[1],2).eventRef, undefined]]);
   assert.equal(r.calls[0].dialogue.event.conversationKey, r.calls[1].dialogue.event.conversationKey);
   // A question stops the run; the coordinator keeps the next request and hands it back with the answer turn.
   r = runner((m, o, n) => n === 1 ? { outcome: "NEEDS_CHOICE", text: "Quel projet Zain ?", handled: true, queuedCount: 1, question: { version: 1, kind: "choice" } }
-    : n === 2 ? { outcome: "COMPLETED", text: "ZAIN BAHRAIN - PHASE 5 : en cours.", handled: true, resumeRequests: ["Passe la phase réalisation du projet 20495 a non débuté"] }
+    : n === 2 ? { outcome: "COMPLETED", text: "ZAIN BAHRAIN - PHASE 5 : en cours.", handled: true, resumeRequests: [mod.pulseChildRequest("AC0816",split(sadok)[1],2)], requestContext:{parentEventRef:"AC0816",originalText:sadok} }
     : { outcome: "COMPLETED", text: "Phase Réalisation du projet 20495 : Non débuté.", handled: true });
   assert.deepEqual(await mod.handlePulseRoomFastPath(ev(sadok), ctx({ runId: "AC0816" }), r), { handled: true, reply: { text:
     "Quel projet Zain ?\n\nJ’ai gardé l’autre demande de ton message : je la traite dès ta réponse." } });
@@ -145,11 +152,43 @@ async function main() {
   assert.deepEqual(await mod.handlePulseRoomFastPath(ev("Zain Bahrain"), ctx({ runId: "AC0817" }), r), { handled: true, reply: { text:
     "1) ZAIN BAHRAIN - PHASE 5 : en cours.\n\n2) Phase Réalisation du projet 20495 : Non débuté." } });
   assert.deepEqual(r.calls.slice(1).map((c) => [c.message, c.dialogue.event.eventRef]), [
-    ["Zain Bahrain", "AC0817"], ["Passe la phase réalisation du projet 20495 a non débuté", "AC0817#r1"]]);
+    ["Zain Bahrain", "AC0817"], ["Passe la phase réalisation du projet 20495 a non débuté", mod.pulseChildRequest("AC0816",split(sadok)[1],2).eventRef]]);
   // An older coordinator that keeps nothing: the contact is told the rest was not run.
   r = runner(() => ({ outcome: "NEEDS_INPUT", text: "Quel projet ?", handled: true, question: { version: 1, kind: "input" } }));
   assert.match((await mod.handlePulseRoomFastPath(ev(sadok), ctx({ runId: "AC0818" }), r)).reply.text, /n’ont pas été traitées/);
   assert.equal(r.calls.length, 1);
+
+  // A terminal uncertainty never advances to a sibling, even if a stale queue projection is present.
+  for(const outcome of ['FAILED','TECHNICAL_FAILURE','WAITING_OPERATION','READY']){
+    r=runner(()=>({outcome,text:'à vérifier',handled:true,resumeRequests:[mod.pulseChildRequest('uncertain',split(sadok)[1],2)],requestContext:{parentEventRef:'uncertain',originalText:sadok}}));
+    await mod.handlePulseRoomFastPath(ev(sadok),ctx({runId:'uncertain'}),r);
+    assert.equal(r.calls.length,1,outcome);
+  }
+  const parent='N'.repeat(300),first=mod.pulseChildRequest(parent,split(sadok)[0],1),second=mod.pulseChildRequest(parent,split(sadok)[1],2);
+  assert.equal(first.eventRef.length,74);assert.notEqual(first.eventRef,second.eventRef);
+  assert.deepEqual(first,mod.pulseChildRequest(parent,split(sadok)[0],1));
+  r=runner((m,o)=>({outcome:'COMPLETED',text:'lu',handled:true}));
+  await mod.handlePulseRoomFastPath(ev(sadok),ctx({runId:parent}),r);
+  assert.equal(r.calls[0].dialogue.event.requestContext.originalText,sadok);
+  assert.equal(r.calls[1].dialogue.event.requestContext.originalText,sadok);
+  assert.equal(r.calls[0].originId,first.eventRef);
+  // After crash/replay, only a fresh coordinator projection may resume; the parent response is not redispatched.
+  r=runner(()=>({outcome:'COMPLETED',text:'déjà fait',handled:true,replayed:true,resumeRequests:[second],requestContext:{parentEventRef:parent,originalText:sadok}}));
+  await mod.handlePulseRoomFastPath(ev(sadok),ctx({runId:parent}),r);assert.equal(r.calls.length,1);
+  // The specification's single-brain switch is OWNER-only. Contacts keep their already-admitted professional AI.
+  const before=process.env.SAMANTHA_BRAIN_ONLY;process.env.SAMANTHA_BRAIN_ONLY='1';
+  try{
+    r=runner(()=>({outcome:'COMPLETED',text:'réponse professionnelle attestée',handled:true}));
+    const direct={messageId:'native-owner-excluded',content:sadok,channel:'whatsapp',sessionKey:KEY};
+    for(const host of [{requester:{senderIsOwner:true}},{agentId:'main'}]){
+      assert.deepEqual(await mod.handlePulseRoomBeforeDispatch(direct,{sessionKey:KEY,...host},r),{handled:false});
+      assert.equal(r.calls.length,0,'owner SDK actor never invokes the professional interpreter');
+    }
+    const original=ev('état du projet 20495');
+    assert.equal((await mod.handlePulseRoomFastPath(original,ctx(),r)).handled,true);
+    assert.equal(r.calls.length,1,'owner flag does not bypass the contact professional service');
+    assert.equal(original.content,'état du projet 20495');assert.equal(r.calls[0].dialogue.policy.modelAllowed,false);
+  }finally{if(before===undefined)delete process.env.SAMANTHA_BRAIN_ONLY;else process.env.SAMANTHA_BRAIN_ONLY=before;}
 
   // C16 native codes retain their owner cause in the actual room renderer.
   // The authority port is MOCK_ONLY; no provider or business call is made.
@@ -176,7 +215,7 @@ async function main() {
   const native=await mod.handlePulseRoomFastPath(ev(sadok),ctx({runId:'AC0819'}),r);
   assert.equal(native.reply.text,'1) fait : État su projet zain phase 5\n\n2) fait : Passe la phase réalisation du projet 20495 a non débuté');
   for(const c of r.calls){assert.equal(c.nativePulse.eventRef,c.dialogue.event.eventRef);assert.equal(c.nativePulse.originalText,c.message);}
-  assert.deepEqual(r.calls.map(c=>[c.dialogue.mode,c.dialogue.event.eventRef]),[['turn','AC0819#1'],['handoff','AC0819#1'],['turn','AC0819#2'],['handoff','AC0819#2']]);
+  assert.deepEqual(r.calls.map(c=>[c.dialogue.mode,c.dialogue.event.eventRef]),[['turn',mod.pulseChildRequest('AC0819',split(sadok)[0],1).eventRef],['handoff',mod.pulseChildRequest('AC0819',split(sadok)[0],1).eventRef],['turn',mod.pulseChildRequest('AC0819',split(sadok)[1],2).eventRef],['handoff',mod.pulseChildRequest('AC0819',split(sadok)[1],2).eventRef]]);
   assert.notEqual(r.calls[0].nativePulse,r.calls[2].nativePulse);
   delete process.env.SAMANTHA_NATIVE_PULSE_HANDOFF;
 

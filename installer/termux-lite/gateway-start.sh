@@ -52,5 +52,32 @@ if [ -f "$AUTH_PATCH_DIR/agent-exec-auth-scope.json" ]; then
     echo "[lite] WARNING: native auth scope patch unsupported; runtime drift requires review." >&2
 fi
 
+# The model profile consumer follows the same checkout/release owner. Never
+# silently start a brain-only runtime with an unsupported settings consumer.
+MODEL_PATCH_DIR="${CLAW_CORE_REPO:-$HOME/ClawMobile}/installer/termux-lite/openclaw-compat"
+MODEL_PATCH_MODE=--apply
+if [ ! -f "$MODEL_PATCH_DIR/model-flow-selection.json" ]; then
+  MODEL_PATCH_DIR="$SCRIPT_DIR/openclaw-compat"
+  MODEL_PATCH_MODE=--rollback
+fi
+if [ -f "$MODEL_PATCH_DIR/model-flow-selection.json" ]; then
+  python3 "$MODEL_PATCH_DIR/whatsapp-network-recovery.py" --patch-set model-flow-selection "$MODEL_PATCH_MODE" >&2 || {
+    echo "[lite] ERROR: model profile consumer unsupported; start refused." >&2
+    exit 1
+  }
+fi
+
+# Native ingress provenance follows checkout ownership independently of other patch sets.
+NATIVE_PATCH_DIR="${CLAW_CORE_REPO:-$HOME/ClawMobile}/installer/termux-lite/openclaw-compat"
+NATIVE_PATCH_MODE=--apply
+if [ ! -f "$NATIVE_PATCH_DIR/native-turn-provenance.json" ]; then
+  NATIVE_PATCH_DIR="$SCRIPT_DIR/openclaw-compat"
+  NATIVE_PATCH_MODE=--rollback
+fi
+if [ -f "$NATIVE_PATCH_DIR/native-turn-provenance.json" ]; then
+  python3 "$NATIVE_PATCH_DIR/whatsapp-network-recovery.py" --patch-set native-turn-provenance "$NATIVE_PATCH_MODE" >&2 ||
+    echo "[lite] WARNING: native turn provenance patch unsupported; runtime drift requires review." >&2
+fi
+
 echo "[lite] Starting OpenClaw Gateway through fast recovery path..."
 exec openclaw gateway --bind "$GATEWAY_BIND" --port "$GATEWAY_PORT" --verbose

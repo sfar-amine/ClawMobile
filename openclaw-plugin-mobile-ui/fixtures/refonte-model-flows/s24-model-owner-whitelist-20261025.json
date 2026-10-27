@@ -1,0 +1,340 @@
+{
+  "provenance": {
+    "runtimeCapture": true,
+    "source": "existing readModelOwnerFresh Gateway owner; publicModelRef/accountAlias canonical; strict whitelist only"
+  },
+  "revisionPresent": true,
+  "agents": {
+    "engineering-lite": {
+      "model": {
+        "primary": "openai/gpt-5.6-sol",
+        "fallbacks": [
+          "openai/gpt-5.6-terra",
+          "openai/gpt-5.6-luna",
+          "github-copilot/gpt-4.1"
+        ]
+      },
+      "thinkingDefault": "low",
+      "fastModeDefault": true,
+      "modelPolicy": {
+        "allow": [
+          "openai/gpt-5.6-sol",
+          "openai/gpt-5.6-terra",
+          "openai/gpt-5.6-luna",
+          "github-copilot/gpt-4.1"
+        ]
+      }
+    },
+    "gemini": {
+      "model": {
+        "primary": "google/gemini-3.5-flash-lite@acct-bd186a666d02",
+        "fallbacks": []
+      },
+      "thinkingDefault": "low",
+      "fastModeDefault": true,
+      "modelPolicy": {
+        "allow": [
+          "google/gemini-3.5-flash-lite"
+        ]
+      }
+    },
+    "main": {
+      "model": {
+        "primary": "openai/gpt-5.6-sol@acct-22477f3dabfb",
+        "fallbacks": [
+          "openai/gpt-5.6-terra",
+          "openai/gpt-5.6-luna",
+          "google/gemini-3.5-flash-lite@acct-bd186a666d02",
+          "github-copilot/gpt-4.1"
+        ]
+      },
+      "thinkingDefault": "low",
+      "fastModeDefault": true,
+      "modelPolicy": {
+        "allow": [
+          "openai/gpt-5.6-sol",
+          "openai/gpt-5.6-terra",
+          "openai/gpt-5.6-luna",
+          "google/gemini-3.5-flash-lite",
+          "github-copilot/*"
+        ]
+      }
+    },
+    "contacts": {
+      "model": {
+        "primary": "openai/gpt-5.6-sol@acct-22477f3dabfb",
+        "fallbacks": [
+          "openai/gpt-5.6-terra",
+          "openai/gpt-5.6-luna",
+          "google/gemini-3.5-flash-lite@acct-bd186a666d02",
+          "github-copilot/gpt-4.1"
+        ]
+      },
+      "thinkingDefault": "low",
+      "fastModeDefault": true,
+      "modelPolicy": {
+        "allow": [
+          "openai/gpt-5.6-sol",
+          "openai/gpt-5.6-terra",
+          "openai/gpt-5.6-luna",
+          "google/gemini-3.5-flash-lite",
+          "github-copilot/*"
+        ]
+      }
+    },
+    "contacts-projet": {
+      "model": {
+        "primary": "openai/gpt-5.6-sol@acct-22477f3dabfb",
+        "fallbacks": [
+          "openai/gpt-5.6-terra",
+          "openai/gpt-5.6-luna",
+          "google/gemini-3.5-flash-lite@acct-bd186a666d02",
+          "github-copilot/gpt-4.1"
+        ]
+      },
+      "thinkingDefault": "low",
+      "fastModeDefault": true,
+      "modelPolicy": {
+        "allow": [
+          "openai/gpt-5.6-sol",
+          "openai/gpt-5.6-terra",
+          "openai/gpt-5.6-luna",
+          "google/gemini-3.5-flash-lite",
+          "github-copilot/*"
+        ]
+      }
+    },
+    "contacts-pulse": {
+      "model": {
+        "primary": "openai/gpt-5.6-sol@acct-22477f3dabfb",
+        "fallbacks": [
+          "openai/gpt-5.6-terra",
+          "openai/gpt-5.6-luna",
+          "google/gemini-3.5-flash-lite@acct-bd186a666d02",
+          "github-copilot/gpt-4.1"
+        ]
+      },
+      "thinkingDefault": "low",
+      "fastModeDefault": true,
+      "modelPolicy": {
+        "allow": [
+          "openai/gpt-5.6-sol",
+          "openai/gpt-5.6-terra",
+          "openai/gpt-5.6-luna",
+          "google/gemini-3.5-flash-lite",
+          "github-copilot/*"
+        ]
+      }
+    },
+    "contacts-projet-pulse": {
+      "model": {
+        "primary": "openai/gpt-5.6-sol@acct-22477f3dabfb",
+        "fallbacks": [
+          "openai/gpt-5.6-terra",
+          "openai/gpt-5.6-luna",
+          "google/gemini-3.5-flash-lite@acct-bd186a666d02",
+          "github-copilot/gpt-4.1"
+        ]
+      },
+      "thinkingDefault": "low",
+      "fastModeDefault": true,
+      "modelPolicy": {
+        "allow": [
+          "openai/gpt-5.6-sol",
+          "openai/gpt-5.6-terra",
+          "openai/gpt-5.6-luna",
+          "google/gemini-3.5-flash-lite",
+          "github-copilot/*"
+        ]
+      }
+    }
+  },
+  "defaults": {
+    "model": {
+      "primary": "openai/gpt-5.6-sol",
+      "fallbacks": [
+        "openai/gpt-5.6-terra",
+        "openai/gpt-5.6-luna",
+        "github-copilot/gpt-4.1"
+      ]
+    },
+    "thinkingDefault": "low",
+    "fastModeDefault": true,
+    "modelPolicy": {
+      "allow": [
+        "openai/gpt-5.6-sol",
+        "openai/gpt-5.6-terra",
+        "openai/gpt-5.6-luna",
+        "github-copilot/gpt-4.1"
+      ]
+    }
+  },
+  "compaction": {
+    "model": "openai/gpt-5.6-luna"
+  },
+  "whatsappFlowPresent": false,
+  "models": [
+    {
+      "id": "gpt-4.1",
+      "provider": "github-copilot",
+      "available": true,
+      "reasoning": false,
+      "thinkingLevels": [
+        {
+          "id": "off"
+        }
+      ]
+    },
+    {
+      "id": "gemini-3.5-flash-lite",
+      "provider": "google",
+      "available": true,
+      "reasoning": true,
+      "thinkingLevels": [
+        {
+          "id": "off"
+        },
+        {
+          "id": "minimal"
+        },
+        {
+          "id": "low"
+        },
+        {
+          "id": "medium"
+        },
+        {
+          "id": "adaptive"
+        },
+        {
+          "id": "high"
+        }
+      ]
+    },
+    {
+      "id": "gpt-5.6-sol",
+      "provider": "openai",
+      "available": true,
+      "reasoning": true,
+      "thinkingLevels": [
+        {
+          "id": "minimal"
+        },
+        {
+          "id": "low"
+        },
+        {
+          "id": "medium"
+        },
+        {
+          "id": "high"
+        },
+        {
+          "id": "xhigh"
+        },
+        {
+          "id": "max"
+        },
+        {
+          "id": "ultra"
+        }
+      ]
+    },
+    {
+      "id": "gpt-5.6-terra",
+      "provider": "openai",
+      "available": true,
+      "reasoning": true,
+      "thinkingLevels": [
+        {
+          "id": "minimal"
+        },
+        {
+          "id": "low"
+        },
+        {
+          "id": "medium"
+        },
+        {
+          "id": "high"
+        },
+        {
+          "id": "xhigh"
+        },
+        {
+          "id": "max"
+        },
+        {
+          "id": "ultra"
+        }
+      ]
+    },
+    {
+      "id": "gpt-5.6-luna",
+      "provider": "openai",
+      "available": true,
+      "reasoning": true,
+      "thinkingLevels": [
+        {
+          "id": "minimal"
+        },
+        {
+          "id": "low"
+        },
+        {
+          "id": "medium"
+        },
+        {
+          "id": "high"
+        },
+        {
+          "id": "xhigh"
+        },
+        {
+          "id": "max"
+        },
+        {
+          "id": "ultra"
+        }
+      ]
+    }
+  ],
+  "auth": [
+    {
+      "provider": "github-copilot",
+      "status": "static",
+      "profiles": [
+        {
+          "account": "acct-edcf442a2103",
+          "type": "token",
+          "status": "static",
+          "source": "inherited"
+        }
+      ]
+    },
+    {
+      "provider": "google",
+      "status": "static",
+      "profiles": [
+        {
+          "account": "acct-bd186a666d02",
+          "type": "api_key",
+          "status": "static",
+          "source": "inherited"
+        }
+      ]
+    },
+    {
+      "provider": "openai",
+      "status": "ok",
+      "profiles": [
+        {
+          "account": "acct-22477f3dabfb",
+          "type": "oauth",
+          "status": "ok",
+          "source": "inherited"
+        }
+      ]
+    }
+  ]
+}

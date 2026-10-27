@@ -6,6 +6,8 @@
 // provider/runtime failure, rejected or unparsable output. An authorization or policy
 // refusal is never a technical failure and never reaches Luna (decision 3173).
 
+import {brainOnlyEnabled} from "./brainOnly";
+import {requireNativePulseInterpretation} from './capabilityAgentGuard';
 export const INTERPRETER_PRIMARY = "google/gemini-3.5-flash-lite@google:claw-gemini-free";
 export const INTERPRETER_FALLBACK = "openai/gpt-5.6-luna";
 export const INTERPRETER_MODELS = Object.freeze([INTERPRETER_PRIMARY, INTERPRETER_FALLBACK]);
@@ -15,6 +17,7 @@ export const INTERPRET_METHOD = "samantha.intent.interpret";
 // Gemini is last so an exhausted OpenAI subscription quota (recurring, decision 25/10) never
 // leaves the immune admission without a decider.
 export const IMMUNE_PURPOSE = "samantha.engineering.immune";
+export const NATIVE_PULSE_PURPOSE = "samantha.native-pulse.interpret";
 export const IMMUNE_MODELS = Object.freeze(["openai/gpt-5.6-sol", INTERPRETER_FALLBACK, INTERPRETER_PRIMARY]);
 
 // Codes thrown by OpenClaw's api.runtime.llm.complete (2026.9.6).
@@ -184,6 +187,17 @@ export function createInterpretHandler(getComplete: () => LlmComplete | undefine
   return async ({ params, respond, signal }: any) => {
     const req = validateRequest(params);
     if (!req) return respond(false, undefined, { code: "INVALID_REQUEST", message: "invalid interpretation request" });
+    // The shared engineering completion owner survives the C1 interpreter's
+    // retirement. No owner request may invoke its old semantic purpose.
+    if(params?.purpose===NATIVE_PULSE_PURPOSE){
+      // Native professional DATA01 currently admits this one included profile.
+      // The existing governor owns any future extension; a purpose cannot mint a model fallback.
+      if(params?.model!==INTERPRETER_PRIMARY)return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse model not admitted'});
+      try{await requireNativePulseInterpretation(params);}
+      catch{return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse admission required'});}
+    }
+    if (brainOnlyEnabled() && params?.purpose !== IMMUNE_PURPOSE && params?.purpose !== NATIVE_PULSE_PURPOSE)
+      return respond(false, undefined, {code: "INVALID_REQUEST", message: "dedicated intent interpreter retired"});
     const complete = getComplete();
     if (!complete) return respond(false, undefined, { code: "UNAVAILABLE", message: "llm runtime unavailable" });
     const result = await interpret(complete, req, { signal });
