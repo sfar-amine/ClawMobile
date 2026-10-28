@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "id": "plugin-conversation-hooks-20261028",
+  "date": "2026-10-28",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The installer grants the Samantha plugin OpenClaw's conversation-hook access (plugins.entries.openclaw-plugin-mobile-ui.hooks.allowConversationAccess=true) on every install, update and enable, so its agent_end, before_prompt_build, before_model_resolve and before_agent_run hooks are registered again.",
+  "reason": "S24 28/10, Gateway log: OpenClaw 2026.9.6 reports 'typed hook \"agent_end\" | \"before_prompt_build\" | \"before_model_resolve\" | \"before_agent_run\" blocked because non-bundled plugins must set plugins.entries.openclaw-plugin-mobile-ui.hooks.allowConversationAccess=true' at every start. Effects observed on the S24 the same day: the native turn end never reached the Companion (10/10 owner WhatsApp turns left 'running' in runs.json), so the 30 s progress notice 'Je reviens vers toi.' was sent after almost every answer; the owner foundation hook (before_prompt_build) and conversation model profiles were not applied either. A diagnostic line in agent_end stayed silent across two real WhatsApp turns, and a direct native_end POST to the Companion closed the row, isolating the block to hook registration.",
+  "files": [
+    "installer/termux-lite/lib.sh",
+    "installer/termux-lite/test-plugin-install-noninteractive.sh",
+    "docs/changes/plugin-conversation-hooks-20261028.json",
+    "docs/changes/plugin-conversation-hooks-20261028.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-plugin-install-noninteractive.sh",
+      "status": "passed",
+      "evidence": "Both the in-place update path and the first install path now set hooks.allowConversationAccess true; the test fails on the base lib.sh."
+    }
+  ],
+  "documentation": [
+    "docs/changes/plugin-conversation-hooks-20261028.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "OpenClaw permission for hooks the plugin already registers; no capability, route or tool change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same hooks and owners as designed in L2/L3/L4; only the OpenClaw grant that lets them register."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Gateway hooks only; MCP primitives unchanged."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Live proof: after the Companion restart applies the grant and the Gateway restarts, the log has no 'typed hook ... blocked' line and an owner WhatsApp turn closes without the progress notice.",
+    "Conversation access lets the plugin's hooks read turn messages; the hooks already transport no text (closed metadata only)."
+  ],
+  "rollback": "Revert this commit and run openclaw config unset plugins.entries[\"openclaw-plugin-mobile-ui\"].hooks.allowConversationAccess, then restart the Gateway."
+}
