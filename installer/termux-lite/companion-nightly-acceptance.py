@@ -20,6 +20,11 @@ def secret_hook():
  hook=importlib.util.module_from_spec(spec);spec.loader.exec_module(hook)
  return hook
 
+def replay_hook():
+ spec=importlib.util.spec_from_file_location('nightly_dialogue_replay',Path(__file__).with_name('nightly-dialogue-replay.py'))
+ hook=importlib.util.module_from_spec(spec);spec.loader.exec_module(hook)
+ return hook
+
 def number(value):
  return isinstance(value,(int,float)) and not isinstance(value,bool) and math.isfinite(value) and value>=0
 
@@ -167,7 +172,7 @@ def deployment_preflight():
   return uptime.returncode==0 and (not load or float(load[1])<=7)
  except (OSError,ValueError,subprocess.SubprocessError):return False
 
-def execute(state,root,now=None,runner=bounded_command,notifier=None,preflight=deployment_preflight,secret_roots=None):
+def execute(state,root,now=None,runner=bounded_command,notifier=None,preflight=deployment_preflight,secret_roots=None,home=None):
  now=now or dt.datetime.now(dt.timezone.utc)
  if now.tzinfo is None:raise ValueError('timezone_required')
  now=now.astimezone(dt.timezone.utc);stamp=now.isoformat();day=now.strftime('%Y%m%d');path=state/('nightly-'+day+'.json')
@@ -188,7 +193,7 @@ def execute(state,root,now=None,runner=bounded_command,notifier=None,preflight=d
   for prior in heapq.nlargest(7,(p for p in nightly_files(state) if p.name<path.name),key=lambda p:p.name):
    row=read_receipt(prior)
    if row:history.append(row)
-  receipt={'version':1,'kind':'nightly_acceptance','state':'running','at':stamp,'acceptance':None,'drift':[], 'notificationAttemptedAt':(previous_today or {}).get('notificationAttemptedAt'), 'secretScan':{'state':'not_configured'}}
+  receipt={'version':1,'kind':'nightly_acceptance','state':'running','at':stamp,'acceptance':None,'drift':[], 'notificationAttemptedAt':(previous_today or {}).get('notificationAttemptedAt'), 'secretScan':{'state':'not_configured'}, 'dialogueReplay':{'state':'not_configured'}}
   atomic_receipt(path,receipt)
   try:
    # Always the acceptance carried by this checkout, no installed stale copy.
@@ -199,6 +204,11 @@ def execute(state,root,now=None,runner=bounded_command,notifier=None,preflight=d
   scan,scan_attention=secret_hook().execute_scan(root,secret_roots or [],history,runner)
   receipt['secretScan']=scan
   if scan_attention and receipt['state']=='ok':receipt['state']='attention'
+  # Recorded owner requests replayed without any write, and unnamed failure causes (Amine 28/10, reco 3).
+  replay,replay_attention,replay_failed=replay_hook().execute_replay(home or state.parent.parent,runner)
+  receipt['dialogueReplay']=replay
+  if replay_failed:receipt['state']='failed'
+  elif replay_attention and receipt['state']=='ok':receipt['state']='attention'
   if receipt['state']!='ok' and not receipt['notificationAttemptedAt']:
    # Persist before calling the canonical incident owner: never resend after an
    # uncertain notification/crash. No message content or new notification store.
