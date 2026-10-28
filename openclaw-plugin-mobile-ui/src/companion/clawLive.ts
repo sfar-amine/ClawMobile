@@ -122,8 +122,8 @@ function canonicalUtf8(value:string,maxBytes:number) {
 export function compactOwnerAgentContext(options:{authority?:"owner";home?:string;voiceDelegation?:true}={}) {
   if(options.authority!=="owner")return "";
   if(ownerFoundationEnabled()){
-    // Stable part only when the producer has the split layout: the memory view reaches this turn through the
-    // Gateway hook (prependContext), after the conversation history, so memory events keep the prefix cached.
+    // Stable part only when the producer has the split layout: the Gateway hook appends the memory view at the
+    // end of the system prompt (appendSystemContext), so memory events keep the stable prefix cached.
     const blocks=[ownerFoundationParts(options)?.stable??ownerFoundationContext(options)];
     if(options.voiceDelegation===true){
       blocks.push("## VOICE_TURN\n"+VOICE_TURN_NOTICE);
