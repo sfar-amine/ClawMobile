@@ -46,7 +46,8 @@ sha=$(git -C "$W" rev-parse -q --verify "$1^{commit}" 2>/dev/null) || {
 }
 [ -d "$D/$sha" ] || git -C "$W" worktree add -q --detach "$D/$sha" "$sha"
 link_deps "$D/$sha" || exit 3
-(cd "$D/$sha" && PYTHONPATH=. python3 -B -m unittest -q tests.test_capability_decision_contract tests.test_composed_reads)
+# Recorded owner requests replayed without any write (Amine 28/10, reco 3): a dialogue regression blocks activation.
+(cd "$D/$sha" && PYTHONPATH=. python3 -B -m unittest -q tests.test_capability_decision_contract tests.test_composed_reads tests.test_dialogue_replay)
 # Global rules follow the activated playbooks (S24 12/10: the no-invention rule had to be installed by hand).
 rules_rc=0
 if [ -f "$D/$sha/tools/install_interaction_rules.py" ]; then
