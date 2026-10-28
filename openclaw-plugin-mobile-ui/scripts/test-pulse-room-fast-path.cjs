@@ -219,6 +219,22 @@ async function main() {
   assert.notEqual(r.calls[0].nativePulse,r.calls[2].nativePulse);
   delete process.env.SAMANTHA_NATIVE_PULSE_HANDOFF;
 
+  // Amine 28/10 (replaces D-B): Sadok wrote at 16:05 while Samantha restarted; the coordinator kept nothing and
+  // asked for the same event again. The room waits, submits it again, and answers once ready (no failure text).
+  const policy={...mod.DEFER_UNTIL_READY};Object.assign(mod.DEFER_UNTIL_READY,{windowMs:200,stepMs:10});
+  r=runner((m,o,n)=>n<3?{outcome:'TECHNICAL_FAILURE',reasonCode:'interpretation_not_dispatched',retryable:true,handled:true,
+    text:"Le service concerné n'a pas répondu ; rien n'a été exécuté."}:{outcome:'COMPLETED',text:'Tes 10 projets Pulse : …',handled:true});
+  out=await mod.handlePulseRoomFastPath(ev('creer un nouveau projet pulse nom projet zain_phase_5.1 client zain bahrain'),ctx({runId:'sadok-1605'}),r);
+  assert.deepEqual(out,{handled:true,reply:{text:'Tes 10 projets Pulse : …'}});
+  assert.equal(r.calls.length,3);assert.ok(r.calls.every(c=>c.dialogue.event.eventRef==='sadok-1605'),'the same event, never a new one');
+  r=runner(()=>({outcome:'MAINTENANCE',reasonCode:'maintenance',retryable:true,handled:true,text:'maintenance'}));
+  out=await mod.handlePulseRoomFastPath(ev('affiche mes projets Pulse'),ctx({runId:'still-down'}),r);
+  assert.match(out.reply.text,/^Samantha redémarre encore : rien n’a été exécuté/);assert.ok(r.calls.length>=2&&r.calls.length<=21,String(r.calls.length));
+  r=runner(()=>({outcome:'TECHNICAL_FAILURE',reasonCode:'unavailable',handled:true,text:'Pulse KO'}));
+  out=await mod.handlePulseRoomFastPath(ev('affiche mes projets Pulse'),ctx({runId:'final-failure'}),r);
+  assert.equal(r.calls.length,1,'a final failure is never submitted again');
+  Object.assign(mod.DEFER_UNTIL_READY,policy);
+
   console.log("pulse room fast path OK");
 }
 
