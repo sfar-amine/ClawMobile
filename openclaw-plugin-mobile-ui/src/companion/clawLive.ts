@@ -1,4 +1,4 @@
-import {ownerFoundationContext,ownerFoundationEnabled} from "../ownerBootstrapContext";
+import {ownerFoundationContext,ownerFoundationParts,ownerFoundationEnabled} from "../ownerBootstrapContext";
 import {runtimeFile} from "../runtimeRoot";
 import { execFile } from "child_process";
 import fs from "fs";
@@ -122,7 +122,9 @@ function canonicalUtf8(value:string,maxBytes:number) {
 export function compactOwnerAgentContext(options:{authority?:"owner";home?:string;voiceDelegation?:true}={}) {
   if(options.authority!=="owner")return "";
   if(ownerFoundationEnabled()){
-    const blocks=[ownerFoundationContext(options)];
+    // Stable part only when the producer has the split layout: the memory view reaches this turn through the
+    // Gateway hook (prependContext), after the conversation history, so memory events keep the prefix cached.
+    const blocks=[ownerFoundationParts(options)?.stable??ownerFoundationContext(options)];
     if(options.voiceDelegation===true){
       blocks.push("## VOICE_TURN\n"+VOICE_TURN_NOTICE);
       // The common foundation replaces startup blocks, never the established surface-specific voice context.
