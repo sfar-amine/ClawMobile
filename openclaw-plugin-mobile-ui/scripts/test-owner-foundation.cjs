@@ -54,13 +54,13 @@ try{
  assert.equal(b.memory,'[SAMANTHA_MEMORY sha256='+'c'.repeat(64)+' revision=3240]\nMemory snapshot B');
  assert.equal(owner.ownerFoundationParts({read:()=>{throw Error('never read');}}),null,'non-owner reads nothing');
  const whatsapp=owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:ws,sessionKey:'agent:main:whatsapp:direct:+0',trigger:'user'});
- assert.deepEqual(Object.keys(whatsapp).sort(),['prependContext','prependSystemContext']);assert.equal(whatsapp.prependContext,b.memory);
+ assert.deepEqual(Object.keys(whatsapp).sort(),['appendSystemContext','prependSystemContext']);assert.equal(whatsapp.appendSystemContext,b.memory);
  assert.ok(!whatsapp.prependSystemContext.includes('SOUL sentinel.'),'OpenClaw already injects SOUL.md/AGENTS.md in the Project Context of an interactive turn');
  assert.ok(whatsapp.prependSystemContext.includes('Essential rule sentinel.')&&whatsapp.prependSystemContext.includes('Project Context'));
  for(const ctx of [{sessionKey:'agent:main:cron:nightly',trigger:'cron'},{sessionKey:'agent:main:subagent:x',trigger:'user'},{sessionKey:'agent:main:main',trigger:'heartbeat'}]){
-  const h=owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:ws,...ctx});assert.ok(h.prependSystemContext.includes('SOUL sentinel.'),ctx.sessionKey+': minimal or heartbeat prompt keeps the full text');assert.equal(h.prependContext,b.memory);
+  const h=owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:ws,...ctx});assert.ok(h.prependSystemContext.includes('SOUL sentinel.'),ctx.sessionKey+': minimal or heartbeat prompt keeps the full text');assert.equal(h.appendSystemContext,b.memory);
  }
- assert.deepEqual(owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:ws,sessionKey:'agent:main:companion-chat-test',trigger:'user'}),{prependContext:b.memory},'Companion carries the stable part itself; the hook adds only the memory view');
+ assert.deepEqual(owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:ws,sessionKey:'agent:main:companion-chat-test',trigger:'user'}),{appendSystemContext:b.memory},'Companion carries the stable part itself; the hook adds only the memory view');
  const appRoot=fs.mkdtempSync(path.join(os.tmpdir(),'foundation-app-context-'));
  try{
   const app=require('../dist/companion/clawLive').compactOwnerAgentContext({authority:'owner',home:appRoot});

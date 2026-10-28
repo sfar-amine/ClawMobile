@@ -43,10 +43,12 @@ export function ownerFoundationContext(options:FoundationOptions={}){
 }
 export type OwnerFoundationParts={stable:string;memory:string};
 /**
- * Prompt-cache layout (Amine 28/10): a provider reuses an exact prompt prefix only, so the stable rules go in the
- * system prompt and the memory view, which changes with every memory event, goes with the current turn, after the
- * conversation history. Returns null while the active producer predates the split layout: callers then keep the
- * single block above, unchanged.
+ * Prompt-cache layout (Amine 28/10): a provider reuses an exact prompt prefix only, so the stable rules open the
+ * system prompt and the memory view, which changes with every memory event, closes it, just before the history.
+ * Not with the current turn: OpenClaw does not persist that context, so the next turn's history would no longer
+ * match the request just sent and the cache chain would break at every turn (S24 28/10, 14 976 cached tokens per
+ * first call instead of 63 232). Returns null while the active producer predates the split layout: callers then
+ * keep the single block above, unchanged.
  */
 export function ownerFoundationParts(options:FoundationOptions&{bootstrapInProjectContext?:boolean}={}):OwnerFoundationParts|null{
  if(options.authority!=='owner')return null;
@@ -73,7 +75,7 @@ export function ownerFoundationHook(_event:unknown,ctx:any){
  const parts=ownerFoundationParts({authority:'owner',bootstrapInProjectContext:!companion&&projectContextHasBootstrap(ctx)});
  // Companion supplies the stable part (or, with an older producer, the whole block) through its existing
  // extraSystemPrompt path; do not duplicate it.
- if(companion)return parts?{prependContext:parts.memory}:undefined;
+ if(companion)return parts?{appendSystemContext:parts.memory}:undefined;
  if(!parts)return {prependSystemContext:ownerFoundationContext({authority:'owner'})};
- return {prependSystemContext:parts.stable,prependContext:parts.memory};
+ return {prependSystemContext:parts.stable,appendSystemContext:parts.memory};
 }
