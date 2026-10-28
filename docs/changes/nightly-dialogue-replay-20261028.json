@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "id": "nightly-dialogue-replay-20261028",
+  "date": "2026-10-28",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "The existing 03:00 nightly acceptance also runs the dialogue replay of the active playbooks snapshot (recorded owner requests on a private store, no write possible) and lists technical-failure causes of the last 24 h without a named reply; the same replay module blocks activate-ui-playbooks.sh before the swap.",
+  "reason": "Amine 28/10, recommendation 3: a nightly replay of real messages that blocks activation on regression. Four defects reached Amine live on 28/10; each is now a replay case (samantha-ui-playbooks dialogue-replay-20261028).",
+  "files": [
+    "installer/termux-lite/nightly-dialogue-replay.py",
+    "installer/termux-lite/companion-nightly-acceptance.py",
+    "installer/termux-lite/test-nightly-dialogue-replay.py",
+    "installer/termux-lite/activate-ui-playbooks.sh",
+    "installer/termux-lite/test-activate-ui-playbooks.sh",
+    ".github/workflows/ci.yml",
+    "docs/work/samantha-runtime/contracts/h8.md",
+    "docs/changes/nightly-dialogue-replay-20261028.json",
+    "docs/changes/nightly-dialogue-replay-20261028.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-nightly-dialogue-replay.py",
+      "status": "passed",
+      "evidence": "Replay runs from the active snapshot and its closed verdict is kept; a failed replay fails the night, unnamed causes ask attention; no snapshot carrying the replay is not_configured; open or oversized reports refused. End to end, the hook ran the real replay of ui-playbooks 06e41a81 through bounded_command: passed, 6 cases, 1.4 s."
+    },
+    {
+      "name": "test-companion-nightly-acceptance.py, test-nightly-secret-scan.py, test-activate-ui-playbooks.sh",
+      "status": "passed",
+      "evidence": "Unchanged behaviour; the activation stub carries the new module."
+    }
+  ],
+  "documentation": [
+    "docs/changes/nightly-dialogue-replay-20261028.md",
+    "docs/work/samantha-runtime/contracts/h8.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same nightly receipt and health component; a new closed section."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Hook of the existing nightly job (same lock, receipt, notifier) and one more module in the existing activation gate; no new job, store or notifier."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_impacted",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Nightly receipt section and activation gate only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Deploy only once the active playbooks snapshot carries tests/test_dialogue_replay.py (samantha-ui-playbooks dialogue replay PR), otherwise activation would refuse every snapshot without it.",
+    "First nightly proof: the receipt of the next 03:00 run after deploy."
+  ],
+  "rollback": "Revert this commit and redeploy with companion-deploy.sh."
+}

@@ -18,7 +18,7 @@ cd "$CLAW_UI_PLAYBOOKS_WORKSPACE"
 git init -q && git config user.email t@t && git config user.name t
 mkdir -p tests billing/direct-runtime
 : > tests/__init__.py
-for t in test_capability_decision_contract test_composed_reads; do
+for t in test_capability_decision_contract test_composed_reads test_dialogue_replay; do
   printf 'import unittest\nclass T(unittest.TestCase):\n    def test_ok(self): pass\n' > "tests/$t.py"
 done
 echo node_modules/ > .gitignore
