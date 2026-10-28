@@ -10,6 +10,7 @@
     "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
     "openclaw-plugin-mobile-ui/src/ownerBootstrapContext.ts",
     "openclaw-plugin-mobile-ui/scripts/test-mcp-foundation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-foundation.cjs",
     "docs/changes/foundation-mcp-ceiling-32k-20261028.json",
     "docs/changes/foundation-mcp-ceiling-32k-20261028.md"
   ],
@@ -18,6 +19,11 @@
       "name": "openclaw-plugin-mobile-ui/scripts/test-mcp-foundation.cjs",
       "status": "passed",
       "evidence": "A 24700-byte foundation (the S24 6171-token case) is delivered; 32001 bytes is still refused with foundation_mcp_response_budget_exceeded; the missing-body refusal is unchanged."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-owner-foundation.cjs",
+      "status": "passed",
+      "evidence": "A 24700-byte foundation is injected; 32001 bytes is refused with owner_foundation_budget_exceeded."
     }
   ],
   "documentation": [

@@ -15,7 +15,9 @@ const stableEnd=first.indexOf('Memory snapshot A');assert.ok(stableEnd>0);
 assert.equal(first.slice(0,stableEnd),next.slice(0,stableEnd),'memory freshness changes must preserve the cacheable rules/skills prefix');
 assert.notEqual(first,next,'fresh memory and revision are still injected, never served stale');
 
-assert.throws(()=>owner.ownerFoundationContext({authority:'owner',read:()=>JSON.stringify({...payload,content:'x'.repeat(24001)})}),/budget/);
+// 8000-token L2 ceiling (32000 bytes, Amine 28/10): the S24 size of 28/10 is admitted, beyond the ceiling is refused.
+assert.ok(owner.ownerFoundationContext({authority:'owner',read:()=>JSON.stringify({...payload,content:'x'.repeat(24700)})}).length>24700);
+assert.throws(()=>owner.ownerFoundationContext({authority:'owner',read:()=>JSON.stringify({...payload,content:'x'.repeat(32001)})}),/budget/);
 assert.throws(()=>owner.ownerFoundationContext({authority:'owner',read:()=>JSON.stringify({...payload,skills:[{name:'samantha-mobile',description:'x',path:'../../private.md'}]})}),/skill/);
 const original=cp.execFileSync,flag=process.env.SAMANTHA_CONTEXT_FOUNDATION;
 try{
