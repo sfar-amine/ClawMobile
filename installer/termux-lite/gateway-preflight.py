@@ -205,6 +205,86 @@ def recover_stale_gateway_locks(state_dir: Path, config_path: Path, port: int,
     return {"state": "recovered", "pid": status["pid"], "backup": str(dest), "moved": moved}
 
 
+def _pid_owner(pid: int, kill=os.kill) -> str:
+    """'ours', 'gone' or 'foreign'. On Android every process of this uid is
+    signalable; EPERM means the PID now belongs to another app, so it cannot be
+    an OpenClaw process. OpenClaw itself only treats ESRCH as proof of death."""
+    if pid <= 0:
+        return "gone"
+    try:
+        kill(pid, 0)
+    except ProcessLookupError:
+        return "gone"
+    except PermissionError:
+        return "foreign"
+    return "ours"
+
+
+def _foreign_agent_leases(db, kill=os.kill) -> list[dict]:
+    exists = db.execute("select 1 from sqlite_master where type='table' and name='agent_database_leases'").fetchone()
+    if not exists:
+        return []
+    rows = db.execute("select lease_id, agent_id, path, owner_pid, owner_start_time from agent_database_leases").fetchall()
+    keys = ("lease_id", "agent_id", "path", "owner_pid", "owner_start_time")
+    return [dict(zip(keys, r)) for r in rows if _pid_owner(int(r[3] or 0), kill) == "foreign"]
+
+
+def recover_foreign_agent_leases(state_dir: Path, proc_root: Path = Path("/proc"),
+                                 backup_root: Path | None = None, kill=os.kill,
+                                 apply: bool = True) -> dict:
+    """Release agent database leases left by a dead OpenClaw process whose PID
+    was reused by another Android app (incident 28/10: Doctor refused every
+    Gateway start). Only those rows are touched, only while no Gateway runs."""
+    import sqlite3
+    database = state_dir / "state" / "openclaw.sqlite"
+    if not database.is_file():
+        return {"state": "no_state_database"}
+    live = _gateway_processes(proc_root)
+    if live:
+        return {"state": "active_gateway", "pids": [r["pid"] for r in live]}
+    db = sqlite3.connect(database, timeout=5, isolation_level=None)
+    try:
+        foreign = _foreign_agent_leases(db, kill)
+        if not foreign:
+            return {"state": "ok"}
+        if not apply:
+            return {"state": "foreign_leases", "leases": foreign}
+        db.execute("begin immediate")
+        try:
+            confirmed = {r["lease_id"]: r for r in _foreign_agent_leases(db, kill)}
+            stale = [r for r in foreign if confirmed.get(r["lease_id"]) == r]
+            for row in stale:
+                db.execute("delete from agent_database_leases where lease_id=? and owner_pid=?",
+                           (row["lease_id"], row["owner_pid"]))
+            db.execute("commit")
+        except BaseException:
+            db.execute("rollback")
+            raise
+    finally:
+        db.close()
+    backup_root = backup_root or (state_dir / "backups")
+    backup_root.mkdir(parents=True, exist_ok=True)
+    stamp = dt.datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
+    receipt = backup_root / f"agent-lease-recovery-{stamp}.json"
+    receipt.write_text(json.dumps({"reason": "owner_pid_belongs_to_another_uid", "leases": stale}, indent=2))
+    os.chmod(receipt, 0o600)
+    # Same effect as OpenClaw's own stale-lease release: the next open re-verifies integrity.
+    cleared = 0
+    quarantine = state_dir / "state" / "openclaw-quarantine.sqlite"
+    if stale and quarantine.is_file():
+        qdb = sqlite3.connect(quarantine, timeout=5)
+        try:
+            if qdb.execute("select 1 from sqlite_master where type='table' and name='agent_integrity_verifications'").fetchone():
+                for path in {r["path"] for r in stale}:
+                    cleared += qdb.execute("delete from agent_integrity_verifications where path in (?, ?)",
+                                           (path, os.path.realpath(path))).rowcount
+                qdb.commit()
+        finally:
+            qdb.close()
+    return {"state": "recovered" if stale else "ok", "released": len(stale),
+            "verifications_cleared": cleared, "receipt": str(receipt)}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command", required=True)
@@ -222,15 +302,21 @@ def main() -> int:
     locks.add_argument("--stale-s", type=int, default=60)
     locks.add_argument("--apply", action="store_true")
 
+    leases = sub.add_parser("agent-leases")
+    leases.add_argument("--state-dir", type=Path, required=True)
+    leases.add_argument("--apply", action="store_true")
+
     args = parser.parse_args()
     if args.command == "plugin-schema":
         result = plugin_schema_status(args.source_manifest, args.installed_manifest, args.config, args.plugin_id)
+    elif args.command == "agent-leases":
+        result = recover_foreign_agent_leases(args.state_dir, apply=args.apply)
     elif args.apply:
         result = recover_stale_gateway_locks(args.state_dir, args.config, args.port, stale_s=args.stale_s)
     else:
         result = stale_gateway_lock_status(args.state_dir, args.config, args.port, stale_s=args.stale_s)
     print(json.dumps(result, sort_keys=True))
-    return 0 if result.get("state") in {"ok", "no_lock", "young_lock", "active_owner", "active_gateway", "active_listener", "recovered", "repairable"} else 2
+    return 0 if result.get("state") in {"ok", "no_lock", "young_lock", "active_owner", "active_gateway", "active_listener", "recovered", "repairable", "no_state_database"} else 2
 
 
 if __name__ == "__main__":
