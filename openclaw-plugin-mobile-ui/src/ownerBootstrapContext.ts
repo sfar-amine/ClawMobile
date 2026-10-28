@@ -21,7 +21,8 @@ export function ownerFoundationContext(options:{authority?:'owner';home?:string;
  // Keep changing memory hashes and revision after the stable rules and skill index: provider prefix caches
  // cannot reuse the otherwise identical foundation when the first token changes with every memory event.
  const text=`[SAMANTHA_FOUNDATION v1 stable=${value.stable_sha256}]\n${value.instruction}\n\n## Skills à la demande\n${skills}\n\n${value.content}\n\n[SAMANTHA_MEMORY sha256=${value.sha256} revision=${value.revision}]`;
- if(Buffer.byteLength(text)>24000)throw Error('owner_foundation_budget_exceeded');
+ // Same 8000-token L2 ceiling as the producer and the MCP transport (32000 UTF-8 bytes, Amine 28/10/2026).
+ if(Buffer.byteLength(text)>32000)throw Error('owner_foundation_budget_exceeded');
  return text;
 }
 /** Only trusted main-agent workspace context admits this hook. Contacts retain their own bootstrap. */

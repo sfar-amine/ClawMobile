@@ -321,7 +321,9 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
   };
   // The owner relay appends bounded access metadata. Reserve it explicitly, never trim a rule
   // or thread to fit the transport. Legacy context responses keep their established contract.
-  if(raw?.foundation?.read_required===true&&Buffer.byteLength(JSON.stringify(response),'utf8')+256>24000)
+  // 32000 bytes = the 8000-token L2 ceiling (UTF-8/4) raised by Amine on 28/10/2026 (playbooks #330):
+  // at 24000 bytes every foundation claw_context was refused once the memory index grew (6171 tokens).
+  if(raw?.foundation?.read_required===true&&Buffer.byteLength(JSON.stringify(response),'utf8')+256>32000)
     throw new Error('foundation_mcp_response_budget_exceeded');
   return response;
 }
