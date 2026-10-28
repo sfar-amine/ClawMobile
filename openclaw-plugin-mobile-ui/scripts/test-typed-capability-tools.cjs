@@ -26,6 +26,10 @@ async function main() {
   const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../openclaw.plugin.json'),'utf8'));
   for(const tool of descriptors)assert(manifest.contracts.tools.includes(tool.name));
   const orange=descriptors.find(t=>t.name==='samantha_maxit_tunisie');
+  // S24 28/10: the model added its own answering format and an example to Pulse's question.
+  const domainTools=descriptors.filter(t=>t.description.includes('Reproduis la réponse prête'));
+  assert(domainTools.length>=10);
+  for(const tool of domainTools)assert.match(tool.description,/une question du reçu se pose telle quelle, sans format, exemple ni consigne de réponse ajoutés\./);
   const args={action:'telecom.balance',params:{}};
   assert.equal((await orange.execute('missing-hook',args)).isError,true);
   assert.equal(bind(orange.name,args,'one').block,undefined);
