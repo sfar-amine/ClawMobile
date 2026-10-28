@@ -39,6 +39,8 @@ export type DialogueReply = {
   resumeRequests?: DialogueRequest[];
   requestContext?: DialogueRequestContext;
   requestQueue?: unknown;
+  /** Nothing ran and nothing was kept (Samantha restarting, closed maintenance window): submit the same event again. */
+  retryable?: boolean;
 };
 
 export type DialogueRequest = {text: string; eventRef: string; parentEventRef: string; ordinal: number};

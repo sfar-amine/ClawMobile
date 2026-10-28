@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "id": "pulse-room-defer-until-ready-20261028",
+  "date": "2026-10-28",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The Pulse room keeps a message the dialogue coordinator marks retryable (no model reached while Samantha restarts, or a closed maintenance window) and submits the same event again every 5 s for at most 5 min, then answers normally; past that bound it says Samantha is still restarting and that nothing ran, instead of « … n'a pas abouti. Aucun nouvel essai automatique n'est lancé. ».",
+  "reason": "Amine 28/10 (« oui, à traiter après redémarrage », replaces D-B of ADR 57). S24 28/10 16:05: Sadok's message arrived while the Gateway restarted after the core deploy; both interpretation attempts were « unavailable » within 54-62 ms and the room answered with a final failure; the Companion was ready 14 s later. OpenClaw 2026.9.6 applies no default timeout to a claiming before_dispatch hook (hooks-CKanWLsK.mjs, getClaimingHookTimeoutMs uses the hook's own timeoutMs only), so the wait cannot hand the message to the general model.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/pulseRoomFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/dialogueSurface.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+    "docs/changes/pulse-room-defer-until-ready-20261028.json",
+    "docs/changes/pulse-room-defer-until-ready-20261028.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+      "status": "passed",
+      "evidence": "New: a retryable turn is submitted again with the same event and answers once ready; a window that never reopens ends on the « redémarre encore » text; a final failure is never submitted again. Fails on the base (DEFER_UNTIL_READY undefined)."
+    },
+    {
+      "name": "test-contact-room-fast-path, test-whatsapp-rooms-paired; tsc",
+      "status": "passed",
+      "evidence": "Unchanged, still green."
+    }
+  ],
+  "documentation": [
+    "docs/changes/pulse-room-defer-until-ready-20261028.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No capability or route change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same hook, same coordinator event; the decision record (ADR-20261028-defer-until-ready) lives with the coordinator in samantha-ui-playbooks."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_impacted",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Pulse room hook only; MCP primitives unchanged."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Requires the coordinator of samantha-ui-playbooks (same day) to mark these turns retryable; before it, nothing changes.",
+    "Owner WhatsApp and app turns keep their current behaviour during a restart.",
+    "Full canonical CI on the final GitHub head remains required.",
+    "Live proof: a Pulse room message sent during a core deploy is answered once Samantha is ready."
+  ],
+  "rollback": "Revert this commit and redeploy with companion-deploy.sh."
+}
