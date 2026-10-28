@@ -742,7 +742,15 @@ clawmobile_enable_plugin() {
 
   openclaw plugins enable "$plugin_id" </dev/null >/dev/null 2>&1 || true
   openclaw config set "plugins.entries[\"$plugin_id\"].enabled" true </dev/null >/dev/null 2>&1 || true
+  clawmobile_grant_plugin_conversation_hooks "$plugin_id"
   openclaw plugins registry --refresh </dev/null >/dev/null 2>&1 || true
+}
+
+# OpenClaw 2026.9.6 drops a non-bundled plugin's conversation hooks (agent_end, before_prompt_build,
+# before_model_resolve, before_agent_run) unless this grant is set (S24 28/10: "typed hook ... blocked").
+# Without them the owner foundation is never injected and every WhatsApp turn got a late "Je reviens vers toi.".
+clawmobile_grant_plugin_conversation_hooks() {
+  openclaw config set "plugins.entries[\"$1\"].hooks.allowConversationAccess" true </dev/null >/dev/null 2>&1 || true
 }
 
 clawmobile_plugin_needs_install() {
@@ -802,6 +810,7 @@ clawmobile_install_plugin() {
       --exclude '.openclaw-plugin-installed-lite.stamp' \
       "$plugin_dir/" "$extension_dir/"
     openclaw config set "plugins.entries[\"$plugin_id\"].enabled" true </dev/null >/dev/null 2>&1 || true
+    clawmobile_grant_plugin_conversation_hooks "$plugin_id"
     touch "$install_stamp"
     return 0
   fi
