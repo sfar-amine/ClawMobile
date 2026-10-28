@@ -21,11 +21,13 @@ assert.throws(()=>owner.ownerFoundationContext({authority:'owner',read:()=>JSON.
 assert.throws(()=>owner.ownerFoundationContext({authority:'owner',read:()=>JSON.stringify({...payload,skills:[{name:'samantha-mobile',description:'x',path:'../../private.md'}]})}),/skill/);
 const original=cp.execFileSync,flag=process.env.SAMANTHA_CONTEXT_FOUNDATION;
 try{
- process.env.SAMANTHA_CONTEXT_FOUNDATION='1';cp.execFileSync=()=>read();const before=reads;
+ process.env.SAMANTHA_CONTEXT_FOUNDATION='1';
+ // Producer active before the split layout: `--layout` is an unknown argument and exits non-zero.
+ cp.execFileSync=(_f,args)=>{if(args.includes('--layout'))throw Error('usage: unrecognized arguments');return read();};const before=reads;
  for(const agentId of ['contacts','contacts-projet','contacts-pulse','engineering-lite'])assert.equal(owner.ownerFoundationHook({}, {agentId,workspaceDir:path.join(os.homedir(),'.openclaw','workspace')}),undefined);
  assert.equal(owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:'/other'}),undefined);assert.equal(reads,before,'contacts and other workspaces never read private owner context');
  assert.equal(owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:path.join(os.homedir(),'.openclaw','workspace'),sessionKey:'agent:main:companion-chat-test'}),undefined,'Companion already uses the shared extraSystemPrompt producer');
- const hook=owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:path.join(os.homedir(),'.openclaw','workspace'),sessionKey:'agent:main:whatsapp:test'});assert.equal(hook.prependSystemContext,text);assert.equal(reads,before+1);
+ const hook=owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:path.join(os.homedir(),'.openclaw','workspace'),sessionKey:'agent:main:whatsapp:test',trigger:'user'});assert.deepEqual(hook,{prependSystemContext:text},'older producer: unchanged single block');assert.equal(reads,before+1);
  const voiceRoot=fs.mkdtempSync(path.join(os.tmpdir(),'foundation-voice-context-'));
  try{
   const file=path.join(voiceRoot,'.openclaw/workspace/memory/voice/amine.md');fs.mkdirSync(path.dirname(file),{recursive:true});
@@ -37,6 +39,35 @@ try{
   assert.ok(delegated.includes('## VOICE_TURN'));
   assert.ok(!compact({authority:'owner',home:voiceRoot}).includes('surface-specific voice context sentinel'),'other surfaces do not inherit voice-specific memory');
  }finally{fs.rmSync(voiceRoot,{recursive:true,force:true});}
+ // Prompt-cache layout (Amine 28/10, S24 28/10: one WhatsApp turn re-read 61k of 122k input tokens): stable rules in
+ // the system prompt, the changing memory view with the current turn, after the conversation history.
+ const splitA={version:2,layout:'split',sha256:'a'.repeat(64),stable_sha256:'b'.repeat(64),revision:3239,estimated_tokens:400,
+  instruction:'Do not reread startup files.',skills:payload.skills,bootstrap:'SOUL sentinel.\n\nAGENTS red lines sentinel.',essential:'Essential rule sentinel.',memory:'Memory snapshot A'};
+ const splitB={...splitA,sha256:'c'.repeat(64),revision:3240,memory:'Memory snapshot B'};
+ let current=splitA;cp.execFileSync=(_f,args)=>{reads++;assert.deepEqual(args.slice(-2),['--layout','split']);return JSON.stringify(current);};
+ const ws=path.join(os.homedir(),'.openclaw','workspace');
+ const a=owner.ownerFoundationParts({authority:'owner'});current=splitB;const b=owner.ownerFoundationParts({authority:'owner'});
+ assert.equal(a.stable,b.stable,'a memory event leaves the system prompt byte-identical');
+ assert.ok(a.stable.startsWith('[SAMANTHA_FOUNDATION v1 stable='+'b'.repeat(64)+']'));
+ for(const part of ['Do not reread startup files.','skills/samantha-mobile/SKILL.md','SOUL sentinel.','AGENTS red lines sentinel.','Essential rule sentinel.'])assert.ok(a.stable.includes(part),part);
+ assert.ok(!a.stable.includes('Memory snapshot')&&!a.stable.includes('revision='));
+ assert.equal(b.memory,'[SAMANTHA_MEMORY sha256='+'c'.repeat(64)+' revision=3240]\nMemory snapshot B');
+ assert.equal(owner.ownerFoundationParts({read:()=>{throw Error('never read');}}),null,'non-owner reads nothing');
+ const whatsapp=owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:ws,sessionKey:'agent:main:whatsapp:direct:+0',trigger:'user'});
+ assert.deepEqual(Object.keys(whatsapp).sort(),['prependContext','prependSystemContext']);assert.equal(whatsapp.prependContext,b.memory);
+ assert.ok(!whatsapp.prependSystemContext.includes('SOUL sentinel.'),'OpenClaw already injects SOUL.md/AGENTS.md in the Project Context of an interactive turn');
+ assert.ok(whatsapp.prependSystemContext.includes('Essential rule sentinel.')&&whatsapp.prependSystemContext.includes('Project Context'));
+ for(const ctx of [{sessionKey:'agent:main:cron:nightly',trigger:'cron'},{sessionKey:'agent:main:subagent:x',trigger:'user'},{sessionKey:'agent:main:main',trigger:'heartbeat'}]){
+  const h=owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:ws,...ctx});assert.ok(h.prependSystemContext.includes('SOUL sentinel.'),ctx.sessionKey+': minimal or heartbeat prompt keeps the full text');assert.equal(h.prependContext,b.memory);
+ }
+ assert.deepEqual(owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:ws,sessionKey:'agent:main:companion-chat-test',trigger:'user'}),{prependContext:b.memory},'Companion carries the stable part itself; the hook adds only the memory view');
+ const appRoot=fs.mkdtempSync(path.join(os.tmpdir(),'foundation-app-context-'));
+ try{
+  const app=require('../dist/companion/clawLive').compactOwnerAgentContext({authority:'owner',home:appRoot});
+  assert.equal(app,b.stable,'app turns: full stable part (lightweight bootstrap has no SOUL.md), no memory in the system prompt');
+ }finally{fs.rmSync(appRoot,{recursive:true,force:true});}
+ current={...splitA,essential:'x'.repeat(32001)};assert.throws(()=>owner.ownerFoundationParts({authority:'owner'}),/budget/);
+ current={...splitA,layout:'other'};assert.throws(()=>owner.ownerFoundationParts({authority:'owner'}),/invalid/);
  process.env.SAMANTHA_CONTEXT_FOUNDATION='0';assert.equal(owner.ownerFoundationHook({}, {agentId:'main'}),undefined);
 }finally{cp.execFileSync=original;if(flag===undefined)delete process.env.SAMANTHA_CONTEXT_FOUNDATION;else process.env.SAMANTHA_CONTEXT_FOUNDATION=flag;}
 // The existing host loader owns persistence; no real environment/configuration is read.
@@ -50,4 +81,4 @@ try{
  fs.writeFileSync(envFile,'PRIVATE_SENTINEL=authored-test-only\nSAMANTHA_CONTEXT_FOUNDATION=0\n');
  assert.equal(load(undefined),'0');assert.equal(load('1'),'1','persisted flag alone does not prove that a running owner reloaded it');
 }finally{fs.rmSync(envRoot,{recursive:true,force:true});}
-console.log('PASS L2 cacheable shared owner foundation, strict bounded producer, contacts isolation, no duplicate Companion bootstrap');
+console.log('PASS L2 cacheable shared owner foundation, split prompt-cache layout, strict bounded producer, contacts isolation, no duplicate Companion bootstrap');
