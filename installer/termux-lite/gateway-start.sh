@@ -27,6 +27,14 @@ if [ "$lock_state" = "recovered" ]; then
   echo "[lite] Recovered an orphaned Android gateway lock; evidence quarantined under OpenClaw backups."
 fi
 
+# OpenClaw cannot prove a lease owner dead once Android hands its PID to another
+# app; Doctor then refuses every start. Release only those leases, with a receipt.
+lease_json="$(python3 "$GATEWAY_PREFLIGHT" agent-leases --state-dir "$OPENCLAW_STATE_ROOT" --apply)" ||
+  echo "[lite] WARNING: agent lease preflight did not complete: $lease_json" >&2
+case "$lease_json" in
+  *'"state": "recovered"'*) echo "[lite] Released agent database leases held by reused PIDs: $lease_json" ;;
+esac
+
 # Hash-gated local patch only: no build, network or credential mutation.
 # Unsupported upgrades remain startable; runtime-sync reports the missing protection.
 # A Tier0 release can outlive a checkout rollback. Follow the deployed checkout's

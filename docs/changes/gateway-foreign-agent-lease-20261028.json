@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "id": "gateway-foreign-agent-lease-20261028",
+  "date": "2026-10-28",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Before starting the Gateway, the lite start path releases agent database leases whose owner PID now belongs to another Android app (EPERM), with a receipt and the same integrity re-verification OpenClaw applies to stale leases; nothing is touched while a Gateway process runs.",
+  "reason": "S24 incident 28/10 19:41-19:50Z: after deploy 988c3b6d the Gateway needed Doctor maintenance and Doctor refused every start (« An agent database is in use … still open in process 6136 »). PID 6136, an OpenClaw process dead since 15:05Z, had been reused by another app: OpenClaw only accepts ESRCH as proof of death and cannot read /proc of another uid. WhatsApp was down 9 minutes and the deploy ended rollback_failed.",
+  "files": [
+    "installer/termux-lite/gateway-preflight.py",
+    "installer/termux-lite/gateway-start.sh",
+    "installer/termux-lite/test-gateway-preflight.py",
+    "docs/changes/gateway-foreign-agent-lease-20261028.json",
+    "docs/changes/gateway-foreign-agent-lease-20261028.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-gateway-preflight.py",
+      "status": "passed",
+      "evidence": "On the S24 schemas and lease rows of 28/10: only the two rows of the reused PID are released and their integrity verification cleared; a dead (ESRCH) owner and our own live Gateway stay with OpenClaw; nothing changes while a Gateway process exists or in check mode; gateway-start.sh runs the preflight before exec."
+    },
+    {
+      "name": "test-agent-exec-auth-scope, test-whatsapp-network-recovery, test-runtime-start-command, test-native-turn-provenance, test-no-hardcoded-clawmobile",
+      "status": "passed",
+      "evidence": "Unchanged, still green against the edited gateway-start.sh."
+    }
+  ],
+  "documentation": [
+    "docs/changes/gateway-foreign-agent-lease-20261028.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Gateway start robustness only."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Extends the existing gateway preflight owner (stale-locks) with one more orphan class; no new service or store."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Gateway start script of the lite runtime only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Leases of a dead PID not yet reused (ESRCH) are left to OpenClaw, which already releases them."
+  ],
+  "rollback": "Revert this commit and redeploy the core."
+}
