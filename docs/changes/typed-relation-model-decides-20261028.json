@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "id": "typed-relation-model-decides-20261028",
+  "date": "2026-10-28",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Each typed domain tool exposes an optional `relation` (answer | new_request) and tells the model to use it when a question of the tool is waiting; the host passes it to the playbooks typed call and refuses any other value.",
+  "reason": "Amine 28/10, recommendation 5: the model decides new request vs answer, the code keeps only safety (ADR-20261028-model-decides-relation in samantha-ui-playbooks). S24 28/10 17:37Z: Sadok's request sent again during its question was read by the host as an unclear answer.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+    "docs/changes/typed-relation-model-decides-20261028.json",
+    "docs/changes/typed-relation-model-decides-20261028.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+      "status": "passed",
+      "evidence": "Every domain tool of the S24 fixture exposes relation (optional, closed enum) and the instruction; a bound call with relation reaches the host command unchanged; relation « maybe » is refused."
+    },
+    {
+      "name": "test-google-typed-schema, test-voice-relay-brain-only, test-owner-foundation; tsc",
+      "status": "passed",
+      "evidence": "Unchanged, still green."
+    }
+  ],
+  "documentation": [
+    "docs/changes/typed-relation-model-decides-20261028.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same tools and actions; one optional field."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "The decision record lives with the dialogue owner (samantha-ui-playbooks docs/08-decisions/ADR-20261028-model-decides-relation.md); same tools and host here."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_impacted",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Typed tool descriptions of the owner agent only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Deploy after activating the playbooks that accept relation (samantha-ui-playbooks typed-relation PR); an older host refuses the field.",
+    "The tool descriptions belong to the cached prompt prefix: the first turn after deploy misses that part of the cache once."
+  ],
+  "rollback": "Revert this commit and redeploy the core."
+}

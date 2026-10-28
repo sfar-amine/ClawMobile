@@ -47,6 +47,8 @@ function toolSchema(tool: DomainTool) {
   return {type: "object", properties: {
     action: {type: "string", enum: [...tool.actions.map(a => a.action), "confirm", "cancel"]},
     params: {anyOf: [...shapes, confirmation]},
+    // Amine 28/10 (ADR-20261028-model-decides-relation): the model says how the call relates to an open question.
+    relation: {type: "string", enum: ["answer", "new_request"]},
   }, required: ["action", "params"], additionalProperties: false};
 }
 
@@ -61,13 +63,14 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
     const currentConversation = /^agent:main:companion-chat-([A-Za-z0-9-]{1,80})$/.exec(context.sessionKey || "")?.[1];
     const nativeWhatsApp=context.messageChannel==='whatsapp'&&/^agent:main:whatsapp:direct:\+?[1-9][0-9]{7,14}$/.test(context.sessionKey||'');
     return {name: tool.name,
-      description: `${tool.description}. Choisis l'action et ses paramètres typés. Aucune résolution du texte.${tool.domain === "app" && (currentConversation||nativeWhatsApp) ? " Conversation courante : " + (nativeWhatsApp?'current':currentConversation) + ". Si tu comprends que l’utilisateur demande d’arrêter le travail de ton propre tour, cesse les nouveaux appels et termine naturellement ce tour avec le contexte déjà présent. L’outil interrupt ne cible jamais ton propre run. Pour une autre génération, consulte active_generations et choisis son runId exact ; interrompre la génération n’annule pas les actions déjà envoyées." : ""}\n${actions}\nExemples de demandes : ${examples}. Les écritures métier exigent un récapitulatif puis un nouveau tour utilisateur ; confirm transmet uniquement l'identifiant et le payloadHash reçus, jamais de nouveaux paramètres. Reproduis la réponse prête du reçu sans inventer de fait ; une question du reçu se pose telle quelle, sans format, exemple ni consigne de réponse ajoutés.`,
+      description: `${tool.description}. Choisis l'action et ses paramètres typés. Aucune résolution du texte.${tool.domain === "app" && (currentConversation||nativeWhatsApp) ? " Conversation courante : " + (nativeWhatsApp?'current':currentConversation) + ". Si tu comprends que l’utilisateur demande d’arrêter le travail de ton propre tour, cesse les nouveaux appels et termine naturellement ce tour avec le contexte déjà présent. L’outil interrupt ne cible jamais ton propre run. Pour une autre génération, consulte active_generations et choisis son runId exact ; interrompre la génération n’annule pas les actions déjà envoyées." : ""}\n${actions}\nExemples de demandes : ${examples}. Les écritures métier exigent un récapitulatif puis un nouveau tour utilisateur ; confirm transmet uniquement l'identifiant et le payloadHash reçus, jamais de nouveaux paramètres. Reproduis la réponse prête du reçu sans inventer de fait ; une question du reçu se pose telle quelle, sans format, exemple ni consigne de réponse ajoutés. Quand une question de cet outil attend une réponse, indique relation : answer si l'utilisateur y répond, new_request s'il fait une nouvelle demande, même avec les mêmes mots.`,
       schema: parameters, inputSchema: parameters, parameters,
       async execute(toolCallId: unknown, args: any) {
         try {
           const bound = consumeTypedInvocation(toolCallId, tool.name, args, context);
           if (!args || typeof args !== "object" || Array.isArray(args) ||
-              Object.keys(args).some(k => !["action", "params"].includes(k)) || typeof args.action !== "string" ||
+              Object.keys(args).some(k => !["action", "params", "relation"].includes(k)) || typeof args.action !== "string" ||
+              (args.relation !== undefined && !["answer", "new_request"].includes(args.relation)) ||
               !args.params || typeof args.params !== "object" || Array.isArray(args.params)) throw Error("typed_input_invalid");
           const operation = ["confirm", "cancel"].includes(args.action) ? args.action : "call";
           const action = tool.actions.find(a => a.action === args.action);
@@ -112,7 +115,7 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
               facts:result.artifact||{},answer:result.artifact?.message||"Le statut de l’arrêt reste incertain ; vérifie ce reçu avant tout nouvel essai.",receipt:result.receipt})}]};
           }
           const command = operation === "call"
-            ? {operation, domain: tool.domain, action: args.action, params: args.params}
+            ? {operation, domain: tool.domain, action: args.action, params: args.params, ...(args.relation ? {relation: args.relation} : {})}
             : {operation, domain: tool.domain, confirmationId: args.params.confirmationId, payloadHash: args.params.payloadHash};
           const whatsapp = context.messageChannel === "whatsapp";
           const privateInput = JSON.stringify({command, host: {...bound,

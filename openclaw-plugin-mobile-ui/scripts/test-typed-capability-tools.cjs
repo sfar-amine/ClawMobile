@@ -28,6 +28,9 @@ async function main() {
   const orange=descriptors.find(t=>t.name==='samantha_maxit_tunisie');
   // S24 28/10: the model added its own answering format and an example to Pulse's question.
   const domainTools=descriptors.filter(t=>t.description.includes('Reproduis la réponse prête'));
+  // ADR-20261028-model-decides-relation: the model may say how the call relates to an open question.
+  for(const tool of domainTools){assert.deepEqual(tool.parameters.properties.relation,{type:'string',enum:['answer','new_request']});
+    assert.equal(tool.parameters.required.includes('relation'),false);assert.match(tool.description,/indique relation : answer si l'utilisateur y répond, new_request s'il fait une nouvelle demande/);}
   assert(domainTools.length>=10);
   for(const tool of domainTools)assert.match(tool.description,/une question du reçu se pose telle quelle, sans format, exemple ni consigne de réponse ajoutés\./);
   const args={action:'telecom.balance',params:{}};
@@ -39,6 +42,11 @@ async function main() {
   assert.equal(result.received.host.owner,true);
   assert.deepEqual(result.received.command,{operation:'call',domain:'maxit-tunisie',action:'telecom.balance',params:{}});
   assert.equal((await orange.execute('one',args)).isError,true,'one-shot admission cannot be replayed');
+  const related={...args,relation:'new_request'};assert.equal(bind(orange.name,related,'related').block,undefined);
+  assert.deepEqual(JSON.parse((await orange.execute('related',related)).content[0].text).received.command,
+    {operation:'call',domain:'maxit-tunisie',action:'telecom.balance',params:{},relation:'new_request'});
+  const odd={...args,relation:'maybe'};assert.equal(bind(orange.name,odd,'odd').block,undefined);
+  assert.equal((await orange.execute('odd',odd)).isError,true,'relation is closed');
   assert.equal(bind(orange.name,args,'foreign',{requester:{senderIsOwner:false}}).block,true);
   assert.equal(bind(orange.name,args,'contact',{agentId:'contacts'}).block,true);
   assert.equal(bind(orange.name,args,'no-run',{runId:undefined}).block,true);
