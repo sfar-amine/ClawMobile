@@ -1420,9 +1420,16 @@ class Contacts:
                         'lastActivityAt':utc(activity[number]['timestamp']/1000) if activity.get(number,{}).get('timestamp') and not activity[number]['reason'] else None,
                         **({'reason':'archived_history'} if activity.get(number,{}).get('reason')=='archived_history' else {})})
         return out
-    def find(self, identity):
+    def persisted_config(self):
+        """The file the Gateway loads and config.patch writes; the native Pulse room reads it the same way.
+        Amine 29/10: a read takes 22 ms here instead of 2 s for an `openclaw gateway call` spawn."""
+        try: info=self.people.CONFIG.lstat()
+        except OSError: fail('contacts_unavailable',503)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid() or info.st_size>2097152: fail('contacts_unavailable',503)
+        return self.local_config()
+    def find(self, identity, config=None):
         if not isinstance(identity,str) or not CID.fullmatch(identity): fail('invalid_contact_id')
-        values=[r for r in self.rows(target=identity) if r['contactId']==identity]
+        values=[r for r in self.rows(config=config,target=identity) if r['contactId']==identity]
         if len(values)!=1: fail('unknown_contact',404)
         return values[0]
     def retired(self, identity):
@@ -2085,7 +2092,7 @@ class Contacts:
         allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'memory-compact':set(),'contact-tool':{'action','operationId','e164','text'},'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'},'rooms':common|{'rooms','qaApps','expectedQaRevision'}}
         if action not in allowed or set(body)-allowed[action]: fail('invalid_request')
         if action=='list': return {'success':True,'state':'partial' if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else 'ok','receipt':None,'items':self.rows(),'issues':['contact_scan_partial'] if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else []}
-        if action=='get': return {'success':True,'state':'ok','receipt':None,'contact':self.find(body.get('contactId')),'historyCount':self.history_count(body.get('contactId'))}
+        if action=='get': return {'success':True,'state':'ok','receipt':None,'contact':self.find(body.get('contactId'),self.persisted_config()),'historyCount':self.history_count(body.get('contactId'))}
         if action=='operation':
             value=self.read_operation(body.get('operationId'),body.get('requestHash'))
             return value or {'success':False,'state':'not_found','receipt':None}

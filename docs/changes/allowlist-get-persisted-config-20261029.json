@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "id": "allowlist-get-persisted-config-20261029",
+  "date": "2026-10-29",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The read-only allowlist `get` (Pulse room admission and the app contact detail) reads the persisted openclaw.json instead of spawning `openclaw gateway call config.get`. The file gets the same checks as the native Pulse room reader (regular file, owned by the runtime user, at most 2 MiB). Mutations keep the live Gateway config and its hash for compare-and-swap.",
+  "reason": "Amine 29/10: « go lecture en mémoire aussi ». S24 profile: 2.0 of 2.05 s of one `allowlist get` is the `openclaw gateway call` CLI spawn; Python and the contact reads take 50 ms. On the S24 the persisted file and config.get give identical rows for all 5 contacts (rows 22 ms vs 2.41 s). config.patch writes the same file, so a revocation is visible to the next read.",
+  "files": [
+    "installer/termux-lite/people-trusted.py",
+    "installer/termux-lite/test-whatsapp-allowlist.py",
+    "docs/changes/allowlist-get-persisted-config-20261029.json",
+    "docs/changes/allowlist-get-persisted-config-20261029.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-whatsapp-allowlist.py",
+      "status": "passed",
+      "evidence": "49/49: get makes no Gateway call, equals the live find(), sees a persisted revocation at once, refuses a symlinked or oversized config."
+    },
+    {
+      "name": "installer/termux-lite/test-whatsapp-allowlist-manager.py, test-qa-room-access.py, test-people-trusted.py, test-native-room-owner-readers.py, test-whatsapp-contact-memory.py, test-qa-attachment-pipe.py, test-health-qa-queue.py",
+      "status": "passed",
+      "evidence": "Unchanged owners of the same people module."
+    }
+  ],
+  "documentation": [
+    "docs/changes/allowlist-get-persisted-config-20261029.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same contact read; no new action or field."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same owner and IPC; the read uses the file the native room reader already trusts. No cache, store or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "people-trusted.py allowlist get only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "`list` and every mutation still read the live Gateway config.",
+    "A hand edit of openclaw.json that the Gateway has not reloaded is what this read sees; config.patch keeps both in step."
+  ],
+  "rollback": "Revert this commit and redeploy the core."
+}
