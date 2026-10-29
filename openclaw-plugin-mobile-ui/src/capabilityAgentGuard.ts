@@ -7,7 +7,7 @@
  * resolves once with the canonical Capability Graph, applies the E3 policy and executes exactly
  * that decision with the graph's existing read-only policy (`capability_first_required` otherwise).
  */
-import {createHash,randomUUID} from 'node:crypto';
+import {createHash} from 'node:crypto';
 import {dialogueRequestText} from './dialogueSurface';
 export const TYPED_CONTROL_ADMISSION_METHOD='samantha.typed-control.admission';
 const typedSeal=Symbol('typed-host-invocation');
@@ -20,8 +20,7 @@ export const AGENT_CAPABILITY_REFUSAL = "capability_first_required";
 // Current-invocation proof of the existing guard, not a business registry. A
 // tool cannot receive this through model arguments, persisted JSON or replay.
 type TypedProof={at:number;tool:string;runId:string;sessionKey:string;sessionId?:string;args:string;
-  control?:{operationId:string;paramsHash:string;expiresAt:number;assertCurrent:()=>void};
-  nativePulse?:{admission:import('./nativePulseAdmission').NativePulseContact;event:Record<string,unknown>;expiresAt:number}};
+  control?:{operationId:string;paramsHash:string;expiresAt:number;assertCurrent:()=>void};};
 const typedInvocations = new Map<string, TypedProof>();
 const typedId = /^[A-Za-z0-9_.:-]{1,200}$/;
 const typedName = /^samantha_[a-z0-9_]{1,100}$/;
@@ -86,37 +85,6 @@ export function typedControlAdmission(params:any){
 export async function typedControlAdmissionHandler({params,respond}:any){
  try{return respond(true,typedControlAdmission(params));}
  catch{return respond(false,undefined,{code:'FORBIDDEN',message:'current SDK invocation proof required'});}
-}
-
-/** Existing native Pulse admission only; no JSON purpose/caller bit can mint this lease. */
-export async function holdNativePulseInterpretation(admission:import('./nativePulseAdmission').NativePulseContact,event:Record<string,unknown>,text:string){
- const {NativePulseContact}=await import('./nativePulseAdmission');
- if(!(admission instanceof NativePulseContact))throw Error('native_pulse_admission_required');
- const packet=await admission.packet(event,text),at=Date.now();
- for(const [key,proof] of typedInvocations)if(at-proof.at>120000)typedInvocations.delete(key);
- if(typedInvocations.size>=256)throw Error('native_pulse_admission_required');
- const id='native-pulse-'+randomUUID(),held:TypedProof={at,tool:'native-pulse-interpretation',runId:admission.eventRef,
-  sessionKey:admission.sessionKey,args:'',nativePulse:{admission,event:{surface:event.surface,conversationKey:event.conversationKey,eventRef:event.eventRef,
-   ...(admission.requestContext?{requestContext:admission.requestContext}:{})},
-   expiresAt:Math.min(packet.valid_until,at+30000)}};
- typedInvocations.set(id,held);
- return {invocationId:id,release:()=>{if(typedInvocations.get(id)===held)typedInvocations.delete(id);}};
-}
-export async function requireNativePulseInterpretation(params:any){
- const id=params?.nativePulseInvocationId,proof=typeof id==='string'?typedInvocations.get(id):undefined,native=proof?.nativePulse;
- if(!native||Date.now()<proof!.at||Date.now()>=native.expiresAt||typeof params?.message!=='string'||!params.message.startsWith('REQUEST='))
-  throw Error('native_pulse_admission_required');
- await native.admission.packet(native.event,native.admission.originalText);
- if(Date.now()>=native.expiresAt)throw Error('native_pulse_admission_required');
- const request=JSON.parse(params.message.slice(8));
- const hash=(parts:unknown[],length:number)=>createHash('sha256').update(JSON.stringify(parts)).digest('hex').slice(0,length);
- const conversation='conv-'+hash(['dialogue-conversation-v1','pulse_room',native.admission.conversationKey.trim()],24);
- const event='evt-'+hash(['dialogue-event-v1','pulse_room',conversation,native.admission.eventRef.trim()],32);
- // The model view deliberately omits host identities. Its message ref is
- // bound here; Python's sealed professional owner separately checks the full projection.
- if(request.message?.ref!==event||request.message?.text!==dialogueRequestText(native.admission.originalText,native.admission.requestContext)||request.message?.provenance!=='server_verified'||
-    !Array.isArray(request.catalogue?.domains)||request.catalogue.domains.length!==1||request.catalogue.domains[0]?.domain_id!=='pulse')
-  throw Error('native_pulse_admission_required');
 }
 
 function plainRecord(value: unknown): value is Record<string, unknown> {

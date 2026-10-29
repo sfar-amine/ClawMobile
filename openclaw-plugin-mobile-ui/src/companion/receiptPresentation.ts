@@ -101,6 +101,10 @@ export const FAILURE_PHRASES = {
   invalid_web_execution_context:'Le contexte de la recherche web est invalide.',
   execution_cancelled:'Le traitement a été interrompu.',
   coordinator_unavailable:'Le suivi de conversation est indisponible.',
+  // Interpretation outcomes, same causes as the owner path (Sadok, Pulse room 28-29/10).
+  interpretation_unavailable:"Je ne peux pas réfléchir pour le moment : le modèle n’est pas joignable. Rien n’a été exécuté ; réessaie dans un instant.",
+  interpretation_not_dispatched:"Je ne peux pas réfléchir pour le moment : le modèle n’est pas joignable. Rien n’a été exécuté ; réessaie dans un instant.",
+  generation_context_changed:"Deux messages se sont croisés ; celui-ci n’a pas été traité. Renvoie-le.",
   qa_ingress_deadline_exceeded:'La demande de tests auto n’a pas abouti dans le délai imparti.',
  },
  en: {
@@ -151,6 +155,9 @@ export const FAILURE_PHRASES = {
   invalid_web_execution_context:'The web search context is invalid.',
   execution_cancelled:'Processing was interrupted.',
   coordinator_unavailable:'Conversation tracking is unavailable.',
+  interpretation_unavailable:"I cannot think right now: the model is unreachable. Nothing was run; try again in a moment.",
+  interpretation_not_dispatched:"I cannot think right now: the model is unreachable. Nothing was run; try again in a moment.",
+  generation_context_changed:"Two messages crossed; this one was not handled. Send it again.",
   qa_ingress_deadline_exceeded:'The auto test request exceeded its time limit.',
  },
 } as const;

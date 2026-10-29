@@ -116,42 +116,25 @@ function fake(script) {
     assert.equal(replies[0][2].code, "UNAVAILABLE");
     assert.equal(replies[1][2].code, "INVALID_REQUEST");
   }
-  // The single-brain switch concerns Amine. A contact's existing sealed professional AI remains alone.
+  // The single-brain switch concerns Amine. A contact's professional AI stays the one admitted Gemini profile,
+  // on the Pulse catalogue only. The room is admitted at its turn and Python re-reads the sealed contact evidence
+  // at send: the Gateway keeps no third lease (S24 28-29/10, every room message was refused by it).
   {
     const old=process.env.SAMANTHA_BRAIN_ONLY;process.env.SAMANTHA_BRAIN_ONLY='1';
-    const {admitNativePulseContact}=require('../dist/nativePulseAdmission');
-    const {holdNativePulseInterpretation}=require('../dist/capabilityAgentGuard');
-    const crypto=require('node:crypto'),number='+21610000003',sessionKey='agent:contacts-pulse:whatsapp:direct:'+number;
-    const contactId='wa-'+crypto.createHash('sha256').update(number).digest('hex').slice(0,16),text='état du projet 20495';
-    const admission=await admitNativePulseContact({sessionKey,eventRef:'authored-contact-event',text,isGroup:false},
-      async()=>({success:true,owner:false,state:'active',contactId,e164:number,rooms:['pulse'],expiresAt:null}));
-    const event={surface:'pulse_room',conversationKey:admission.conversationKey,eventRef:admission.eventRef};
-    const hash=(parts,n)=>crypto.createHash('sha256').update(JSON.stringify(parts)).digest('hex').slice(0,n);
-    const conversation='conv-'+hash(['dialogue-conversation-v1','pulse_room',admission.conversationKey],24);
-    const ref='evt-'+hash(['dialogue-event-v1','pulse_room',conversation,admission.eventRef],32);
-    const lease=await holdNativePulseInterpretation(admission,event,text),replies=[];let calls=0;
-    const params={systemPrompt:'authored professional fixture',message:'REQUEST='+JSON.stringify({message:{ref,text,provenance:'server_verified'},catalogue:{domains:[{domain_id:'pulse'}]}}),purpose:port.NATIVE_PULSE_PURPOSE,model:GEMINI};
+    const replies=[];let calls=0;
+    const request={message:{ref:'evt-authored',text:'état du projet 20495',provenance:'server_verified'},catalogue:{domains:[{domain_id:'pulse'}]}};
+    const params={systemPrompt:'authored professional fixture',message:'REQUEST='+JSON.stringify(request),purpose:port.NATIVE_PULSE_PURPOSE,model:GEMINI};
     const handler=port.createInterpretHandler(()=>async()=>{calls++;return {text:JSON.stringify({outcome:'intent',domain:'pulse',intent_id:'project.phases',parameters:{project_id:'20495'}})};});
     try{
       await handler({params,respond:(...v)=>replies.push(v)});
-      assert.equal(calls,0,'purpose alone cannot admit an owner or forged contact');assert.equal(replies.at(-1)[0],false);
-      await handler({params:{...params,nativePulseInvocationId:lease.invocationId},respond:(...v)=>replies.push(v)});
-      assert.equal(calls,1);assert.equal(replies.at(-1)[0],true,'sealed existing contact interpretation remains available without SDK second brain');
-      const {dialogueChildRequest,dialogueRequestText}=require('../dist/dialogueSurface');
-      const requestContext={parentEventRef:'original-professional-message',originalText:'1. Ne modifie rien, lis les phases\n2. Explique le projet'};
-      const child=dialogueChildRequest(requestContext.parentEventRef,'Ne modifie rien, lis les phases',1);
-      const scoped=await admitNativePulseContact({sessionKey,eventRef:child.eventRef,text:child.text,isGroup:false,requestContext},
-        async()=>({success:true,owner:false,state:'active',contactId,e164:number,rooms:['pulse'],expiresAt:null}));
-      const e={surface:'pulse_room',conversationKey:scoped.conversationKey,eventRef:child.eventRef,requestContext};
-      const scopedLease=await holdNativePulseInterpretation(scoped,e,child.text);
-      try{
-        const scopedRef='evt-'+hash(['dialogue-event-v1','pulse_room',conversation,child.eventRef],32);
-        const view=text=>({...params,nativePulseInvocationId:scopedLease.invocationId,message:'REQUEST='+JSON.stringify({message:{ref:scopedRef,text,provenance:'server_verified'},catalogue:{domains:[{domain_id:'pulse'}]}})});
-        await handler({params:view(child.text),respond:(...v)=>replies.push(v)});assert.equal(calls,1,'dropping the original constraints is refused before the model');
-        await handler({params:view(dialogueRequestText(child.text,requestContext)),respond:(...v)=>replies.push(v)});
-        assert.equal(calls,2);assert.equal(replies.at(-1)[0],true,'the same full quoted view is sealed by the existing professional owner');
-      }finally{scopedLease.release();}
-    }finally{lease.release();if(old===undefined)delete process.env.SAMANTHA_BRAIN_ONLY;else process.env.SAMANTHA_BRAIN_ONLY=old;}
+      assert.equal(calls,1);assert.equal(replies.at(-1)[0],true,'a room interpretation needs no Gateway lease');
+      for(const invalid of [{...params,model:LUNA},{...params,message:'état du projet 20495'},
+          {...params,message:'REQUEST='+JSON.stringify({...request,catalogue:{domains:[{domain_id:'pulse'},{domain_id:'owner_private'}]}})},
+          {...params,message:'REQUEST={'}]){
+        await handler({params:invalid,respond:(...v)=>replies.push(v)});
+        assert.equal(calls,1,'other model, owner catalogue or malformed request: refused before the model');assert.equal(replies.at(-1)[0],false);
+      }
+    }finally{if(old===undefined)delete process.env.SAMANTHA_BRAIN_ONLY;else process.env.SAMANTHA_BRAIN_ONLY=old;}
   }
   // The credential-owner port also serves C2 Sol -> Luna -> Gemini free. C1 still rejects Sol above.
   assert.deepEqual([...port.IMMUNE_MODELS],['openai/gpt-5.6-sol',LUNA,GEMINI]);
