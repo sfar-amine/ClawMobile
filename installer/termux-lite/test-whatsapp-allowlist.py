@@ -245,6 +245,20 @@ class AllowlistTests(unittest.TestCase):
         second=self.service.call('history',{'limit':2,'before':result['nextBefore']});self.assertEqual(len(second['items']),2)
         self.assertNotIn('secret',json.dumps(result));self.assertNotIn(NEW,json.dumps(second))
         self.assertEqual(self.service.call('get',{'contactId':identity})['historyCount'],4)
+    def test_get_reads_the_persisted_config_without_a_gateway_spawn(self):
+        identity=m.contact_id(OTHER);self.calls.clear()
+        contact=self.service.call('get',{'contactId':identity})['contact']
+        self.assertEqual(contact['state'],'active');self.assertEqual(self.calls,[])
+        self.assertEqual(contact,self.service.find(identity))
+        # A revocation persisted by config.patch is visible to the very next read.
+        self.cfg['channels']['whatsapp']['allowFrom']=[OWNER];self.save();self.calls.clear()
+        with self.assertRaises(m.Refused) as gone:self.service.call('get',{'contactId':identity})
+        self.assertEqual(gone.exception.args[0],'unknown_contact');self.assertEqual(self.calls,[])
+        # Same file checks as the native Pulse room reader: a link or an oversized file grants nothing.
+        real=self.root/'real.json';real.write_text(json.dumps(self.cfg));m.CONFIG.unlink();m.CONFIG.symlink_to(real)
+        with self.assertRaises(m.Refused):self.service.call('get',{'contactId':identity})
+        m.CONFIG.unlink();m.CONFIG.write_text(' '*2097153)
+        with self.assertRaises(m.Refused):self.service.call('get',{'contactId':identity})
     def test_sweep_capacity_and_metadata_read_budget(self):
         m.CONTACTS.mkdir()
         for i in range(201):(m.CONTACTS/('wa_216'+str(i).zfill(8)+'.md')).write_text('not R17')
