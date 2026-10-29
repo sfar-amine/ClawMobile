@@ -272,7 +272,6 @@ while :; do
       log INFO recovered ok "ADB operational"
       notify_info "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée." && rm -f "$HELP_NOTIFY"
       "$RUNTIME_DIR/capability-recovered.py" device.adb >/dev/null 2>&1 || log WARN recovery_dispatch failed "device.adb recovery dispatch failed"
-      "$RUNTIME_DIR/chat-continuity-restore.sh" >/dev/null 2>&1 || log WARN continuity_restore failed "deferred ChatGPT restore failed"
     fi
     printf up >"$STATE"; prev=up; recovery_tries=0
   elif ! wifi_up; then
@@ -291,7 +290,6 @@ while :; do
       printf up >"$STATE"; prev=up; recovery_tries=0
       notify_info "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée." && rm -f "$HELP_NOTIFY"
       "$RUNTIME_DIR/capability-recovered.py" device.adb >/dev/null 2>&1 || log WARN recovery_dispatch failed "device.adb recovery dispatch failed"
-      "$RUNTIME_DIR/chat-continuity-restore.sh" >/dev/null 2>&1 || log WARN continuity_restore failed "deferred ChatGPT restore failed"
     else
       if [ "$prev" != recovery_needed ]; then log WARN recovery pending "trusted automatic ADB recovery did not succeed"; fi
       if [ "$recovery_tries" -eq "$HELP_AFTER" ]; then

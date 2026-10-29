@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "id": "remove-chatgpt-reopen-20261029",
+  "date": "2026-10-29",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The automatic ChatGPT reopening (« continuité ChatGPT ») is removed: the ADB recovery watchdog, the Health Manager and the boot no longer reopen a saved ChatGPT conversation; the restore, capture and boot-continuity scripts and the chat.continuity health item are gone.",
+  "reason": "Amine 29/10: ChatGPT kept coming to the front of the S24. S24 logs: chat-continuity-restore.sh reopened a conversation saved on 26/09 at every ADB reconnection and every ~15 s after a reboot while the phone was locked (the restore could not see ChatGPT in front and retried): 668 openings on 29/10, more than 500 a day on 21-23/10 and 27/10. Stopped live the same day by renaming the checkpoint; Amine decided to remove the reopening (« oui retire la réouverture ChatGPT »).",
+  "files": [
+    "installer/termux-lite/adb-recovery-watchdog.sh",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/tier0-bootstrap.sh",
+    "installer/termux-lite/health-verdict.py",
+    "installer/termux-lite/chat-continuity-restore.sh",
+    "installer/termux-lite/chat-continuity-capture.sh",
+    "installer/termux-lite/boot-continuity-recovery.sh",
+    "installer/termux-lite/test-incident-runtime-hardening.sh",
+    "installer/termux-lite/test-adb-recovery-readiness-watchdog.sh",
+    "docs/changes/remove-chatgpt-reopen-20261029.json",
+    "docs/changes/remove-chatgpt-reopen-20261029.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-incident-runtime-hardening.sh",
+      "status": "passed",
+      "evidence": "Now asserts that neither the ADB watchdog, the Health Manager nor tier0-bootstrap mention chat-continuity or boot-continuity, and that chat-continuity-restore.sh no longer exists."
+    },
+    {
+      "name": "installer/termux-lite/test-health-*.py, test-whatsapp-channel-health.py",
+      "status": "passed",
+      "evidence": "Health verdict and Health Manager tests green without the chat.continuity item."
+    }
+  ],
+  "documentation": [
+    "docs/changes/remove-chatgpt-reopen-20261029.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No registered capability; an automatic side effect and its health indicator are removed."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Callers removed from existing owners; no new component."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "ADB recovery, Health Manager and boot paths only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "The renamed checkpoint ~/.openclaw/continuity/chatgpt-current.json.disabled-20261029 stays on the S24 as a backup."
+  ],
+  "rollback": "Revert this commit and redeploy the core."
+}

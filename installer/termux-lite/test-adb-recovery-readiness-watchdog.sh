@@ -45,7 +45,7 @@ printf '%s\n' "\$*" >>"$T/closings"
 EOF
 chmod +x "$H/.openclaw/releases/current/termux-lite/incident-close.sh"
 
-for x in capability-recovered.py chat-continuity-restore.sh adb-discover-endpoint.py; do
+for x in capability-recovered.py adb-discover-endpoint.py; do
  cat >"$H/.openclaw/releases/current/termux-lite/$x" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 exit 0
