@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "id": "interpreter-sol-then-gemini-20261029",
+  "date": "2026-10-29",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The Gateway interpretation port runs Sol first and Gemini free only after a technical failure of Sol (subscription OAuth for OpenAI models, Gemini pinned to its free profile); Luna leaves the interpretation chain and stays in the immune chain. The Pulse room purpose accepts the same models as the owner path, restricted only to the Pulse catalogue.",
+  "reason": "Amine 29/10: all models may receive Pulse professional data, no exception per contact, Sol then Gemini fallback (S24 decision event 4716eb45…). Paired with the playbooks change interpreter-sol-then-gemini-20261029.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-brain-only-entry.cjs",
+    "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
+    "docs/changes/interpreter-sol-then-gemini-20261029.json",
+    "docs/changes/interpreter-sol-then-gemini-20261029.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
+      "status": "passed",
+      "evidence": "Sol answers first with OAuth; each technical failure of Sol falls back once to Gemini without OAuth; Luna is no longer an interpretation model; the Pulse room accepts Sol and Gemini on the Pulse catalogue and refuses Luna, a plain message, an owner catalogue or malformed JSON."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-brain-only-entry.cjs",
+      "status": "passed",
+      "evidence": "Under brain-only the room interpretation survives with Sol; Luna, a plain message or an owner catalogue are refused with zero completion."
+    }
+  ],
+  "documentation": [
+    "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
+    "docs/changes/interpreter-sol-then-gemini-20261029.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same intents; the interpreting model order changes."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same Gateway port and credential owner; model constants change."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Gateway interpretation port only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Activate the paired playbooks change with this deployment (the governor selects Sol first).",
+    "Sol latency on real turns to be measured after deployment."
+  ],
+  "rollback": "Revert this commit and redeploy the core; revert the paired playbooks change."
+}
