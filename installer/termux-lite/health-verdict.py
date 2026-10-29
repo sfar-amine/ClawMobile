@@ -205,7 +205,6 @@ def live():
  ostate,oreason,ofresh=oauth_readiness(OC/'health/provider-oauth.json')
  x['provider.oauth']=external_readiness(ostate,False,reason=oreason,evidence='openclaw models status auth.oauth',freshness=ofresh)
  x['boot.persistence']=item('ready' if (H/'.termux/boot/start-samantha').exists() else 'down',True,evidence='Termux:Boot')
- x['chat.continuity']=item('ready' if (OC/'continuity/chatgpt-current.json').stat().st_size>0 else 'degraded',False,evidence='chat checkpoint') if (OC/'continuity/chatgpt-current.json').exists() else item('degraded',False,reason='checkpoint absent')
  return x
 def _incident_component_live_state(component,caps):
  component=str(component or '')

@@ -199,7 +199,7 @@ check_http(){
  with_repair_lease repair_http_under_lease "$n" "$url" "$pat" "$script" "$grace" "$stop_wait"
 }
 
-check_adb_effect(){ if adb_ok; then prev=$(get adb status unknown); healthy adb; [ "$prev" = healthy ] || { "$ROOT/capability-recovered.py" device.adb 9>&- >/dev/null 2>&1 || true; "$ROOT/chat-continuity-restore.sh" 9>&- >/dev/null 2>&1 || true; }; return; fi; unstable adb; due adb || return; restart_gate adb || return; log 'service=adb action=fast_reconnect'; timeout 4 adb 9>&- connect 127.0.0.1:5556 >/dev/null 2>&1||true; sleep 1 9>&-; adb_ok && healthy adb || fail adb; }
+check_adb_effect(){ if adb_ok; then prev=$(get adb status unknown); healthy adb; [ "$prev" = healthy ] || "$ROOT/capability-recovered.py" device.adb 9>&- >/dev/null 2>&1 || true; return; fi; unstable adb; due adb || return; restart_gate adb || return; log 'service=adb action=fast_reconnect'; timeout 4 adb 9>&- connect 127.0.0.1:5556 >/dev/null 2>&1||true; sleep 1 9>&-; adb_ok && healthy adb || fail adb; }
 verdict_field(){ python3 - "$D/current.json" "$1" "$2" <<'PY'
 import json,sys
 try:
