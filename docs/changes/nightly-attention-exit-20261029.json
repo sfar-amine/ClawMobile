@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "id": "nightly-attention-exit-20261029",
+  "date": "2026-10-29",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The nightly acceptance exits 0 for an ok or attention receipt and 1 only for failed, so the OpenClaw scheduler no longer counts latency-drift nights as job failures.",
+  "reason": "S24 29/10: no nightly receipt on 28/10 nor 29/10. The job samantha:nightly-acceptance was auto-disabled by OpenClaw on 27/10 03:01 (autoDisabled consecutive-failures, consecutiveErrors 10): every night since 18/10 ended in state attention (11 latency drift rows) and the script exited 1. The replay added on 28/10 never ran.",
+  "files": [
+    "installer/termux-lite/companion-nightly-acceptance.py",
+    "installer/termux-lite/test-companion-nightly-acceptance.py",
+    "docs/work/samantha-runtime/contracts/h8.md",
+    "docs/changes/nightly-attention-exit-20261029.json",
+    "docs/changes/nightly-attention-exit-20261029.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-companion-nightly-acceptance.py",
+      "status": "passed",
+      "evidence": "15 OK. New test: an attention receipt exits 0 and a failed one exits 1; the real S24 17/10 receipt (attention) now exits 0. Both assertions fail on the previous script (reproduced)."
+    },
+    {
+      "name": "installer/termux-lite/test-nightly-dialogue-replay.py",
+      "status": "passed",
+      "evidence": "Unchanged, still green."
+    }
+  ],
+  "documentation": [
+    "docs/changes/nightly-attention-exit-20261029.md",
+    "docs/work/samantha-runtime/contracts/h8.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same nightly job, receipt and health view; only its exit code for attention."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same scheduler job and script; no new store or job."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Nightly acceptance script exit code only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "The disabled job is re-enabled on the S24 (openclaw cron enable) by Claude, with its receipt; the 11 latency drift rows are a separate finding to read in the receipts."
+  ],
+  "rollback": "Revert this commit and redeploy the core."
+}
