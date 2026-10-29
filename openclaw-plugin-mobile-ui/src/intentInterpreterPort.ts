@@ -7,7 +7,6 @@
 // refusal is never a technical failure and never reaches Luna (decision 3173).
 
 import {brainOnlyEnabled} from "./brainOnly";
-import {requireNativePulseInterpretation} from './capabilityAgentGuard';
 export const INTERPRETER_PRIMARY = "google/gemini-3.5-flash-lite@google:claw-gemini-free";
 export const INTERPRETER_FALLBACK = "openai/gpt-5.6-luna";
 export const INTERPRETER_MODELS = Object.freeze([INTERPRETER_PRIMARY, INTERPRETER_FALLBACK]);
@@ -182,6 +181,13 @@ export async function interpret(complete: LlmComplete, req: InterpretRequest,
     attempts, totalMs: now() - started };
 }
 
+function nativePulseRequest(message:unknown){
+  if(typeof message!=='string'||!message.startsWith('REQUEST='))return false;
+  try{const domains=JSON.parse(message.slice(8))?.catalogue?.domains;
+    return Array.isArray(domains)&&domains.length===1&&domains[0]?.domain_id==='pulse';}
+  catch{return false;}
+}
+
 /** Gateway method body: validated request in, structured decision or stable code out. */
 export function createInterpretHandler(getComplete: () => LlmComplete | undefined) {
   return async ({ params, respond, signal }: any) => {
@@ -193,8 +199,9 @@ export function createInterpretHandler(getComplete: () => LlmComplete | undefine
       // Native professional DATA01 currently admits this one included profile.
       // The existing governor owns any future extension; a purpose cannot mint a model fallback.
       if(params?.model!==INTERPRETER_PRIMARY)return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse model not admitted'});
-      try{await requireNativePulseInterpretation(params);}
-      catch{return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse admission required'});}
+      // The room was admitted at its turn and Python re-reads the sealed contact evidence at send:
+      // no third lease here (S24 28-29/10, every room message refused). Only the Pulse catalogue is served.
+      if(!nativePulseRequest(params?.message))return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse request required'});
     }
     if (brainOnlyEnabled() && params?.purpose !== IMMUNE_PURPOSE && params?.purpose !== NATIVE_PULSE_PURPOSE)
       return respond(false, undefined, {code: "INVALID_REQUEST", message: "dedicated intent interpreter retired"});
