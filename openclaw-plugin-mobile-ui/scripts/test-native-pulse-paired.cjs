@@ -72,7 +72,7 @@ async function input(text,eventRef,requestContext){
  check(fs.readFileSync(process.env.C16_PAIRED_LOG,'utf8').trim().split('\n').length===2,'replay invokes neither model nor effect');
  const receipts=fs.readdirSync(path.join(root,'.openclaw','remote-bridge','requests')).map(f=>JSON.parse(fs.readFileSync(path.join(root,'.openclaw','remote-bridge','requests',f))));
  check(receipts.length===1&&receipts[0].mutationRisk==='write'&&receipts[0].state==='completed','one canonical durable Bridge receipt');
- check(reads>=6,'authority was re-read at turn, prepare, dispatch and observation');
+ check(reads===1,'one authority read for the message, reused at turn, prepare, dispatch and observation');
  const stat=spawnSync('python3',['-m','skill_intelligence.continuum_ingress','status','--task-id',receipts[0].taskId],{cwd:pb,env:process.env,encoding:'utf8'});
  check(stat.status===0&&JSON.parse(stat.stdout).state==='completed','existing Continuum owner completed from native business verification');
  // Actual OpenClaw hook as well as the lower-level dialogue port.

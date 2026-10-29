@@ -3,7 +3,9 @@ const assert=require('node:assert/strict'),crypto=require('node:crypto'),fs=requ
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'native-pulse-'));
 process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR=path.join(root,'bridge');
 process.env.CLAW_CONTINUUM_FOREGROUND_DIR=path.join(root,'continuum');
-const {admitNativePulseContact,NativePulseContact,NATIVE_PULSE_PROTOCOL}=require('../dist/nativePulseAdmission');
+const {admitNativePulseContact,NativePulseContact,NATIVE_PULSE_PROTOCOL,AUTHORITY_FRESH_MS}=require('../dist/nativePulseAdmission');
+const realNow=Date.now;let skew=0;Date.now=()=>realNow()+skew;
+const ageRead=()=>{skew+=AUTHORITY_FRESH_MS;};
 const bridge=require('../dist/companion/remoteBridge');
 const e164='+21610000000',id='wa-'+crypto.createHash('sha256').update(e164).digest('hex').slice(0,16);
 const sessionKey='agent:contacts-pulse:whatsapp:direct:'+e164;
@@ -30,12 +32,22 @@ function arm(taskId,requestId,params){
  const admission=await admitNativePulseContact({sessionKey,eventRef,text,isGroup:false},read);
  const event={surface:'pulse_room',conversationKey:admission.conversationKey,eventRef,caller:'owner'};
  const packet=await admission.packet(event,text);
- check(packet.contact_id===id&&packet.event_ref===eventRef&&reads===2,'actual owner re-read before each private packet');
+ check(packet.contact_id===id&&packet.event_ref===eventRef&&reads===1,'one owner read per message, reused by its packets');
  await assert.rejects(admission.packet({...event,eventRef:'other'},text),/event_mismatch/);n++;
  await assert.rejects(admission.packet(event,text.trim()),/event_mismatch/);n++;
  for(const changes of [{state:'suspended'},{expiresAt:'2000-01-01T00:00:00Z'},{rooms:['conversation']},{owner:true},{e164:'+21610000001'}]){
-  const saved=authority;authority={...authority,...changes};await assert.rejects(admission.packet(event,text),/contact_revoked/);n++;authority=saved;
+  const held=await admitNativePulseContact({sessionKey,eventRef,text,isGroup:false},read);
+  const saved=authority;authority={...authority,...changes};
+  await assert.rejects(admitNativePulseContact({sessionKey,eventRef,text,isGroup:false},read),/contact_revoked/);n++;
+  check((await held.packet(event,text)).contact_id===id,'a message already admitted keeps its fresh read');
+  ageRead();await assert.rejects(held.packet(event,text),/contact_revoked/);n++;authority=saved;
  }
+ const before=reads;await admission.packet(event,text);await admission.packet(event,text);
+ check(reads===before+1,'a stale read is refreshed once, then reused');
+ let failing=true;const flaky=async()=>{reads++;if(failing)throw Error('allowlist_unavailable');return {...authority};};
+ const once=await admitNativePulseContact({sessionKey,eventRef,text,isGroup:false},read);
+ await assert.rejects(admitNativePulseContact({sessionKey,eventRef,text,isGroup:false},flaky),/allowlist_unavailable/);n++;
+ failing=false;check(!!once&&(await admitNativePulseContact({sessionKey,eventRef,text,isGroup:false},flaky)).contactId===id,'a failed read is never reused');
  const {dialogueChildRequest}=require('../dist/dialogueSurface');
  const requestContext={parentEventRef:'parent-native-'+('x'.repeat(260)),originalText:'1. Lis le projet sans modification\n2. Explique ses phases'};
  const child=dialogueChildRequest(requestContext.parentEventRef,'Lis le projet sans modification',1);
@@ -115,7 +127,7 @@ function arm(taskId,requestId,params){
  const replayGood=await bridge.submitNativePulseRequest(t2failed,admission,event,text,async()=>{t2effects++;},async()=>{t2calls++;});
  assert.deepEqual(replayGood,good);n++;
  check(t2calls===1&&t2effects===1,'T2 delivery failure/replay never executes or finalizes twice');
- authority={...authority,state:'suspended'};
+ authority={...authority,state:'suspended'};ageRead();
  await assert.rejects(bridge.submitNativePulseRequest(body,admission,event,text,execute),/contact_revoked/);n++;
  console.log(`Native Pulse host/Bridge: ${n}/${n} probes passed; MOCK_ONLY, no live effect`);
 }finally{fs.rmSync(root,{recursive:true,force:true});}})().catch(error=>{console.error(error);process.exitCode=1;});

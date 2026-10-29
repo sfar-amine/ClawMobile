@@ -51,10 +51,12 @@ async function input(ref){const text='  lis le projet 20495\n';const nativePulse
  }
  delete process.env.C18_SCOPE_MODE;
  const held=await input('contact-revoked');const pending=await dialogueTurn(runner,held);revoked=true;
+ const {AUTHORITY_FRESH_MS}=require('../dist/nativePulseAdmission');const realNow=Date.now;Date.now=()=>realNow()+AUTHORITY_FRESH_MS;
  const count=rows().length;const refused=await dialogueHandoff(runner,held,pending.pendingHandoff.goalRef);
- check(refused.outcome==='DENIED'&&refused.reasonCode==='native_pulse_admission_required','contact revalidated before subprocess');
+ Date.now=realNow;
+ check(refused.outcome==='DENIED'&&refused.reasonCode==='native_pulse_admission_required','a stale read is revalidated before subprocess');
  check(rows().length===count,'revoked contact causes no helper/model/business read');
- check(authorityReads>=10,'native owner re-read on each private phase');
+ check(authorityReads===7,'one owner read per admitted message (6) plus one refresh of the stale read, not one per private phase');
  const evidence={schema:'native-fast-paired.v1',qualification:'MOCK_ONLY',core_sha:head(core),playbooks_sha:head(pb),checks,passed:checks,provider_calls:0,real_business_effects:0};
  if(process.env.C18_EVIDENCE_PATH)fs.writeFileSync(process.env.C18_EVIDENCE_PATH,JSON.stringify(evidence,null,2)+'\n');
  console.log(JSON.stringify(evidence));
