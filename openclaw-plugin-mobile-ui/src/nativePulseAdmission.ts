@@ -8,10 +8,13 @@ const seal=Symbol('native-pulse-host');
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
 type AuthorityRead=(contactId:string)=>Promise<any>;
 const canonicalRead:AuthorityRead=id=>allowlistRead('get',id);
+/** Amine 29/10: one access read per message, not one per packet (each read spawns the owner, 2-3 s).
+ *  A packet reuses it while fresh; a message that waits longer (restart deferral) reads again. */
+export const AUTHORITY_FRESH_MS=60_000;
 
 /** Ephemeral host event, not serializable authority. No conversation state. */
 export class NativePulseContact {
-  #seal:symbol; #read:AuthorityRead;
+  #seal:symbol; #read:AuthorityRead; #authority?:{at:number;value:Promise<any>};
   constructor(token:symbol,readonly contactId:string,readonly conversationKey:string,
     readonly eventRef:string,readonly originalText:string,readonly sessionKey:string,read:AuthorityRead,
     readonly requestContext?:Readonly<DialogueRequestContext>) {
@@ -23,7 +26,7 @@ export class NativePulseContact {
        (this.requestContext?(!event.requestContext||Object.keys(event.requestContext).sort().join(',')!=='originalText,parentEventRef'||
          event.requestContext.parentEventRef!==this.requestContext.parentEventRef||event.requestContext.originalText!==this.requestContext.originalText):
          event.requestContext!==undefined))throw Error('native_pulse_event_mismatch');
-    const current=await this.#read(this.contactId);
+    const current=await this.#current();
     const profile=contactRoomSession(this.sessionKey);
     if(!profile||!['contacts-pulse','contacts-projet-pulse'].includes(profile.agent)||current?.success!==true||current.state!=='active'||
        current.owner!==false||current.contactId!==this.contactId||
@@ -34,6 +37,13 @@ export class NativePulseContact {
     const now=Date.now();
     return {schema_version:NATIVE_PULSE_PROTOCOL,contact_id:this.contactId,conversation_key:this.conversationKey,
       event_ref:this.eventRef,observed_at:now,valid_until:now+30000};
+  }
+  #current():Promise<any> {
+    const now=Date.now(),held=this.#authority;
+    if(held&&now>=held.at&&now-held.at<AUTHORITY_FRESH_MS)return held.value;
+    const value=this.#read(this.contactId);this.#authority={at:now,value};
+    value.catch(()=>{if(this.#authority?.value===value)this.#authority=undefined;});
+    return value;
   }
 }
 
