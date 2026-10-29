@@ -65,11 +65,22 @@ def apply_hysteresis(caps,previous):
    v['pending_attention']={'state':raw,'reason':v.get('reason'),'readings':1,'required':2}
    v['state']=p.get('state')
  return caps
-def whatsapp_health(raw,last_outbound=''):
+AGO_UNITS={'s':1,'m':60,'h':3600,'d':86400}
+def outbound_superseded(status,last_outbound,now):
+ # S24 29/10: an owner notice failed at 08:48 while the network came back; the channel sent at 08:51
+ # but nothing newer reached the canonical log, so WhatsApp stayed degraded. A later channel send wins.
+ import datetime as dt,re
+ m=re.search(r'\bout:(<)?(\d+)([smhd]) ago',status)
+ try:failed_at=dt.datetime.fromisoformat(last_outbound.split()[0]).timestamp()
+ except (ValueError,IndexError):return False
+ if not m:return False
+ ago=0 if m.group(1) else int(m.group(2))*AGO_UNITS[m.group(3)]
+ return now-ago>failed_at
+def whatsapp_health(raw,last_outbound='',now=None):
  lines=[z.strip().lower() for z in raw.splitlines()]
  status=next((z for z in lines if z.startswith('- whatsapp ')), '')
  terminal=('health:logged-out' in status or 'status=401 unauthorized' in status or 'session logged out' in raw.lower())
- failed='state=failed' in last_outbound.lower()
+ failed='state=failed' in last_outbound.lower() and not outbound_superseded(status,last_outbound,time.time() if now is None else now)
  connected=', connected' in status and 'stopped' not in status
  if terminal:return 'degraded','terminal_auth_logout'
  if connected and failed:return 'degraded','latest_outbound_failed'
