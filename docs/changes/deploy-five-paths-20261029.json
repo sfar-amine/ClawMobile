@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "id": "deploy-five-paths-20261029",
+  "date": "2026-10-29",
+  "origin": "chat",
+  "kind": "capability",
+  "summary": "Deployment acceptance on five representative paths, run on the switched runtime by companion-deploy.sh (after runtime sync) and activate-ui-playbooks.sh (after the switch): owner brain agenda read, test contact « Recette Pulse » project list, incomplete creation that must ask, owner agenda write that must stop at the recap (then cancelled), app reads. A failed path rolls back (switches back for playbooks); a provider outage is inconclusive. The section is written to the deploy receipt. The first S24 run found a real defect, fixed here: an out-of-hours creation in the Pulse room rendered « n'a pas abouti » instead of the canonical closed-hours sentence.",
+  "reason": "Amine 29/10: deploy-time acceptance only, five representative paths, failure blocks activation; test contact « Recette Pulse » (fictitious +216 10 000 001) added with his biometrics.",
+  "files": [
+    "installer/termux-lite/deploy-parcours.py",
+    "installer/termux-lite/deploy-parcours-room.cjs",
+    "installer/termux-lite/test-deploy-parcours.py",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/activate-ui-playbooks.sh",
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/pulseRoomFastPath.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+    "docs/changes/deploy-five-paths-20261029.json",
+    "docs/changes/deploy-five-paths-20261029.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-deploy-parcours.py",
+      "status": "passed",
+      "evidence": "Verdicts on replies captured on the S24 (owner read, closed Pulse, recap) and on failures/outages; order, cancellation, no user text in the receipt."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+      "status": "passed",
+      "evidence": "service_closed shows the canonical hours sentence; another text under that code, or the sentence under another code, still renders the closed phrase table."
+    },
+    {
+      "name": "S24 dry run of deploy-parcours.py on the deployed runtime b14a09d8",
+      "status": "passed",
+      "evidence": "Owner read and recap verified live (34 s, 8 s); room paths answered; the incomplete creation reproduced the generic sentence before this fix."
+    }
+  ],
+  "documentation": [
+    "docs/changes/deploy-five-paths-20261029.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No user capability changes; the deploy and activation gates gain live paths."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Runs inside the existing deploy and activation scripts and receipt; no new job, store, router or daemon. Reuses the Gateway agent command and the loaded room hook."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Deploy/activation scripts and the Pulse room renderer."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Adds about 1-2 minutes to a deploy (owner brain turns).",
+    "The owner paths use a dedicated session agent:main:recette-deploy; a pending recap there is cancelled at the end of each run.",
+    "At night the room paths only reach the closed-hours answer, which counts as a pass."
+  ],
+  "rollback": "Revert this commit and redeploy the core; activation then runs without the paths."
+}

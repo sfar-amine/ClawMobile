@@ -29,6 +29,7 @@ const STILL_RESTARTING = "Samantha redémarre encore : rien n’a été exécut�
 /** Waiting bound while Samantha restarts (S24 28/10: Gateway up, interpreter ready about 1 min 40 s later). */
 export const DEFER_UNTIL_READY = { windowMs: 5 * 60_000, stepMs: 5_000 };
 const TEXT_ONLY = "Ici je ne lis que les messages écrits. Écris ta demande Pulse (projet, offre, congés de l'équipe).";
+const CLOSED_SENTENCE=/^Pulse est fermé en ce moment \(ouvert [^()\n]{1,120}\)\. Réessaie [^\n]{1,80}$/u;
 function nativeFailureText(reason:string|undefined):string {
   if(reason?.startsWith('DATA_'))return 'La configuration de confidentialité du fournisseur n’est pas vérifiée. Rien n’a été exécuté.';
   if(hasFailurePhrase(reason))return FAILURE_PHRASES.fr[reason as keyof typeof FAILURE_PHRASES.fr];
@@ -244,6 +245,9 @@ function roomReply(reply: DialogueReply, nativePulse: boolean): RoomOut {
       if(nativePulse&&hasFailurePhrase(reply.reasonCode))return {handled:true,reply:{text:nativeFailureText(reply.reasonCode)}};
       return {handled:true,reply:{text:text||PULSE_ROOM_HELP}};
     case "TECHNICAL_FAILURE":
+      // S24 29/10 (recette): a creation asked out of hours came back as « n'a pas abouti ». service_closed carries
+      // the canonical hours sentence built from the Pulse manifest; it is shown, never another producer text.
+      if(nativePulse&&reply.reasonCode==="service_closed"&&CLOSED_SENTENCE.test(text))return {handled:true,reply:{text}};
       if(nativePulse)return {handled:true,reply:{text:nativeFailureText(reply.reasonCode)}};
       return { handled: true, reply: { text: reply.reasonCode === "coordinator_unavailable" || !text ? PULSE_UNAVAILABLE : text } };
     default: return { handled: true, reply: { text: text || PULSE_ROOM_HELP } };

@@ -442,6 +442,13 @@ jobs:
           node scripts/test-conversation-origin.cjs
           python3 ../installer/termux-lite/test-context-session-origin.py
 
+      - name: Deployment acceptance — five representative paths (Amine 29/10)
+        run: |
+          python3 ../installer/termux-lite/test-deploy-parcours.py
+          node --check ../installer/termux-lite/deploy-parcours-room.cjs
+          bash -n ../installer/termux-lite/companion-deploy.sh
+          bash -n ../installer/termux-lite/activate-ui-playbooks.sh
+
       - name: Run WhatsApp allowlist owner and HTTP contracts
         run: |
           python3 ../installer/termux-lite/test-people-trusted.py

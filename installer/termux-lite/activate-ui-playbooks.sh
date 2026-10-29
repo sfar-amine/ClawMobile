@@ -55,9 +55,21 @@ if [ -f "$D/$sha/tools/install_interaction_rules.py" ]; then
 fi
 cur=$(readlink "$D/current" 2>/dev/null || true)
 if [ "$cur" = "$D/$sha" ]; then compile_views; echo "ALREADY_ACTIVE $sha"; exit "$rules_rc"; fi
+oldprev=$(readlink "$D/previous" 2>/dev/null || true)
 [ -n "$cur" ] && swap previous "$cur"
 swap current "$D/$sha"
 compile_views
+# Amine 29/10: the five deployment paths run on the switched snapshot; a failed path switches back (exit 5),
+# a provider outage (exit 3) keeps the snapshot. Skipped with CLAW_UI_PLAYBOOKS_SKIP_PARCOURS=1 (nightly helpers).
+PARCOURS="$(dirname "$0")/deploy-parcours.py"
+if [ -f "$PARCOURS" ] && [ "${CLAW_UI_PLAYBOOKS_SKIP_PARCOURS:-0}" != 1 ]; then
+  prc=0; parcours=$(python3 "$PARCOURS") || prc=$?
+  echo "PARCOURS $parcours"
+  if [ "$prc" -eq 1 ]; then
+    if [ -n "$cur" ]; then swap current "$cur"; [ -n "$oldprev" ] && swap previous "$oldprev"; compile_views; fi
+    echo "PARCOURS_FAILED kept=$(basename "${cur:-none}")" >&2; exit 5
+  fi
+fi
 echo "ACTIVATED $sha previous=$(basename "${cur:-none}")"
 # « Projet Samantha » WhatsApp room: refresh its read-only snapshot when the room exists (never fatal).
 [ -d "$HOME/.openclaw/workspace-projet" ] && { python3 "$(dirname "$0")/project-room.py" build >/dev/null 2>&1 || echo "project_room_refresh_failed" >&2; }
