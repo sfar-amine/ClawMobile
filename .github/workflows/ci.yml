@@ -352,6 +352,7 @@ jobs:
           node scripts/test-voice-latency-budget.cjs
           node scripts/test-turn-measurement.cjs
           node scripts/test-native-turn-progress.cjs
+          node scripts/test-runtime-notices.cjs
           python3 scripts/test-voice-latency-report.py
           TMPDIR=/tmp node scripts/test-claw-live.cjs
           node scripts/test-companion-runs.cjs
