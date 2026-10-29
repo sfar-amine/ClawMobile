@@ -12,6 +12,7 @@
     "installer/termux-lite/test-deploy-parcours.py",
     "installer/termux-lite/companion-deploy.sh",
     "installer/termux-lite/activate-ui-playbooks.sh",
+    "installer/termux-lite/test-activate-ui-playbooks.sh",
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/pulseRoomFastPath.ts",
     "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
@@ -23,6 +24,11 @@
       "name": "installer/termux-lite/test-deploy-parcours.py",
       "status": "passed",
       "evidence": "Verdicts on replies captured on the S24 (owner read, closed Pulse, recap) and on failures/outages; order, cancellation, no user text in the receipt."
+    },
+    {
+      "name": "installer/termux-lite/test-activate-ui-playbooks.sh",
+      "status": "passed",
+      "evidence": "The paths (stubbed via CLAW_DEPLOY_PARCOURS) judge the switched snapshot; a failed path restores current and previous with exit 5; an outage (exit 3) keeps the new snapshot."
     },
     {
       "name": "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",

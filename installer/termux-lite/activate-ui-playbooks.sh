@@ -60,9 +60,9 @@ oldprev=$(readlink "$D/previous" 2>/dev/null || true)
 swap current "$D/$sha"
 compile_views
 # Amine 29/10: the five deployment paths run on the switched snapshot; a failed path switches back (exit 5),
-# a provider outage (exit 3) keeps the snapshot. Skipped with CLAW_UI_PLAYBOOKS_SKIP_PARCOURS=1 (nightly helpers).
-PARCOURS="$(dirname "$0")/deploy-parcours.py"
-if [ -f "$PARCOURS" ] && [ "${CLAW_UI_PLAYBOOKS_SKIP_PARCOURS:-0}" != 1 ]; then
+# a provider outage (exit 3) keeps the snapshot.
+PARCOURS="${CLAW_DEPLOY_PARCOURS:-$(dirname "$0")/deploy-parcours.py}"
+if [ -f "$PARCOURS" ]; then
   prc=0; parcours=$(python3 "$PARCOURS") || prc=$?
   echo "PARCOURS $parcours"
   if [ "$prc" -eq 1 ]; then
