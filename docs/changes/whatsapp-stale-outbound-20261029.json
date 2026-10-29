@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "id": "whatsapp-stale-outbound-20261029",
+  "date": "2026-10-29",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The WhatsApp readiness verdict no longer stays degraded on a failed canonical owner notice when the connected channel itself reports a later send (channels status « out: … ago »).",
+  "reason": "S24 29/10: the network came back at 08:47 (Tunis); the incident recovery notice failed on WhatsApp at 08:48:32 and went by email; the channel sent at 08:51 but nothing newer reached health/whatsapp-outbound.log, so notification.whatsapp stayed degraded (latest_outbound_failed) for hours while connected.",
+  "files": [
+    "installer/termux-lite/health-verdict.py",
+    "installer/termux-lite/test-whatsapp-channel-health.py",
+    "docs/changes/whatsapp-stale-outbound-20261029.json",
+    "docs/changes/whatsapp-stale-outbound-20261029.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-whatsapp-channel-health.py",
+      "status": "passed",
+      "evidence": "S24 29/10 status line (numbers removed) with out:43m ago at 09:34:30 and the 08:48:32 failure: healthy; a send older than the failure, no out: field, or a failure without timestamp: still degraded; out:<1m ago: healthy."
+    },
+    {
+      "name": "installer/termux-lite/test-health-verdict.py",
+      "status": "passed",
+      "evidence": "Unchanged, still green."
+    }
+  ],
+  "documentation": [
+    "docs/changes/whatsapp-stale-outbound-20261029.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same health component and evidence; a later channel send now supersedes an older failed notice."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same verdict owner; no new store, probe or notifier."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Health verdict of the WhatsApp notification channel only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Relies on the « out: … ago » field of openclaw channels status (OpenClaw 2026.9.6); without it the previous rule applies."
+  ],
+  "rollback": "Revert this commit and redeploy the core."
+}
