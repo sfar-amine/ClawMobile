@@ -52,6 +52,7 @@ import { reflectFastPathFailure as clawmobile_skill_reflect_fast_path_failure } 
 import { clawmobile_batch_execute } from "./tools/batch";
 import { handleOwnerBeforeDispatch, handleOwnerFastPath } from "./modelFastPath";
 import { handlePulseRoomBeforeDispatch } from "./pulseRoomFastPath";
+import { runtimeNoticeSendingHook } from "./runtimeNotices";
 import { createCapabilityTool } from "./capabilityTool";
 import {conversationModelProfileHooks} from "./companion/conversationModelProfile";
 import {brainOnlyEnabled} from "./brainOnly";
@@ -200,6 +201,7 @@ function register(api: any) {
   }
   api.on("agent_end",nativeProgress.ended);
   api.on("message_sent",nativeProgress.sent);
+  api.on("message_sending",runtimeNoticeSendingHook);
   api.on("model_call_ended",(event:any,ctx:any)=>nativeProgress.stage(event,ctx,"model"));
   api.on("after_tool_call",(event:any,ctx:any)=>nativeProgress.stage(event,ctx,"tool"));
   const modelProfiles=conversationModelProfileHooks(api);
