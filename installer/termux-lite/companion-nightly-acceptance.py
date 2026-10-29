@@ -218,7 +218,9 @@ def execute(state,root,now=None,runner=bounded_command,notifier=None,preflight=d
     else:subprocess.run([str(root/'incident-notify.sh'),'info','Samantha — recette nocturne à vérifier.'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=10,check=False)
    except (OSError,subprocess.SubprocessError):pass
   atomic_receipt(path,receipt);retain(state)
-  return {'state':receipt['state'],'receipt':path.name,'attention':sum(r['state']=='attention' for r in receipt['drift'])},0 if receipt['state']=='ok' else 1
+  # Attention is a complete run whose finding lives in the receipt and the health view. Exiting non-zero made the
+  # OpenClaw scheduler auto-disable the job after 10 attention nights (S24 27/10, consecutive-failures).
+  return {'state':receipt['state'],'receipt':path.name,'attention':sum(r['state']=='attention' for r in receipt['drift'])},1 if receipt['state']=='failed' else 0
 
 def health_view(state,now):
  latest=next(iter(heapq.nlargest(1,nightly_files(state),key=lambda p:p.name)),None) if state.is_dir() else None

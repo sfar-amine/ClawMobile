@@ -28,7 +28,7 @@ class HookTests(unittest.TestCase):
    def execute(day):
     return m.execute(state,ROOT,NOW+dt.timedelta(days=day),runner=runner,notifier=lambda:notified.append(day),preflight=lambda:True,secret_roots=[('workspace',workspace)])
    before=source.stat().st_mtime_ns;result,code=execute(0)
-   self.assertEqual((result['state'],code),('attention',1));self.assertEqual(notified,[0]);self.assertEqual(before,source.stat().st_mtime_ns)
+   self.assertEqual((result['state'],code),('attention',0));self.assertEqual(notified,[0]);self.assertEqual(before,source.stat().st_mtime_ns)
    receipt=m.read_receipt(state/'nightly-20261011.json');self.assertEqual(receipt['secretScan']['newFindingCount'],1);self.assertEqual(len(receipt['secretScan']['warnings']),1)
    rendered=json.dumps(receipt);self.assertNotIn(public,rendered);self.assertNotIn('owner@example.invalid',rendered);self.assertNotIn(str(workspace),rendered)
    execute(0);self.assertEqual(len(calls),2);self.assertEqual(notified,[0])
