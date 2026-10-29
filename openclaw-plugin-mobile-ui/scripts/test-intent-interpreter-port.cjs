@@ -3,8 +3,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const port = require("../dist/intentInterpreterPort.js");
 
-const GEMINI = port.INTERPRETER_PRIMARY;
-const LUNA = port.INTERPRETER_FALLBACK;
+const GEMINI = port.GEMINI, SOL = port.SOL;
+const LUNA = port.LUNA;
 const decision = { outcome: "intent", domain: "telecom", intent_id: "telecom.balance", parameters: { line: "orange" } };
 const req = port.validateRequest({ systemPrompt: "catalogue", message: "c'est quoi mon solde orange ?" });
 const failure = (code) => Object.assign(new Error(code), { code });
@@ -22,24 +22,24 @@ function fake(script) {
 }
 
 (async () => {
-  // Gemini answers: one call, no fallback, free profile pinned, no OAuth requirement.
+  // Amine 29/10: Sol answers first: one call, no fallback, subscription OAuth required.
   {
-    const f = fake([{ text: "```json\n" + JSON.stringify(decision) + "\n```", provider: "google", model: "gemini-3.5-flash-lite" }]);
+    const f = fake([{ text: "```json\n" + JSON.stringify(decision) + "\n```", provider: "openai", model: "gpt-5.6-sol" }]);
     const out = await port.interpret(f.complete, req);
     assert.equal(out.ok, true);
     assert.deepEqual(out.decision, decision);
     assert.equal(f.calls.length, 1);
-    assert.equal(f.calls[0].model, GEMINI);
-    assert.equal(f.calls[0].requiredAuthMode, undefined);
+    assert.equal(f.calls[0].model, SOL);
+    assert.equal(f.calls[0].requiredAuthMode, "oauth");
     assert.equal(out.fallbackReason, undefined);
   }
-  // Technical failures of Gemini reach Luna, with OAuth required.
+  // Technical failures of Sol reach Gemini free, pinned to its profile without OAuth.
   for (const code of ["LLM_COMPLETION_TIMEOUT", "LLM_COMPLETION_FAILED", "LLM_RUNTIME_UNAVAILABLE", "LLM_COMPLETION_OUTPUT_REJECTED"]) {
-    const f = fake([failure(code), { text: JSON.stringify(decision), provider: "openai", model: "gpt-5.6-luna" }]);
+    const f = fake([failure(code), { text: JSON.stringify(decision), provider: "google", model: "gemini-3.5-flash-lite" }]);
     const out = await port.interpret(f.complete, req);
     assert.equal(out.ok, true, code);
-    assert.equal(f.calls[1].model, LUNA);
-    assert.equal(f.calls[1].requiredAuthMode, "oauth");
+    assert.equal(f.calls[1].model, GEMINI);
+    assert.equal(f.calls[1].requiredAuthMode, undefined);
     assert.equal(out.fallbackReason, code);
   }
   // Unparsable output is technical too.
@@ -59,7 +59,7 @@ function fake(script) {
     const empty = fake([{ text: "", stopReason: "stop" }, { text: JSON.stringify(decision) }]);
     assert.equal((await port.interpret(empty.complete, req)).fallbackReason, "INVALID_DECISION_OUTPUT");
   }
-  // An authorization refusal never reaches Luna.
+  // An authorization refusal never reaches the fallback.
   {
     const f = fake([failure("LLM_COMPLETION_NOT_AUTHORIZED")]);
     const out = await port.interpret(f.complete, req);
@@ -75,7 +75,7 @@ function fake(script) {
     assert.equal(out.code, "INTERPRETER_UNAVAILABLE");
     assert.equal(out.attempts.length, 2);
   }
-  // A Gemini timeout aborts its call and leaves the remaining budget to Luna.
+  // A Sol timeout aborts its call and leaves the remaining budget to Gemini.
   {
     let aborted = false;
     const hang = (params) => new Promise((_, reject) => params.signal.addEventListener("abort", () => { aborted = true; reject(failure("LLM_COMPLETION_ABORTED")); }));
@@ -88,16 +88,16 @@ function fake(script) {
   // A governed single-model call never falls back by itself and keeps the technical code.
   {
     const f = fake([failure("LLM_COMPLETION_TIMEOUT")]);
-    const single = port.validateRequest({ systemPrompt: "x", message: "y", model: GEMINI });
+    const single = port.validateRequest({ systemPrompt: "x", message: "y", model: SOL });
     const out = await port.interpret(f.complete, single);
     assert.equal(f.calls.length, 1);
     assert.equal(out.ok, false);
     assert.equal(out.code, "LLM_COMPLETION_TIMEOUT");
-    const luna = fake([{ text: JSON.stringify(decision) }]);
-    const ok = await port.interpret(luna.complete, port.validateRequest({ systemPrompt: "x", message: "y", model: LUNA }));
+    const gemini = fake([{ text: JSON.stringify(decision) }]);
+    const ok = await port.interpret(gemini.complete, port.validateRequest({ systemPrompt: "x", message: "y", model: GEMINI }));
     assert.equal(ok.ok, true);
-    assert.equal(luna.calls[0].requiredAuthMode, "oauth");
-    assert.equal(port.validateRequest({ systemPrompt: "x", message: "y", model: "openai/gpt-5.6-sol" }), null);
+    assert.equal(gemini.calls[0].requiredAuthMode, undefined);
+    assert.equal(port.validateRequest({ systemPrompt: "x", message: "y", model: LUNA }), null, 'Luna left the interpretation chain');
   }
   // Only one JSON object is a decision; its contract belongs to the playbooks owner.
   assert.equal(port.parseDecision("[1,2]"), null);

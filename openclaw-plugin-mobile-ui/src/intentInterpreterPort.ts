@@ -1,14 +1,17 @@
-// Single warm interpretation port (Chantier 1, doc 71). Every surface reaches the same
-// interpreter; the Gateway owns provider auth (Gemini free profile, Luna OAuth), so no
-// credential is copied and no process or agent session is started per turn.
+// Single warm interpretation port (Chantier 1, doc 71). Every surface and every contact reaches
+// the same interpreter; the Gateway owns provider auth (OpenAI subscription OAuth, Gemini free
+// profile), so no credential is copied and no process or agent session is started per turn.
 //
-// Gemini decides first. Luna runs only after a technical failure of Gemini: timeout,
-// provider/runtime failure, rejected or unparsable output. An authorization or policy
-// refusal is never a technical failure and never reaches Luna (decision 3173).
+// Amine 29/10: Sol decides first, Gemini free runs only after a technical failure of Sol:
+// timeout, provider/runtime failure, rejected or unparsable output. An authorization or policy
+// refusal is never a technical failure and never reaches the fallback.
 
 import {brainOnlyEnabled} from "./brainOnly";
-export const INTERPRETER_PRIMARY = "google/gemini-3.5-flash-lite@google:claw-gemini-free";
-export const INTERPRETER_FALLBACK = "openai/gpt-5.6-luna";
+export const SOL = "openai/gpt-5.6-sol";
+export const LUNA = "openai/gpt-5.6-luna";
+export const GEMINI = "google/gemini-3.5-flash-lite@google:claw-gemini-free";
+export const INTERPRETER_PRIMARY = SOL;
+export const INTERPRETER_FALLBACK = GEMINI;
 export const INTERPRETER_MODELS = Object.freeze([INTERPRETER_PRIMARY, INTERPRETER_FALLBACK]);
 export const INTERPRET_METHOD = "samantha.intent.interpret";
 // Same credential owner, separate closed engineering contract. Selection and the
@@ -17,7 +20,7 @@ export const INTERPRET_METHOD = "samantha.intent.interpret";
 // leaves the immune admission without a decider.
 export const IMMUNE_PURPOSE = "samantha.engineering.immune";
 export const NATIVE_PULSE_PURPOSE = "samantha.native-pulse.interpret";
-export const IMMUNE_MODELS = Object.freeze(["openai/gpt-5.6-sol", INTERPRETER_FALLBACK, INTERPRETER_PRIMARY]);
+export const IMMUNE_MODELS = Object.freeze([SOL, LUNA, GEMINI]);
 
 // Codes thrown by OpenClaw's api.runtime.llm.complete (2026.9.6).
 const TECHNICAL_CODES = new Set([
@@ -120,9 +123,9 @@ async function attempt(complete: LlmComplete, model: string, req: InterpretReque
       messages: [{ role: "user", content: req.message }],
       ...(req.responseSchema ? { responseFormat: { type: "json_schema", json_schema: { name: "decision", schema: req.responseSchema, strict: true } } } : {}),
       // OpenAI models run on the subscription OAuth only; Gemini stays pinned to its free profile.
-      ...(model !== INTERPRETER_PRIMARY && (immune || model === INTERPRETER_FALLBACK) ? { requiredAuthMode: "oauth" } : {}),
-      // Gemini Flash Lite answers fastest without thinking; Luna keeps a minimal effort.
-      reasoning: model === INTERPRETER_PRIMARY ? "off" : "minimal",
+      ...(model !== GEMINI ? { requiredAuthMode: "oauth" } : {}),
+      // Gemini Flash Lite answers fastest without thinking; OpenAI models keep a minimal effort.
+      reasoning: model === GEMINI ? "off" : "minimal",
       temperature: 0,
       maxTokens: immune ? 16_384 : 512,
       purpose: req.purpose ?? "samantha.intent.interpret",
@@ -196,9 +199,8 @@ export function createInterpretHandler(getComplete: () => LlmComplete | undefine
     // The shared engineering completion owner survives the C1 interpreter's
     // retirement. No owner request may invoke its old semantic purpose.
     if(params?.purpose===NATIVE_PULSE_PURPOSE){
-      // Native professional DATA01 currently admits this one included profile.
-      // The existing governor owns any future extension; a purpose cannot mint a model fallback.
-      if(params?.model!==INTERPRETER_PRIMARY)return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse model not admitted'});
+      // Amine 29/10: same models for every contact as for the owner; the governor chose one of them.
+      if(!INTERPRETER_MODELS.includes(params?.model))return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse model not admitted'});
       // The room was admitted at its turn and Python re-reads the sealed contact evidence at send:
       // no third lease here (S24 28-29/10, every room message refused). Only the Pulse catalogue is served.
       if(!nativePulseRequest(params?.message))return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse request required'});
