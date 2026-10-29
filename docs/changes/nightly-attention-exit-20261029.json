@@ -9,6 +9,7 @@
   "files": [
     "installer/termux-lite/companion-nightly-acceptance.py",
     "installer/termux-lite/test-companion-nightly-acceptance.py",
+    "installer/termux-lite/test-nightly-secret-scan.py",
     "docs/work/samantha-runtime/contracts/h8.md",
     "docs/changes/nightly-attention-exit-20261029.json",
     "docs/changes/nightly-attention-exit-20261029.md"
@@ -18,6 +19,11 @@
       "name": "installer/termux-lite/test-companion-nightly-acceptance.py",
       "status": "passed",
       "evidence": "15 OK. New test: an attention receipt exits 0 and a failed one exits 1; the real S24 17/10 receipt (attention) now exits 0. Both assertions fail on the previous script (reproduced)."
+    },
+    {
+      "name": "installer/termux-lite/test-nightly-secret-scan.py",
+      "status": "passed",
+      "evidence": "The scanner hook test now expects (attention, 0), the new contract; 7 OK."
     },
     {
       "name": "installer/termux-lite/test-nightly-dialogue-replay.py",
