@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "id": "immune-engineering-model-settings-20261030",
+  "date": "2026-10-30",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "Settings → Providers and models: the immune system and engineering learning become settable policy flows of the existing R6 write path (/agent/config: CAS on the Gateway config revision, included-cost allowlist, biometric confirmation when an account is added, receipt v2, replay, revert, inherit), primary + at most one fallback, stored in two plugin-config keys (immuneModelFlow, engineeringModelFlow). Admitted choices are the qualified native slots of the governor profiles IMMUNE_ENGINEERING and ENGINEERING in model_policy.json AND the plugin LLM policy (today Sol, Luna, Gemini free; never the Claude CLI slot). /providers shows the effective chain: the valid setting first, then the rest of the profile in policy order; otherwise the profile chain unchanged.",
+  "reason": "Amine 30/10: the AI models used by the immune system and engineering learning must be settable from the app, exactly like the intent interpreter (sfar-amine/samantha-core#471). Runtime sources reused from the 30/10 S24 capture (pinned model_policy.json, plugin LLM policy, plugin config keys).",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/openclaw.plugin.json",
+    "openclaw-plugin-mobile-ui/scripts/test-model-flows-policy.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
+    "openclaw-plugin-mobile-ui/src/companion/modelOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/providers.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "docs/changes/immune-engineering-model-settings-20261030.json",
+    "docs/changes/immune-engineering-model-settings-20261030.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-model-flows-policy.cjs",
+      "status": "passed",
+      "evidence": "New, in ci.yml. Real S24 models/auth/agents capture (25/10), pinned model_policy.json and plugin LLM policy capture (30/10); authored OpenAI profile id and one authored Claude catalog row. Admitted = Sol, Luna, Gemini free for both flows (no Claude, no Terra, nothing without a readable policy); refusals before any effect (two fallbacks, self-fallback, thinking field, missing fallbacks, unincluded model, Claude, stale revision); one scoped key, no agent field, no modelFlowSelection fence, other plugin keys kept; no biometric challenge for a model already in the chain; replay without second dispatch; revert to the exact absence; inherit; effective chain = setting then rest of the profile; malformed/unqualified stored values ignored and flagged; no policy -> no choice and 409 included_model_policy_unavailable."
+    },
+    {
+      "name": "test-model-flows-executors, test-model-flows, test-model-roles, test-model-owner, test-agent-config, test-agent-config-flight, test-conversation-model-profile, test-usage-providers, test-intent-interpreter-port, test-brain-only-entry, test-native-provider-fallback, test-nightly-health-http, acceptance tests (web recipe, WhatsApp allowlist, settle, H5 evidence); tsc (npm run build)",
+      "status": "passed",
+      "evidence": "Green in the container on this branch."
+    }
+  ],
+  "documentation": [
+    "docs/changes/immune-engineering-model-settings-20261030.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No new route: same owner route /agent/config (native owner-flow header, biometric confirmation when an account is added), two more values of its closed `flow` parameter; acceptance read lines added for them."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same model owner, same CAS write, same run receipts; two keys in the existing plugin config (schema extended). No new store, registry, router or scheduler."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_impacted",
+      "adapters": "verified_impacted",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Plugin config schema (two policy-flow keys), /agent/config flow values, /providers immune_system and engineering_learning roles."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "The setting takes effect once the twin playbooks PR (governor reader) is activated; deploy this core first.",
+    "The app (android/samantha, line feature/samantha-ux-c11-20261009) needs its twin PR to edit the two flows.",
+    "The immune port (intentInterpreterPort IMMUNE_MODELS) is unchanged: it already admits exactly Sol, Luna and Gemini free.",
+    "The playbooks model behaviour gate accepts Sol or Luna only: if Gemini free is set first for the immune system, its next gate run fails closed (auto-apply stays off) until a Sol/Luna setting or « hériter »."
+  ],
+  "rollback": "Inherit (or revert) both policy flows from the app first, so neither immuneModelFlow nor engineeringModelFlow remains in openclaw.json, then revert this PR and redeploy the core. A remaining key would be refused by the previous plugin config schema."
+}

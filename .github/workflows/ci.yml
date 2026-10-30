@@ -685,6 +685,8 @@ jobs:
         run: node scripts/test-model-roles.cjs
       - name: R6 executor model flows (interpreter, web synthesis, memo transcription) through the CAS write path
         run: node scripts/test-model-flows-executors.cjs
+      - name: R6 policy model flows (immune system, engineering learning) through the CAS write path
+        run: node scripts/test-model-flows-policy.cjs
 
       - name: F7 Gateway append log retention
         run: python3 ../installer/termux-lite/test-gateway-log-retention.py
