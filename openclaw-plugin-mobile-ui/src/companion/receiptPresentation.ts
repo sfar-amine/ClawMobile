@@ -104,6 +104,9 @@ export const FAILURE_PHRASES = {
   // Interpretation outcomes, same causes as the owner path (Sadok, Pulse room 28-29/10).
   interpretation_unavailable:"Je ne peux pas réfléchir pour le moment : le modèle n’est pas joignable. Rien n’a été exécuté ; réessaie dans un instant.",
   interpretation_not_dispatched:"Je ne peux pas réfléchir pour le moment : le modèle n’est pas joignable. Rien n’a été exécuté ; réessaie dans un instant.",
+  // S24 30/10, Pulse room: « Annule la demande en cours » refused as invalid_interpretation was shown as the generic
+  // « n’a pas abouti » sentence. The person is told what happened to their message, not the mechanism.
+  invalid_interpretation:"Je n’ai pas compris ta réponse de façon fiable. Rien n’a été fait : tu peux la reformuler.",
   generation_context_changed:"Deux messages se sont croisés ; celui-ci n’a pas été traité. Renvoie-le.",
   qa_ingress_deadline_exceeded:'La demande de tests auto n’a pas abouti dans le délai imparti.',
  },
@@ -157,6 +160,7 @@ export const FAILURE_PHRASES = {
   coordinator_unavailable:'Conversation tracking is unavailable.',
   interpretation_unavailable:"I cannot think right now: the model is unreachable. Nothing was run; try again in a moment.",
   interpretation_not_dispatched:"I cannot think right now: the model is unreachable. Nothing was run; try again in a moment.",
+  invalid_interpretation:"I couldn’t understand your reply reliably. Nothing was done; you can rephrase it.",
   generation_context_changed:"Two messages crossed; this one was not handled. Send it again.",
   qa_ingress_deadline_exceeded:'The auto test request exceeded its time limit.',
  },
