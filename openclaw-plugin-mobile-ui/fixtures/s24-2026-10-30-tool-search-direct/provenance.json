@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "sdkVersion": "2026.9.6",
+  "source": "Public openclaw@2026.9.6 tar (npm pack). The module is byte-identical to the non-symlink S24 file read on 30/10/2026; gzip -9n, deterministic.",
+  "publicTarSha256": "1a7355691bc0e605222ba818f1f72c1787253c78dfeb0df6be2086ec73b71e63",
+  "modules": [
+    {"name": "local-model-lean-CHSAjCEl.mjs", "bytes": 98554, "sha256": "1111590e403cf1411211bf2a7c27a0635ededa569e7018a5850af39064b68860",
+     "s24Sha256": "1111590e403cf1411211bf2a7c27a0635ededa569e7018a5850af39064b68860",
+     "regions": ["src/agents/tool-search-types.ts", "src/agents/tool-search-catalog.ts", "src/agents/tool-search-request.ts", "src/agents/tool-search-config.ts", "src/agents/tool-search.ts"]}
+  ],
+  "typedCatalogue": "../s24-2026-10-25-typed-tools/compiled-agent-tools.json (same 12 tool names as the S24 projection f4844f9a of 30/10)"
+}

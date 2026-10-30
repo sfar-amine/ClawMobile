@@ -19,6 +19,13 @@ type Action = {action: string; description: string; params: any; examples: strin
 export type DomainTool = {name: string; domain: string; description: string; actions: Action[]};
 type Options = {home?: string; helperPath?: string; catalogue?: DomainTool[]};
 const id = /^[a-z][a-z0-9_.-]{0,127}$/;
+// S24 30/10 (run_1793395301758): OpenClaw Tool Search (default "tools" mode) hid these owners behind tool_search;
+// the brain searched, failed on a batch-level limit and read the bills through the shell. catalogMode "direct-only"
+// is the SDK's per-tool knob (AnyAgentTool.catalogMode, docs/tools/tool-search.md): the schema stays model-visible
+// and out of the catalog. Frequent owners only; every other typed tool stays searchable (prompt budget).
+export const DIRECT_TYPED_TOOLS: ReadonlySet<string> = new Set(["samantha_utility_billing", "samantha_steg", "samantha_sonede",
+  "samantha_topnet", "samantha_maxit_tunisie", "samantha_agenda", "samantha_pulse", "samantha_catalogue"]);
+const directOnly = (name: string) => DIRECT_TYPED_TOOLS.has(name) ? {catalogMode: "direct-only" as const} : {};
 
 export function readTypedToolCatalogue(home = os.homedir()): DomainTool[] {
   try {
@@ -64,7 +71,7 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
     const nativeWhatsApp=context.messageChannel==='whatsapp'&&/^agent:main:whatsapp:direct:\+?[1-9][0-9]{7,14}$/.test(context.sessionKey||'');
     return {name: tool.name,
       description: `${tool.description}. Choisis l'action et ses paramètres typés. Aucune résolution du texte.${tool.domain === "app" && (currentConversation||nativeWhatsApp) ? " Conversation courante : " + (nativeWhatsApp?'current':currentConversation) + ". Si tu comprends que l’utilisateur demande d’arrêter le travail de ton propre tour, cesse les nouveaux appels et termine naturellement ce tour avec le contexte déjà présent. L’outil interrupt ne cible jamais ton propre run. Pour une autre génération, consulte active_generations et choisis son runId exact ; interrompre la génération n’annule pas les actions déjà envoyées." : ""}\n${actions}\nExemples de demandes : ${examples}. Les écritures métier exigent un récapitulatif puis un nouveau tour utilisateur ; confirm transmet uniquement l'identifiant et le payloadHash reçus, jamais de nouveaux paramètres ; si l'utilisateur refuse ou annule le récapitulatif, appelle cancel avec ces mêmes valeurs, jamais une simple réponse. Reproduis la réponse prête du reçu sans inventer de fait ; une question du reçu se pose telle quelle, sans format, exemple ni consigne de réponse ajoutés. Quand une question de cet outil attend une réponse, indique relation : answer si l'utilisateur y répond, new_request s'il fait une nouvelle demande, même avec les mêmes mots.`,
-      schema: parameters, inputSchema: parameters, parameters,
+      schema: parameters, inputSchema: parameters, parameters, ...directOnly(tool.name),
       async execute(toolCallId: unknown, args: any) {
         try {
           const bound = consumeTypedInvocation(toolCallId, tool.name, args, context);
@@ -139,7 +146,7 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
   const schema = {type: "object", properties: {query: {type: "string", minLength: 1, maxLength: 200}},
     required: ["query"], additionalProperties: false};
   tools.push({name: "samantha_catalogue", description: "Rechercher les capacités du registre canonique et leurs signatures. Découverte uniquement : aucune action n'est choisie ni exécutée.",
-    schema, parameters: schema, inputSchema: schema,
+    schema, parameters: schema, inputSchema: schema, ...directOnly("samantha_catalogue"),
     async execute(callId: unknown, args: any) {
       try {
         consumeTypedInvocation(callId, "samantha_catalogue", args, context);
