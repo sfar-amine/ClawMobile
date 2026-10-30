@@ -22,7 +22,9 @@ export const AGENT_CAPABILITY_REFUSAL = "capability_first_required";
 type TypedProof={at:number;tool:string;runId:string;sessionKey:string;sessionId?:string;args:string;
   control?:{operationId:string;paramsHash:string;expiresAt:number;assertCurrent:()=>void};};
 const typedInvocations = new Map<string, TypedProof>();
-const typedId = /^[A-Za-z0-9_.:-]{1,200}$/;
+// S24 30/10 23:57: a direct (catalogMode "direct-only") call keeps the provider's Responses id `call_<hex>|fc_<hex>`;
+// refusing `|` blocked every direct samantha_* call. The id stays an opaque Map key of this invocation only.
+const typedId = /^[A-Za-z0-9_.:|-]{1,200}$/;
 const typedName = /^samantha_[a-z0-9_]{1,100}$/;
 function invocationArgs(value: unknown, depth = 0): unknown {
   if (depth > 16) throw Error();

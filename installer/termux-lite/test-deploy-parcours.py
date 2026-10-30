@@ -34,6 +34,14 @@ class Verdicts(unittest.TestCase):
         self.assertEqual(p.verdict("contact_read", "L’accès à la pièce Pulse n’est pas confirmé. Rien n’a été exécuté.", None),
                          ("failed", "broken_reply"))
 
+    def test_refused_typed_tool_is_broken(self):
+        # Captured on the S24 30/10 23:57 Tunis (deployment dbe0f455, typed agenda calls refused by the guard).
+        read = "Je ne peux pas vérifier ton agenda pour l’instant : l’accès Agenda est momentanément indisponible."
+        write = ("Je ne peux pas préparer l’ajout pour l’instant : l’accès Agenda est momentanément indisponible. "
+                 "Aucun rendez-vous n’a été créé.")
+        self.assertEqual(p.verdict("owner_read", read, None), ("failed", "broken_reply"))
+        self.assertEqual(p.verdict("write_recap", write, None), ("failed", "broken_reply"))
+
     def test_outage_is_inconclusive_never_a_rollback(self):
         self.assertEqual(p.verdict("owner_read", "", "429 rate limit"), ("inconclusive", "provider_unavailable"))
         self.assertEqual(p.verdict("contact_read", "Le modèle n’est pas joignable pour le moment.", None),

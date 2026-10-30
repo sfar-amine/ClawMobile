@@ -23,7 +23,9 @@ OWNER_TIMEOUT_S, ROOM_TIMEOUT_S = 150, 90
 CLOSED = re.compile(r"Pulse est fermé")
 # Sentences that only a broken path renders (core FAILURE_PHRASES / room fallbacks).
 BROKEN = re.compile(r"n’a pas abouti|n'a pas abouti|pas confirmé|n’est pas établi|n'est pas établi|reste à vérifier|"
-                    r"n’ai pas pu|n'ai pas pu|erreur interne|Rien n’a été exécuté\.$")
+                    r"n’ai pas pu|n'ai pas pu|erreur interne|Rien n’a été exécuté\.$|"
+                    # S24 30/10 dbe0f455: a refused typed tool call rendered as this (owner_read passed by mistake).
+                    r"est momentanément indisponible")
 # A provider outage: inconclusive, never a rollback.
 OUTAGE = re.compile(r"modèle n’est pas joignable|modèle n'est pas joignable|interpretation_unavailable|"
                     r"rate.?limit|overloaded|429|503 Service", re.I)

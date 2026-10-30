@@ -1,0 +1,48 @@
+{
+  "version": 2,
+  "id": "typed-direct-call-id-20261030",
+  "date": "2026-10-30",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Direct typed tool calls are admitted again: the before_tool_call guard now accepts the provider's Responses call id `call_<hex>|fc_<hex>` (the `|` was outside its id alphabet). Since sfar-amine/samantha-core#476 makes the frequent samantha_* tools direct-only, the brain calls them directly with that id, and every call was refused as capability_first_required. The deploy parcours now also fails a reply saying a tool is « momentanément indisponible ».",
+  "reason": "S24 30/10 22:57 UTC: deploying dbe0f455 (#476) was rolled back by the deploy parcours (write_recap failed). The S24 transcript shows samantha_agenda called directly with the Responses id and refused by the guard; Samantha answered « l’accès Agenda est momentanément indisponible », and owner_read passed by mistake on that sentence. No event was written (agenda checked).",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/deploy-parcours.py",
+    "installer/termux-lite/test-deploy-parcours.py",
+    "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-30-direct-call-id/direct-calls.json",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-direct-call-id.cjs",
+    "docs/changes/typed-direct-call-id-20261030.json",
+    "docs/changes/typed-direct-call-id-20261030.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-direct-call-id.cjs",
+      "status": "passed",
+      "evidence": "New, in ci.yml. The two refused S24 call ids are admitted by the guard and executed once by samantha_agenda (direct-only), the same id is not replayable, and ids with other separators, empty or over 200 characters stay refused. Fails on the previous guard."
+    },
+    {
+      "name": "installer/termux-lite/test-deploy-parcours.py",
+      "status": "passed",
+      "evidence": "New case with the two S24 replies of 30/10: both are broken_reply."
+    },
+    {
+      "name": "test-agent-capability-guard, test-typed-capability-tools, test-typed-tools-direct-visible; tsc",
+      "status": "passed",
+      "evidence": "Green in the container on this branch."
+    }
+  ],
+  "documentation": ["docs/changes/typed-direct-call-id-20261030.md"],
+  "capabilities": {"impact": "none", "reason": "Same typed tools and actions; only the call id alphabet of the existing one-shot invocation proof changes."},
+  "architecture": {"changed": false, "reason": "Same guard, same one-shot invocation proof keyed by call id; no new store or route."},
+  "mcp_owner_parity": {
+    "tools": {"claw_context": "verified_no_impact", "claw_resolve": "verified_no_impact", "claw_execute": "verified_no_impact", "claw_exec": "verified_no_impact", "claw_status": "verified_no_impact", "claw_artifact_read": "verified_no_impact"},
+    "attached": {"schemas": "verified_no_impact", "adapters": "verified_no_impact", "documentation": "verified_no_impact", "tests": "verified_no_impact", "runtime": "verified_no_impact"},
+    "evidence": ["Brain typed tools only; no MCP tool, schema or adapter change."]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": ["Deploy together with or after #476 (already on the runtime branch); the deploy parcours is the live check."],
+  "rollback": "Revert this commit and redeploy the core with companion-deploy.sh; direct typed calls are then refused again, so revert #476 too."
+}
