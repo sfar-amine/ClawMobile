@@ -87,11 +87,5 @@ if [ -f "$NATIVE_PATCH_DIR/native-turn-provenance.json" ]; then
     echo "[lite] WARNING: native turn provenance patch unsupported; runtime drift requires review." >&2
 fi
 
-# S24 29-30/10: the first owner-brain turn of each Gateway process blocked it 41-62 s. One detached warm turn
-# pays that cost right after start instead of Amine's first message (receipt: ~/.openclaw/health/brain-warm.json).
-if [ -f "$SCRIPT_DIR/brain-warm.py" ]; then
-  setsid nohup python3 "$SCRIPT_DIR/brain-warm.py" --after-start >/dev/null 2>&1 </dev/null &
-fi
-
 echo "[lite] Starting OpenClaw Gateway through fast recovery path..."
 exec openclaw gateway --bind "$GATEWAY_BIND" --port "$GATEWAY_PORT" --verbose

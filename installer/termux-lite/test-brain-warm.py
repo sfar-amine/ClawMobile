@@ -12,16 +12,13 @@ class Warm(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.receipt = Path(self.tmp.name) / "health/brain-warm.json"
         self.lock = Path(self.tmp.name) / "health/brain-warm.lock"
-        self.turns = []; self.slept = []
+        self.turns = []
 
-    def run_warm(self, pid=25143, open_=True, result=(14.2, None), after_start=False, pids=None):
-        pids = list(pids) if pids else None
-        def pid_of():
-            return pids.pop(0) if pids and len(pids) > 1 else (pids[0] if pids else pid)
+    def run_warm(self, pid=25143, open_=True, result=(14.2, None)):
         def turn():
             self.turns.append(1); return result
-        return w.warm(after_start=after_start, pid_of=pid_of, is_open=lambda: open_, turn=turn,
-                      sleep=self.slept.append, clock=lambda: 1793349560.0, receipt=self.receipt, lock=self.lock)
+        return w.warm(pid_of=lambda: pid, is_open=lambda: open_, turn=turn, clock=lambda: 1793349560.0,
+                      receipt=self.receipt, lock=self.lock)
 
     def test_one_turn_per_gateway_process(self):
         doc, code = self.run_warm()
@@ -46,11 +43,13 @@ class Warm(unittest.TestCase):
         doc, code = self.run_warm(open_=False)
         self.assertEqual((code, self.turns), (3, []))
 
-    def test_after_start_waits_for_the_gateway_then_settles(self):
-        doc, code = self.run_warm(after_start=True, pids=[None, None, 25143])
-        self.assertEqual((code, doc["state"]), (0, "warm"))
-        self.assertEqual(self.slept[-1], w.SETTLE_S)
-        self.assertGreaterEqual(len(self.slept), 3)
+    def test_never_launched_at_gateway_start(self):
+        # 30/10: the start-time warm turn blocked the Gateway 61 s inside Tier0's 120 s activation readiness
+        # window and the promotion failed. Only companion-deploy.sh runs it, after the promotion.
+        here = Path(__file__).parent
+        self.assertNotIn("brain-warm", (here / "gateway-start.sh").read_text())
+        deploy = (here / "companion-deploy.sh").read_text()
+        self.assertLess(deploy.index("sync_runtime \"$full\""), deploy.index("brain-warm.py"))
 
     def test_owner_turn_is_the_main_agent_without_delivery(self):
         seen = {}
@@ -65,7 +64,7 @@ class Warm(unittest.TestCase):
         self.assertEqual(seen["timeout"], w.TURN_TIMEOUT_S)
 
     def test_usage(self):
-        self.assertEqual(w.main(["brain-warm.py", "--now"]), 2)
+        self.assertEqual(w.main(["brain-warm.py", "--after-start"]), 2)
 
 
 if __name__ == "__main__":
