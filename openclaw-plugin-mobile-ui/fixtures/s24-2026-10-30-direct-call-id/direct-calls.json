@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "source": "S24 30/10/2026 22:56-22:58 UTC, deployment dbe0f455 (rolled back): main agent session agent:main:recette-deploy, transcript_events of openclaw-agent.sqlite, read-only. Only tool names, call ids, action names and tool results are kept; no user data.",
+  "provider_api": "openai-chatgpt-responses",
+  "calls": [
+    {"seq": 459, "tool": "samantha_agenda", "action": "agenda.event.read", "callId": "call_9a92417caf4f4b08b7cb9d6e07b3c653|fc_0d7ca2afcddc154b016ae520cdbacc8191b626fe7a528cad66", "result": "capability_first_required"},
+    {"seq": 471, "tool": "samantha_agenda", "action": "agenda.event.create", "callId": "call_4b612acf8498459fa58627deb2d08369|fc_0d79c016ad313f78016ae520eece6c81918c07ec46050638b4", "result": "capability_first_required"}
+  ],
+  "previous_runtime": {"seq": 445, "tool": "tool_call", "wrapped": "openclaw:openclaw-plugin-mobile-ui:samantha_agenda", "callId": "call_45ecf2601afa472e97a9768813cb7a06|fc_015f9970258a46c3016ae4f6e9012881918084e617e5e20669", "result": "CANCELLED (admitted)"}
+}
