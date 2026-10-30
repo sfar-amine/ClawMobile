@@ -80,7 +80,9 @@ export type DialogueInput = {
 export const DIALOGUE_UNAVAILABLE_TEXT =
   "Je ne peux pas traiter ta demande pour le moment : le suivi de conversation de Samantha est indisponible. Rien n'a été exécuté ; réessaie dans un instant.";
 const QUESTION_OUTCOMES = new Set(["NEEDS_INPUT", "NEEDS_CHOICE", "NEEDS_CONFIRMATION", "STALE_QUESTION"]);
-const DONE_OUTCOMES = new Set(["COMPLETED", "WAITING_OPERATION"]);
+// CANCELLED: the coordinator closed the open request at the user's word (S24 30/10, Pulse room recette:
+// « Annule la demande en cours » was cancelled in the store but shown as « suivi de conversation indisponible »).
+const DONE_OUTCOMES = new Set(["COMPLETED", "WAITING_OPERATION", "CANCELLED"]);
 const OUTCOMES = new Set([...QUESTION_OUTCOMES, ...DONE_OUTCOMES, "READY", "UNRESOLVED", "DENIED", "OUTSIDE_SCOPE",
   "NEW_GOAL", "TECHNICAL_FAILURE", "FAILED", "EVENT_ID_CONFLICT", "MAINTENANCE", "STALE_EPOCH", "HANDOFF_INTERRUPTED"]);
 
