@@ -11,6 +11,7 @@ import WebSocket, { WebSocketServer } from "ws";
 import { createClawLiveToken, validatedClawLiveVoice, CLAW_LIVE_MODEL, type ClawLiveBootstrapOptions } from "./clawLive";
 import { reconnectDelay } from "./reconnectPolicy";
 import { VoiceUnderstandingState } from "./clawLiveUnderstanding";
+import type { VoiceDeferredOwner } from "./voiceBrainDelegation";
 
 const PROVIDER_URL="wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained";
 const SOCKET_PATH="/v1/extensions/claw-live/socket";
@@ -223,7 +224,8 @@ export class ClawLiveWarmCore {
     ws.send(JSON.stringify({warmReady:{historyRequired,resumed:this.resumedLast,setupMs:this.lastSetupMs,state:"warm",
       protocolVersion:meta?.protocol===2?2:1,connectionEpoch:this.connectionGeneration,sessionEpoch:meta?.sessionEpoch,
       // Live progress readback of a brain turn (speakProgress), version 1: an older app never sends it.
-      ...(meta?.protocol===2?{progressReadback:1,asyncToolReadback:1,turnBudgetMs:TURN_BUDGET_MS}:{}),
+      // Deferred readback of a brain turn (speakDeferred, deferredReady), version 1: an older app never opts in.
+      ...(meta?.protocol===2?{progressReadback:1,asyncToolReadback:1,turnBudgetMs:TURN_BUDGET_MS,deferredReadback:1}:{}),
       bargeIn:readBargeInProfile()}}));
   }
 
@@ -382,7 +384,18 @@ export class ClawLiveWarmCore {
     const entry=[...this.protocols.values()].find(p=>p.sessionEpoch===meta?.sessionEpoch&&p.connectionEpoch===meta?.connectionEpoch);
     if(!entry)throw Object.assign(new Error("voice_session_not_owned"),{statusCode:409});
     const turnId=String(meta?.turnId||"");
-    return entry.execute(turnId,request,()=>entry.measureCapability(turnId,run));
+    return entry.execute(turnId,request,()=>entry.measureCapability(turnId,run),{deferredReadback:meta?.deferredReadback===1});
+  }
+  /**
+   * Owner of a brain turn's deferred result, only when the app opted in for that turn (voiceTurn.deferredReadback: 1,
+   * after warmReady announced it). An older app keeps its own A1 readback: never two owners for one result.
+   */
+  voiceDeferredOwner(meta:any):VoiceDeferredOwner|undefined {
+    if(meta?.deferredReadback!==1)return undefined;
+    const entry=[...this.protocols.values()].find(p=>p.sessionEpoch===meta?.sessionEpoch&&p.connectionEpoch===meta?.connectionEpoch);
+    const turnId=String(meta?.turnId||"");
+    if(!entry||!turnId)return undefined;
+    return {alive:()=>entry.deferredAlive(turnId),settle:(receipt)=>entry.deferredSettled(turnId,receipt)};
   }
   measureVoiceDecision(request:string,run:()=>Promise<any>):Promise<any> {
     const matches=[...this.protocols.values()].map(protocol=>({protocol,turnId:protocol.matchingFinalRequest(request)})).filter(row=>row.turnId!==null);

@@ -141,7 +141,7 @@ const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resol
    const c=clock();let polls=0;
    const r=await brain.delegateVoiceTurnToBrain('Fais-moi un résumé de ma semaine',ctx(),{...c,budgetMs:30_000,
     submit:async()=>({success:true,accepted:true,runId:'run_2',state:'running',result:'…'}),status:async()=>{polls++;return {success:true,runId:'run_2',state:'running',message:''};}});
-   assert.equal(r.state,'pending');assert.equal(r.text,"Je te l'écris dans la discussion.");assert.equal(r.voice.verbatim,r.text);assert.ok(polls>=50&&polls<=61);
+   assert.equal(r.state,'pending');assert.equal(r.text,"Je cherche encore, je te donne la réponse dès que je l'ai.");assert.equal(r.deferredReadback,undefined);assert.equal(r.voice.verbatim,r.text);assert.ok(polls>=50&&polls<=61);
   });
   await test('an immediate canonical result needs no polling',async()=>{
    let polls=0;
