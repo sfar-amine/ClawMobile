@@ -1069,7 +1069,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       return routeUnresolvedVoiceTurn(text, {sessionId, clientRunId: String(body.clientRunId || ""), admission: admission.ticket, assertCurrent}, {
         resolve: (unresolved) => capabilityBridge(unresolved, {execute:false,surface:"claw_live",caller:"owner",timeoutSeconds:5}),
         execute: (unresolved) => capabilityBridge(unresolved, {execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35}),
-        submit: submitIntent, status: getRunStatus,
+        submit: submitIntent, status: getRunStatus, deferred: clawLiveWarmCore.voiceDeferredOwner(body?.voiceTurn),
       });
     };
     const execute = (request: string) => brainOnlyEnabled() ? brainOrLegacy(request) : clawLiveCapabilityTurn(

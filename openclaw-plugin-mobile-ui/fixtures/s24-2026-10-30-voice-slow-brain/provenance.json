@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "capturedAt": "2026-10-30T22:25:00+01:00",
+  "device": "S24 (Termux), Companion stderr and Gateway run record as reported in the incident; no new S24 read (voice bench in progress)",
+  "files": {
+    "incident.json": {
+      "source": "Companion stderr lines [turn], [voice-turn], [companion] P1 turn; Gateway run run_1793395301758_9b29ce1e (start/end, final answer)",
+      "sanitized": "log lines verbatim; session key shortened; bill amounts replaced by fictitious ones"
+    }
+  },
+  "notCaptured": "Android logcat (SamanthaVoice) of the turn: the exact event that closed the app turn at ~14 s (onset, interruption or mute) is inferred from the [turn] measurement, not read."
+}

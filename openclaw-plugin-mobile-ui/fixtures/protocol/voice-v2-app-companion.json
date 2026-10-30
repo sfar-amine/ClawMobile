@@ -9,6 +9,7 @@
     "speakFirst": ["operationId", "sessionEpoch", "turnId"],
     "speakResult": ["operationId", "sessionEpoch", "turnId", "text"],
     "speakProgress": ["operationId", "sessionEpoch", "turnId", "text"],
+    "speakDeferred": ["operationId", "sessionEpoch", "turnId", "sourceTurnId"],
     "turnStart": ["operationId", "sessionEpoch", "turnId", "firstSample"],
     "turnEnd": ["operationId", "sessionEpoch", "turnId", "lastSampleExclusive"],
     "transcriptFinal": ["operationId", "sessionEpoch", "turnId", "source", "text"],
@@ -21,13 +22,26 @@
   "optionalWarmReadyFields": {
     "progressReadback": 1,
     "asyncToolReadback": 1,
-    "turnBudgetMs": 30000
+    "turnBudgetMs": 30000,
+    "deferredReadback": 1
   },
   "speakProgress": {
     "maxChars": 200,
     "maxPerTurn": 6,
     "generationPattern": "out-<turnId>-progress-<n>",
     "refusalReasons": ["invalid_text", "progress_budget", "not_admissible"]
+  },
+  "deferredReadback": {
+    "optIn": "POST /v1/extensions/claw-live/capability voiceTurn.deferredReadback = 1, only after warmReady.deferredReadback = 1",
+    "pendingNotice": "Je cherche encore, je te donne la réponse dès que je l'ai.",
+    "events": ["deferredReady", "deferredDropped"],
+    "dropReasons": ["superseded", "expired"],
+    "admitted": ["notice", "result"],
+    "refusalReasons": ["not_deferred", "already_spoken", "superseded", "expired", "nothing_due", "not_admissible"],
+    "retryableRefusals": ["not_admissible"],
+    "maxOpenPerSession": 3,
+    "abandonAfterReadyMs": 90000,
+    "followHorizonMs": 300000
   },
   "audio": ["sessionEpoch", "turnId", "firstSample", "samples", "sampleRate", "data"],
   "correlation": {"values": ["exact", "stale_ignored", "ambiguous"], "unknown": "fatal"},

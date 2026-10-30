@@ -8,13 +8,25 @@ import {brainOnlyEnabled} from "../brainOnly";
  * doit absolument tout déléguer au cerveau »). Same owner as the app's ask_samantha tool: the canonical run submission
  * (POST /runs, voiceDelegation) and its run registry. No store, queue, retry or second route: one submission bound to
  * the turn's own admission ticket and clientRunId, then a bounded read of that run. A run still active at the budget
- * keeps going and lands in the discussion, as with ask_samantha (app DELEGATION_BUDGET_MS = 30 s).
+ * keeps going and lands in the discussion, as with ask_samantha (app DELEGATION_BUDGET_MS = 30 s); when the voice
+ * session owner takes the deferred result (VoiceDeferredOwner), its answer is also read back in that session, once.
  */
 export const VOICE_BRAIN_BUDGET_MS = TURN_BUDGET_MS;
 export const VOICE_BRAIN_POLL_MS = 500;
 export const VOICE_BRAIN_SOURCE = "samantha_brain";
+/**
+ * Deferred readback of a brain turn (S24 30/10 22:21, « Quel est l'état de mes factures » : the brain answered 0.4 s after
+ * the 30 s voice budget and the voice said nothing). When the voice session owner takes the deferred result, the same
+ * bounded read of the same run goes on after the budget, at a slower cadence, until the run settles, the session closes,
+ * a newer request supersedes the turn or the follow horizon ends; the settled receipt goes to that owner, once. No store,
+ * queue, retry or second submission.
+ */
+export const VOICE_DEFERRED_FOLLOW_MS = 5 * 60_000;
+export const VOICE_DEFERRED_POLL_MS = 1_000;
+/** Said once when the brain has not answered within the voice budget; the answer follows in the same voice session. */
+export const VOICE_PENDING_NOTICE = "Je cherche encore, je te donne la réponse dès que je l'ai.";
 const VERBATIM_MAX_CHARS = 600;
-const PENDING_TEXT = "Je te l'écris dans la discussion.";
+const PENDING_TEXT = VOICE_PENDING_NOTICE;
 const UNKNOWN_TEXT = "Je vérifie dans la discussion. Ne rejoue pas cette demande : son statut est incertain.";
 const NOT_SUBMITTED_TEXT = "Je n'ai pas pu transmettre ta demande à Samantha. Tu peux la redire ?";
 const FAILED_TEXT = "Samantha n'a pas pu terminer ta demande. Le détail est dans la discussion.";
@@ -24,8 +36,11 @@ type Submit = (text: string, sessionId: string, attachments: [], options: {
   userText: string; clientRunId: string; authority: "owner"; admission: AdmissionTicket; voiceDelegation: true;
 }) => Promise<IntentSubmitResponse>;
 type Status = (runId: string) => Promise<CompanionRunStatus>;
+/** Owner of a deferred brain result: the voice turn protocol of the session that asked (exactly-once readback). */
+export type VoiceDeferredOwner = {alive: () => boolean; settle: (receipt: Record<string, unknown>) => void};
 export type VoiceBrainDeps = {
   submit: Submit; status: Status; now?: () => number; sleep?: (ms: number) => Promise<void>; budgetMs?: number; pollMs?: number;
+  deferred?: VoiceDeferredOwner; followMs?: number; followPollMs?: number;
 };
 export type VoiceBrainContext = {sessionId: string; clientRunId: string; admission: AdmissionTicket; assertCurrent: () => void};
 
@@ -132,11 +147,44 @@ export async function delegateVoiceTurnToBrain(request: string, ctx: VoiceBrainC
     state = status.state;
     result = status.result ?? status.message;
   }
-  if (state === "done") return timed(receipt("done", spoken(result, EMPTY_TEXT), refs));
+  if (state === "running") {
+    const pending = timed(receipt("pending", PENDING_TEXT, {...refs, ...(deps.deferred && runId ? {deferredReadback: {version: 1, owner: "voice_turn"}} : {})}));
+    if (deps.deferred && runId) {
+      const followMs = Math.max(1, Math.min(deps.followMs ?? VOICE_DEFERRED_FOLLOW_MS, 15 * 60_000));
+      const followPoll = Math.max(50, Math.min(deps.followPollMs ?? VOICE_DEFERRED_POLL_MS, 10_000));
+      void followDeferredRun(runId, refs, deps.deferred, {status: deps.status, now, sleep, poll: followPoll, until: now() + followMs});
+    }
+    return pending;
+  }
+  return timed(settledReceipt(state, result, refs));
+}
+
+/** Terminal receipt of a brain run, the same before and after the voice budget. */
+function settledReceipt(state: CompanionRunStatus["state"] | undefined, result: string | undefined, refs: Record<string, unknown>) {
+  if (state === "done") return receipt("done", spoken(result, EMPTY_TEXT), refs);
   // A failed run's own text may be technical; the voice says a readable state and the detail stays in the discussion.
-  if (state === "failed") return timed(receipt("failed", FAILED_TEXT, refs));
-  if (state === "running") return timed(receipt("pending", PENDING_TEXT, refs));
-  return timed(receipt("unknown", UNKNOWN_TEXT, refs));
+  if (state === "failed") return receipt("failed", FAILED_TEXT, refs);
+  return receipt("unknown", UNKNOWN_TEXT, refs);
+}
+
+/**
+ * The bounded read of the same run, continued after the voice budget for the deferred owner only. It stops as soon as
+ * the owner no longer wants the result (session closed, newer request, already spoken) and hands the terminal receipt
+ * over once. A read error is retried at the next tick, never turned into a claim.
+ */
+async function followDeferredRun(runId: string, refs: Record<string, unknown>, owner: VoiceDeferredOwner,
+  d: {status: Status; now: () => number; sleep: (ms: number) => Promise<void>; poll: number; until: number}) {
+  try {
+    while (d.now() < d.until) {
+      await d.sleep(Math.min(d.poll, Math.max(1, d.until - d.now())));
+      if (!owner.alive()) return;
+      let status: CompanionRunStatus;
+      try { status = await d.status(runId); } catch { continue; }
+      if (status.state === "running") continue;
+      if (owner.alive()) owner.settle(settledReceipt(status.state, status.result ?? status.message, refs));
+      return;
+    }
+  } catch { /* the run and its discussion are unaffected */ }
 }
 
 /** One bounded log line per Samantha Voix capability turn: route and durations only, never the request or the answer. */

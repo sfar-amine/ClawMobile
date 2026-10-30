@@ -25,6 +25,8 @@ class Local extends EventEmitter {
  // Live progress readback (25/10): announced to a v2 app only, so an older app never sends speakProgress.
  assert.equal(ready.progressReadback,contract.optionalWarmReadyFields.progressReadback);
  assert.equal(ready.asyncToolReadback,1);assert.equal(ready.turnBudgetMs,30000);
+ // Deferred brain readback (30/10): announced to a v2 app only; the app opts in per turn.
+ assert.equal(ready.deferredReadback,contract.optionalWarmReadyFields.deferredReadback);
  const second=new Local();await core.attach(second,{...meta,sessionId:'other',sessionEpoch:'epoch-b'});
  assert.equal(second.closeCode,1008);assert.equal(core.status().clients,1);
  assert(!second.messages.some(v=>v.warmEvent));
@@ -52,6 +54,7 @@ class Local extends EventEmitter {
  assert(!('progressReadback' in legacy.messages.find(v=>v.warmReady).warmReady));
  assert(!('asyncToolReadback' in legacy.messages.find(v=>v.warmReady).warmReady));
  assert(!('turnBudgetMs' in legacy.messages.find(v=>v.warmReady).warmReady));
+ assert(!('deferredReadback' in legacy.messages.find(v=>v.warmReady).warmReady));
  Provider.instances.at(-1).emit('message',Buffer.from('{"serverContent":{"turnComplete":true}}'));
  assert(legacy.messages.some(v=>v.serverContent));assert(!legacy.messages.some(v=>v.warmEvent));
  legacy.close();core.shutdown();
