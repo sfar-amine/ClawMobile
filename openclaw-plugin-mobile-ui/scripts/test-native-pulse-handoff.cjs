@@ -63,6 +63,18 @@ function arm(taskId,requestId,params){
  await assert.rejects(admitNativePulseContact({sessionKey,eventRef:untrackedChild.eventRef,text:child.text,isGroup:false,
   requestContext:{...requestContext,parentEventRef:untrackedParent}},read),/event_mismatch/);n++;
 
+ // S24 30/10 « liste les projets et les offres »: a request the coordinator's interpreter found beside the first one
+ // of a non-enumerated message is its child from ordinal 2, with the same derived identity; never ordinal 1, never a
+ // line of an enumerated message under another ordinal, never another parent.
+ const joined={parentEventRef:'parent-joined',originalText:'liste les projets et les offres'};
+ const offers=dialogueChildRequest(joined.parentEventRef,'liste les offres',2);
+ const resumed=await admitNativePulseContact({sessionKey,eventRef:offers.eventRef,text:offers.text,isGroup:false,requestContext:joined},read);
+ await resumed.packet({surface:'pulse_room',conversationKey:resumed.conversationKey,eventRef:offers.eventRef,requestContext:joined},offers.text);n++;
+ for(const [ref,body,ctx] of [[dialogueChildRequest(joined.parentEventRef,'liste les offres',1).eventRef,'liste les offres',joined],
+     [offers.eventRef,'liste les offres et les phases',joined],[offers.eventRef,offers.text,{...joined,parentEventRef:'other-parent'}],
+     [dialogueChildRequest(requestContext.parentEventRef,'Explique ses phases',3).eventRef,'Explique ses phases',requestContext]])
+   await assert.rejects(admitNativePulseContact({sessionKey,eventRef:ref,text:body,isGroup:false,requestContext:ctx},read),/event_mismatch/),n++;
+
  const comboSession=sessionKey.replace('contacts-pulse','contacts-projet-pulse');
  const combo=await admitNativePulseContact({sessionKey:comboSession,eventRef,text,isGroup:false},read);
  check(combo.conversationKey.includes(':contacts-projet-pulse:'),'exact combined profile admitted to private transport; Python independently requires its ACL');

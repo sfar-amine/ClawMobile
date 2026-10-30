@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import {FAILURE_PHRASES,hasFailurePhrase} from "./companion/receiptPresentation";
 import { contactRoomSession } from "./contactRoomProfile";
 import {admitNativePulseContact} from "./nativePulseAdmission";
-import { admittedAtMs, dialogueTurn, dialogueHandoff, dialogueChildRequest, isQuestionReply, MAX_SPLIT_REQUESTS, splitRequests, transportEventRef,
+import { admittedAtMs, dialogueTurn, dialogueHandoff, dialogueChildOrdinal, dialogueChildRequest, isQuestionReply, MAX_SPLIT_REQUESTS, splitRequests, transportEventRef,
   type DialogueReply, type DialogueRequest, type DialogueRequestContext } from "./dialogueSurface";
 import { runModelFastPath, type FastPathResult, type RunnerOptions } from "./modelFastPath";
 
@@ -126,6 +126,9 @@ export async function handlePulseRoomFastPath(
   const parts = splitRequests(message);
   if (parts.length === 1) {
     const one = await roomTurn(runner, room, { text: originalMessage, eventRef }, []);
+    // The coordinator kept the other requests it found in this message behind a question (S24 30/10).
+    if (one.question && one.out.handled && one.keptQueued > 0)
+      return { handled: true, reply: { text: `${one.out.reply!.text}\n\n${keptNote(one.keptQueued)}` } };
     if (!one.out.handled || !one.completed || !one.resumeRequests.length || !one.requestContext) return one.out;
     return { handled: true, reply: { text: await runRequests(runner, room,
       one.resumeRequests.map(request => ({...request, requestContext: one.requestContext!})), [one.out.reply!.text]) } };
@@ -146,13 +149,13 @@ function preservedRequests(reply:DialogueReply):{requests:DialogueRequest[];cont
     typeof context.parentEventRef!=='string'||!context.parentEventRef||context.parentEventRef.length>300||context.parentEventRef.startsWith('untracked:')||
     typeof context.originalText!=='string'||!context.originalText||context.originalText.length>MAX_MESSAGE_CHARS||
     !Array.isArray(reply.resumeRequests)||reply.resumeRequests.length>MAX_SPLIT_REQUESTS)return {requests:[]};
-  const parts=splitRequests(context.originalText),seen=new Set<string>();
+  const seen=new Set<string>();
   const requests:DialogueRequest[]=[];
   for(const item of reply.resumeRequests){
     if(!item||Object.keys(item).sort().join(',')!=='eventRef,ordinal,parentEventRef,text'||
-      !Number.isSafeInteger(item.ordinal)||item.ordinal<1||item.ordinal>parts.length||
-      item.parentEventRef!==context.parentEventRef||item.text!==parts[item.ordinal-1]||
-      item.eventRef!==pulseChildRequest(item.parentEventRef,item.text,item.ordinal).eventRef||seen.has(item.eventRef))return {requests:[]};
+      !Number.isSafeInteger(item.ordinal)||item.ordinal<1||item.ordinal>MAX_SPLIT_REQUESTS||
+      typeof item.text!=='string'||item.text.length>MAX_MESSAGE_CHARS||item.parentEventRef!==context.parentEventRef||
+      dialogueChildOrdinal(context,item.text,item.eventRef)!==item.ordinal||seen.has(item.eventRef))return {requests:[]};
     seen.add(item.eventRef);requests.push(item);
   }
   return {requests,context};
@@ -173,8 +176,7 @@ async function runRequests(runner: Runner, room: RoomTurn, work: RoomRequest[], 
     const turn = await roomTurn(runner, room, item, queued);
     texts.push(turn.out.handled ? turn.out.reply!.text : PULSE_ROOM_HELP);
     if (turn.question) {
-      if (turn.queuedCount > 0) note = turn.queuedCount === 1 ? "J’ai gardé l’autre demande de ton message : je la traite dès ta réponse."
-        : `J’ai gardé les ${turn.queuedCount} autres demandes de ton message : je les traite dès ta réponse.`;
+      if (turn.queuedCount > 0) note = keptNote(turn.queuedCount);
       else if (siblings.length) note = "Les autres demandes de ton message n’ont pas été traitées : renvoie-les après ta réponse.";
       break;
     }
@@ -191,8 +193,22 @@ async function runRequests(runner: Runner, room: RoomTurn, work: RoomRequest[], 
   return note ? `${body}\n\n${note}` : body;
 }
 
+function keptNote(count: number): string {
+  return count === 1 ? "J’ai gardé l’autre demande de ton message : je la traite dès ta réponse."
+    : `J’ai gardé les ${count} autres demandes de ton message : je les traite dès ta réponse.`;
+}
+
+/** Requests of one message waiting in the coordinator's queue projection (read only, never dispatched from here). */
+function queuedFrom(reply: DialogueReply, parentEventRef: string): number {
+  const items = (reply.requestQueue as { items?: unknown } | null | undefined)?.items;
+  return Array.isArray(items) ? items.filter(item => !!item && typeof item === "object" &&
+    (item as { parentEventRef?: unknown; state?: unknown }).parentEventRef === parentEventRef &&
+    (item as { state?: unknown }).state === "queued").length : 0;
+}
+
 async function roomTurn(runner: Runner, room: RoomTurn, request: RoomRequest, queuedRequests: DialogueRequest[]):
-    Promise<{out:RoomOut;question:boolean;completed:boolean;queuedCount:number;resumeRequests:DialogueRequest[];requestContext?:DialogueRequestContext}> {
+    Promise<{out:RoomOut;question:boolean;completed:boolean;queuedCount:number;resumeRequests:DialogueRequest[];requestContext?:DialogueRequestContext;
+      keptQueued:number}> {
   const { agent, contactId, sessionKey } = room;
   const message = request.text.trim();
   let nativePulse;
@@ -200,7 +216,7 @@ async function roomTurn(runner: Runner, room: RoomTurn, request: RoomRequest, qu
     try{nativePulse=await admitNativePulseContact({sessionKey,eventRef:request.eventRef,text:request.text,isGroup:room.isGroup,
       ...(request.requestContext?{requestContext:request.requestContext}:{})});}
     catch{return {out:{handled:true,reply:{text:'L’accès à la pièce Pulse n’est pas confirmé. Rien n’a été exécuté.'}},
-      question:false,completed:false,queuedCount:0,resumeRequests:[]};}
+      question:false,completed:false,queuedCount:0,resumeRequests:[],keptQueued:0};}
   }
   const input={
     surface: "pulse_room" as const, graphSurface: "whatsapp",
@@ -221,7 +237,7 @@ async function roomTurn(runner: Runner, room: RoomTurn, request: RoomRequest, qu
     await new Promise(done=>setTimeout(done,DEFER_UNTIL_READY.stepMs));
     turn=await dialogueTurn(runner,input);
   }
-  if(turn.retryable===true)return {out:{handled:true,reply:{text:STILL_RESTARTING}},question:false,completed:false,queuedCount:0,resumeRequests:[]};
+  if(turn.retryable===true)return {out:{handled:true,reply:{text:STILL_RESTARTING}},question:false,completed:false,queuedCount:0,resumeRequests:[],keptQueued:0};
   let reply=turn;
   if(nativePulse&&reply.pendingHandoff)reply=await dialogueHandoff(runner,input,reply.pendingHandoff.goalRef);
   const completed=reply.outcome==='COMPLETED'&&reply.replayed!==true&&!reply.pendingHandoff;
@@ -229,7 +245,8 @@ async function roomTurn(runner: Runner, room: RoomTurn, request: RoomRequest, qu
   return { out: roomReply(reply, !!nativePulse), question: isQuestionReply(turn),
     completed,
     queuedCount: typeof turn.queuedCount === "number" ? turn.queuedCount : 0,
-    resumeRequests:resume.requests,...('context' in resume&&resume.context?{requestContext:resume.context}:{}) };
+    resumeRequests:resume.requests,...('context' in resume&&resume.context?{requestContext:resume.context}:{}),
+    keptQueued:queuedFrom(turn,request.eventRef) };
 }
 
 function roomReply(reply: DialogueReply, nativePulse: boolean): RoomOut {

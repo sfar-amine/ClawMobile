@@ -164,6 +164,20 @@ export function splitRequests(text: string): string[] {
   return items.length >= 2 && items.length <= MAX_SPLIT_REQUESTS ? items : [String(text || "").trim()];
 }
 
+/**
+ * Ordinal of a child request of `context`, or 0 when `text`/`eventRef` is not one. An enumerated message's child is
+ * one of its lines (splitRequests). Any other message's child, ordinal 2 and up, is a request the coordinator's
+ * interpreter found in it beside the first one (S24 30/10, « liste les projets et les offres »); the message itself
+ * was ordinal 1. Both carry the same derived identity, and each is interpreted again with the original message.
+ */
+export function dialogueChildOrdinal(context: Readonly<DialogueRequestContext>, text: unknown, eventRef: unknown): number {
+  if (typeof text !== "string" || !text.trim() || typeof eventRef !== "string") return 0;
+  const parts = splitRequests(context.originalText);
+  const ordinals = parts.length > 1 ? parts.map((part, n) => part === text ? n + 1 : 0).filter(Boolean)
+    : Array.from({ length: MAX_SPLIT_REQUESTS - 1 }, (_, n) => n + 2);
+  return ordinals.find(n => dialogueChildRequest(context.parentEventRef, text, n).eventRef === eventRef) ?? 0;
+}
+
 export async function dialogueTurn(runner: DialogueRunner, input: DialogueInput): Promise<DialogueReply> {
   try {
     const raw = await runner(input.text, runnerOptions(input, { mode: "turn", event: eventOf(input), policy: input.policy || {} }));

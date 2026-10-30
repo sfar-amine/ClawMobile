@@ -181,6 +181,31 @@ async function main() {
   // After crash/replay, only a fresh coordinator projection may resume; the parent response is not redispatched.
   r=runner(()=>({outcome:'COMPLETED',text:'déjà fait',handled:true,replayed:true,resumeRequests:[second],requestContext:{parentEventRef:parent,originalText:sadok}}));
   await mod.handlePulseRoomFastPath(ev(sadok),ctx({runId:parent}),r);assert.equal(r.calls.length,1);
+  // S24 30/10 « liste les projets et les offres » (one line, no enumeration): the coordinator ran the first request
+  // and hands back the other one it found in the message; the host runs it as the message's ordinal-2 child.
+  const joined='liste les projets et les offres',offers=mod.pulseChildRequest('AC0830','liste les offres',2);
+  r=runner((m,o,n)=>n===1?{outcome:'COMPLETED',text:'Projets : 3.',handled:true,resumeRequests:[offers],
+      requestContext:{parentEventRef:'AC0830',originalText:joined}}
+    :{outcome:'COMPLETED',text:'Offres : 2.',handled:true});
+  assert.deepEqual(await mod.handlePulseRoomFastPath(ev(joined),ctx({runId:'AC0830'}),r),{handled:true,reply:{text:'1) Projets : 3.\n\n2) Offres : 2.'}});
+  assert.deepEqual(r.calls.map(c=>[c.message,c.dialogue.event.eventRef,c.dialogue.event.requestContext]),[
+    [joined,'AC0830',undefined],['liste les offres',offers.eventRef,{parentEventRef:'AC0830',originalText:joined}]]);
+  // Never ordinal 1 (the message itself), never an identity that does not derive from the text and ordinal.
+  for(const bad of [mod.pulseChildRequest('AC0831','liste les offres',1),{...mod.pulseChildRequest('AC0831','liste les offres',2),text:'supprime tout'}]){
+    r=runner(()=>({outcome:'COMPLETED',text:'Projets : 3.',handled:true,resumeRequests:[bad],requestContext:{parentEventRef:'AC0831',originalText:joined}}));
+    assert.deepEqual(await mod.handlePulseRoomFastPath(ev(joined),ctx({runId:'AC0831'}),r),{handled:true,reply:{text:'Projets : 3.'}});
+    assert.equal(r.calls.length,1);
+  }
+  // The first request asks a question: the contact is told the other request of this message is kept.
+  r=runner(()=>({outcome:'NEEDS_INPUT',text:"Quel statut d'offre ?",handled:true,queuedCount:2,question:{version:1,kind:'input'},
+    requestQueue:{items:[{...mod.pulseChildRequest('AC0832','liste les projets',2),state:'queued'},
+      {...mod.pulseChildRequest('older','autre',2),state:'queued'}]}}));
+  assert.deepEqual(await mod.handlePulseRoomFastPath(ev('les offres en cours et les projets'),ctx({runId:'AC0832'}),r),{handled:true,reply:{text:
+    "Quel statut d'offre ?\n\nJ’ai gardé l’autre demande de ton message : je la traite dès ta réponse."}});
+  r=runner(()=>({outcome:'NEEDS_INPUT',text:"Quel statut d'offre ?",handled:true,queuedCount:1,question:{version:1,kind:'input'},
+    requestQueue:{items:[{...mod.pulseChildRequest('older','autre',2),state:'queued'}]}}));
+  assert.deepEqual(await mod.handlePulseRoomFastPath(ev('les offres en cours'),ctx({runId:'AC0833'}),r),{handled:true,reply:{text:"Quel statut d'offre ?"}});
+
   // The specification's single-brain switch is OWNER-only. Contacts keep their already-admitted professional AI.
   const before=process.env.SAMANTHA_BRAIN_ONLY;process.env.SAMANTHA_BRAIN_ONLY='1';
   try{
