@@ -95,6 +95,12 @@ async function main() {
   assert.equal(r.calls[0].dialogue.event.conversationKey, r.calls[1].dialogue.event.conversationKey);
   assert.notEqual(r.calls[0].dialogue.event.eventRef, r.calls[1].dialogue.event.eventRef);
 
+  // A cancel closes the open question: the coordinator's own sentence, never a transport failure (S24 30/10).
+  r = runner((m, o, n) => n === 1 ? { outcome: "NEEDS_INPUT", text: "Quel est le nom exact du projet ?", handled: true, question: { version: 1, kind: "input", text: "Quel est le nom exact du projet ?" } }
+    : { outcome: "CANCELLED", goalRef: "goal-1", text: "J’ai arrêté la demande en cours.", handled: true, modelAllowed: false });
+  await mod.handlePulseRoomFastPath(ev("Crée un nouveau projet"), ctx({ runId: "c1" }), r);
+  assert.deepEqual(await mod.handlePulseRoomFastPath(ev("Annule la demande en cours"), ctx({ runId: "c2" }), r), { handled: true, reply: { text: "J’ai arrêté la demande en cours." } });
+
   // before_dispatch: no agentId, no senderIsOwner; OpenClaw messageId and timestamp are the admission identity.
   const fourth = "+21610000006"; const fourthKey = `agent:contacts-projet-pulse:whatsapp:direct:${fourth}`;
   r = runner(() => ({ outcome: "COMPLETED", text: "ZAIN BAHRAIN - PHASE 5 : en attente du BC.", handled: true }));
