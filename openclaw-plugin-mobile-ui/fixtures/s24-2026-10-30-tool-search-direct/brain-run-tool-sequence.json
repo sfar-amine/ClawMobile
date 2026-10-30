@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "source": "S24 30/10/2026 21:21-21:22 UTC, SAMANTHA_BRAIN_ONLY=1, core 799306da, playbooks e1075394. Tool calls of run_1793395301758_9b29ce1e read from the agent transcript (names and arguments only, no tool result) and the matching gateway log line. No credential, cookie, token or bill amount.",
+  "request": "Quel est l'état de mes factures",
+  "toolSearchConfig": "tools.toolSearch unset in openclaw.json (SDK default mode \"tools\"); tools.codeMode false",
+  "gatewayLog": "tool-search: cataloged 110 tools behind compact prompt surface",
+  "calls": [
+    {"tool": "read", "arguments": {"path": "/data/data/com.termux/files/home/.openclaw/workspace/skills/samantha-factures/SKILL.md"}, "durationMs": 98},
+    {"tool": "tool_search", "arguments": {"queries": [{"query": "progress card update session work progress steps"}, {"query": "billing utility summary Samantha check pending bills"}], "limit": 5},
+     "error": "set limit on each batch query, not on the batch request.", "durationMs": 62},
+    {"tool": "exec", "arguments": {"command": "python3 -m billing.cli check --json", "workdir": "/data/data/com.termux/files/home/.openclaw/workspace/ui-playbooks", "yieldMs": 30000, "timeoutSeconds": 120, "title": "Consulter les factures STEG, SONEDE et Topnet"}, "durationMs": 10600}
+  ],
+  "typedToolNamesOnS24": {
+    "capabilityRevision": "f4844f9a5b967719",
+    "names": ["samantha_agenda", "samantha_laptop_s24_termux", "samantha_maxit_tunisie", "samantha_pulse", "samantha_sonede", "samantha_steg", "samantha_topnet", "samantha_tunisie_telecom", "samantha_utility_billing", "samantha_whatsapp", "samantha_zain_bahrain", "samantha_app"]
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "version": 2,
+  "id": "brain-typed-tools-direct-20261030",
+  "date": "2026-10-30",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The frequent typed owner tools (samantha_utility_billing, samantha_steg, samantha_sonede, samantha_topnet, samantha_maxit_tunisie, samantha_agenda, samantha_pulse) and samantha_catalogue are marked catalogMode \"direct-only\", the SDK's documented per-tool knob: OpenClaw Tool Search keeps them model-visible and out of its catalog. The other typed tools stay behind tool_search. No OpenClaw patch and no config key.",
+  "reason": "S24 30/10 21:21 brain-only run_1793395301758_9b29ce1e (« Quel est l'état de mes factures »): with tools.toolSearch unset (SDK default mode tools, 110 tools cataloged) the brain could not see samantha_utility_billing; it batched a tool_search with a batch-level limit, which the SDK refuses (« set limit on each batch query, not on the batch request »), then ran the billing shell command (10.6 s). Total about 30 s.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-tools-direct-visible.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-30-tool-search-direct/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-30-tool-search-direct/provenance.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-30-tool-search-direct/brain-run-tool-sequence.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-30-tool-search-direct/local-model-lean-CHSAjCEl.mjs.gz",
+    "docs/changes/brain-typed-tools-direct-20261030.json",
+    "docs/changes/brain-typed-tools-direct-20261030.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-tools-direct-visible.cjs",
+      "status": "passed",
+      "evidence": "New, in ci.yml. Runs the exact public SDK 2026.9.6 Tool Search functions (module byte-identical to the S24 file, sha256 1111590e…): the captured S24 tool_search call fails with the S24 error and passes with per-entry limits; on the captured typed catalogue (same 12 names as the S24 projection f4844f9a) through the SDK plugin Proxy and before_tool_call spread, before = 0 typed tools visible and 14 cataloged, after = the 8 frequent tools visible and outside the catalog, 6 still cataloged; direct surface 27,493 chars (bound 30,000); a billing question runs one typed call samantha_utility_billing/billing.unpaid with one owner invocation. Fails on the base commit."
+    },
+    {
+      "name": "test-typed-capability-tools, test-google-typed-schema, test-typed-failure-presentation, test-brain-only-entry, test-agent-capability-guard; tsc build",
+      "status": "passed",
+      "evidence": "Green; typed execution, admission and schemas unchanged."
+    }
+  ],
+  "documentation": [
+    "docs/changes/brain-typed-tools-direct-20261030.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No route, capability or execution change: only the visibility of existing typed tool descriptors in the model's tool list. No acceptance line needed (no new route)."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same typed tool factory and owners; one documented SDK descriptor property. No new store, registry, router or scheduler."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Model-visible tool surface of the brain only; MCP tools and schemas unchanged."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Live proof after deployment: « état de mes factures » in brain-only mode reaches samantha_utility_billing without tool_search or exec (the twin playbooks PR makes the factures skill name the typed tool; before it, the skill still prescribes the shell command).",
+    "About 9 s of preparation before the first model call stays (existing cold-start task).",
+    "progress_card is an OpenClaw core tool and stays behind tool_search; the batch-level limit error can still cost a turn when the brain searches it.",
+    "Prompt grows by about 27.5k characters of tool schemas (stable, cacheable prefix)."
+  ],
+  "rollback": "Revert this PR and redeploy the previous core with companion-deploy.sh; the tools return behind tool_search."
+}

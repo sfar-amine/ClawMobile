@@ -586,6 +586,7 @@ jobs:
           node scripts/test-capability-tool.cjs
           node scripts/test-capability-admission.cjs
           node scripts/test-typed-capability-tools.cjs
+          node scripts/test-typed-tools-direct-visible.cjs
           node scripts/test-brain-only-entry.cjs
           node scripts/test-generation-interrupt.cjs
           node scripts/test-native-turn-observation.cjs
