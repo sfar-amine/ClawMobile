@@ -663,13 +663,13 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       let flow:any;
       if(method==='GET'){
         for(const [key] of requestUrl.searchParams)if(key!=='flow'||requestUrl.searchParams.getAll(key).length!==1)throw Object.assign(new Error(),{statusCode:400});
-        if(requestUrl.searchParams.has('flow')){flow=requestUrl.searchParams.get('flow');if(!['brain','conversation_summary','whatsapp'].includes(flow))throw Object.assign(new Error(),{statusCode:400});}
+        if(requestUrl.searchParams.has('flow')){flow=requestUrl.searchParams.get('flow');if(!['brain','conversation_summary','whatsapp','intent_interpreter','web_search','voice_memos'].includes(flow))throw Object.assign(new Error(),{statusCode:400});}
       }else if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
       const value=method==='GET'?await readAgentConfig(flow):await changeAgentConfig(await readJsonBody(req,2048));
       writeJson(res,value.state==='refused'?409:200,value);
     }catch(error:any){
       const challenge=error?.confirmation;
-      if(error?.statusCode===403&&error?.message==='confirmation_required'&&challenge?.scope==='agent.config.expand_fallbacks'&&(challenge.reference==='main'||/^flow:(brain|conversation_summary|whatsapp)$/.test(challenge.reference))&&/^[a-f0-9]{64}$/.test(challenge.payloadHash)){
+      if(error?.statusCode===403&&error?.message==='confirmation_required'&&challenge?.scope==='agent.config.expand_fallbacks'&&(challenge.reference==='main'||/^flow:(brain|conversation_summary|whatsapp|intent_interpreter|web_search|voice_memos)$/.test(challenge.reference))&&/^[a-f0-9]{64}$/.test(challenge.payloadHash)){
         writeJson(res,403,{success:false,state:'refused',receipt:null,error:'confirmation_required',scope:challenge.scope,reference:challenge.reference,payloadHash:challenge.payloadHash});
       }else{const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;
         const modelFlowReason=typeof error?.message==='string'&&/^(?:model_flow_(?:required|not_active|model_not_included|account_unavailable|options_unsupported|previous_version_(?:changed|unavailable)|parent_changed|owner_shape_unsupported|snapshot_too_large|receipt_invalid)|included_model_policy_unavailable)$/.test(error.message)?error.message:undefined;

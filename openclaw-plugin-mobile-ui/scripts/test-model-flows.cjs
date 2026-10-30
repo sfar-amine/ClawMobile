@@ -41,7 +41,7 @@ const clone=value=>JSON.parse(JSON.stringify(value));
  const owner=require('../dist/companion/modelOwner'),api=require('../dist/companion/agentConfig'),metadata=require('../dist/companion/conversationMetadata');
  try{
   const read=await api.readAgentConfig('brain');assert.equal(read.schemaVersion,2);assert.equal(read.model,publicModelRef(config.agents.entries.main.model.primary));
-  assert.deepEqual(owner.MODEL_FLOW_IDS.length,11);assert.equal(read.models.length,4,'three subscription models and exact canonical free model');
+  assert.deepEqual(owner.MODEL_FLOW_IDS.length,12);assert.equal(read.models.length,4,'three subscription models and exact canonical free model');
   assert.ok(read.models.every(row=>row.ref.includes('@acct-')&&!row.ref.includes('authored-')));
   assert.ok(!read.models.some(row=>row.provider==='github-copilot'),'available token does not attest free admission');
   assert.ok(!JSON.stringify(read).includes('authored-'));assert.ok(!JSON.stringify(read).includes('privateFixture'));

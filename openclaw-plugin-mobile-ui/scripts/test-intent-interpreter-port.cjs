@@ -97,7 +97,10 @@ function fake(script) {
     const ok = await port.interpret(gemini.complete, port.validateRequest({ systemPrompt: "x", message: "y", model: GEMINI }));
     assert.equal(ok.ok, true);
     assert.equal(gemini.calls[0].requiredAuthMode, undefined);
-    assert.equal(port.validateRequest({ systemPrompt: "x", message: "y", model: LUNA }), null, 'Luna left the interpretation chain');
+    // Amine 30/10: the chain is set from the app among the qualified Sol/Luna/Gemini free set, never beyond it.
+    assert.notEqual(port.validateRequest({ systemPrompt: "x", message: "y", model: LUNA }), null, 'Luna is an admissible interpreter choice');
+    assert.deepEqual([...port.INTERPRETER_ADMITTED], [...port.IMMUNE_MODELS]);
+    assert.equal(port.validateRequest({ systemPrompt: "x", message: "y", model: "openai/gpt-5.6-terra" }), null, 'an unqualified model stays refused');
   }
   // Only one JSON object is a decision; its contract belongs to the playbooks owner.
   assert.equal(port.parseDecision("[1,2]"), null);
@@ -128,7 +131,7 @@ function fake(script) {
     try{
       await handler({params,respond:(...v)=>replies.push(v)});
       assert.equal(calls,1);assert.equal(replies.at(-1)[0],true,'a room interpretation needs no Gateway lease');
-      for(const invalid of [{...params,model:LUNA},{...params,message:'état du projet 20495'},
+      for(const invalid of [{...params,model:'openai/gpt-5.6-terra'},{...params,message:'état du projet 20495'},
           {...params,message:'REQUEST='+JSON.stringify({...request,catalogue:{domains:[{domain_id:'pulse'},{domain_id:'owner_private'}]}})},
           {...params,message:'REQUEST={'}]){
         await handler({params:invalid,respond:(...v)=>replies.push(v)});

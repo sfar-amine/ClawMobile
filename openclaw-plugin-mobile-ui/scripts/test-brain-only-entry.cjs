@@ -37,7 +37,7 @@ const port=require('../dist/intentInterpreterPort');
   purpose:port.NATIVE_PULSE_PURPOSE};
  const call=async params=>{const before=completions;let reply;await handler({params,respond:(...args)=>{reply=args}});return{reply,completions:completions-before};};
  for(const invalid of [
-  {...nativeParams,model:port.LUNA},
+  {...nativeParams,model:'openai/gpt-5.6-terra'},
   {...nativeParams,message:'Lis offre 20447'},
   {...nativeParams,message:'REQUEST='+JSON.stringify({...request,catalogue:{domains:[{domain_id:'pulse'},{domain_id:'owner_private'}]}})},
  ]){const denied=await call(invalid);assert.equal(denied.reply[0],false);assert.equal(denied.completions,0);}

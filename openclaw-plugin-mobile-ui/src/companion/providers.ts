@@ -1,9 +1,7 @@
 import {CLAW_LIVE_MODEL} from './clawLive';
-import {MEMO_STT_MODEL} from './memoSttBoundary';
-import {PUBLIC_WEB_MODEL} from './runWeb';
 import {publicModelRef} from './accountIdentity';
 import {readModelFlowTurnLatency} from './control-health';
-import {peekModelOwner,readModelOwnerCached,ModelOwnerSnapshot,configuredModelAllow,configuredModelFlow,modelReferenceAllowed} from './modelOwner';
+import {peekModelOwner,readModelOwnerCached,ModelOwnerSnapshot,configuredModelAllow,configuredModelFlow,modelReferenceAllowed,executorFlowChain,EXECUTOR_FLOW_KEYS,type ExecutorModelFlow} from './modelOwner';
 import {isoTimestamp,peekUsage,publicId,publicModelId,publicText,readUsage,UsageView} from './usage';
 const modelReference=(v:any)=>publicModelId(typeof v==='string'?v.split('@')[0]:v);
 const configured=(snapshot:ModelOwnerSnapshot|null)=>{
@@ -36,24 +34,41 @@ export function projectModelRoles(snapshot:ModelOwnerSnapshot|null,latency:any=n
   const value=configuredModelFlow(config,id),active=true;
   return {id,...chain(value.model),thinking:value.thinkingDefault??null,fastMode:typeof value.fastModeDefault==='boolean'?value.fastModeDefault:null,source:'gateway_config',inheritsFrom:value.inheritsFrom,origins:value.origins,mixedFields:value.mixedFields,...(value.inheritsFrom==='conversation'?{state:'runtime_inherited'}:{}),...(value.mixedFields.length?{state:'mixed'}:{}),editable:active&&!!snapshot,editableReason:snapshot?null:'model_owner_unavailable',writeFields:id==='conversation_summary'?['model']:['model','fallbacks','thinking','fastMode']};
  };
+ // Executor flows: the plugin-config key when it names a qualified reference, else the executor's constant.
+ const executor=(id:ExecutorModelFlow,extra:any={})=>{
+  const value=executorFlowChain(config,id),stored=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.[EXECUTOR_FLOW_KEYS[id]]!==undefined;
+  return {id,...chain({primary:value.primary,fallbacks:value.fallbacks}),thinking:null,fastMode:null,source:value.origin==='flow'?'gateway_config':'code_constant',inheritsFrom:null,
+   origins:{model:value.origin,thinking:'unsupported',fastMode:'unsupported'},mixedFields:[],...(stored&&value.origin==='default'?{issues:['model_flow_setting_ignored']}:{}),
+   editable:!!snapshot,editableReason:snapshot?null:'model_owner_unavailable',writeFields:id==='intent_interpreter'?['model','fallbacks']:['model'],...extra};
+ };
  const readonly=(id:string,value:any,source:string,reason='next_lot',extra:any={})=>({id,...chain(value),thinking:null,fastMode:null,source,inheritsFrom:null,editable:false,editableReason:reason,writeFields:[],...extra});
  const voice=config?.talk?.realtime,voiceMalformed=voice?.model!==undefined&&voice?.model!==null&&typeof voice.model!=='string';
  const voiceModel=voiceMalformed?null:typeof voice?.model==='string'?(voice.model.includes('/')?voice.model:(voice.provider||'google')+'/'+voice.model):'google/'+CLAW_LIVE_MODEL;
  const spokenProvider=publicId(config?.talk?.provider),spokenVoice=publicModelId(config?.talk?.providers?.[spokenProvider??'']?.voice);
  const memory=config?.memory?.search,memoryProvider=publicId(memory?.provider),memoryModel=typeof memory?.model==='string'?(memory.model.includes('/')?memory.model:(memoryProvider?memoryProvider+'/':'')+memory.model):null;
- const engineering=config?.agents?.entries?.['engineering-lite']?.model;
- const policy=snapshot?.policy;
+ const policy=snapshot?.policy,policyHash=policy?.sourceHash??null;
+ // Ordered enabled slot models of one canonical routing profile (model_policy.json). The governor passes
+ // `--model` on every engineering call, so the engineering-lite agent default is never this flow's model.
+ const policyChain=(profile:any)=>{
+  const aliases=typeof profile==='string'?policy?.routing_profiles?.[profile]:undefined;if(!Array.isArray(aliases))return null;
+  const refs=aliases.flatMap((alias:string)=>{const slot=policy.model_slots?.[alias];return slot?.enabled===true&&typeof slot.model==='string'?[slot.model]:[];});
+  return refs.length?{primary:refs[0],fallbacks:refs.slice(1)}:null;
+ };
+ const immuneProfile=policy?.immune?.profile??null,immune=policyChain(immuneProfile)??(policy?.primary?{primary:policy.primary,fallbacks:policy.fallback?[policy.fallback]:[]}:null);
+ const engineeringProfile=policy?.default_profile??null,engineering=policyChain(engineeringProfile);
+
  return [
   editable('brain'),
-  readonly('web_search',PUBLIC_WEB_MODEL,'code_constant'),
+  executor('intent_interpreter',{fallbackPolicy:'technical_failure_only'}),
+  executor('web_search'),
   editable('conversation_summary'),
-  readonly('memory_search',memoryModel,'gateway_config','next_lot',{provider:memoryProvider??null,state:memoryModel?'configured':memoryProvider?'provider_default':'unavailable'}),
-  readonly('realtime_voice',voiceModel,typeof voice?.model==='string'?'gateway_config':'code_constant','next_lot',{provider:voice?.provider??'google'}),
+  readonly('memory_search',memoryModel,'gateway_config','memory_reindex_required',{provider:memoryProvider??null,state:memoryModel?'configured':memoryProvider?'provider_default':'unavailable'}),
+  readonly('realtime_voice',voiceModel,typeof voice?.model==='string'?'gateway_config':'code_constant','qualified_live_protocol',{provider:voice?.provider??'google'}),
   readonly('spoken_voice',spokenProvider&&spokenVoice?spokenProvider+'/'+spokenVoice:null,'gateway_config'),
   readonly('dictation',null,'device','device_managed',{state:'device_managed'}),
-  readonly('voice_memos','google/'+MEMO_STT_MODEL,'code_constant'),
-  readonly('immune_system',policy?.primary??null,'model_policy',policy?'next_lot':'model_policy_unavailable',{fallbacks:policy?.fallback?[modelReference(policy.fallback)]:[],policySourceHash:policy?.sourceHash??null}),
-  readonly('engineering_learning',engineering??null,'gateway_config'),
+  executor('voice_memos'),
+  readonly('immune_system',immune,'model_policy',immune?'qualified_model_policy':'model_policy_unavailable',{policyProfile:immuneProfile,policySourceHash:policyHash}),
+  readonly('engineering_learning',engineering,'model_policy',engineering?'qualified_model_policy':'model_policy_unavailable',{policyProfile:engineeringProfile,policySourceHash:policyHash}),
   editable('whatsapp'),
  ].map(role=>({...role,provider:'provider' in role?role.provider:typeof role.model==='string'?role.model.split('/')[0]:null,metrics:projectModelFlowMetrics(role.id,latency)}));
 }

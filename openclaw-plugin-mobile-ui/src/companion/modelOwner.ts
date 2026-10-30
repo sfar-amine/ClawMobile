@@ -4,6 +4,9 @@ import path from "path";
 import crypto from "crypto";
 import {accountAlias,publicModelRef,ACCOUNT_ALIAS} from "./accountIdentity";
 import {callOpenClawGateway} from "./openclawAgentClient";
+import {INTERPRETER_PRIMARY,INTERPRETER_FALLBACK,IMMUNE_MODELS} from "../intentInterpreterPort";
+import {PUBLIC_WEB_MODEL} from "./runWeb";
+import {MEMO_STT_PROVIDER,MEMO_STT_MODEL,MEMO_STT_PROFILE} from "./memoSttBoundary";
 
 // Process-local projection of the existing Gateway owners. No credential or
 // whole config/auth object is retained; fresh mutation reads keep their own
@@ -51,14 +54,49 @@ export function configuredModelAllow(config:any,agentId='main'):string[]{
 export function modelReferenceAllowed(allow:string[],reference:string):boolean {
  const base=reference.split('@')[0];return allow.some(item=>item===base||/^[a-z][a-z0-9_.-]{0,79}\/\*$/.test(item)&&base.startsWith(item.slice(0,-1)));
 }
-export const MODEL_FLOW_IDS=['brain','web_search','conversation_summary','memory_search','realtime_voice','spoken_voice','dictation','voice_memos','immune_system','engineering_learning','whatsapp'] as const;
+export const MODEL_FLOW_IDS=['brain','intent_interpreter','web_search','conversation_summary','memory_search','realtime_voice','spoken_voice','dictation','voice_memos','immune_system','engineering_learning','whatsapp'] as const;
 export type ModelFlowId=typeof MODEL_FLOW_IDS[number];
 export const CONTACT_MODEL_AGENTS=['contacts','contacts-projet','contacts-pulse','contacts-projet-pulse'] as const;
-export type EditableModelFlow='brain'|'conversation_summary'|'whatsapp';
+/** Conversation flows change agent/session models and keep the R6 provenance proof. */
+export const CONVERSATION_MODEL_FLOWS=['brain','conversation_summary','whatsapp'] as const;
+/** Executor flows: one fixed executor (interpretation port, public web synthesis, memo transcription) reads its
+ * own key in the plugin config, else its current constant. Only the executor's qualified references are admitted. */
+export const EXECUTOR_MODEL_FLOWS=['intent_interpreter','web_search','voice_memos'] as const;
+export type ConversationModelFlow=typeof CONVERSATION_MODEL_FLOWS[number];
+export type ExecutorModelFlow=typeof EXECUTOR_MODEL_FLOWS[number];
+export type EditableModelFlow=ConversationModelFlow|ExecutorModelFlow;
+export const EDITABLE_MODEL_FLOWS:readonly EditableModelFlow[]=[...CONVERSATION_MODEL_FLOWS,...EXECUTOR_MODEL_FLOWS];
+export const isExecutorModelFlow=(flow:any):flow is ExecutorModelFlow=>(EXECUTOR_MODEL_FLOWS as readonly string[]).includes(flow);
+export const EXECUTOR_FLOW_KEYS:Record<ExecutorModelFlow,string>={intent_interpreter:'interpreterModelFlow',web_search:'webSearchModelFlow',voice_memos:'voiceMemoModelFlow'};
+const WEB_SYNTHESIS_PROFILE='google:claw-gemini-free';
+/** The references each executor can run today. The interpretation port admits the qualified Sol/Luna/Gemini free
+ * set (same Gateway LLM policy as the immune port); web synthesis and memo transcription stay pinned to their
+ * qualified free model until another one carries its own qualification. */
+export const EXECUTOR_FLOW_QUALIFIED:Record<ExecutorModelFlow,readonly string[]>={intent_interpreter:IMMUNE_MODELS,
+ web_search:[PUBLIC_WEB_MODEL+'@'+WEB_SYNTHESIS_PROFILE],voice_memos:[MEMO_STT_PROVIDER+'/'+MEMO_STT_MODEL+'@'+MEMO_STT_PROFILE]};
+export const EXECUTOR_FLOW_DEFAULT:Record<ExecutorModelFlow,{primary:string,fallbacks:string[]}>={intent_interpreter:{primary:INTERPRETER_PRIMARY,fallbacks:[INTERPRETER_FALLBACK]},
+ web_search:{primary:EXECUTOR_FLOW_QUALIFIED.web_search[0],fallbacks:[]},voice_memos:{primary:EXECUTOR_FLOW_QUALIFIED.voice_memos[0],fallbacks:[]}};
+export const EXECUTOR_FLOW_MAX_FALLBACKS:Record<ExecutorModelFlow,number>={intent_interpreter:1,web_search:0,voice_memos:0};
+/** Stored reference -> the executor's qualified reference. A bare qualified reference (OpenAI on the
+ * subscription OAuth) accepts its configured profile suffix; a pinned one (Gemini free) must match exactly. */
+export function executorFlowReference(flow:ExecutorModelFlow,ref:any):string|null{
+ if(typeof ref!=='string'||!identity(ref))return null;
+ return EXECUTOR_FLOW_QUALIFIED[flow].find(qualified=>ref===qualified||!qualified.includes('@')&&ref.split('@')[0]===qualified)??null;
+}
+/** Runtime read with fallback: an absent, malformed or unqualified key keeps the current constant chain. */
+export function executorFlowChain(config:any,flow:ExecutorModelFlow):{primary:string,fallbacks:string[],origin:'flow'|'default'}{
+ const own=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.[EXECUTOR_FLOW_KEYS[flow]];
+ const value=own&&typeof own==='object'&&!Array.isArray(own)&&own.version===1?own.model:undefined;
+ const primary=executorFlowReference(flow,value?.primary),raw=Array.isArray(value?.fallbacks)?value.fallbacks:null;
+ const fallbacks=raw&&raw.length<=EXECUTOR_FLOW_MAX_FALLBACKS[flow]?raw.map((ref:any)=>executorFlowReference(flow,ref)):null;
+ if(!primary||!fallbacks||fallbacks.some((ref:any)=>!ref)||new Set([primary,...fallbacks]).size!==fallbacks.length+1)return {...EXECUTOR_FLOW_DEFAULT[flow],fallbacks:[...EXECUTOR_FLOW_DEFAULT[flow].fallbacks],origin:'default'};
+ return {primary,fallbacks:fallbacks as string[],origin:'flow'};
+}
 export const MODEL_FLOW_PROVENANCE_PATH=['plugins','entries','openclaw-plugin-mobile-ui','config','modelFlowSelection'] as const;
 const flowError=()=>Object.assign(new Error('model_flow_provenance_unverified'),{statusCode:409});
 /** The R6-owned setting paths are also the source of its durable admission proof. */
 export function modelFlowSettingPaths(flow:EditableModelFlow):string[][]{
+ if(isExecutorModelFlow(flow))return [['plugins','entries','openclaw-plugin-mobile-ui','config',EXECUTOR_FLOW_KEYS[flow]]];
  if(flow==='conversation_summary')return [['agents','defaults','compaction','model']];
  const agents=flow==='brain'?['main']:[...CONTACT_MODEL_AGENTS];
  return [...agents.flatMap(id=>['model','thinkingDefault','fastModeDefault'].map(field=>['agents','entries',id,field])),
@@ -109,10 +147,22 @@ export function readIncludedModelPolicy(){
    if(!/^[a-z_]{1,64}$/.test(key)||typeof row?.enabled!=='boolean')return [];
    return [[key,{enabled:row.enabled,provider:providerRef(row.provider),model:model(row.model),cost_policy:['free_only','subscription'].includes(row.cost_policy)?row.cost_policy:null,executor:text(row.executor,64),qualification_ref:text(row.qualification_ref,240)}]];
   }));
-  return {authentication:value.authentication,primary:model(value.primary),fallback:model(value.fallback),model_slots:slots,sourceHash:crypto.createHash('sha256').update(bytes).digest('hex')};
+  // Read-only routing projection for /providers: closed profile names, aliases of the projected slots only.
+  const profileName=(name:any)=>typeof name==='string'&&/^[A-Z][A-Z0-9_]{0,63}$/.test(name);
+  const routes=value.routing_profiles&&typeof value.routing_profiles==='object'&&!Array.isArray(value.routing_profiles)&&Object.keys(value.routing_profiles).length<=64?value.routing_profiles:{};
+  const routing_profiles=Object.fromEntries(Object.entries(routes).flatMap(([key,row]:[string,any])=>profileName(key)&&Array.isArray(row)&&row.length<=16&&row.every((alias:any)=>typeof alias==='string'&&Object.prototype.hasOwnProperty.call(slots,alias))?[[key,[...row]]]:[]));
+  const chain=(row:any,keys:string[])=>row&&typeof row==='object'&&!Array.isArray(row)?Object.fromEntries(keys.flatMap(key=>key==='profile'?(profileName(row[key])?[[key,row[key]]]:[]):(identity(row[key])?[[key,row[key]]]:[]))):null;
+  return {authentication:value.authentication,primary:model(value.primary),fallback:model(value.fallback),model_slots:slots,routing_profiles,default_profile:profileName(value.default_profile)?value.default_profile:null,
+   interpretation:chain(value.interpretation,['profile','primary','fallback']),immune:chain(value.immune,['profile','primary','fallback','last_resort']),sourceHash:crypto.createHash('sha256').update(bytes).digest('hex')};
  }catch{return null;}
 }
-export function configuredModelFlow(config:any,flow:'brain'|'conversation_summary'|'whatsapp'){
+export function configuredModelFlow(config:any,flow:EditableModelFlow){
+ if(isExecutorModelFlow(flow)){
+  const own=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.[EXECUTOR_FLOW_KEYS[flow]];
+  if(own!==undefined)return {model:own?.model,thinkingDefault:undefined,fastModeDefault:undefined,inheritsFrom:null,explicit:own,origins:{model:'flow',thinking:'unsupported',fastMode:'unsupported'},mixedFields:[]};
+  const fallback=EXECUTOR_FLOW_DEFAULT[flow];
+  return {model:{primary:fallback.primary,fallbacks:[...fallback.fallbacks]},thinkingDefault:undefined,fastModeDefault:undefined,inheritsFrom:null,explicit:{},origins:{model:'default',thinking:'unsupported',fastMode:'unsupported'},mixedFields:[]};
+ }
  const entry=(id:string)=>config?.agents?.entries?.[id]??config?.agents?.list?.find((row:any)=>row.id===id);
  const defaults=config?.agents?.defaults||{},main=entry('main')||{},base={model:main.model??defaults.model,thinkingDefault:main.thinkingDefault??defaults.thinkingDefault,fastModeDefault:main.fastModeDefault??defaults.fastModeDefault};
  if(flow==='brain')return {...base,inheritsFrom:main.model===undefined?'default':null,explicit:main,origins:{model:main.model===undefined?'default':'flow',thinking:main.thinkingDefault===undefined?'default':'flow',fastMode:main.fastModeDefault===undefined?'default':'flow'},mixedFields:[]};
@@ -173,7 +223,8 @@ function projected(value:ModelOwnerRead):ModelOwnerSnapshot|null{
   if(!provider||!status)return [];
   return [{provider,status,...(publicName(row.displayName)?{displayName:publicName(row.displayName)}:{}),...(Array.isArray(row.profiles)&&row.profiles.length<=2000?{profiles:row.profiles.flatMap((profile:any)=>{const rawId=typeof profile?.profileId==='string'&&profile.profileId.length<=200?profile.profileId:undefined,status=authState(profile?.status);return rawId&&status?[{profileId:accountAlias(rawId),status,...(['oauth','api_key','token'].includes(profile.type)?{type:profile.type}:{})}]:[];})}:{})}];
  });
- const rawPlugin=config.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config,pluginSettings={...(rawPlugin?.whatsappModelFlow?{whatsappModelFlow:agent(rawPlugin.whatsappModelFlow)}:{}),...(rawPlugin?.modelFlowSelection!==undefined?{modelFlowSelection:publicFlowProvenance(rawPlugin.modelFlowSelection)}:{})};
+ const rawPlugin=config.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config,pluginSettings={...(rawPlugin?.whatsappModelFlow?{whatsappModelFlow:agent(rawPlugin.whatsappModelFlow)}:{}),
+  ...Object.fromEntries(EXECUTOR_MODEL_FLOWS.flatMap(flow=>{const own=rawPlugin?.[EXECUTOR_FLOW_KEYS[flow]];return own&&typeof own==='object'&&!Array.isArray(own)?[[EXECUTOR_FLOW_KEYS[flow],{version:own.version===1?1:undefined,model:model(own.model)}]]:[];})),...(rawPlugin?.modelFlowSelection!==undefined?{modelFlowSelection:publicFlowProvenance(rawPlugin.modelFlowSelection)}:{})};
  return {config:{agents:{entries:Object.fromEntries(["main","engineering-lite","gemini",...CONTACT_MODEL_AGENTS].flatMap(id=>config.agents?.entries?.[id]?[[id,agent(config.agents.entries[id])]]:[])),defaults:agent(config.agents?.defaults),...(Array.isArray(config.agents?.list)&&config.agents.list.length<=100?{list:config.agents.list.filter((row:any)=>['main',...CONTACT_MODEL_AGENTS].includes(row?.id)).slice(0,5).map((row:any)=>({id:row.id,...agent(row)}))}:{})},plugins:{entries:{...plugins,...(plugins['openclaw-plugin-mobile-ui']&&Object.keys(pluginSettings).length?{'openclaw-plugin-mobile-ui':{...plugins['openclaw-plugin-mobile-ui'],config:pluginSettings}}:{})}},tools:tools(config.tools),talk:{provider:providerRef(config.talk?.provider),providers:providerRef(config.talk?.provider)?{[config.talk.provider]:{voice:identity(config.talk?.providers?.[config.talk.provider]?.voice)}}:{},realtime:{provider:providerRef(config.talk?.realtime?.provider),model:config.talk?.realtime?.model==null?null:identity(config.talk.realtime.model)??false}},memory:{search:{provider:providerRef(config.memory?.search?.provider),model:config.memory?.search?.model==null?null:identity(config.memory.search.model)??false}}},catalog:{models,providerOutcomes:Array.isArray(value.catalog.providerOutcomes)&&value.catalog.providerOutcomes.length<=2000?value.catalog.providerOutcomes.flatMap((row:any)=>typeof row?.provider==='string'&&/^[A-Za-z0-9._+-]{1,200}$/.test(row.provider)&&['ready','needs_auth','unknown'].includes(row.status)?[{provider:row.provider,status:row.status}]:[]):[]},auth:{providers},revision:text(value.raw.hash)||null,updatedAt:Date.now(),policy:value.policy??null};
 }
 

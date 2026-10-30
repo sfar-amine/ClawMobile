@@ -21,6 +21,10 @@ export const INTERPRET_METHOD = "samantha.intent.interpret";
 export const IMMUNE_PURPOSE = "samantha.engineering.immune";
 export const NATIVE_PULSE_PURPOSE = "samantha.native-pulse.interpret";
 export const IMMUNE_MODELS = Object.freeze([SOL, LUNA, GEMINI]);
+// Amine 30/10: the interpretation chain (primary + one fallback) is set from the app. The governor reads that
+// setting; this port admits the same qualified set as the immune port (one Gateway LLM policy), never more.
+// INTERPRETER_MODELS stays the default chain when a caller names no model.
+export const INTERPRETER_ADMITTED = IMMUNE_MODELS;
 
 // Codes thrown by OpenClaw's api.runtime.llm.complete (2026.9.6).
 const TECHNICAL_CODES = new Set([
@@ -96,7 +100,7 @@ export function validateRequest(raw: unknown): InterpretRequest | null {
   if (typeof r.message !== "string" || !r.message.trim() || r.message.length > LIMITS.userChars) return null;
   if (r.responseSchema !== undefined && (typeof r.responseSchema !== "object" || r.responseSchema === null)) return null;
   const immune = r.purpose === IMMUNE_PURPOSE;
-  if (immune ? !IMMUNE_MODELS.includes(r.model) : (r.model !== undefined && !INTERPRETER_MODELS.includes(r.model))) return null;
+  if (immune ? !IMMUNE_MODELS.includes(r.model) : (r.model !== undefined && !INTERPRETER_ADMITTED.includes(r.model))) return null;
   return {
     systemPrompt: r.systemPrompt,
     message: r.message,
@@ -200,7 +204,7 @@ export function createInterpretHandler(getComplete: () => LlmComplete | undefine
     // retirement. No owner request may invoke its old semantic purpose.
     if(params?.purpose===NATIVE_PULSE_PURPOSE){
       // Amine 29/10: same models for every contact as for the owner; the governor chose one of them.
-      if(!INTERPRETER_MODELS.includes(params?.model))return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse model not admitted'});
+      if(!INTERPRETER_ADMITTED.includes(params?.model))return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse model not admitted'});
       // The room was admitted at its turn and Python re-reads the sealed contact evidence at send:
       // no third lease here (S24 28-29/10, every room message refused). Only the Pulse catalogue is served.
       if(!nativePulseRequest(params?.message))return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse request required'});

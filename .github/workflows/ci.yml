@@ -683,6 +683,8 @@ jobs:
         run: node scripts/test-memo-intent-pipeline.cjs && node scripts/test-memo-deferred-retry.cjs && node scripts/test-memo-p1-http.cjs
       - name: R1 model usage roles from canonical config owner
         run: node scripts/test-model-roles.cjs
+      - name: R6 executor model flows (interpreter, web synthesis, memo transcription) through the CAS write path
+        run: node scripts/test-model-flows-executors.cjs
 
       - name: F7 Gateway append log retention
         run: python3 ../installer/termux-lite/test-gateway-log-retention.py

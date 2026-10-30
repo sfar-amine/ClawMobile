@@ -1032,9 +1032,11 @@ export async function markRunNotThis(runId: string, correction: RunCorrection): 
 }
 
 /** L5 preparation lives in this existing run journal before any configuration/session mutation. */
+/** Same closed set as modelOwner EDITABLE_MODEL_FLOWS (kept literal: no import cycle into the run owner). */
+const MODEL_FLOW_RUN_IDS=['brain','conversation_summary','whatsapp','intent_interpreter','web_search','voice_memos'];
 export async function checkpointModelFlowConfiguration(runId:string,value:any):Promise<void>{
  const run=await findStoredRun(runId,false);
- if(!run||run.sessionId!=='native-owner-actions'||run.decision?.capability!=='agent.config'||!['brain','conversation_summary','whatsapp'].includes(String(run.decision?.modelFlow)))throw Object.assign(new Error('model_flow_operation_unavailable'),{statusCode:409});
+ if(!run||run.sessionId!=='native-owner-actions'||run.decision?.capability!=='agent.config'||!MODEL_FLOW_RUN_IDS.includes(String(run.decision?.modelFlow)))throw Object.assign(new Error('model_flow_operation_unavailable'),{statusCode:409});
  const encoded=JSON.stringify(value);if(Buffer.byteLength(encoded)>65536)throw Object.assign(new Error('model_flow_snapshot_too_large'),{statusCode:409});
  await saveStoredRun({...run,state:'running',result:encoded,updatedAt:Date.now()});
 }
@@ -1042,7 +1044,7 @@ export async function checkpointModelFlowConfiguration(runId:string,value:any):P
 export async function readModelFlowConfigurationActivity(){
  const rows=await readStoredRuns(false);
  return rows.filter(run=>{
-  if(run.sessionId!=='native-owner-actions'||run.decision?.capability!=='agent.config'||!['brain','conversation_summary','whatsapp'].includes(String(run.decision?.modelFlow)))return false;
+  if(run.sessionId!=='native-owner-actions'||run.decision?.capability!=='agent.config'||!MODEL_FLOW_RUN_IDS.includes(String(run.decision?.modelFlow)))return false;
   if(run.state!=='done'&&run.state!=='failed')return true;
   if(typeof run.result!=='string'||run.result.length>65536)return true;
   try{return !['completed','refused','failed'].includes(JSON.parse(run.result)?.state);}catch{return true;}
@@ -1051,7 +1053,7 @@ export async function readModelFlowConfigurationActivity(){
 }
 
 /** L5: newest retained successful R6 flow receipt, read once from this existing run owner. */
-export async function latestModelFlowConfiguration(flow:'brain'|'conversation_summary'|'whatsapp'):Promise<any|null>{
+export async function latestModelFlowConfiguration(flow:string):Promise<any|null>{
  const rows=await readStoredRuns(false);
  for(const row of rows){
   if(row.sessionId!=='native-owner-actions'||row.state!=='done'||typeof row.result!=='string'||row.result.length>65536)continue;
