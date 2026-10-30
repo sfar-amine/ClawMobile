@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import {readModelOwnerFresh,configuredModelAllow,modelReferenceAllowed,configuredModelFlow,includedModelAccounts,CONTACT_MODEL_AGENTS,observeVerifiedModelOwnerConfig,modelFlowSettingPaths,modelFlowSettingHash,modelFlowSafeValue,MODEL_FLOW_PROVENANCE_PATH,verifiedModelFlowProvenance,EDITABLE_MODEL_FLOWS,EXECUTOR_FLOW_MAX_FALLBACKS,executorFlowReference,isExecutorModelFlow,type EditableModelFlow} from "./modelOwner";
+import {readModelOwnerFresh,configuredModelAllow,modelReferenceAllowed,configuredModelFlow,includedModelAccounts,CONTACT_MODEL_AGENTS,observeVerifiedModelOwnerConfig,modelFlowSettingPaths,modelFlowSettingHash,modelFlowSafeValue,MODEL_FLOW_PROVENANCE_PATH,verifiedModelFlowProvenance,EDITABLE_MODEL_FLOWS,EXECUTOR_FLOW_MAX_FALLBACKS,executorFlowReference,isExecutorModelFlow,isPolicyModelFlow,policyProfileSlots,policyFlowChain,POLICY_FLOW_PROFILE,type EditableModelFlow} from "./modelOwner";
 import {confirmations} from "./confirmations";
 import {callOpenClawGateway} from "./openclawAgentClient";
 import {readPaymentRequests,readOwnerConfirmations,getRunStatus,latestModelFlowConfiguration,checkpointModelFlowConfiguration,readModelFlowConfigurationActivity} from "./runs";
@@ -205,8 +205,8 @@ async function changeAgentConfigOnce(body:any){
 export type {EditableModelFlow};
 const modelFlowIds=new Set<EditableModelFlow>(EDITABLE_MODEL_FLOWS);
 /** Fields a flow accepts in `set`; executor flows have no thinking/speed setting. */
-function flowWriteFields(flow:EditableModelFlow):string[]{return flow==='conversation_summary'||flow==='web_search'||flow==='voice_memos'?['model']:flow==='intent_interpreter'?['model','fallbacks']:['model','thinking','fallbacks','fastMode'];}
-/** Plugin LLM policy that the Gateway enforces on api.runtime.llm.complete (interpretation port). */
+function flowWriteFields(flow:EditableModelFlow):string[]{return flow==='conversation_summary'||flow==='web_search'||flow==='voice_memos'?['model']:flow==='intent_interpreter'||isPolicyModelFlow(flow)?['model','fallbacks']:['model','thinking','fallbacks','fastMode'];}
+/** Plugin LLM policy that the Gateway enforces on api.runtime.llm.complete (interpretation and immune ports). */
 function pluginCompletionAllow(config:any):string[]{
  const value=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.llm?.allowedCompletionModels;
  return Array.isArray(value)&&value.length<=64?value.filter((ref:any)=>typeof ref==='string'&&identifier.test(ref)):[];
@@ -220,11 +220,12 @@ function selectedFlowModels(owner:any,flow:EditableModelFlow,defaults:any){
   if(!identifier.test(row?.id||'')||!identifier.test(row?.provider||'')||row.available!==true||config.plugins?.entries?.[row.provider]?.enabled===false)return [];
   const base=row.id.startsWith(row.provider+'/')?row.id:row.provider+'/'+row.id;
   const executor=isExecutorModelFlow(flow);
-  if(executor?flow==='intent_interpreter'&&!pluginCompletionAllow(config).includes(base):!flowAgents(flow).every(id=>modelReferenceAllowed(configuredModelAllow(config,id),base)))return [];
+  // The policy flows (immune, engineering) take the same Gateway LLM policy as the port: never more than it admits.
+  if(executor?(flow==='intent_interpreter'||isPolicyModelFlow(flow))&&!pluginCompletionAllow(config).includes(base):!flowAgents(flow).every(id=>modelReferenceAllowed(configuredModelAllow(config,id),base)))return [];
   const thinking=thinkingFor(row,defaults);
   let accounts=includedModelAccounts(base,owner.auth,owner.policy);
   // An executor runs only its qualified references; an unpinned one cannot choose between several accounts.
-  if(executor){accounts=accounts.filter(account=>executorFlowReference(flow,account.reference));if(accounts.some(account=>!executorFlowReference(flow,account.reference)!.includes('@'))&&accounts.length>1)accounts=[];}
+  if(executor){accounts=accounts.filter(account=>executorFlowReference(flow,account.reference,owner.policy));if(accounts.some(account=>!executorFlowReference(flow,account.reference,owner.policy)!.includes('@'))&&accounts.length>1)accounts=[];}
   const order=accounts.map(account=>account.account).sort();
   return accounts.map(account=>({id:row.id,provider:row.provider,ref:publicModelRef(account.reference),account:account.account,
    accountLabel:row.provider+' · compte connecté'+(order.length>1?' '+(order.indexOf(account.account)+1):''),costPolicy:account.costPolicy,costProofSource:account.source,reasoning:row.reasoning===true,
@@ -274,7 +275,7 @@ export async function reconcileModelFlowRunStatus(status:any){
 }
 async function readModelFlowConfig(flow:EditableModelFlow){
  const [owner,defaults,latest,latency]=await Promise.all([readModelOwnerFresh(),sessionDefaults(),latestModelFlowConfiguration(flow),readModelFlowTurnLatency()]);
- const config=configObject(owner.raw),current=configuredModelFlow(config,flow),model=current.model,primary=typeof model==='string'?model:model?.primary;
+ const config=configObject(owner.raw),current=configuredModelFlow(config,flow,owner.policy),model=current.model,primary=typeof model==='string'?model:model?.primary;
  const fallbacks=model&&typeof model==='object'&&Array.isArray(model.fallbacks)?model.fallbacks:[];
  const choices=selectedFlowModels(owner,flow,defaults),snapshot=flowSnapshot(config,flow),revert=latest?.receipt?.appliedHash===flowHash(snapshot)?latest.receipt.runId:null;
  let restorable=true;try{assertFlowRestorable(snapshot,owner,choices);}catch{restorable=false;}
@@ -282,7 +283,13 @@ async function readModelFlowConfig(flow:EditableModelFlow){
   fastMode:typeof current.fastModeDefault==='boolean'?current.fastModeDefault:null,fastModeSetting:flow==='conversation_summary'||isExecutorModelFlow(flow)?null:current.fastModeDefault==='auto'?'auto':typeof current.fastModeDefault==='boolean'?(current.fastModeDefault?'on':'off'):'inherited',inheritsFrom:current.inheritsFrom,origins:current.origins,mixedFields:current.mixedFields,source:'gateway_config',models:choices,
   writeFields:flowWriteFields(flow),writeAvailable:choices.length>0&&restorable,
   previousReceiptRunId:revert,issues:[...(!choices.length?['included_model_authentication_proof_unavailable']:[]),...(!restorable?['model_flow_previous_version_unavailable']:[])],
-  appliesTo:'new_sessions',metrics:projectModelFlowMetrics(flow,latency)};
+  appliesTo:'new_sessions',metrics:projectModelFlowMetrics(flow,latency),...(isPolicyModelFlow(flow)?policyFlowView(flow,owner.policy,primary,fallbacks):{})};
+}
+/** Policy flows: the rest of the canonical profile still follows the chosen models (governor order), shown read-only. */
+function policyFlowView(flow:'immune_system'|'engineering_learning',policy:any,primary:any,fallbacks:any[]){
+ const chosen=[primary,...fallbacks].filter((ref:any)=>typeof ref==='string').map((ref:string)=>ref.split('@')[0]);
+ const profile=policyProfileSlots(policy,POLICY_FLOW_PROFILE[flow]).map(row=>row.model);
+ return {policyProfile:POLICY_FLOW_PROFILE[flow],policyContinuation:profile.filter(model=>!chosen.includes(model.split('@')[0])).map(model=>publicModelRef(model))};
 }
 
 function setFlowPath(config:any,path:string[],value:any,present=true){
@@ -342,15 +349,19 @@ function flowAccountSet(value:any,owner:any):Set<string>{
  return out;
 }
 function previousFlowAccounts(config:any,flow:EditableModelFlow,owner:any):Set<string>{
+ // A policy flow already runs every account of its effective chain (setting then profile): none of them is new.
+ if(isPolicyModelFlow(flow)){const chain=policyFlowChain(config,flow,owner.policy);return flowAccountSet({model:{primary:chain.primary,fallbacks:chain.fallbacks}},owner);}
  const sources=flow==='whatsapp'?[configuredModelFlow(config,flow),...CONTACT_MODEL_AGENTS.map(id=>config.agents?.entries?.[id])]:[configuredModelFlow(config,flow)];
  const sets=sources.map(value=>flowAccountSet(value,owner));
  return new Set([...sets[0]].filter(value=>sets.every(set=>set.has(value))));
 }
 function validateEffectiveFlow(config:any,flow:EditableModelFlow,owner:any,models:any[]){
- const selected=configuredModelFlow(config,flow);
+ // « Hériter » of a policy flow leaves the canonical profile chain, owned and qualified by the governor.
+ if(isPolicyModelFlow(flow)&&!objectAt(config,modelFlowSettingPaths(flow)[0]).present)return;
+ const selected=configuredModelFlow(config,flow,owner.policy);
  for(const ref of flowRefs(selected))canonicalFlowReference(ref,owner,models,true);
  if(isExecutorModelFlow(flow)){
-  const refs=flowRefs(selected).map(ref=>executorFlowReference(flow,ref));
+  const refs=flowRefs(selected).map(ref=>executorFlowReference(flow,ref,owner.policy));
   if(!refs.length||refs.some(ref=>!ref)||new Set(refs).size!==refs.length||refs.length-1>EXECUTOR_FLOW_MAX_FALLBACKS[flow])throw nativeError('model_flow_options_unsupported',409);
   return;
  }
@@ -370,7 +381,7 @@ async function changeModelFlowConfigOnce(body:any){
  const fields=mode==='set'?flowWriteFields(flow):mode==='revert'?['restoreRunId']:mode==='inherit'?[]:null;
  if(!fields||typeof body!=='object'||Array.isArray(body)||fields.some(key=>!(key in body))||Object.keys(body).some(key=>![...common,...fields].includes(key))||!/^[-A-Za-z0-9_.:]{1,128}$/.test(body.operationId||'')||!configHash.test(body.revision||''))throw nativeError('invalid_model_flow_config');
  const refList=(value:any,max:number)=>Array.isArray(value)&&value.length<=max&&new Set(value).size===value.length&&value.every((ref:any)=>typeof ref==='string'&&identifier.test(ref)&&ref.includes('/'));
- if(mode==='set'&&isExecutorModelFlow(flow)&&(!identifier.test(body.model||'')||!body.model.includes('/')||flow==='intent_interpreter'&&(!refList(body.fallbacks,EXECUTOR_FLOW_MAX_FALLBACKS[flow])||body.fallbacks.includes(body.model))))throw nativeError('invalid_model_flow_config');
+ if(mode==='set'&&isExecutorModelFlow(flow)&&(!identifier.test(body.model||'')||!body.model.includes('/')||flowWriteFields(flow).includes('fallbacks')&&(!refList(body.fallbacks,EXECUTOR_FLOW_MAX_FALLBACKS[flow])||body.fallbacks.includes(body.model))))throw nativeError('invalid_model_flow_config');
  if(mode==='set'&&!isExecutorModelFlow(flow)&&(!identifier.test(body.model||'')||!body.model.includes('/')||flow!=='conversation_summary'&&(!thinkingLevels.includes(body.thinking)||typeof body.fastMode!=='boolean'||!Array.isArray(body.fallbacks)||body.fallbacks.length>20||new Set(body.fallbacks).size!==body.fallbacks.length||body.fallbacks.some((ref:any)=>typeof ref!=='string'||!identifier.test(ref)||!ref.includes('/')))))throw nativeError('invalid_model_flow_config');
  if(mode==='revert'&&(typeof body.restoreRunId!=='string'||!/^[A-Za-z0-9._:-]{1,160}$/.test(body.restoreRunId)))throw nativeError('invalid_model_flow_config');
  const desired={flow,mode,revision:body.revision,...Object.fromEntries(fields.map(key=>[key,body[key]]))};
@@ -415,7 +426,7 @@ async function changeModelFlowConfigOnce(body:any){
  validateEffectiveFlow(next,flow,owner,models);
  const applied=flowSnapshot(next,flow);
  if(Buffer.byteLength(JSON.stringify({previous,applied}))>48000)throw nativeError('model_flow_snapshot_too_large',409);
- const priorAccounts=previousFlowAccounts(config,flow,owner),afterAccounts=flowAccountSet(configuredModelFlow(next,flow),owner);
+ const priorAccounts=previousFlowAccounts(config,flow,owner),afterAccounts=flowAccountSet(configuredModelFlow(next,flow,owner.policy),owner);
  const expanded=[...afterAccounts].some(account=>!priorAccounts.has(account));
  if(expanded){
   const challenge={scope:'agent.config.expand_fallbacks',reference:'flow:'+flow,payloadHash};

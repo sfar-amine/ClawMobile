@@ -1033,7 +1033,7 @@ export async function markRunNotThis(runId: string, correction: RunCorrection): 
 
 /** L5 preparation lives in this existing run journal before any configuration/session mutation. */
 /** Same closed set as modelOwner EDITABLE_MODEL_FLOWS (kept literal: no import cycle into the run owner). */
-const MODEL_FLOW_RUN_IDS=['brain','conversation_summary','whatsapp','intent_interpreter','web_search','voice_memos'];
+const MODEL_FLOW_RUN_IDS=['brain','conversation_summary','whatsapp','intent_interpreter','web_search','voice_memos','immune_system','engineering_learning'];
 export async function checkpointModelFlowConfiguration(runId:string,value:any):Promise<void>{
  const run=await findStoredRun(runId,false);
  if(!run||run.sessionId!=='native-owner-actions'||run.decision?.capability!=='agent.config'||!MODEL_FLOW_RUN_IDS.includes(String(run.decision?.modelFlow)))throw Object.assign(new Error('model_flow_operation_unavailable'),{statusCode:409});

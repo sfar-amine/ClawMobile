@@ -1,7 +1,7 @@
 import {CLAW_LIVE_MODEL} from './clawLive';
 import {publicModelRef} from './accountIdentity';
 import {readModelFlowTurnLatency} from './control-health';
-import {peekModelOwner,readModelOwnerCached,ModelOwnerSnapshot,configuredModelAllow,configuredModelFlow,modelReferenceAllowed,executorFlowChain,EXECUTOR_FLOW_KEYS,type ExecutorModelFlow} from './modelOwner';
+import {peekModelOwner,readModelOwnerCached,ModelOwnerSnapshot,configuredModelAllow,configuredModelFlow,modelReferenceAllowed,executorFlowChain,policyFlowChain,EXECUTOR_FLOW_KEYS,POLICY_FLOW_PROFILE,type ConstantExecutorFlow,type PolicyModelFlow} from './modelOwner';
 import {isoTimestamp,peekUsage,publicId,publicModelId,publicText,readUsage,UsageView} from './usage';
 const modelReference=(v:any)=>publicModelId(typeof v==='string'?v.split('@')[0]:v);
 const configured=(snapshot:ModelOwnerSnapshot|null)=>{
@@ -35,7 +35,7 @@ export function projectModelRoles(snapshot:ModelOwnerSnapshot|null,latency:any=n
   return {id,...chain(value.model),thinking:value.thinkingDefault??null,fastMode:typeof value.fastModeDefault==='boolean'?value.fastModeDefault:null,source:'gateway_config',inheritsFrom:value.inheritsFrom,origins:value.origins,mixedFields:value.mixedFields,...(value.inheritsFrom==='conversation'?{state:'runtime_inherited'}:{}),...(value.mixedFields.length?{state:'mixed'}:{}),editable:active&&!!snapshot,editableReason:snapshot?null:'model_owner_unavailable',writeFields:id==='conversation_summary'?['model']:['model','fallbacks','thinking','fastMode']};
  };
  // Executor flows: the plugin-config key when it names a qualified reference, else the executor's constant.
- const executor=(id:ExecutorModelFlow,extra:any={})=>{
+ const executor=(id:ConstantExecutorFlow,extra:any={})=>{
   const value=executorFlowChain(config,id),stored=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.[EXECUTOR_FLOW_KEYS[id]]!==undefined;
   return {id,...chain({primary:value.primary,fallbacks:value.fallbacks}),thinking:null,fastMode:null,source:value.origin==='flow'?'gateway_config':'code_constant',inheritsFrom:null,
    origins:{model:value.origin,thinking:'unsupported',fastMode:'unsupported'},mixedFields:[],...(stored&&value.origin==='default'?{issues:['model_flow_setting_ignored']}:{}),
@@ -47,15 +47,16 @@ export function projectModelRoles(snapshot:ModelOwnerSnapshot|null,latency:any=n
  const spokenProvider=publicId(config?.talk?.provider),spokenVoice=publicModelId(config?.talk?.providers?.[spokenProvider??'']?.voice);
  const memory=config?.memory?.search,memoryProvider=publicId(memory?.provider),memoryModel=typeof memory?.model==='string'?(memory.model.includes('/')?memory.model:(memoryProvider?memoryProvider+'/':'')+memory.model):null;
  const policy=snapshot?.policy,policyHash=policy?.sourceHash??null;
- // Ordered enabled slot models of one canonical routing profile (model_policy.json). The governor passes
- // `--model` on every engineering call, so the engineering-lite agent default is never this flow's model.
- const policyChain=(profile:any)=>{
-  const aliases=typeof profile==='string'?policy?.routing_profiles?.[profile]:undefined;if(!Array.isArray(aliases))return null;
-  const refs=aliases.flatMap((alias:string)=>{const slot=policy.model_slots?.[alias];return slot?.enabled===true&&typeof slot.model==='string'?[slot.model]:[];});
-  return refs.length?{primary:refs[0],fallbacks:refs.slice(1)}:null;
+ // Policy flows (Amine 30/10): the effective chain the governor runs from its canonical routing profile
+ // (model_policy.json) -- the app setting first when it is valid, then the rest of the profile in policy order.
+ // The governor passes `--model` on every engineering call, so the engineering-lite agent default is never this flow's model.
+ const policyFlow=(id:PolicyModelFlow)=>{
+  const value=policyFlowChain(config,id,policy),profile=POLICY_FLOW_PROFILE[id],stored=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.[EXECUTOR_FLOW_KEYS[id]]!==undefined;
+  if(!value.primary)return readonly(id,id==='immune_system'&&policy?.primary?{primary:policy.primary,fallbacks:policy.fallback?[policy.fallback]:[]}:null,'model_policy','model_policy_unavailable',{policyProfile:profile,policySourceHash:policyHash});
+  return {id,...chain({primary:value.primary,fallbacks:value.fallbacks}),thinking:null,fastMode:null,source:value.origin==='flow'?'gateway_config':'model_policy',inheritsFrom:null,
+   origins:{model:value.origin,thinking:'unsupported',fastMode:'unsupported'},mixedFields:[],...(stored&&value.origin==='default'?{issues:['model_flow_setting_ignored']}:{}),
+   editable:!!snapshot,editableReason:snapshot?null:'model_owner_unavailable',writeFields:['model','fallbacks'],fallbackPolicy:'technical_failure_only',policyProfile:profile,policySourceHash:policyHash};
  };
- const immuneProfile=policy?.immune?.profile??null,immune=policyChain(immuneProfile)??(policy?.primary?{primary:policy.primary,fallbacks:policy.fallback?[policy.fallback]:[]}:null);
- const engineeringProfile=policy?.default_profile??null,engineering=policyChain(engineeringProfile);
 
  return [
   editable('brain'),
@@ -67,8 +68,8 @@ export function projectModelRoles(snapshot:ModelOwnerSnapshot|null,latency:any=n
   readonly('spoken_voice',spokenProvider&&spokenVoice?spokenProvider+'/'+spokenVoice:null,'gateway_config'),
   readonly('dictation',null,'device','device_managed',{state:'device_managed'}),
   executor('voice_memos'),
-  readonly('immune_system',immune,'model_policy',immune?'qualified_model_policy':'model_policy_unavailable',{policyProfile:immuneProfile,policySourceHash:policyHash}),
-  readonly('engineering_learning',engineering,'model_policy',engineering?'qualified_model_policy':'model_policy_unavailable',{policyProfile:engineeringProfile,policySourceHash:policyHash}),
+  policyFlow('immune_system'),
+  policyFlow('engineering_learning'),
   editable('whatsapp'),
  ].map(role=>({...role,provider:'provider' in role?role.provider:typeof role.model==='string'?role.model.split('/')[0]:null,metrics:projectModelFlowMetrics(role.id,latency)}));
 }
