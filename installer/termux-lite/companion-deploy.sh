@@ -211,6 +211,9 @@ doc={"version":1,"state":state,"target":target,"previous":previous,"detail":deta
      "at":datetime.datetime.now(datetime.timezone.utc).isoformat()}
 # R03: a rollback is judged on identity and availability, kept apart from the acceptance that failed.
 if rollback_acc is not None: doc["rollback_acceptance"]=rollback_acc
+try: parcours=json.loads(__import__("os").environ.get("PARCOURS_JSON") or "null")
+except ValueError: parcours={"state":"unreadable"}
+if parcours is not None: doc["parcours"]=parcours
 json.dump(doc,open(path,"w"),ensure_ascii=False)
 PY
   # Only ordinary logs are bounded. Canonical JSON receipts are never removed.
@@ -359,6 +362,13 @@ restart || rollback health_failed
 acc=$(accept 2>>"$log"); rc=$?
 [ "$rc" -eq 0 ] || rollback acceptance_failed "$acc"
 runtime=$(sync_runtime "$full") || rollback runtime_sync_failed "$acc"
+# Amine 29/10: five representative paths on the switched runtime (Gateway on the synced plugin). A failed path
+# rolls back; a provider outage (exit 3) does not, a rollback would not fix it. The section goes in the receipt.
+if [ -f "$ROOT/deploy-parcours.py" ]; then
+  gateway_ready || echo "settle: gateway_not_ready_before_parcours" >>"$log"
+  PARCOURS_JSON=$(python3 "$ROOT/deploy-parcours.py" 2>>"$log"); prc=$?; export PARCOURS_JSON
+  [ "$prc" -eq 1 ] && rollback parcours_failed "$acc"
+fi
 write deployed "$full" "$previous" "ok" "$acc" "$runtime"
 # M3 « une seule mémoire » : the receipt above (~/.openclaw/deploys/companion-*.json, served by
 # deploymentReceipts.ts) is the canonical deploy record; no "Companion déployé" copy in memory.db.

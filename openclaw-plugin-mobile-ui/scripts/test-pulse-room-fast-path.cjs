@@ -204,6 +204,16 @@ async function main() {
     assert.equal(out.reply.text,render.FAILURE_PHRASES.fr[code]);
     assert(!out.reply.text.includes('UNTRUSTED_CANARY'));assert.equal(r.calls.length,1);
   }
+  // S24 29/10: an out-of-hours creation is TECHNICAL_FAILURE/service_closed; the canonical hours sentence is shown,
+  // any other text under the same code (or the sentence under another code) still renders the closed phrase table.
+  const closed='Pulse est fermé en ce moment (ouvert du lundi au vendredi de 9:00 à 19:00, heure de Tunis). Réessaie demain à partir de 9:00.';
+  r=runner(()=>({outcome:'TECHNICAL_FAILURE',reasonCode:'service_closed',text:closed,handled:true}));
+  assert.equal((await mod.handlePulseRoomFastPath(ev('crée un nouveau projet'),ctx(),r)).reply.text,closed);
+  for(const [code,text] of [['service_closed','UNTRUSTED_CANARY'],['native_pulse_protocol_required',closed]]){
+    r=runner(()=>({outcome:'TECHNICAL_FAILURE',reasonCode:code,text,handled:true}));
+    const shown=(await mod.handlePulseRoomFastPath(ev('crée un nouveau projet'),ctx(),r)).reply.text;
+    assert(!shown.includes('UNTRUSTED_CANARY'));assert.notEqual(shown,closed);
+  }
   // Native room: a request outside the room's commands asks to rephrase, never names one use case only.
   r=runner(()=>({outcome:'OUTSIDE_SCOPE',reasonCode:'scope_outside',handled:true}));
   assert.equal((await mod.handlePulseRoomFastPath(ev('fais quelque chose'),ctx(),r)).reply.text,mod.PULSE_ROOM_NOT_UNDERSTOOD);

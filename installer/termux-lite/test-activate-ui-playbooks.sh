@@ -13,6 +13,14 @@ cur=os.path.realpath(os.path.expanduser("~/.openclaw/runtime-ui-playbooks/curren
 open(os.environ["COMPILE_LOG"],"a").write(os.path.basename(cur)+"\n")
 PY
 export CLAW_CAPABILITY_CLI="$tmp/compile-stub.py" COMPILE_LOG="$tmp/compile.log"
+# Deployment paths stub (Amine 29/10): records the snapshot it judged; PARCOURS_RC chooses its verdict.
+cat > "$tmp/parcours-stub.py" <<'PY'
+import os,sys
+cur=os.path.realpath(os.path.expanduser("~/.openclaw/runtime-ui-playbooks/current"))
+open(os.environ["PARCOURS_LOG"],"a").write(os.path.basename(cur)+"\n")
+print('{"state":"stub"}');sys.exit(int(os.environ.get("PARCOURS_RC","0")))
+PY
+export CLAW_DEPLOY_PARCOURS="$tmp/parcours-stub.py" PARCOURS_LOG="$tmp/parcours.log"
 mkdir -p "$HOME" "$CLAW_UI_PLAYBOOKS_WORKSPACE"
 cd "$CLAW_UI_PLAYBOOKS_WORKSPACE"
 git init -q && git config user.email t@t && git config user.name t
@@ -77,3 +85,17 @@ before=$(readlink "$HOME/.openclaw/runtime-ui-playbooks/current")
 if bash "$here/activate-ui-playbooks.sh" 0123456789abcdef0123456789abcdef01234567 > "$tmp/out-unknown" 2>&1; then echo "unknown commit was activated" >&2; exit 1; fi
 [ "$(readlink "$HOME/.openclaw/runtime-ui-playbooks/current")" = "$before" ]
 echo '{"ok":true,"linked":true,"unresolvedRefused":true,"retention":true,"rollbackLinked":true,"viewsRecompiled":true,"freshCommitFetched":true}'
+# The five paths judge the switched snapshot; a failed path switches current and previous back (exit 5),
+# an inconclusive run (provider outage, exit 3) keeps the new snapshot.
+[ "$(head -n 1 "$tmp/parcours.log")" = "$sha" ] || { echo "paths did not judge $sha" >&2; exit 1; }
+git commit -q --allow-empty -m next; next=$(git rev-parse HEAD)
+base=$(basename "$(readlink "$HOME/.openclaw/runtime-ui-playbooks/current")")
+rc=0; PARCOURS_RC=1 bash "$here/activate-ui-playbooks.sh" HEAD > "$tmp/out-failed" 2>&1 || rc=$?
+[ "$rc" -eq 5 ] || { cat "$tmp/out-failed" >&2; echo "failed paths exit $rc" >&2; exit 1; }
+[ "$(basename "$(readlink "$HOME/.openclaw/runtime-ui-playbooks/current")")" = "$base" ] || { echo "current not restored" >&2; exit 1; }
+[ "$(tail -n 1 "$tmp/parcours.log")" = "$next" ]
+PARCOURS_RC=3 bash "$here/activate-ui-playbooks.sh" HEAD > "$tmp/out-outage" 2>&1
+grep -q "ACTIVATED $next" "$tmp/out-outage"
+[ "$(basename "$(readlink "$HOME/.openclaw/runtime-ui-playbooks/current")")" = "$next" ]
+[ "$(basename "$(readlink "$HOME/.openclaw/runtime-ui-playbooks/previous")")" = "$base" ]
+echo "activate-ui-playbooks: ok"
