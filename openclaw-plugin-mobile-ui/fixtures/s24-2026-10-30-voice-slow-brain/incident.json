@@ -1,0 +1,35 @@
+{
+  "_capture": {
+    "source": "S24 Companion stderr (voice turn) and Gateway run record, incident reported by Amine on 30/10/2026 22:21 Tunis",
+    "runtime": "samantha-core 799306da (deployed), app 85e73729",
+    "sanitized": true,
+    "note": "Log lines verbatim except the elided fields (« ... » in the original report). Session key shortened. The brain answer keeps its shape (total then per provider) with amounts replaced by fictitious ones, as for the other bill fixtures. No token, cookie, OTP, payment or account data."
+  },
+  "request": "Quel est l'état de mes factures",
+  "companionStderr": [
+    "22:21:55.797 [turn] surface=voice route=- model=- first_sign_ms=480 ... total_ms=14026",
+    "22:22:11.719 [voice-turn] route=brain state=pending coordinator_ms=- resolve_ms=0 brain_ms=30027 total_ms=30029",
+    "22:22:12.646 [companion] P1 turn run_1793395301758_9b29ce1e: transport=admin_admitted"
+  ],
+  "gatewayRun": {
+    "runId": "run_1793395301758_9b29ce1e",
+    "sessionKey": "agent:main:companion-chat-samantha-05fdeb6c-…",
+    "startedAt": "2026-10-30T21:21:42.9Z",
+    "endedAt": "2026-10-30T21:22:12.1Z",
+    "state": "done",
+    "result": "Tu as 12,345 dinars confirmés à payer : STEG 1,000 et SONEDE 11,345. Le détail par facture est dans la discussion."
+  },
+  "timeline": {
+    "voiceBudgetMs": 30000,
+    "voiceTurnStartedAt": "22:21:41.690",
+    "voiceTurnEndedAt": "22:22:11.719",
+    "brainMs": 30027,
+    "answerAfterVoiceDeadlineMs": 400,
+    "appTurnClosedAtMs": 14026,
+    "spokenAfterDeadline": "nothing (no notice, no answer)"
+  },
+  "derived": {
+    "appTurnClosedBeforeAnswer": "the [turn] measurement (route=-, total_ms=14026) is written by the app only when it closes a voice turn as terminal (LiveVoiceSession.saveDuplexTurn); its start is the end of speech, so the brain turn was already closed about 14 s into the brain wait",
+    "a1NotRegistered": "app 85e73729 LiveVoiceSession.decideDuplexTurn returns when the turn is no longer current or was interrupted, before requestDeterministicReceipt (the notice) and before awaitReadback (A1)"
+  }
+}

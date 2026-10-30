@@ -1,0 +1,97 @@
+{
+  "version": 2,
+  "id": "voice-deferred-brain-readback-20261030",
+  "date": "2026-10-30",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "A voice request never ends silently: beyond the 30 s voice budget the brain turn says a short notice and, when the app opts in (warmReady.deferredReadback, voiceTurn.deferredReadback), the voice turn protocol follows the same run and reads its answer once in the same session through speakDeferred; newer requests, stop, session close and staleness cancel it. Root cause of the S24 30/10 incident: the app drops a retired brain turn before both its notice and its A1 readback.",
+  "reason": "S24 30/10 22:21 incident: « état de mes factures » asked by voice got neither the brain's notice nor its answer, because the app retired the voice turn before the brain finished. Amine asked for the fix and a formal voice recette.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/voiceBrainDelegation.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveWarm.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-30-voice-slow-brain/incident.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-30-voice-slow-brain/provenance.json",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-deferred-readback.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-brain-delegation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-warm-v2-ownership.cjs",
+    ".github/workflows/ci.yml",
+    "docs/work/samantha-runtime/contracts/voice-option-a.md",
+    "docs/changes/voice-deferred-brain-readback-20261030.md"
+  ],
+  "routes": [
+    {
+      "route": "POST /v1/extensions/claw-live/capability",
+      "change": "optional voiceTurn.deferredReadback opt-in; pending brain notice text changed",
+      "budget": "unchanged 30 s voice budget; deferred follow: one run-registry read per second per open deferred turn (max 3 per session), at most 5 min, no Gateway call per read for an observed run",
+      "capability": "NO_CAPABILITY (voice surface owner route)"
+    },
+    {
+      "route": "WS /v1/extensions/claw-live/socket (control speakDeferred, events deferredReady/deferredDropped, warmReady.deferredReadback)",
+      "change": "new v2 control and events: exactly-once deferred notice and answer of a brain turn",
+      "budget": "no storage; readback bounded to 600 characters; existing 64-turn and 512-operation limits",
+      "capability": "NO_CAPABILITY (voice surface owner route)"
+    }
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-voice-deferred-readback.cjs",
+      "status": "passed",
+      "evidence": "16 cases, new, registered in .github/workflows/ci.yml job mobile-ui-plugin; S24 30/10 incident fixture."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-voice-brain-delegation.cjs, test-warm-v2-ownership.cjs",
+      "status": "passed",
+      "evidence": "Updated, already registered."
+    }
+  ],
+  "fixtures": {
+    "path": "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-30-voice-slow-brain",
+    "provenance": "S24 Companion stderr and Gateway run of the 30/10 22:21 incident, sanitized (session key shortened, bill amounts fictitious)"
+  },
+  "documentation": [
+    "docs/changes/voice-deferred-brain-readback-20261030.md",
+    "docs/work/samantha-runtime/contracts/voice-option-a.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No capability added or changed. A readback executes nothing; payment and deterministic routes are unchanged."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same owners: the existing bounded read of the run continues for the voice turn protocol (Warm owner); the A1 readback turn shape is reused. No new store, router, scheduler, queue or retry.",
+    "adr": "docs/08-decisions/ADR-20261025-voice-asynchronous-readback.md"
+  },
+  "app_impact": {
+    "required": true,
+    "detail": "The incident shape (brain turn retired before its receipt) needs the paired APK: opt in per turn, keep a retired pending brain turn in the A1 list, send speakDeferred on admissibility and deferredReady, mirror the shared contract. Without it the deployed app keeps its current A1 behaviour with the new notice phrase."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Voice socket and capability route only; no MCP tool, schema or adapter change."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The paired app change (sfar-amine/samantha-core#477) is needed for the incident shape; without it the app keeps A1 with the new notice phrase."
+  ],
+  "rollback": "Revert this commit and redeploy the Companion with companion-deploy.sh; an opted-in app no longer sees warmReady.deferredReadback and falls back to A1."
+}
