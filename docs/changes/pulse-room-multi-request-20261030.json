@@ -1,0 +1,73 @@
+{
+  "version": 2,
+  "id": "pulse-room-multi-request-20261030",
+  "date": "2026-10-30",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The Pulse room host runs the other requests that the coordinator found in a non-enumerated message (« liste les projets et les offres ») as that message's child requests from ordinal 2, admits them natively, and tells the contact when they are kept behind a question.",
+  "reason": "S24 30/10 (playbooks release a24dd27a): « liste les projets et les offres » answered « Je n’ai pas compris ta demande Pulse… ». The playbooks twin now keeps the interpreter's other requests in the coordinator's request queue, but the host only accepted resumed children that are lines of an enumerated message (preservedRequests and admitNativePulseContact compared the text with splitRequests), so it would show the first answer only.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/dialogueSurface.ts",
+    "openclaw-plugin-mobile-ui/src/pulseRoomFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/nativePulseAdmission.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-native-pulse-handoff.cjs",
+    "docs/changes/pulse-room-multi-request-20261030.json",
+    "docs/changes/pulse-room-multi-request-20261030.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+      "status": "passed",
+      "evidence": "One-line « liste les projets et les offres »: the coordinator's COMPLETED reply with the ordinal-2 child « liste les offres » makes the host run it as its own event with the original message as requestContext; the room shows « 1) … 2) … ». An ordinal-1 child or a text that does not derive the eventRef is never run. A first request that asks a question with a request of this message queued adds « J’ai gardé l’autre demande de ton message »; a queued request of an older message does not. Existing enumeration, question, uncertainty and replay cases unchanged."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-native-pulse-handoff.cjs",
+      "status": "passed",
+      "evidence": "53/53 probes before, 58/58 now (MOCK_ONLY): a non-enumerated message's ordinal-2 child is admitted and packetized with its frozen context; ordinal 1, a text that does not derive the eventRef, another parent, and an enumeration line under another ordinal are refused (native_pulse_event_mismatch)."
+    },
+    {
+      "name": "test-native-turn-observation, test-native-turn-progress, test-native-turn-provenance, test-native-provider-fallback, test-mcp-dialogue-gate",
+      "status": "passed",
+      "evidence": "Unchanged results."
+    }
+  ],
+  "documentation": [
+    "docs/changes/pulse-room-multi-request-20261030.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No capability or route changes; each child request is interpreted and scope-checked by the coordinator on its own turn."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same host loop (runRequests) and coordinator queue; one shared identity check (dialogueChildOrdinal) replaces two copies of the enumeration-only check. No local queue, timer or retry."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_impacted",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Pulse room host only (pulseRoomFastPath, nativePulseAdmission); owner surfaces do not consume resumeRequests."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Behaviour changes only with the playbooks twin activated (sfar-amine/samantha-ui-playbooks, branch claude/pulse-room-multi-request): deploy this core first, then pin the playbooks.",
+    "Live proof: the Pulse room recette « liste les projets et les offres » after both are active."
+  ],
+  "rollback": "Revert this commit and redeploy the core (deactivate the playbooks twin first, or the room shows only the first answer)."
+}

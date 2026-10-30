@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {contactRoomSession} from './contactRoomProfile';
 import {allowlistRead} from './companion/whatsappAllowlist';
-import {dialogueChildRequest,splitRequests,type DialogueRequestContext} from './dialogueSurface';
+import {dialogueChildOrdinal,type DialogueRequestContext} from './dialogueSurface';
 
 export const NATIVE_PULSE_PROTOCOL='native-pulse.v1';
 const seal=Symbol('native-pulse-host');
@@ -60,8 +60,7 @@ export async function admitNativePulseContact(input:{sessionKey:string;eventRef:
     if(!value||Object.keys(value).sort().join(',')!=='originalText,parentEventRef'||
       typeof value.parentEventRef!=='string'||!value.parentEventRef||value.parentEventRef.length>300||value.parentEventRef.startsWith('untracked:')||
       typeof value.originalText!=='string'||!value.originalText||value.originalText.length>4000||
-      !splitRequests(value.originalText).some((text,n)=>text===input.text&&
-        dialogueChildRequest(value.parentEventRef,text,n+1).eventRef===input.eventRef))throw Error('native_pulse_event_mismatch');
+      dialogueChildOrdinal(value,input.text,input.eventRef)===0)throw Error('native_pulse_event_mismatch');
     context=Object.freeze({parentEventRef:value.parentEventRef,originalText:value.originalText});
   }
   const id='wa-'+digest(profile.e164).slice(0,16);
