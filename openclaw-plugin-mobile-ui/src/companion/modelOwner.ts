@@ -60,37 +60,82 @@ export const CONTACT_MODEL_AGENTS=['contacts','contacts-projet','contacts-pulse'
 /** Conversation flows change agent/session models and keep the R6 provenance proof. */
 export const CONVERSATION_MODEL_FLOWS=['brain','conversation_summary','whatsapp'] as const;
 /** Executor flows: one fixed executor (interpretation port, public web synthesis, memo transcription) reads its
- * own key in the plugin config, else its current constant. Only the executor's qualified references are admitted. */
-export const EXECUTOR_MODEL_FLOWS=['intent_interpreter','web_search','voice_memos'] as const;
+ * own key in the plugin config, else its current constant. Only the executor's qualified references are admitted.
+ * Policy flows (Amine 30/10: immune system, engineering learning) are executor flows whose default is the canonical
+ * routing profile of model_policy.json; the governor puts the setting first and keeps the rest of that profile. */
+export const EXECUTOR_MODEL_FLOWS=['intent_interpreter','web_search','voice_memos','immune_system','engineering_learning'] as const;
+export const POLICY_MODEL_FLOWS=['immune_system','engineering_learning'] as const;
 export type ConversationModelFlow=typeof CONVERSATION_MODEL_FLOWS[number];
 export type ExecutorModelFlow=typeof EXECUTOR_MODEL_FLOWS[number];
+export type PolicyModelFlow=typeof POLICY_MODEL_FLOWS[number];
+export type ConstantExecutorFlow=Exclude<ExecutorModelFlow,PolicyModelFlow>;
 export type EditableModelFlow=ConversationModelFlow|ExecutorModelFlow;
 export const EDITABLE_MODEL_FLOWS:readonly EditableModelFlow[]=[...CONVERSATION_MODEL_FLOWS,...EXECUTOR_MODEL_FLOWS];
 export const isExecutorModelFlow=(flow:any):flow is ExecutorModelFlow=>(EXECUTOR_MODEL_FLOWS as readonly string[]).includes(flow);
-export const EXECUTOR_FLOW_KEYS:Record<ExecutorModelFlow,string>={intent_interpreter:'interpreterModelFlow',web_search:'webSearchModelFlow',voice_memos:'voiceMemoModelFlow'};
+export const isPolicyModelFlow=(flow:any):flow is PolicyModelFlow=>(POLICY_MODEL_FLOWS as readonly string[]).includes(flow);
+export const EXECUTOR_FLOW_KEYS:Record<ExecutorModelFlow,string>={intent_interpreter:'interpreterModelFlow',web_search:'webSearchModelFlow',voice_memos:'voiceMemoModelFlow',
+ immune_system:'immuneModelFlow',engineering_learning:'engineeringModelFlow'};
+/** The governor's routing profiles (samantha-ui-playbooks model_governor: IMMUNE_PROFILE, task class ENGINEERING). */
+export const POLICY_FLOW_PROFILE:Record<PolicyModelFlow,string>={immune_system:'IMMUNE_ENGINEERING',engineering_learning:'ENGINEERING'};
 const WEB_SYNTHESIS_PROFILE='google:claw-gemini-free';
 /** The references each executor can run today. The interpretation port admits the qualified Sol/Luna/Gemini free
  * set (same Gateway LLM policy as the immune port); web synthesis and memo transcription stay pinned to their
  * qualified free model until another one carries its own qualification. */
+/** For the policy flows this is the ceiling of the immune port (one Gateway LLM policy); the admitted set is further
+ * narrowed to the enabled, qualified native slots of the flow's routing profile (policyFlowQualified). */
 export const EXECUTOR_FLOW_QUALIFIED:Record<ExecutorModelFlow,readonly string[]>={intent_interpreter:IMMUNE_MODELS,
- web_search:[PUBLIC_WEB_MODEL+'@'+WEB_SYNTHESIS_PROFILE],voice_memos:[MEMO_STT_PROVIDER+'/'+MEMO_STT_MODEL+'@'+MEMO_STT_PROFILE]};
-export const EXECUTOR_FLOW_DEFAULT:Record<ExecutorModelFlow,{primary:string,fallbacks:string[]}>={intent_interpreter:{primary:INTERPRETER_PRIMARY,fallbacks:[INTERPRETER_FALLBACK]},
+ web_search:[PUBLIC_WEB_MODEL+'@'+WEB_SYNTHESIS_PROFILE],voice_memos:[MEMO_STT_PROVIDER+'/'+MEMO_STT_MODEL+'@'+MEMO_STT_PROFILE],
+ immune_system:IMMUNE_MODELS,engineering_learning:IMMUNE_MODELS};
+export const EXECUTOR_FLOW_DEFAULT:Record<ConstantExecutorFlow,{primary:string,fallbacks:string[]}>={intent_interpreter:{primary:INTERPRETER_PRIMARY,fallbacks:[INTERPRETER_FALLBACK]},
  web_search:{primary:EXECUTOR_FLOW_QUALIFIED.web_search[0],fallbacks:[]},voice_memos:{primary:EXECUTOR_FLOW_QUALIFIED.voice_memos[0],fallbacks:[]}};
-export const EXECUTOR_FLOW_MAX_FALLBACKS:Record<ExecutorModelFlow,number>={intent_interpreter:1,web_search:0,voice_memos:0};
-/** Stored reference -> the executor's qualified reference. A bare qualified reference (OpenAI on the
- * subscription OAuth) accepts its configured profile suffix; a pinned one (Gemini free) must match exactly. */
-export function executorFlowReference(flow:ExecutorModelFlow,ref:any):string|null{
- if(typeof ref!=='string'||!identity(ref))return null;
- return EXECUTOR_FLOW_QUALIFIED[flow].find(qualified=>ref===qualified||!qualified.includes('@')&&ref.split('@')[0]===qualified)??null;
+export const EXECUTOR_FLOW_MAX_FALLBACKS:Record<ExecutorModelFlow,number>={intent_interpreter:1,web_search:0,voice_memos:0,immune_system:1,engineering_learning:1};
+/** Ordered enabled slots of one canonical routing profile, from the projected model_policy.json (readIncludedModelPolicy). */
+export function policyProfileSlots(policy:any,profile:string):{alias:string,model:string,executor:string|undefined,qualified:boolean}[]{
+ const aliases=policy?.routing_profiles?.[profile];if(!Array.isArray(aliases))return [];
+ const rows=aliases.flatMap((alias:string)=>{const slot=policy.model_slots?.[alias];return slot?.enabled===true&&typeof slot.model==='string'?[{alias,model:slot.model,executor:slot.executor,qualified:!!slot.qualification_ref}]:[];});
+ return rows.filter((row:any,index:number)=>rows.findIndex((other:any)=>other.model===row.model)===index);
 }
-/** Runtime read with fallback: an absent, malformed or unqualified key keeps the current constant chain. */
-export function executorFlowChain(config:any,flow:ExecutorModelFlow):{primary:string,fallbacks:string[],origin:'flow'|'default'}{
+/** Admitted references of a policy flow: the qualified native slots of its profile that the immune port also admits.
+ * Claude (CLI executor) or any slot outside the port's Gateway LLM ceiling is never an app choice. */
+export function policyFlowQualified(flow:PolicyModelFlow,policy:any):string[]{
+ return policyProfileSlots(policy,POLICY_FLOW_PROFILE[flow]).filter(row=>row.qualified&&row.executor==='native_agent_exec'&&EXECUTOR_FLOW_QUALIFIED[flow].includes(row.model)).map(row=>row.model);
+}
+/** Stored reference -> the executor's qualified reference. A bare qualified reference (OpenAI on the
+ * subscription OAuth) accepts its configured profile suffix; a pinned one (Gemini free) must match exactly.
+ * A policy flow needs the canonical policy: without it nothing is admitted. */
+export function executorFlowReference(flow:ExecutorModelFlow,ref:any,policy?:any):string|null{
+ if(typeof ref!=='string'||!identity(ref))return null;
+ const qualified=isPolicyModelFlow(flow)?policyFlowQualified(flow,policy):EXECUTOR_FLOW_QUALIFIED[flow];
+ return qualified.find(row=>ref===row||!row.includes('@')&&ref.split('@')[0]===row)??null;
+}
+/** The stored setting of an executor flow when it names only qualified references, else null. */
+function executorFlowSetting(config:any,flow:ExecutorModelFlow,policy?:any):{primary:string,fallbacks:string[]}|null{
  const own=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.[EXECUTOR_FLOW_KEYS[flow]];
  const value=own&&typeof own==='object'&&!Array.isArray(own)&&own.version===1?own.model:undefined;
- const primary=executorFlowReference(flow,value?.primary),raw=Array.isArray(value?.fallbacks)?value.fallbacks:null;
- const fallbacks=raw&&raw.length<=EXECUTOR_FLOW_MAX_FALLBACKS[flow]?raw.map((ref:any)=>executorFlowReference(flow,ref)):null;
- if(!primary||!fallbacks||fallbacks.some((ref:any)=>!ref)||new Set([primary,...fallbacks]).size!==fallbacks.length+1)return {...EXECUTOR_FLOW_DEFAULT[flow],fallbacks:[...EXECUTOR_FLOW_DEFAULT[flow].fallbacks],origin:'default'};
- return {primary,fallbacks:fallbacks as string[],origin:'flow'};
+ const primary=executorFlowReference(flow,value?.primary,policy),raw=Array.isArray(value?.fallbacks)?value.fallbacks:null;
+ const fallbacks=raw&&raw.length<=EXECUTOR_FLOW_MAX_FALLBACKS[flow]?raw.map((ref:any)=>executorFlowReference(flow,ref,policy)):null;
+ if(!primary||!fallbacks||fallbacks.some((ref:any)=>!ref)||new Set([primary,...fallbacks]).size!==fallbacks.length+1)return null;
+ return {primary,fallbacks:fallbacks as string[]};
+}
+/** Runtime read with fallback: an absent, malformed or unqualified key keeps the current constant chain. */
+export function executorFlowChain(config:any,flow:ConstantExecutorFlow):{primary:string,fallbacks:string[],origin:'flow'|'default'}{
+ const setting=executorFlowSetting(config,flow);
+ if(!setting)return {...EXECUTOR_FLOW_DEFAULT[flow],fallbacks:[...EXECUTOR_FLOW_DEFAULT[flow].fallbacks],origin:'default'};
+ return {...setting,origin:'flow'};
+}
+/** Effective chain of a policy flow, as the playbooks governor runs it: the valid setting first, then the rest of the
+ * profile in policy order (never left without a working model); absent/invalid -> the profile chain unchanged. */
+export function policyFlowChain(config:any,flow:PolicyModelFlow,policy:any):{primary:string|null,fallbacks:string[],setting:{primary:string,fallbacks:string[]}|null,origin:'flow'|'default'}{
+ const profile=policyProfileSlots(policy,POLICY_FLOW_PROFILE[flow]).map(row=>row.model);
+ const setting=profile.length?executorFlowSetting(config,flow,policy):null;
+ const chosen=setting?[setting.primary,...setting.fallbacks]:[];
+ const chain=[...chosen,...profile.filter(model=>!chosen.includes(model))];
+ return {primary:chain[0]??null,fallbacks:chain.slice(1),setting,origin:setting?'flow':'default'};
+}
+/** What « hériter » means for a policy flow in the editor: the profile's first admitted model and, at most, the next one. */
+export function policyFlowDefault(flow:PolicyModelFlow,policy:any):{primary:string,fallbacks:string[]}|null{
+ const admitted=policyFlowQualified(flow,policy);
+ return admitted.length?{primary:admitted[0],fallbacks:admitted.slice(1,1+EXECUTOR_FLOW_MAX_FALLBACKS[flow])}:null;
 }
 export const MODEL_FLOW_PROVENANCE_PATH=['plugins','entries','openclaw-plugin-mobile-ui','config','modelFlowSelection'] as const;
 const flowError=()=>Object.assign(new Error('model_flow_provenance_unverified'),{statusCode:409});
@@ -156,12 +201,12 @@ export function readIncludedModelPolicy(){
    interpretation:chain(value.interpretation,['profile','primary','fallback']),immune:chain(value.immune,['profile','primary','fallback','last_resort']),sourceHash:crypto.createHash('sha256').update(bytes).digest('hex')};
  }catch{return null;}
 }
-export function configuredModelFlow(config:any,flow:EditableModelFlow){
+export function configuredModelFlow(config:any,flow:EditableModelFlow,policy?:any){
  if(isExecutorModelFlow(flow)){
   const own=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.[EXECUTOR_FLOW_KEYS[flow]];
   if(own!==undefined)return {model:own?.model,thinkingDefault:undefined,fastModeDefault:undefined,inheritsFrom:null,explicit:own,origins:{model:'flow',thinking:'unsupported',fastMode:'unsupported'},mixedFields:[]};
-  const fallback=EXECUTOR_FLOW_DEFAULT[flow];
-  return {model:{primary:fallback.primary,fallbacks:[...fallback.fallbacks]},thinkingDefault:undefined,fastModeDefault:undefined,inheritsFrom:null,explicit:{},origins:{model:'default',thinking:'unsupported',fastMode:'unsupported'},mixedFields:[]};
+  const fallback=isPolicyModelFlow(flow)?policyFlowDefault(flow,policy):EXECUTOR_FLOW_DEFAULT[flow];
+  return {model:fallback?{primary:fallback.primary,fallbacks:[...fallback.fallbacks]}:undefined,thinkingDefault:undefined,fastModeDefault:undefined,inheritsFrom:null,explicit:{},origins:{model:'default',thinking:'unsupported',fastMode:'unsupported'},mixedFields:[]};
  }
  const entry=(id:string)=>config?.agents?.entries?.[id]??config?.agents?.list?.find((row:any)=>row.id===id);
  const defaults=config?.agents?.defaults||{},main=entry('main')||{},base={model:main.model??defaults.model,thinkingDefault:main.thinkingDefault??defaults.thinkingDefault,fastModeDefault:main.fastModeDefault??defaults.fastModeDefault};

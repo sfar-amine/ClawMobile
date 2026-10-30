@@ -266,6 +266,84 @@
           }
         }
       },
+      "immuneModelFlow": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "model"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "const": 1
+          },
+          "model": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "primary",
+              "fallbacks"
+            ],
+            "properties": {
+              "primary": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9._:/+@-]{1,200}$"
+              },
+              "fallbacks": {
+                "type": "array",
+                "maxItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[A-Za-z0-9._:/+@-]{1,200}$"
+                }
+              }
+            }
+          }
+        }
+      },
+      "engineeringModelFlow": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "model"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "const": 1
+          },
+          "model": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "primary",
+              "fallbacks"
+            ],
+            "properties": {
+              "primary": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9._:/+@-]{1,200}$"
+              },
+              "fallbacks": {
+                "type": "array",
+                "maxItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[A-Za-z0-9._:/+@-]{1,200}$"
+                }
+              }
+            }
+          }
+        }
+      },
       "modelFlowSelection": {
         "type": "object",
         "additionalProperties": false,
