@@ -196,8 +196,9 @@ async function main() {
   allowlist.allowlistRead=async()=>({success:true,contactId:CONTACT,e164:NUMBER,owner:false,state:'active',rooms:['pulse'],expiresAt:null});
   process.env.SAMANTHA_NATIVE_PULSE_HANDOFF='1';
   const render=require('../dist/companion/receiptPresentation');
+  // S24 30/10: « Annule la demande en cours » refused as invalid_interpretation read « n’a pas abouti ».
   for(const [outcome,code] of [['TECHNICAL_FAILURE','native_pulse_protocol_required'],
-      ['FAILED','native_pulse_execution_unknown'],['FAILED','pulse_native_contract_changed'],
+      ['TECHNICAL_FAILURE','invalid_interpretation'],['FAILED','native_pulse_execution_unknown'],['FAILED','pulse_native_contract_changed'],
       ['DENIED','native_pulse_admission_required']]){
     r=runner(()=>({outcome,reasonCode:code,text:'UNTRUSTED_CANARY',handled:true}));
     const out=await mod.handlePulseRoomFastPath(ev('phase du projet 20495'),ctx(),r);

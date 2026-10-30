@@ -366,6 +366,8 @@ runtime=$(sync_runtime "$full") || rollback runtime_sync_failed "$acc"
 # rolls back; a provider outage (exit 3) does not, a rollback would not fix it. The section goes in the receipt.
 if [ -f "$ROOT/deploy-parcours.py" ]; then
   gateway_ready || echo "settle: gateway_not_ready_before_parcours" >>"$log"
+  # The paths judge the warm runtime Amine meets; the Gateway's one cold turn is paid here (brain-warm.py).
+  [ -f "$ROOT/brain-warm.py" ] && { python3 "$ROOT/brain-warm.py" >>"$log" 2>&1 || echo "settle: brain_warm_failed" >>"$log"; }
   PARCOURS_JSON=$(python3 "$ROOT/deploy-parcours.py" 2>>"$log"); prc=$?; export PARCOURS_JSON
   [ "$prc" -eq 1 ] && rollback parcours_failed "$acc"
 fi

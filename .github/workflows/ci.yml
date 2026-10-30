@@ -445,6 +445,8 @@ jobs:
       - name: Deployment acceptance — five representative paths (Amine 29/10)
         run: |
           python3 ../installer/termux-lite/test-deploy-parcours.py
+          python3 ../installer/termux-lite/test-brain-warm.py
+          bash -n ../installer/termux-lite/gateway-start.sh
           node --check ../installer/termux-lite/deploy-parcours-room.cjs
           bash -n ../installer/termux-lite/companion-deploy.sh
           bash -n ../installer/termux-lite/activate-ui-playbooks.sh
