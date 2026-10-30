@@ -64,7 +64,7 @@
     "status": "no_impact",
     "detail": "No MCP tool or adapter change."
   },
-  "merge_eligibility": "requires_canonical_ci",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "rollback": "Revert this commit and redeploy the Companion with companion-deploy.sh; an opted-in app no longer sees warmReady.deferredReadback and falls back to A1."
 }
