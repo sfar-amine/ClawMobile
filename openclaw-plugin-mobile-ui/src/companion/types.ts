@@ -191,6 +191,8 @@ export type CompanionRunProgress = {
   steps?: import("./runProgress").RunStep[];
   /** Agent-authored, user-oriented progress card of this run's session (runs.ts readRunProgressCard). */
   card?: import("./runs").RunProgressCard;
+  /** Latest typed Samantha tool started by the run (name and action only): the voice's waiting phrase (runProgress.ts). */
+  activity?: import("./runProgress").RunActivity;
   failedStep?: string;
   cause?: string;
   effect?: {debited: "unknown"; source: "receipt"};
