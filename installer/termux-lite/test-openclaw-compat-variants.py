@@ -19,7 +19,7 @@ COMPAT = HERE / "openclaw-compat"
 OWNER = COMPAT / "whatsapp-network-recovery.py"
 FIXTURE = HERE.parent.parent / "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat"
 VERSION = "2026.10.9"
-SETS = ("memory-retrieval-warm", "native-turn-provenance", "agent-exec-auth-scope", "model-flow-selection")
+SETS = ("memory-retrieval-warm", "native-turn-provenance", "agent-exec-auth-scope", "model-flow-selection", "android-fs-compat")
 
 
 def manifest(name):
@@ -67,7 +67,8 @@ class Variants(unittest.TestCase):
             with self.subTest(name):
                 data = manifest(name)
                 self.assertEqual(data["package_version"], "2026.9.6")
-                self.assertTrue(data["files"])
+                # The Android filesystem set has nothing to change on 2026.9.6.
+                self.assertEqual(bool(data["files"]), name != "android-fs-compat")
                 self.assertEqual(set(data["packages"]), {VERSION})
 
     def test_unknown_version_refuses_before_any_write(self):
@@ -86,7 +87,7 @@ class Variants(unittest.TestCase):
             root = self.root(name)
             self.assertEqual(self.cli(name, root, "apply").returncode, 0)
             for item in manifest(name)["packages"][VERSION]["files"]:
-                if item["path"].endswith(".mjs"):
+                if item["path"].endswith((".mjs", ".js")):
                     checked = subprocess.run([node, "--check", str(root / item["path"])], capture_output=True, text=True)
                     self.assertEqual(checked.returncode, 0, item["path"] + checked.stderr)
             if name == "model-flow-selection":
@@ -96,6 +97,36 @@ class Variants(unittest.TestCase):
                 self.assertIn('import { resolveHookModelSelection } from "./embedded-agent-DoEPu8ye.mjs";',
                               (root / "dist/run-entry-BnMGfzuI.mjs").read_text())
                 self.assertIn("runBeforeModelResolveForPlugin", (root / "dist/hooks-CgZHhfMh.mjs").read_text())
+
+    def test_android_set_is_owned_by_deploy_check_restart_and_rollback(self):
+        sync = (HERE / "runtime-sync.sh").read_text()
+        self.assertIn("--patch-set android-fs-compat --check", sync)
+        self.assertIn("--patch-set android-fs-compat --apply) || fail android_fs_compat_refused", sync)
+        self.assertIn('[[ "$android_fs_patch" == *\'"applied"\'* ]]', sync)
+        self.assertIn("--patch-set android-fs-compat", (HERE / "gateway-start.sh").read_text())
+        source = (HERE / "companion-deploy.sh").read_text()
+        start = source.index("  # The Android filesystem set")
+        block = source[start:source.index('  if [ -f "$ROOT/openclaw-compat/agent-exec-auth-scope.json" ]', start)]
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        repo = Path(temporary.name) / "checkout"
+        target = repo / "installer/termux-lite/openclaw-compat"
+        target.mkdir(parents=True)
+        def git(*args):
+            return subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+        git("init", "-q")
+        (target / "README").write_text("previous checkout without the set\n")
+        git("add", "-A")
+        git("-c", "user.name=Authored test", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "previous")
+        marker = Path(temporary.name) / "action.txt"
+        (target / OWNER.name).write_text("from pathlib import Path\nimport os,sys\nPath(os.environ['PATCH_MARKER']).write_text(' '.join(sys.argv[1:]))\n")
+        (target / "android-fs-compat.json").write_text('{"version":"candidate"}')
+        import os
+        env = {**os.environ, "ROOT": str(target.parent), "previous": git("rev-parse", "HEAD"), "PATCH_MARKER": str(marker),
+               "log": str(Path(temporary.name) / "guard.log")}
+        result = subprocess.run(["bash", "-c", block], cwd=repo, env=env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(marker.read_text(), "--patch-set android-fs-compat --rollback")
 
 
 if __name__ == "__main__":

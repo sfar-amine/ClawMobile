@@ -327,6 +327,13 @@ rollback(){
     python3 "$ROOT/openclaw-compat/whatsapp-network-recovery.py" --patch-set memory-retrieval-warm --rollback >>"$log" 2>&1 ||
       { write rollback_failed "$full" "$previous" "memory_retrieval_warm_rollback_failed"; exit 6; }
   fi
+  # The Android filesystem set: undo a manifest the previous checkout does not own byte for byte.
+  if [ -f "$ROOT/openclaw-compat/android-fs-compat.json" ] &&
+     { ! git cat-file -e "$previous:installer/termux-lite/openclaw-compat/android-fs-compat.json" 2>/dev/null ||
+       [ "$(git rev-parse "$previous:installer/termux-lite/openclaw-compat/android-fs-compat.json" 2>/dev/null)" != "$(git hash-object "$ROOT/openclaw-compat/android-fs-compat.json")" ]; }; then
+    python3 "$ROOT/openclaw-compat/whatsapp-network-recovery.py" --patch-set android-fs-compat --rollback >>"$log" 2>&1 ||
+      { write rollback_failed "$full" "$previous" "android_fs_compat_rollback_failed"; exit 6; }
+  fi
   if [ -f "$ROOT/openclaw-compat/agent-exec-auth-scope.json" ] &&
      ! git cat-file -e "$previous:installer/termux-lite/openclaw-compat/agent-exec-auth-scope.json" 2>/dev/null; then
     python3 "$ROOT/openclaw-compat/whatsapp-network-recovery.py" --patch-set agent-exec-auth-scope --rollback >>"$log" 2>&1 ||
