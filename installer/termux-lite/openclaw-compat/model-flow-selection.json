@@ -263,5 +263,155 @@
         ]
       ]
     }
-  ]
+  ],
+  "packages": {
+    "2026.10.9": {
+      "files": [
+        {
+          "root": "openclaw",
+          "path": "dist/hooks-CgZHhfMh.mjs",
+          "original": "5d30eb3df50b266a801b614c1916393cf54b60ea4807b447a1d8313fefd1216d",
+          "patched": "4b065b40f82e6b2792f3ff7e6e3cf249333f8fc7e690596308fac33956146a71",
+          "replacements": [
+            [
+              "\tconst mergeBeforeModelResolve = (acc, next) => ({\n\t\tmodelOverride: acc?.modelOverride ?? next.modelOverride,\n\t\tproviderOverride: acc?.providerOverride ?? next.providerOverride\n\t});",
+              "\tconst mergeBeforeModelResolve = (acc, next) => ({\n\t\tmodelOverride: acc?.modelOverride ?? next.modelOverride,\n\t\tproviderOverride: acc?.providerOverride ?? next.providerOverride,\n\t\tauthProfileId: (acc?.authProfileId === void 0 ? next.authProfileId : acc.authProfileId),\n\t\tauthProfileIdSource: (acc?.authProfileIdSource === void 0 ? next.authProfileIdSource : acc.authProfileIdSource),\n\t\tthinkLevel: (acc?.thinkLevel === void 0 ? next.thinkLevel : acc.thinkLevel),\n\t\tfastMode: (acc?.fastMode === void 0 ? next.fastMode : acc.fastMode),\n\t\tmodelFallbacksOverride: (acc?.modelFallbacksOverride === void 0 ? next.modelFallbacksOverride : acc.modelFallbacksOverride),\n\t\tmodelSelectionRefused: (acc?.modelSelectionRefused === void 0 ? next.modelSelectionRefused : acc.modelSelectionRefused),\n\t\tsummaryModelOverride: (acc?.summaryModelOverride === void 0 ? next.summaryModelOverride : acc.summaryModelOverride)\n\t});"
+            ],
+            [
+              "\t\trunBeforeModelResolve: bindModifyingHook(\"before_model_resolve\", { mergeResults: mergeBeforeModelResolve }),",
+              "\t\trunBeforeModelResolve: bindModifyingHook(\"before_model_resolve\", { mergeResults: mergeBeforeModelResolve }),\n\t\t// Same hook owner, scoped to the installed metadata owner before candidate preparation.\n\t\trunBeforeModelResolveForPlugin: (pluginId, event, ctx) => runModifyingHook(\"before_model_resolve\", event, ctx, {\n\t\t\tmergeResults: mergeBeforeModelResolve,\n\t\t\tincludeRegistration: (hook) => hook.pluginId === pluginId,\n\t\t\tonHandlerError: () => { throw new Error(\"Model profile selection failed before candidate preparation\"); }\n\t\t}),"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/embedded-agent-DoEPu8ye.mjs",
+          "original": "21a06d87da38b464c600a7447fd79d03be1f376e9e275cf1f1ece297a029cdbb",
+          "patched": "b8062e79b7b7688e7d42214638bb436f4fa91537ab9da6dc5d64a9da8ec2bc39",
+          "replacements": [
+            [
+              "async function resolveHookModelSelection(params) {\n\tconst selection = {\n\t\tprovider: params.provider,\n\t\tmodelId: params.modelId\n\t};\n\tif (params.modelSelectionLocked === true) return selection;",
+              "const MODEL_PROFILE_CONTRACT_VERSION = 1;\n/** Closed settings consumed before auth, thinking, speed, and fallback preparation. No credential values. */\nfunction readHookModelProfile(value) {\n\tif (!value) return {};\n\tif (value.modelSelectionRefused !== void 0) throw new Error(\"Model profile selection unavailable\");\n\tconst out = {};\n\tif (value.authProfileId !== void 0) {\n\t\tif (value.authProfileId !== null && (typeof value.authProfileId !== \"string\" || value.authProfileId.length < 1 || value.authProfileId.length > 512 || /[\\u0000-\\u001f\\u007f]/.test(value.authProfileId))) throw new Error(\"Invalid model profile account selection\");\n\t\tout.authProfileId = value.authProfileId;\n\t}\n\tif (value.authProfileIdSource !== void 0) {\n\t\tif (value.authProfileIdSource !== null && ![\"auto\", \"user\"].includes(value.authProfileIdSource)) throw new Error(\"Invalid model profile account source\");\n\t\tout.authProfileIdSource = value.authProfileIdSource;\n\t}\n\tif (value.thinkLevel !== void 0) {\n\t\tif (value.thinkLevel !== null && ![\"off\", \"minimal\", \"low\", \"medium\", \"high\", \"xhigh\", \"adaptive\", \"max\", \"ultra\"].includes(value.thinkLevel)) throw new Error(\"Invalid model profile effort\");\n\t\tout.thinkLevel = value.thinkLevel;\n\t}\n\tif (value.fastMode !== void 0) {\n\t\tif (value.fastMode !== null && typeof value.fastMode !== \"boolean\" && value.fastMode !== \"auto\") throw new Error(\"Invalid model profile speed\");\n\t\tout.fastMode = value.fastMode;\n\t}\n\tif (value.modelFallbacksOverride !== void 0) {\n\t\tif (!Array.isArray(value.modelFallbacksOverride) || value.modelFallbacksOverride.length > 20 || value.modelFallbacksOverride.some((ref) => typeof ref !== \"string\" || ref.length < 3 || ref.length > 512 || !ref.includes(\"/\") || /[\\u0000-\\u001f\\u007f]/.test(ref))) throw new Error(\"Invalid model profile fallback ladder\");\n\t\tout.modelFallbacksOverride = [...value.modelFallbacksOverride];\n\t}\n\tif (value.summaryModelOverride !== void 0) {\n\t\tif (value.summaryModelOverride !== null && (typeof value.summaryModelOverride !== \"string\" || value.summaryModelOverride.length > 512 || !value.summaryModelOverride.includes(\"/\") || /[\\u0000-\\u001f\\u007f]/.test(value.summaryModelOverride))) throw new Error(\"Invalid session summary model\");\n\t\tout.summaryModelOverride = value.summaryModelOverride;\n\t}\n\treturn out;\n}\nasync function resolveHookModelSelection(params) {\n\tconst selection = {\n\t\tprovider: params.provider,\n\t\tmodelId: params.modelId\n\t};\n\tconst locked = params.modelSelectionLocked === true;\n\tif (locked && !params.profilePluginId) return selection;"
+            ],
+            [
+              "\t\t\tconst event = params.attachments ? {\n\t\t\t\tprompt: params.prompt,\n\t\t\t\tattachments: params.attachments\n\t\t\t} : { prompt: params.prompt };\n\t\t\tconst run = () => hookRunner.runBeforeModelResolve(event, params.hookContext);",
+              "\t\t\tconst event = {\n\t\t\t\tprompt: params.prompt,\n\t\t\t\t...params.attachments ? {attachments: params.attachments} : {},\n\t\t\t\tmodelProfileVersion: 1,\n\t\t\t\tmodelProfileStage: params.selectionStage ?? \"candidate\"\n\t\t\t};\n\t\t\tconst run = () => params.profilePluginId ? hookRunner.runBeforeModelResolveForPlugin(params.profilePluginId, event, params.hookContext) : hookRunner.runBeforeModelResolve(event, params.hookContext);"
+            ],
+            [
+              "\t\t} catch (hookErr) {\n\t\t\tlog$3.warn(`before_model_resolve hook failed: ${String(hookErr)}`);\n\t\t}",
+              "\t\t} catch (hookErr) {\n\t\t\tif (params.profilePluginId) throw new Error(\"Model profile selection failed before candidate preparation\");\n\t\t\tlog$3.warn(`before_model_resolve hook failed: ${String(hookErr)}`);\n\t\t}"
+            ],
+            [
+              "\tif (modelResolveOverride?.providerOverride) {\n\t\tselection.provider",
+              "\tconst profile = readHookModelProfile(modelResolveOverride);\n\tif (!locked && modelResolveOverride?.providerOverride) {\n\t\tselection.provider"
+            ],
+            [
+              "\tif (modelResolveOverride?.modelOverride) {\n\t\tselection.modelId",
+              "\tif (!locked && modelResolveOverride?.modelOverride) {\n\t\tselection.modelId"
+            ],
+            [
+              "\treturn selection;\n}\n/**\n* Converts prompt image refs",
+              "\treturn {\n\t\t...selection,\n\t\t...profile\n\t};\n}\n/**\n* Converts prompt image refs"
+            ],
+            [
+              "\t\tmodelSelectionLocked: runParams.modelSelectionLocked,\n\t\thookRunner: params.hookRunner,",
+              "\t\tmodelSelectionLocked: runParams.modelSelectionLocked,\n\t\t...runParams.modelSelectionLocked === true ? {profilePluginId: \"openclaw-plugin-mobile-ui\"} : {},\n\t\thookRunner: params.hookRunner,"
+            ],
+            [
+              "\tconst modelSelectionChangedByHook = hookSelection.provider !== params.provider",
+              "\tapplyHookModelProfile(runParams, hookSelection);\n\tconst modelSelectionChangedByHook = hookSelection.provider !== params.provider"
+            ],
+            [
+              "\t\t\t\t\tthrowIfAborted();\n\t\t\t\t\tassertInitialOperatorModelPolicy(params, sessionAdmission?.entry);",
+              "\t\t\t\t\tthrowIfAborted();\n\t\t\t\t\tconst modelProfileRunner = getGlobalHookRunner();\n\t\t\t\t\tif (modelProfileRunner?.runBeforeModelResolveForPlugin && modelProfileRunner.hasHooks(\"before_model_resolve\")) {\n\t\t\t\t\t\tconst initial = resolveInitialEmbeddedRunModel({config: params.config ?? EMPTY_EMBEDDED_AGENT_CONFIG, agentId: params.agentId, provider: params.provider, model: params.model});\n\t\t\t\t\t\tconst selected = await resolveHookModelSelection({prompt: \"\", provider: initial.provider, modelId: initial.modelId,\n\t\t\t\t\t\t\tmodelSelectionLocked: params.modelSelectionLocked, profilePluginId: \"openclaw-plugin-mobile-ui\", selectionStage: \"before_runtime\", hookRunner: modelProfileRunner,\n\t\t\t\t\t\t\thookContext: {runId: params.runId, agentId: params.agentId, sessionKey: params.sessionKey, sessionId: params.sessionId, workspaceDir: params.workspaceDir, modelProviderId: initial.provider, modelId: initial.modelId}});\n\t\t\t\t\t\tthrowIfAborted();\n\t\t\t\t\t\tparams.provider = selected.provider; params.model = selected.modelId;\n\t\t\t\t\t\tapplyHookModelProfile(params, selected);\n\t\t\t\t\t}\n\t\t\t\t\tassertInitialOperatorModelPolicy(params, sessionAdmission?.entry);"
+            ],
+            [
+              "export { compactEmbeddedAgentSession as n, runEmbeddedAgent as t };",
+              "/** Applies only settings already validated by readHookModelProfile, before the native consumers. */\nfunction applyHookModelProfile(runParams, selected) {\n\tfor (const key of [\"authProfileId\", \"authProfileIdSource\", \"thinkLevel\", \"fastMode\", \"modelFallbacksOverride\"]) {\n\t\tif (Object.hasOwn(selected, key)) runParams[key] = selected[key] ?? void 0;\n\t}\n\tconst clearThink = selected.thinkLevel === null;\n\tconst clearFast = selected.fastMode === null;\n\tif (clearThink || clearFast || Object.hasOwn(selected, \"summaryModelOverride\")) {\n\t\tconst prior = runParams.config ?? {}, agents = {...prior.agents}, defaults = {...agents.defaults};\n\t\tif (clearThink) delete defaults.thinkingDefault;\n\t\tif (clearFast) delete defaults.fastModeDefault;\n\t\tif (Object.hasOwn(selected, \"summaryModelOverride\")) {\n\t\t\tconst compaction = {...defaults.compaction};\n\t\t\tif (selected.summaryModelOverride === null) delete compaction.model;\n\t\t\telse compaction.model = selected.summaryModelOverride;\n\t\t\tdefaults.compaction = compaction;\n\t\t}\n\t\tconst clear = (entry) => {const next = {...entry}; if (clearThink) delete next.thinkingDefault; if (clearFast) delete next.fastModeDefault; return next;};\n\t\tif ((clearThink || clearFast) && agents.entries?.[runParams.agentId]) agents.entries = {...agents.entries, [runParams.agentId]: clear(agents.entries[runParams.agentId])};\n\t\tif ((clearThink || clearFast) && Array.isArray(agents.list)) agents.list = agents.list.map((row) => row.id === runParams.agentId ? clear(row) : row);\n\t\trunParams.config = {...prior, agents: {...agents, defaults}};\n\t}\n}\nexport { applyHookModelProfile, compactEmbeddedAgentSession as n, resolveHookModelSelection, runEmbeddedAgent as t };"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/run-entry-BnMGfzuI.mjs",
+          "original": "cf0a97c16f98593ca8f0b17006b32f3b338890b1dc0ead8415f150cc2bb760cb",
+          "patched": "177e10f2b40722d58ac0ebec4e28f99aea31294c00ab565122a645053cbfb4da",
+          "replacements": [
+            [
+              "import { u as getAgentRunContext } from \"./agent-run-registry-Cm8FlLIi.mjs\";",
+              "import { n as getGlobalHookRunner } from \"./hook-runner-global-Cn3xHNvt.mjs\";\nimport { resolveHookModelSelection } from \"./embedded-agent-DoEPu8ye.mjs\";\nimport { u as getAgentRunContext } from \"./agent-run-registry-Cm8FlLIi.mjs\";"
+            ],
+            [
+              "async function runEmbeddedAgentEntryInternal(params) {\n",
+              "async function runEmbeddedAgentEntryInternal(params) {\n\tconst modelProfileRunner = getGlobalHookRunner();\n\tif (modelProfileRunner?.runBeforeModelResolveForPlugin && modelProfileRunner.hasHooks(\"before_model_resolve\")) {\n\t\tparams.preparedRunAdmission?.assertSourceCurrent();\n\t\tconst selectedProfile = await resolveHookModelSelection({\n\t\t\tprompt: \"\",\n\t\t\tprovider: params.selection.provider,\n\t\t\tmodelId: params.selection.model,\n\t\t\tprofilePluginId: \"openclaw-plugin-mobile-ui\",\n\t\t\tselectionStage: \"before_candidates\",\n\t\t\thookRunner: modelProfileRunner,\n\t\t\thookContext: {...params.identity, sessionKey: params.harness.sessionKey, workspaceDir: params.harness.workspaceDir, modelProviderId: params.selection.provider, modelId: params.selection.model}\n\t\t});\n\t\tparams.preparedRunAdmission?.assertSourceCurrent();\n\t\tparams = {...params, selection: {...params.selection, provider: selectedProfile.provider, model: selectedProfile.modelId,\n\t\t\t...selectedProfile.modelFallbacksOverride !== void 0 ? {fallbacksOverride: selectedProfile.modelFallbacksOverride} : {},\n\t\t\t...Object.hasOwn(selectedProfile, \"authProfileId\") ? {userLockedAuthProfileId: selectedProfile.authProfileId ?? void 0} : {}}};\n\t}\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/compact-5sjN3p_L.mjs",
+          "original": "76931274e4e7c8c1fd027b38cbb434072f9b2b8e07a5ebed7a63245dcb539603",
+          "patched": "cb81634f0eb3af10478761bd2fabdf14f6c84a18273dd79d5d41ad14b0ef9d9b",
+          "replacements": [
+            [
+              "import { n as getGlobalHookRunner } from \"./hook-runner-global-Cn3xHNvt.mjs\";",
+              "import { n as getGlobalHookRunner } from \"./hook-runner-global-Cn3xHNvt.mjs\";\nimport { applyHookModelProfile, resolveHookModelSelection } from \"./embedded-agent-DoEPu8ye.mjs\";"
+            ],
+            [
+              "\tconst transcriptBytePreflightAuthority = transcriptBytePreflightClaim?.authority;",
+              "\tconst transcriptBytePreflightAuthority = transcriptBytePreflightClaim?.authority;\n\t// The existing summary owner is awaited before any direct compaction runtime/candidate preparation.\n\t// Locked native sessions and transcript-byte authority retain their original model policy.\n\tconst profileSelectionLocked = paramsBase.modelSelectionLocked === true || entry?.modelSelectionLocked === true || Boolean(transcriptBytePreflightAuthority);\n\tconst summaryProfileRunner = getGlobalHookRunner();\n\tlet sessionSummaryProfile = {};\n\tif (!profileSelectionLocked && summaryProfileRunner?.runBeforeModelResolveForPlugin && summaryProfileRunner.hasHooks(\"before_model_resolve\")) {\n\t\tparamsBase.abortSignal?.throwIfAborted();\n\t\tconst selectedSummary = await resolveHookModelSelection({\n\t\t\tprompt: \"\", provider: paramsBase.provider, modelId: paramsBase.model,\n\t\t\tprofilePluginId: \"openclaw-plugin-mobile-ui\", selectionStage: \"summary\",\n\t\t\thookRunner: summaryProfileRunner,\n\t\t\thookContext: {agentId: runSessionTarget.agentId, sessionId: runSessionTarget.sessionId, sessionKey: runSessionTarget.sessionKey,\n\t\t\t\tworkspaceDir: paramsBase.workspaceDir, modelProviderId: paramsBase.provider, modelId: paramsBase.model}\n\t\t});\n\t\tparamsBase.abortSignal?.throwIfAborted();\n\t\t// Summary is model-only: a handler cannot smuggle effort, speed or account settings into this call.\n\t\tif (Object.hasOwn(selectedSummary, \"summaryModelOverride\")) sessionSummaryProfile = {summaryModelOverride: selectedSummary.summaryModelOverride};\n\t}\n\tconst projectSessionSummaryConfig = (config) => {\n\t\tconst projection = {config};\n\t\tapplyHookModelProfile(projection, sessionSummaryProfile);\n\t\treturn projection.config;\n\t};"
+            ],
+            [
+              "config: projectCodexHostTranscriptBytePreflightConfig(paramsBase.config, Boolean(transcriptBytePreflightAuthority)),",
+              "config: projectCodexHostTranscriptBytePreflightConfig(projectSessionSummaryConfig(paramsBase.config), Boolean(transcriptBytePreflightAuthority)),"
+            ],
+            [
+              "const config = projectCodexHostTranscriptBytePreflightConfig(admittedConfig, Boolean(transcriptBytePreflightAuthority));",
+              "const config = projectCodexHostTranscriptBytePreflightConfig(projectSessionSummaryConfig(admittedConfig), Boolean(transcriptBytePreflightAuthority));"
+            ],
+            [
+              "const preparedConfig = projectCodexHostTranscriptBytePreflightConfig(preparedModelRuntimeOwnerSnapshot.config, Boolean(transcriptBytePreflightAuthority)) ?? preparedModelRuntimeOwnerSnapshot.config;",
+              "const preparedConfig = projectCodexHostTranscriptBytePreflightConfig(projectSessionSummaryConfig(preparedModelRuntimeOwnerSnapshot.config), Boolean(transcriptBytePreflightAuthority)) ?? preparedModelRuntimeOwnerSnapshot.config;"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/context-engine-maintenance-lAvtCTBg.mjs",
+          "original": "5cc715a6a911c4c9dab04d478ddc759894ce75cdf7709c977781436202a60e80",
+          "patched": "578e95d04d87e901940354568a53e938df8a5dfe8c8a9dbfecbc729b825e7b4c",
+          "replacements": [
+            [
+              "\tconst override = params.modelSelectionLocked ? void 0 : params.config?.agents?.defaults?.compaction?.model?.trim();",
+              "\tconst configuredOverride = params.modelSelectionLocked ? void 0 : params.config?.agents?.defaults?.compaction?.model?.trim();\n\tconst parsedOverride = configuredOverride ? splitTrailingAuthProfile(configuredOverride) : void 0;\n\tconst override = parsedOverride?.model;"
+            ],
+            [
+              "\t\tconst authProfileId = targetProvider !== provider ? void 0 : params.authProfileId ?? void 0;",
+              "\t\tconst authProfileId = parsedOverride?.profile ?? (targetProvider !== provider ? void 0 : params.authProfileId ?? void 0);"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/config-contracts-DzLaG7FV.d.ts",
+          "original": "72741a327458246b1d15850da3ce948c0ba962a17853b2c1a8785f8bb19dbe17",
+          "patched": "22b4308cb3611b2ead03a2f6c41ff421cbf0ebb738cc27f24059fb5eccd225fd",
+          "replacements": [
+            [
+              "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n};",
+              "type PluginHookBeforeModelResolveResult = {\n  /** Override the model for this agent run. E.g. \"llama3.3:8b\" */\n  modelOverride?: string;\n  /** Override the provider for this agent run. E.g. \"local-provider\" */\n  providerOverride?: string;\n  /** Versioned native run settings, consumed before auth/preparation. Null restores the native default. */\n  authProfileId?: string | null;\n  authProfileIdSource?: \"auto\" | \"user\" | null;\n  thinkLevel?: \"off\" | \"minimal\" | \"low\" | \"medium\" | \"high\" | \"xhigh\" | \"adaptive\" | \"max\" | \"ultra\" | null;\n  fastMode?: boolean | \"auto\" | null;\n  modelFallbacksOverride?: string[];\n  summaryModelOverride?: string | null;\n  /** A settings refusal must stop before model inference; never treated as a route acknowledgement. */\n  modelSelectionRefused?: string;\n};"
+            ],
+            [
+              "  attachments?: PluginHookBeforeModelResolveAttachment[];\n};",
+              "  attachments?: PluginHookBeforeModelResolveAttachment[];\n  /** Host-only settings preparation; no fabricated user prompt is sent to other hooks. */\n  modelProfileVersion?: 1;\n  modelProfileStage?: \"before_candidates\" | \"before_runtime\" | \"candidate\" | \"summary\";\n};"
+            ],
+            [
+              "  runBeforeModelResolve: (event: PluginHookBeforeModelResolveEvent, ctx: PluginHookAgentContext) => Promise<PluginHookBeforeModelResolveResult | undefined>;",
+              "  runBeforeModelResolve: (event: PluginHookBeforeModelResolveEvent, ctx: PluginHookAgentContext) => Promise<PluginHookBeforeModelResolveResult | undefined>;\n  runBeforeModelResolveForPlugin: (pluginId: string, event: PluginHookBeforeModelResolveEvent, ctx: PluginHookAgentContext) => Promise<PluginHookBeforeModelResolveResult | undefined>;"
+            ]
+          ]
+        }
+      ]
+    }
+  }
 }

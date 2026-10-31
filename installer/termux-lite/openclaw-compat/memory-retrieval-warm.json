@@ -15,5 +15,23 @@
         ]
       ]
     }
-  ]
+  ],
+  "packages": {
+    "2026.10.9": {
+      "files": [
+        {
+          "root": "openclaw",
+          "path": "dist/manager-cpu-worker-runtime-h904LJhI.mjs",
+          "original": "a07b9d462e73c0b79c2b27768b1aee7c19d9213dde38ed6d0fb8f15b0cad717f",
+          "patched": "259552beb3a9e01177b8b294574fcb313a3f6ee4dc4ca1d0af4e8134b8b2f8da",
+          "replacements": [
+            [
+              "const retrieval = new WorkerTaskPool({\n\tworkerUrl: resolveRuntimeWorkerUrl(memoryCpuProcessEntrypoints.search),\n\tworkerClass: \"reader\",\n\tsharedCompute: true\n});",
+              "const retrieval = new WorkerTaskPool({\n\tworkerUrl: resolveRuntimeWorkerUrl(memoryCpuProcessEntrypoints.search),\n\tworkerClass: \"reader\",\n\tsharedCompute: true,\n\t// Samantha S24 31/10: keep the recall worker between spoken turns (60 s default = a ~2.5 s respawn on most\n\t// voice turns). The pool keeps its memory-critical retirement because the timeout stays above zero.\n\tidleTimeoutMs: 18e5\n});"
+            ]
+          ]
+        }
+      ]
+    }
+  }
 }

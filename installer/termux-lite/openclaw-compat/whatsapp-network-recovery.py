@@ -41,11 +41,30 @@ def atomic_write(path, data):
         if os.path.exists(name):
             os.unlink(name)
 
+def package_version(root):
+    return json.loads((root / "package.json").read_text()).get("version")
+
+def variant(manifest, roots):
+    """The pinned file set of the installed OpenClaw version.
+
+    `package_version` + `files` stay the original pinned set. An optional
+    `packages: {"<openclaw version>": {"files": [...], "root_versions": {...}}}` adds other versions, so one
+    checkout owns the same patch before, during and after an OpenClaw upgrade or its rollback. Every other root
+    must carry its `root_versions` entry, or the OpenClaw version itself."""
+    extra = manifest.get("packages") or {}
+    if extra:
+        installed = package_version(roots["openclaw"])
+        chosen = extra.get(installed)
+        if chosen is not None:
+            return chosen["files"], {name: chosen.get("root_versions", {}).get(name, installed) for name in roots}
+    return manifest["files"], {name: manifest["package_version"] for name in roots}
+
 def reconcile(roots, mode, manifest_path=None):
     manifest = json.loads((manifest_path or MANIFEST).read_text())
+    files, _ = variant(manifest, roots)
     # Validate the entire set before the first write, including partially applied sets.
     planned = []
-    for entry in manifest["files"]:
+    for entry in files:
         path = roots[entry["root"]] / entry["path"]
         if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(roots[entry["root"]].resolve()):
             raise ValueError("patch_module_path_invalid:" + entry["path"])
@@ -87,7 +106,8 @@ def main():
     try:
         manifest_path = MANIFEST.with_name(args.patch_set + ".json")
         manifest = json.loads(manifest_path.read_text())
-        needs_whatsapp = any(entry["root"] == "whatsapp" for entry in manifest["files"])
+        files, _ = variant(manifest, {"openclaw": args.openclaw_root.resolve()})
+        needs_whatsapp = any(entry["root"] == "whatsapp" for entry in files)
         wa = args.whatsapp_root
         if needs_whatsapp and wa is None:
             state = Path(os.environ.get("OPENCLAW_STATE_DIR", str(Path.home() / ".openclaw")))
@@ -98,9 +118,9 @@ def main():
         roots = {"openclaw": args.openclaw_root.resolve()}
         if needs_whatsapp:
             roots["whatsapp"] = wa.resolve()
-        expected = manifest["package_version"]
-        for root in roots.values():
-            if json.loads((root / "package.json").read_text()).get("version") != expected:
+        _, expected = variant(manifest, roots)
+        for name, root in roots.items():
+            if package_version(root) != expected[name]:
                 raise ValueError("unsupported_package_version")
         if args.mode == "check":
             result = reconcile(roots, args.mode, manifest_path)
