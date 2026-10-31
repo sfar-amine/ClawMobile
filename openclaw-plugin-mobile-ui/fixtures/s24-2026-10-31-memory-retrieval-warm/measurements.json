@@ -1,0 +1,81 @@
+{
+ "captured_at": "2026-10-31T19:31:00+01:00",
+ "device": "S24 (Termux, glibc node 24.21.0)",
+ "openclaw_version": "2026.9.6",
+ "module": {
+  "path": "dist/manager-cpu-worker-runtime-Egp8qeu_.mjs",
+  "bytes": 4004,
+  "sha256": "43705d278f5fe9851b6440a4772abb631940d45dba8ed0c42449c274d3df9df7",
+  "npm_sha256": "43705d278f5fe9851b6440a4772abb631940d45dba8ed0c42449c274d3df9df7"
+ },
+ "worker_task_pool_contract": {
+  "module": "dist/worker-task-pool-cppt7dT0.mjs",
+  "default_idle_timeout_ms": 60000,
+  "idle_retire": "idle(slot): idleMs = options.idleTimeoutMs ?? 6e4; if idleMs > 0 a timer retires the slot after idleMs (unref)",
+  "pressure_retire": "createWorker: if (options.idleTimeoutMs ?? 6e4) > 0 the pool subscribes retireIdleOnPressure to channel openclaw.memory.critical"
+ },
+ "turn_gateway_prep_seconds": {
+  "definition": "Gateway 'res agent' accepted -> lifecycle phase=start, same session, from the Gateway log",
+  "after_20s_idle": [
+   3.6
+  ],
+  "after_75s_idle_no_probe": [
+   5.7,
+   6.4,
+   6.7,
+   7.2
+  ],
+  "after_75s_idle_with_read_probe": [
+   5.4,
+   7.0
+  ],
+  "new_session": [
+   5.7,
+   7.7,
+   11.0
+  ]
+ },
+ "worker_spawns_one_turn": {
+  "method": "inspector NodeWorker.attachedToWorker during one owner turn, ms after the CLI spawn (CLI boot ~2.5 s before the request)",
+  "spawned": [
+   {
+    "script": "config/sessions/session-transcript.worker.js",
+    "ms": 2621
+   },
+   {
+    "script": "infra/sqlite-store.worker.js",
+    "ms": 2685
+   },
+   {
+    "script": "extensions/memory-core/memory-search.worker.js",
+    "ms": 6364
+   }
+  ],
+  "gateway_cpu_ticks_one_turn": {
+   "new_worker_threads": [
+    407,
+    176,
+    118
+   ],
+   "main_thread": 252,
+   "v8_platform_threads": [
+    109,
+    107,
+    101,
+    100
+   ],
+   "clk_tck": 100
+  },
+  "main_thread_cpu_profile_14s": {
+   "idle_ms": 8686,
+   "program_ms": 3514,
+   "plugin_owner_foundation_hook_ms": 167
+  }
+ },
+ "excluded_causes": {
+  "swap_major_faults_one_turn": 178,
+  "memory_pressure_level": "warning only (no critical)",
+  "read_probes": "chat.history 7.0 s itself, no gain"
+ },
+ "privacy": "Timings, thread counts and public module hashes only; no transcript, prompt, config, token or account data."
+}

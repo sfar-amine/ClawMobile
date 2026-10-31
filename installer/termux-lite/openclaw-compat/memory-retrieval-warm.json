@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "package_version": "2026.9.6",
+  "purpose": "Keep the existing memory-core recall worker pool warm for 30 min instead of the WorkerTaskPool 60 s default, so a spoken turn after a pause does not respawn it on the critical path; the pool's own memory-critical retirement is unchanged.",
+  "files": [
+    {
+      "root": "openclaw",
+      "path": "dist/manager-cpu-worker-runtime-Egp8qeu_.mjs",
+      "original": "43705d278f5fe9851b6440a4772abb631940d45dba8ed0c42449c274d3df9df7",
+      "patched": "cfe645ed27ab67a93af5f6f371bee6f996e53c82706b3e26666216d7e9db30cb",
+      "replacements": [
+        [
+          "const retrieval = new WorkerTaskPool({\n\tworkerUrl: resolveRuntimeWorkerUrl(memoryCpuProcessEntrypoints.search),\n\tmaxWorkers: 1,\n\tsharedCompute: true\n});",
+          "const retrieval = new WorkerTaskPool({\n\tworkerUrl: resolveRuntimeWorkerUrl(memoryCpuProcessEntrypoints.search),\n\tmaxWorkers: 1,\n\tsharedCompute: true,\n\t// Samantha S24 31/10: keep the recall worker between spoken turns (60 s default = a ~2.5 s respawn on most\n\t// voice turns). The pool keeps its memory-critical retirement because the timeout stays above zero.\n\tidleTimeoutMs: 18e5\n});"
+        ]
+      ]
+    }
+  ]
+}
