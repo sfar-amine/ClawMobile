@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "id": "plugin-device-tool-contract-20261031",
+  "date": "2026-10-31",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "samantha_device_assistance is declared in openclaw-plugin-mobile-ui/openclaw.plugin.json contracts.tools. test-typed-device-direct.cjs now asserts that every DIRECT_TYPED_TOOLS name and every typed descriptor the factory returns is declared there.",
+  "reason": "S24 31/10: with core 052d7b5a the Gateway logged « plugin must declare contracts.tools for: samantha_device_assistance » and the brain lost the whole typed batch (102 → 97 cataloged tools, no samantha_agenda): the agenda write asked a question instead of the recap and two deployments were rolled back by the write_recap parcours. Core 510e1a61 only skipped the undeclared tool.",
+  "files": [
+    "openclaw-plugin-mobile-ui/openclaw.plugin.json",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-device-direct.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-device-contract/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-device-contract/gateway-plugin-contract.json",
+    "docs/changes/plugin-device-tool-contract-20261031.json",
+    "docs/changes/plugin-device-tool-contract-20261031.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-device-direct.cjs",
+      "status": "passed",
+      "evidence": "Fails on 052d7b5a's manifest (« samantha_device_assistance declared in openclaw.plugin.json contracts.tools »), passes with this change; already in ci.yml."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs, test-capability-tool.cjs, test-typed-tools-direct-visible.cjs; tsc build",
+      "status": "passed",
+      "evidence": "Green on this head."
+    }
+  ],
+  "documentation": [
+    "docs/changes/plugin-device-tool-contract-20261031.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Plugin manifest declaration of an existing typed tool; no route or capability change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "One name added to the existing contracts.tools list; one test assertion."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Plugin manifest only; MCP tools and schemas unchanged."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Live recette on the S24 is the companion-deploy parcours (write_recap must stop at the recap again)."
+  ],
+  "rollback": "Revert this commit and redeploy the previous Companion commit with companion-deploy.sh."
+}

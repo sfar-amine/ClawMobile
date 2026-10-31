@@ -1,0 +1,28 @@
+{
+  "source": "S24 /data/data/com.termux/files/usr/tmp/openclaw/openclaw-2026-10-31.log and ~/.openclaw/agents/main/agent/openclaw-agent.sqlite, read-only via claw_exec on 2026-10-31; user text removed, tool names and gateway messages verbatim.",
+  "core_510e1a61_with_playbooks_23fd7628": {
+    "gateway": [
+      {"at": "2026-10-31T13:40:36.613Z", "subsystem": "plugins", "message": "plugin tool is undeclared (openclaw-plugin-mobile-ui): samantha_device_assistance"}
+    ],
+    "tool_search_cataloged": 102,
+    "deploy_parcours_session": "agent:main:recette-deploy:20261031t134028z",
+    "owner_tool_calls": ["read", "samantha_agenda", "read", "tool_search", "samantha_agenda", "samantha_agenda"],
+    "write_recap_tool_result_state": "NEEDS_CONFIRMATION"
+  },
+  "core_052d7b5a_with_playbooks_23fd7628": {
+    "gateway": [
+      {"at": "2026-10-31T13:54:06Z", "subsystem": "gateway", "message": "[plugins] plugin must declare contracts.tools for: samantha_device_assistance (plugin=openclaw-plugin-mobile-ui, source=/data/data/com.termux/files/home/.openclaw/extensions/openclaw-plugin-mobile-ui/dist/index.js)"},
+      {"at": "2026-10-31T14:30:38Z", "subsystem": "gateway", "message": "[plugins] plugin must declare contracts.tools for: samantha_device_assistance (plugin=openclaw-plugin-mobile-ui, source=/data/data/com.termux/files/home/.openclaw/extensions/openclaw-plugin-mobile-ui/dist/index.js)"}
+    ],
+    "tool_search_cataloged": 97,
+    "deploy_parcours_session": "agent:main:recette-deploy:20261031t142603z",
+    "owner_tool_calls": ["read", "tool_search", "tool_search", "exec", "exec", "process", "exec", "read", "exec", "read", "read", "exec", "exec", "exec"],
+    "owner_exec_included": "ui-playbooks/tools/reauthorize_agenda_google.py --json (blocked: ProxyError)",
+    "write_recap_tool_result_state": null,
+    "write_recap_reply_kind": "question about the duration, no samantha_agenda call, no recap",
+    "deploy_receipts": {
+      "companion-20261031T145023.json": {"state": "rolled_back", "write_recap": "failed/path_error (provider timeout on the same turn)"},
+      "companion-20261031T152044.json": {"state": "rolled_back", "write_recap": "failed/not_stopped_at_recap"}
+    }
+  }
+}

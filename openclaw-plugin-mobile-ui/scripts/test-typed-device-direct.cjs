@@ -33,6 +33,12 @@ const tool = descriptors.find((entry) => entry.name === 'samantha_device_assista
 assert(tool, 'device tool exposed to the owner');
 assert.equal(tool.catalogMode, 'direct-only');
 assert(typed.DIRECT_TYPED_TOOLS.has('samantha_device_assistance'));
+// S24 31/10 15:20: the Gateway refuses a plugin tool absent from contracts.tools (« plugin must declare
+// contracts.tools for: samantha_device_assistance »), and the typed factory's whole batch went with it: the brain
+// lost samantha_agenda and improvised through the shell. Every typed owner the factory can return is declared.
+const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../openclaw.plugin.json'), 'utf8'));
+for (const name of [...typed.DIRECT_TYPED_TOOLS, ...descriptors.map((entry) => entry.name)])
+  assert(manifest.contracts.tools.includes(name), `${name} declared in openclaw.plugin.json contracts.tools`);
 
 const direct = ['device.torch.set', 'device.dnd.set', 'device.timer.start', 'device.alarm.set', 'device.settings.open'];
 const lines = tool.description.split('\n');
