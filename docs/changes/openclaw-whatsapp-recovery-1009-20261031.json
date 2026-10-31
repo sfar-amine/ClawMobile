@@ -1,0 +1,76 @@
+{
+  "version": 2,
+  "id": "openclaw-whatsapp-recovery-1009-20261031",
+  "date": "2026-10-31",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "whatsapp-network-recovery gains its 2026.10.9 variant (packages table): same transport-recovery patch on @openclaw/whatsapp 2026.10.9 (connection-controller-CejM7bhn, monitor-DVzumwCI) and openclaw 2026.10.9 (server-runtime-startup-services-CSJSnUKS). No change on the installed 2026.9.6.",
+  "reason": "OpenClaw 2026.10.9 upgrade prep. The 2026.10.9 WhatsApp controller still stops the channel after reconnectPolicy.maxAttempts on a transport loss (DNS, reset, unreachable) and has no slow retry; the S24 needs the existing recovery patch there too. Upstream moved heartbeatSeconds, reconnectPolicy and keepAlive under this.params and merged the setup-error and unstable-auth decisions, so four anchors are rewritten; the behaviour is the 2026.9.6 one.",
+  "files": [
+    "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.json",
+    "installer/termux-lite/test-openclaw-compat-variants.py",
+    "installer/termux-lite/test-whatsapp-network-recovery.py",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/connection-controller-CejM7bhn.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/monitor-DVzumwCI.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/server-runtime-startup-services-CSJSnUKS.mjs.gz",
+    "docs/changes/openclaw-whatsapp-recovery-1009-20261031.json",
+    "docs/changes/openclaw-whatsapp-recovery-1009-20261031.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-openclaw-compat-variants.py",
+      "status": "passed",
+      "evidence": "6 tests: the WhatsApp variant applies atomically/idempotently and reverses on the npm modules with a separate plugin root; node --check; the patched 2026.10.9 resolveCloseDecision/consumeReconnectAttempt executed under node: a DNS loss retries 6/6 with a counter bounded at fast limit + 2 and 60/120/300 s (+-20 %) slow delays, an unknown status still stops after maxAttempts, 401 stops as logged-out, a non-transport setup error stays upstream (null)."
+    },
+    {
+      "name": "installer/termux-lite/test-whatsapp-network-recovery.py",
+      "status": "passed",
+      "evidence": "8 tests on the 2026.9.6 S24 fixture; the fixture roots now carry package.json like every installed package, since the owner reads the version once a manifest has a packages table."
+    },
+    {
+      "name": "test-memory-retrieval-warm.py, test-native-turn-provenance.py, test-model-flow-selection.py, test-agent-exec-auth-scope.py, test-runtime-sync.py, test-ci-registration.py, test-gateway-prep-stages.py (node 26 on PATH)",
+      "status": "passed",
+      "evidence": "Neighbouring owners green on this head."
+    }
+  ],
+  "documentation": [
+    "docs/changes/openclaw-whatsapp-recovery-1009-20261031.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Pinned variant of an existing compatibility patch; no route, action or capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing owner and packages table from core#493; no new store, scheduler, daemon or retry engine (the plugin's own controller keeps retrying)."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "2026.10.9 only; the installed 2026.9.6 set is byte-identical."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Assumes OpenClaw 2026.10.9 installs @openclaw/whatsapp 2026.10.9; checked during the S24 upgrade rehearsal, the owner refuses any other plugin version before writing.",
+    "No live WhatsApp loss test on 2026.10.9 yet: part of the upgrade recette."
+  ],
+  "rollback": "Revert this commit; the 2026.9.6 set is unchanged."
+}
