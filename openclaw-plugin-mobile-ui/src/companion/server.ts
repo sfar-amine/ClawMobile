@@ -20,7 +20,7 @@ import {TYPED_CONTROL_ADMISSION_METHOD} from '../capabilityAgentGuard';
 import {createHash} from 'node:crypto';
 import {updatesRead} from "./updatesControl";
 import {saveAttachments,purgeAttachments,attachmentContent,attachmentDigest} from "./attachmentStorage";
-import {withAttachmentReferences} from "./runs";
+import {withAttachmentReferences, voiceRunStatus} from "./runs";
 import {readAgentConfig,changeAgentConfig,reconcileModelFlowRunStatus} from "./agentConfig";
 import {engineeringRead} from "./engineeringRead";
 import {learningForget, learningList, learningNotThis} from "./learning";
@@ -54,6 +54,11 @@ import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalSto
 import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
 import { routeUnresolvedVoiceTurn, voiceTurnLogLine } from "./voiceBrainDelegation";
+/**
+ * Voice brain turn reads (S24 31/10 latency): voiceRunStatus answers a followed run from memory, so the voice reads every
+ * 100 ms instead of VOICE_BRAIN_POLL_MS = 500 (mean wait after the answer lands: 50 ms, was 250 ms).
+ */
+const VOICE_RUN_POLL_MS = 100;
 import {brainOnlyEnabled} from "../brainOnly";
 import { dialogueConversationId } from "../dialogueSurface";
 import { clawLiveCapabilityTurn, createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
@@ -1069,7 +1074,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       return routeUnresolvedVoiceTurn(text, {sessionId, clientRunId: String(body.clientRunId || ""), admission: admission.ticket, assertCurrent}, {
         resolve: (unresolved) => capabilityBridge(unresolved, {execute:false,surface:"claw_live",caller:"owner",timeoutSeconds:5}),
         execute: (unresolved) => capabilityBridge(unresolved, {execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35}),
-        submit: submitIntent, status: getRunStatus, deferred: clawLiveWarmCore.voiceDeferredOwner(body?.voiceTurn),
+        submit: submitIntent, status: voiceRunStatus, pollMs: VOICE_RUN_POLL_MS, deferred: clawLiveWarmCore.voiceDeferredOwner(body?.voiceTurn),
       });
     };
     const execute = (request: string) => brainOnlyEnabled() ? brainOrLegacy(request) : clawLiveCapabilityTurn(

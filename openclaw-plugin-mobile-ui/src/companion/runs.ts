@@ -23,8 +23,12 @@ import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatu
 
 import {TURN_BUDGET_MS, validateTurnMeasurement, turnMeasurementLogLine, type TurnMeasurement} from "./turnBudget";
 
-type GatewayObservationTiming = {requestSentAt?:number; terminalReceivedAt?:number; progressDrainedAt?:number;
-  settlementStartedAt?:number; progressWaitMs?:number; settlementWaitMs?:number};
+/** Wall-clock marks of one observed brain run. runStartedAt/firstToolAt/firstTextAt: first Gateway agent event of the
+ * lifecycle start, a tool start and an assistant text delta (voice latency stages, S24 31/10); toolStarts counts tool
+ * starts. Kept in memory while following and written by the existing terminal settlement, never by an extra write. */
+type GatewayObservationTiming = {requestSentAt?:number; runStartedAt?:number; firstToolAt?:number; firstTextAt?:number;
+  terminalReceivedAt?:number; progressDrainedAt?:number; settlementStartedAt?:number; progressWaitMs?:number; settlementWaitMs?:number;
+  toolStarts?:number};
 type GatewayObservation = {version:1; epoch:string; state:"following"|"reconcile"|"settled"; deadlineAt:number;
   reconciled?:true; timing?:GatewayObservationTiming};
 type StoredRun = {
@@ -187,6 +191,7 @@ const submittedRuns = new Map<string, StoredRun>();
 const MEMO_OWNER_EPOCH = randomUUID();
 const GATEWAY_OBSERVER_EPOCH = randomUUID();
 const GATEWAY_FOLLOW_MS = 120000;
+const OBSERVED_TOOL_STARTS_MAX = 999;
 const CLIENT_RUN_ID_RE = /^[A-Za-z0-9._:-]{1,160}$/;
 const MAX_PERSISTED_RUNS = 500;
 const MAX_PERSISTED_RUN_BYTES = 8 * 1024 * 1024;
@@ -484,10 +489,11 @@ export async function rememberSubmittedRun(
 function readGatewayObservationTiming(raw:any):GatewayObservationTiming|undefined {
   if(!raw||typeof raw!=="object"||Array.isArray(raw))return undefined;
   const timing:GatewayObservationTiming={};
-  for(const key of ["requestSentAt","terminalReceivedAt","progressDrainedAt","settlementStartedAt"] as const)
+  for(const key of ["requestSentAt","runStartedAt","firstToolAt","firstTextAt","terminalReceivedAt","progressDrainedAt","settlementStartedAt"] as const)
     if(Number.isSafeInteger(raw[key])&&raw[key]>=1000000000000&&raw[key]<=4000000000000)timing[key]=raw[key];
   for(const key of ["progressWaitMs","settlementWaitMs"] as const)
     if(Number.isSafeInteger(raw[key])&&raw[key]>=0&&raw[key]<=300000)timing[key]=raw[key];
+  if(Number.isSafeInteger(raw.toolStarts)&&raw.toolStarts>=0&&raw.toolStarts<=OBSERVED_TOOL_STARTS_MAX)timing.toolStarts=raw.toolStarts;
   return Object.keys(timing).length?timing:undefined;
 }
 function readGatewayObservation(v:any):GatewayObservation|undefined {
@@ -495,6 +501,33 @@ function readGatewayObservation(v:any):GatewayObservation|undefined {
     !["following","reconcile","settled"].includes(v.state)||!Number.isFinite(v.deadlineAt))return undefined;
   const timing=readGatewayObservationTiming(v.timing);
   return {version:1,epoch:v.epoch,state:v.state,deadlineAt:v.deadlineAt,...(v.reconciled===true?{reconciled:true as const}:{}),...(timing?{timing}:{})};
+}
+/** First-occurrence marks only; never reads or keeps the delta text or the tool arguments. */
+export function observeRunStage(stages:Pick<GatewayObservationTiming,"runStartedAt"|"firstToolAt"|"firstTextAt"|"toolStarts">,
+  stream:unknown,data:any,now=Date.now()) {
+  if(stream==="lifecycle"&&data?.phase==="start")stages.runStartedAt??=now;
+  else if(stream==="tool"&&data?.phase==="start"){stages.firstToolAt??=now;stages.toolStarts=Math.min(OBSERVED_TOOL_STARTS_MAX,(stages.toolStarts??0)+1);}
+  else if(stream==="assistant"&&(typeof data?.delta==="string"&&data.delta.length>0||typeof data?.text==="string"&&data.text.length>0))stages.firstTextAt??=now;
+}
+/**
+ * True while this process follows the run's Gateway socket and the run is not terminal: getRunStatus would answer
+ * running from the same memory row (observedRunStatus), after parsing runs.json twice. Voice polls use it to skip that
+ * read while the brain works; any other case (terminal, reconcile, expired, unknown) takes the full getRunStatus.
+ */
+export function followedRunStillRunning(runId:string,now=Date.now()):boolean {
+  const run=submittedRuns.get(runId),observation=run?.gatewayObservation;
+  return !!run&&observation?.epoch===GATEWAY_OBSERVER_EPOCH&&observation.state==="following"&&now<observation.deadlineAt&&
+    run.state==="running";
+}
+/** Voice brain polls: a followed running run from memory, every other case through the full getRunStatus, unchanged. */
+export function voiceRunStatus(runId:string):Promise<CompanionRunStatus> {
+  return followedRunStillRunning(runId)?Promise.resolve({runId,state:"running"} as CompanionRunStatus):getRunStatus(runId);
+}
+/** Voice latency stages: wall-clock marks of one Companion run, from memory only (no registry read, no text). */
+export function observedRunTiming(runId:string):{acceptedAt:number;state?:string}&GatewayObservationTiming|null {
+  const run=submittedRuns.get(runId);
+  if(!run||!Number.isFinite(run.acceptedAt))return null;
+  return {acceptedAt:run.acceptedAt,...(run.state?{state:run.state}:{}),...readGatewayObservationTiming(run.gatewayObservation?.timing)};
 }
 function readGatewayProgress(v:any):CompanionRunProgress|undefined {
   if(!v||!Array.isArray(v.events))return undefined;
@@ -557,6 +590,9 @@ export async function observeGatewayRun(runId:string,sessionKey:string):Promise<
   });
   if(!started?.gatewayObservation||started.gatewayObservation.epoch!==GATEWAY_OBSERVER_EPOCH)throw Error("gateway_observation_not_admitted");
   let sequence=0,closed=false,queued=0,cardQueued=false,chain=Promise.resolve();
+  // Latency stages of this run (no text): first lifecycle start, tool start and assistant delta, in memory until the
+  // terminal settlement persists them with its own write.
+  const stages:Pick<GatewayObservationTiming,"runStartedAt"|"firstToolAt"|"firstTextAt"|"toolStarts">={};
   // A provider burst cannot create an unbounded promise/write queue. Dropped progress is never terminal proof.
   const enqueue=(work:()=>Promise<void>)=>{
     if(queued>=48)return;
@@ -582,6 +618,7 @@ export async function observeGatewayRun(runId:string,sessionKey:string):Promise<
       sequence=p.seq;
       // A card is refreshed only after its actual writer completed, never once per status poll.
       const data=p.data,id=data?.toolCallId;
+      observeRunStage(stages,p.stream,data);
       if(p.stream==="tool"&&data?.name==="progress_card"&&data?.phase==="result") {
         if(cardQueued||queued>=48)return;
         cardQueued=true;
@@ -620,7 +657,7 @@ export async function observeGatewayRun(runId:string,sessionKey:string):Promise<
         const settlementStartedAt=Date.now();settlementWaitMs=Math.round(performance.now()-settlementStart);commitStart=performance.now();
         return {...r,state:terminal.state,result:terminal.state==="done"?terminal.text:undefined,error:terminal.state==="failed"?terminal.text:undefined,
           updatedAt:settlementStartedAt,ownerTransport:"admin_admitted",gatewayObservation:{...r.gatewayObservation,state:"settled",
-            timing:{...r.gatewayObservation.timing,terminalReceivedAt,progressDrainedAt,settlementStartedAt,progressWaitMs,settlementWaitMs}}};
+            timing:{...r.gatewayObservation.timing,...stages,terminalReceivedAt,progressDrainedAt,settlementStartedAt,progressWaitMs,settlementWaitMs}}};
       });
       // Existing bounded diagnostic sink; no extra registry write just to measure its own fsync/rename.
       if(settled&&commitStart!==undefined){

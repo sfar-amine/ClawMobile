@@ -590,6 +590,9 @@ jobs:
           node scripts/test-typed-capability-tools.cjs
           node scripts/test-typed-tools-direct-visible.cjs
           node scripts/test-typed-direct-call-id.cjs
+          node scripts/test-voice-turn-stages.cjs
+          node scripts/test-owner-turn-clock.cjs
+          node scripts/test-voice-run-poll.cjs
           node scripts/test-brain-only-entry.cjs
           node scripts/test-generation-interrupt.cjs
           node scripts/test-native-turn-observation.cjs

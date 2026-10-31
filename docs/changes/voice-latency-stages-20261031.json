@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "id": "voice-latency-stages-20261031",
+  "date": "2026-10-31",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Every Samantha Voix turn now writes one always-on [voice-stages] line at the first receipt audio: millisecond offsets from the end of speech (app t25) to the final transcription, the capability execution, the brain run acceptance, the Gateway request, the run start, the first tool, the first assistant text, the terminal RPC, the settlement, the receipt handed to the voice model and the first receipt audio. The new brain marks are kept in memory and persisted in gatewayObservation.timing by the existing terminal write; the warm owner keeps the last 8 records in /claw-live/warm-status.",
+  "reason": "S24 31/10 voice bench (core 446945af, brain-only): « merci Samantha » took 6.2 s from t25 to t30 with no tool, but no Companion-side stage was persisted (telemetry/voice is the lab producer, off since 10/10), so the fixed cost could not be broken down.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTurnStages.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveWarm.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-turn-stages.cjs",
+    "docs/changes/voice-latency-stages-20261031.json",
+    "docs/changes/voice-latency-stages-20261031.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-voice-turn-stages.cjs",
+      "status": "passed",
+      "evidence": "New, in ci.yml. Replays the real S24 voice turn of 25/10 (run_1792934450703, fixtures/s24-2026-10-25-gateway-observation) through the voice turn protocol, the run registry observer and the warm owner: the record gives back 941 ms to the waiting phrase, 4,603 ms to acceptance, 21,798 ms of Gateway preparation and 54,158 ms to the first useful audio; no text in the line or status; lifecycle/assistant events write nothing; marks persisted by the terminal write; tool starts counted and bounded; a failing reader or log sink never changes the turn."
+    },
+    {
+      "name": "test-voice-turn-protocol, test-voice-latency-budget, test-voice-m1-*, test-gateway-run-observation, test-warm-*, test-voice-deferred-readback, test-voice-brain-delegation and the other test-voice/test-run/test-turn scripts; tsc",
+      "status": "passed",
+      "evidence": "Green in the container on this branch."
+    }
+  ],
+  "documentation": ["docs/changes/voice-latency-stages-20261031.md"],
+  "capabilities": {"impact": "none", "reason": "No new route or action: one log line, one bounded field in the existing /claw-live/warm-status response and closed timing keys on the existing run record."},
+  "architecture": {"changed": false, "reason": "Marks recorded by their existing owners (voice turn protocol, Gateway observation of the run registry, warm owner); no new store, writer, route or scheduler."},
+  "mcp_owner_parity": {
+    "tools": {"claw_context": "verified_no_impact", "claw_resolve": "verified_no_impact", "claw_execute": "verified_no_impact", "claw_exec": "verified_no_impact", "claw_status": "verified_no_impact", "claw_artifact_read": "verified_no_impact"},
+    "attached": {"schemas": "verified_no_impact", "adapters": "verified_no_impact", "documentation": "verified_impacted", "tests": "verified_impacted", "runtime": "verified_impacted"},
+    "evidence": ["Companion voice and run instrumentation only; no MCP tool, schema or adapter change."]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "first_text needs the Gateway to deliver assistant-stream agent events to the admitted observer connection; when it does not, the field stays '-' (to check on the first S24 run).",
+    "Offsets join the protocol's monotonic clock and the registry's wall clock through one wall-clock stamp of the speech end; a wall-clock jump during a turn shifts the brain offsets.",
+    "Stages before t25 (app capture, STT) and after the first audio chunk leaves the Companion (app playback) stay on the app telemetry."
+  ],
+  "rollback": "Revert this commit and redeploy the previous core with companion-deploy.sh; the line and voiceStages disappear, already persisted marks are ignored by the previous reader."
+}

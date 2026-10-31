@@ -1,4 +1,5 @@
 import {createHash} from "crypto";
+import type {VoiceStageMarks} from "./voiceTurnStages";
 
 /** Ephemeral protocol state inside the existing Warm owner. No execution, persistence or retry engine. */
 export class VoiceTurnProtocol {
@@ -22,7 +23,8 @@ export class VoiceTurnProtocol {
     private readonly now:()=>number=()=>Number(process.hrtime.bigint()/1_000_000n),
     private readonly warmHit=false,
     private readonly schedule:(run:()=>void,ms:number)=>any=(run,ms)=>{const timer=setTimeout(run,ms);timer.unref?.();return timer;},
-    private readonly asyncToolReadback=false) {}
+    private readonly asyncToolReadback=false,
+    private readonly wall:()=>number=Date.now) {}
 
   /**
    * Bounded wait for the provider boundary of an interrupted output. Gemini signals `interrupted` only for a generation
@@ -281,7 +283,7 @@ export class VoiceTurnProtocol {
   private end(body:any) {
     const t=this.turns.get(this.requireId(body.turnId));
     if(!t||t.id!==this.asrOwner||t.inputEnded||body.lastSampleExclusive!==t.end)throw new Error("invalid_turn_end");
-    t.inputEnded=true;t.inputEndedAt=this.now();this.forward({realtimeInput:{activityEnd:{}}});this.observe("t25p",t.id);
+    t.inputEnded=true;t.inputEndedAt=this.now();t.inputEndedWall=this.wall();this.forward({realtimeInput:{activityEnd:{}}});this.observe("t25p",t.id);
   }
   private transcriptFinal(body:any) {
     const t=this.turns.get(this.requireId(body.turnId));
@@ -293,7 +295,7 @@ export class VoiceTurnProtocol {
     // admitted instead of waiting forever on this transcription boundary (S24 18/10 12:35).
     const noSpeech=body.noSpeech===true;
     if(noSpeech?text!=="":(!text||text.length>12000))throw new Error("invalid_transcript_text");
-    t.input=text;t.asrFinished=true;this.asrOwner=null;if(noSpeech)t.interrupted=true;
+    t.input=text;t.asrFinished=true;t.sttFinalAt=this.now();this.asrOwner=null;if(noSpeech)t.interrupted=true;
     this.event({inputFinal:noSpeech?{text:"",source:"android_speech_service",noSpeech:true}:{text:t.input,source:"android_speech_service"}},t.id,t.generation);
     if(!t.interrupted)for(const calls of this.pendingTools.get(t.id)||[])this.event({toolCall:{functionCalls:calls}},t.id,t.generation);
     this.pendingTools.delete(t.id);
@@ -405,6 +407,7 @@ export class VoiceTurnProtocol {
             if(t.receiptRequestedAt!==undefined)metadata.gemini_ms=elapsed(t.receiptRequestedAt,now);
             if(t.inputEndedAt!==undefined){metadata.response_ms=elapsed(t.inputEndedAt,now);metadata.budget_ms=5000;metadata.budget_exceeded=metadata.response_ms>=5000;}
           } else if(!progress&&t.inputEndedAt!==undefined)metadata.gemini_ms=elapsed(t.inputEndedAt,now);
+          if(receipt)t.receiptAudioAt??=now;else if(!progress)t.firstAudioAt??=now;
           this.observe("t30p",t.id,metadata);
         }
         if(typeof output.outputTranscription?.text==="string"&&this.executions.get(t.id)?.result)t.spoken=((t.spoken||"")+output.outputTranscription.text).slice(0,4000);
@@ -452,8 +455,21 @@ export class VoiceTurnProtocol {
     try{return await run();}finally{if(t.decisionMs===undefined)t.decisionMs=elapsed(started,this.now());}
   }
   async measureCapability(turnId:string,run:()=>Promise<any>) {
-    const t=this.turns.get(turnId);if(!t)return run();const started=this.now();
-    try{return await run();}finally{if(t.capabilityMs===undefined)t.capabilityMs=elapsed(started,this.now());}
+    const t=this.turns.get(turnId);if(!t)return run();const started=this.now();t.capabilityStartedAt??=started;
+    try{return await run();}finally{const ended=this.now();t.capabilityEndedAt??=ended;if(t.capabilityMs===undefined)t.capabilityMs=elapsed(started,ended);}
+  }
+  /**
+   * Latency stages of a turn, as offsets from its speech end (voiceTurnStages.ts). Monotonic marks only, plus the wall
+   * clock of the speech end and the run id of its execution receipt, to join the run registry's own marks.
+   */
+  stageMarks(turnId:string):VoiceStageMarks|null {
+    const t=this.turns.get(turnId);
+    if(!t||t.inputEndedAt===undefined||t.inputEndedWall===undefined)return null;
+    const from=(at:number|undefined)=>at===undefined?undefined:Math.round(at-t.inputEndedAt!);
+    const runId=this.executions.get(turnId)?.result?.runId;
+    return {inputEndedWall:t.inputEndedWall,...(typeof runId==="string"?{runId}:{}),
+      sttFinalMs:from(t.sttFinalAt),firstAudioMs:from(t.firstAudioAt),capabilityMs:from(t.capabilityStartedAt),
+      capabilityDoneMs:from(t.capabilityEndedAt),receiptMs:from(t.receiptRequestedAt),audioMs:from(t.receiptAudioAt)};
   }
   private asyncReady(t:Turn):boolean {
     return this.asyncToolReadback&&Boolean(t.asyncCall?.responded)&&!t.asyncFinalSent;
@@ -530,7 +546,7 @@ export class VoiceTurnProtocol {
 type Start={id:string;first:number;activityStarted:boolean};
 type AsyncHandoff={generation:string;final:boolean;sentAt:number};
 type Deferred={notice:boolean;result:boolean;receipt?:any;readyAt?:number;dropped?:"superseded"|"expired"};
-type Turn={deferred?:Deferred;requested?:boolean;spokenReceipt?:any;asyncCall?:{id:string;name:string;request:unknown;responded:boolean};asyncHandoff?:AsyncHandoff;asyncFinalSent?:boolean;receiptQueued?:boolean;progressCount?:number;outputSeen?:boolean;greeting?:boolean;readback?:boolean;spoken?:string;verbatimChecked?:boolean;audioGenerations?:Set<string>;interruptionObserved?:boolean;inputEndedAt?:number;receiptRequestedAt?:number;decisionMs?:number;capabilityMs?:number;id:string;end:number;inputEnded:boolean;asrFinished:boolean;outputEnded:boolean;interrupted:boolean;generation:string;input:string;audio:Map<number,string>};
+type Turn={inputEndedWall?:number;sttFinalAt?:number;firstAudioAt?:number;receiptAudioAt?:number;capabilityStartedAt?:number;capabilityEndedAt?:number;deferred?:Deferred;requested?:boolean;spokenReceipt?:any;asyncCall?:{id:string;name:string;request:unknown;responded:boolean};asyncHandoff?:AsyncHandoff;asyncFinalSent?:boolean;receiptQueued?:boolean;progressCount?:number;outputSeen?:boolean;greeting?:boolean;readback?:boolean;spoken?:string;verbatimChecked?:boolean;audioGenerations?:Set<string>;interruptionObserved?:boolean;inputEndedAt?:number;receiptRequestedAt?:number;decisionMs?:number;capabilityMs?:number;id:string;end:number;inputEnded:boolean;asrFinished:boolean;outputEnded:boolean;interrupted:boolean;generation:string;input:string;audio:Map<number,string>};
 const ID=/^[A-Za-z0-9._:-]{1,160}$/;
 const OUTPUT_BOUNDARY_MS=2000;
 const READBACK_MAX_CHARS=600;
