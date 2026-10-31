@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "source": "S24 31/10/2026 12:02 Tunis, installer/termux-lite/deploy-parcours.py case owner_read (fresh owner session agent:main:recette-deploy:<stamp>). Tool call and tool result of samantha_agenda as observed; the brain repeated the tool answer verbatim. Cause established afterwards: Google refused the token refresh (RefreshError « invalid_grant: Token has been expired or revoked. »); Amine reconnected with tools/reauthorize_agenda_google.py, then the parcours passed. No token, account, e-mail, response body or event data.",
+  "outcome_before_fix": "owner_read failed broken_reply -> PARCOURS_FAILED, activation of an unrelated playbooks PR (Orange) refused",
+  "user_text": "Qu'est-ce que j'ai dans mon agenda demain ?",
+  "tool": "samantha_agenda",
+  "tool_call": {
+    "action": "agenda.event.read",
+    "params": {"calendar_id": "primary", "time_min": "2026-11-01T00:00:00+01:00", "time_max": "2026-11-02T00:00:00+01:00"}
+  },
+  "tool_result": {
+    "state": "FAILED",
+    "receiptId": "goal-acfaa254b4d88d59bec9",
+    "facts": {"state": "unverified", "reason": "google_authorization_unavailable"},
+    "answer": "La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.",
+    "replayed": false
+  },
+  "owner_reply": "La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.",
+  "owner_reply_after_playbooks_fix": "L’accès à ton agenda Google a expiré : il faut le reconnecter.",
+  "transcript_shape": "toolResult message as read by installer/termux-lite/claw-live.py (event_json.message.role, toolName, content text blocks); the content text is the tool result above. Shape from the deployed reader, not a raw row capture."
+}

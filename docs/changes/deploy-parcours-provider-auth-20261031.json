@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "id": "deploy-parcours-provider-auth-20261031",
+  "date": "2026-10-31",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The deploy parcours classifies an external provider authorization to redo (Google access expired or revoked) as inconclusive with reason provider_authorization_expired, like a provider outage: never a rollback nor a refused activation. The cause is read first from the typed tool result of the judged owner turn (agent transcript, read-only, this turn only: a failed samantha_* result whose facts.reason is one of the playbooks Google authorization codes); the owner sentence (« L’accès à ton agenda Google a expiré : il faut le reconnecter. » and close rewordings) counts alone only when the turn's tool results are unknown, and fails as unconfirmed_provider_authorization when they were read and name no such cause. Without either signal the generic « n’a pas abouti » stays broken_reply; any other failed path still fails the run.",
+  "reason": "S24 31/10 12:02 Tunis: owner_read « Qu'est-ce que j'ai dans mon agenda demain ? » -> samantha_agenda agenda.event.read -> FAILED, facts {state: unverified, reason: google_authorization_unavailable}, answer « La demande n’a pas abouti. Consulte le détail avant toute nouvelle action. », repeated by the brain. Real cause: Google refused the token refresh (invalid_grant, token expired or revoked). The parcours classified broken_reply and refused the activation of an unrelated playbooks PR (Orange), PARCOURS_FAILED; Amine had to reconnect (tools/reauthorize_agenda_google.py) before anything could be activated. Also: with the playbooks fix that names the cause, the base parcours would have judged « L’accès à ton agenda Google a expiré… » as passed.",
+  "files": [
+    "installer/termux-lite/deploy-parcours.py",
+    "installer/termux-lite/test-deploy-parcours.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-agenda-auth-revoked/parcours-owner-read.json",
+    "docs/changes/deploy-parcours-provider-auth-20261031.json",
+    "docs/changes/deploy-parcours-provider-auth-20261031.md"
+  ],
+  "tests": [
+    {"name": "installer/termux-lite/test-deploy-parcours.py", "status": "passed",
+     "evidence": "12 tests (4 new, class ProviderAuthorization), already registered in ci.yml (Deployment acceptance — five representative paths). Fixture s24-2026-10-31-agenda-auth-revoked: the observed tool result in a temporary transcript gives cause google_authorization_unavailable and the observed generic reply becomes inconclusive provider_authorization_expired; without the cause it stays failed broken_reply. The new playbooks sentence and rewordings are inconclusive when the tool results are unknown or name the cause, failed unconfirmed_provider_authorization when read without it. Only this turn's rows of this session count; non-typed tools, other causes and unreadable rows never count; a missing transcript is unknown. run_all: the reason is in the receipt row, another broken path still fails the run. On the base the new tests error (verdict/run_all have no cause, no TurnCauses) and the base verdict of the new sentence is passed/ok."},
+    {"name": "installer/termux-lite/test-activate-ui-playbooks.sh", "status": "passed",
+     "evidence": "activate-ui-playbooks: ok (exit 3 keeps the snapshot, exit 1 switches back) — unchanged contract."}
+  ],
+  "documentation": ["docs/changes/deploy-parcours-provider-auth-20261031.md"],
+  "capabilities": {"impact": "none", "reason": "Deployment acceptance only; no route or capability."},
+  "architecture": {"changed": false, "reason": "Same parcours owner, paths and exit codes; the transcript is read read-only from the store claw-live.py already reads. No new store, registry, router, scheduler or daemon."},
+  "mcp_owner_parity": {
+    "tools": {"claw_context": "verified_no_impact", "claw_resolve": "verified_no_impact", "claw_execute": "verified_no_impact", "claw_exec": "verified_no_impact", "claw_status": "verified_no_impact", "claw_artifact_read": "verified_no_impact"},
+    "attached": {"schemas": "verified_no_impact", "adapters": "verified_no_impact", "documentation": "verified_no_impact", "tests": "verified_no_impact", "runtime": "verified_no_impact"},
+    "evidence": ["Deployment acceptance script only."]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The transcript row shape (session_nodes.session_key -> current_session_id, transcript_events.event_json toolResult with toolName and text content) comes from the deployed reader installer/termux-lite/claw-live.py and the observed tool result; a raw row of the recette session was not captured on the S24 (no phone access in this lot). If it differs, cause() returns unknown and the sentence decides, as before.",
+    "An inconclusive run keeps the activation (activate-ui-playbooks.sh exit 3, companion-deploy.sh no rollback): the agenda path is then not verified for that deployment; the receipt row names provider_authorization_expired.",
+    "deploy-after-maint.sh is not in this repository nor in samantha-ui-playbooks; its handling of exit 3 was not inspected.",
+    "Live proof after deployment: next parcours with a valid token (owner_read passed) and, at the next real refusal, the receipt row."
+  ],
+  "rollback": "Revert this commit; an expired provider authorization is again judged broken_reply (generic sentence) or passed (named sentence)."
+}
