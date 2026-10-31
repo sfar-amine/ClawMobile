@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "id": "cold-start-warm-windows-20261031",
+  "date": "2026-10-31",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "memory-retrieval-warm keeps both warm windows 12 h instead of 30 min: the recall WorkerTaskPool idleTimeoutMs 18e5 -> 432e5 and SQLITE_IDLE_HANDLE_TTL_MS 18e5 -> 432e5 (dist/sqlite-handle-lifecycle-dWd9h3ii.mjs, same public module in 2026.9.6 and 2026.10.9). The deployed 30 min patch is a pinned predecessor, upgraded and rolled back through its verified original.",
+  "reason": "S24 settled bench 31/10 (Gateway up > 1 h, 5 turns 90 s apart): warm turns 3.7-5.1 s (median 3.85 s vs 5.15 s before core#492), catalog -> start 0.4-0.5 s. The first turn after more than 30 min still took 7.6 s: the agent database handle had been closed by the shared 30 min idle window, its reopen queued an integrity quick_check while the session write waited 2.6 s, and the recall worker respawned (catalog -> start 3.2 s). A spoken request after a long pause is the common voice case.",
+  "files": [
+    "installer/termux-lite/openclaw-compat/memory-retrieval-warm.json",
+    "installer/termux-lite/test-memory-retrieval-warm.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-memory-retrieval-warm/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-memory-retrieval-warm/measurements.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-memory-retrieval-warm/compat/sqlite-handle-lifecycle-dWd9h3ii.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/sqlite-handle-lifecycle-dWd9h3ii.mjs.gz",
+    "docs/changes/cold-start-warm-windows-20261031.json",
+    "docs/changes/cold-start-warm-windows-20261031.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-memory-retrieval-warm.py",
+      "status": "passed",
+      "evidence": "10 tests: captured S24 modules = npm, only the recall pool gets 432e5, handle window 432e5 with the export intact, node --check, same pinned handle entry in the 2026.10.9 variant, the deployed 30 min patch upgrades then rolls back to the original, atomic/idempotent/reversible, refusals, deploy/sync/gateway wiring."
+    },
+    {
+      "name": "test-openclaw-compat-variants.py, test-native-turn-provenance.py, test-model-flow-selection.py, test-agent-exec-auth-scope.py, test-whatsapp-network-recovery.py, test-runtime-sync.py, test-ci-registration.py",
+      "status": "passed",
+      "evidence": "2026.10.9 variants apply on the captured npm modules including the handle module; neighbouring owners green."
+    }
+  ],
+  "documentation": [
+    "docs/changes/cold-start-warm-windows-20261031.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-memory-retrieval-warm/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Two OpenClaw idle windows through the existing compatibility owner; no route, action or capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same pinned patch set and wiring as core#492; no new owner, store, scheduler or daemon. The recall pool keeps its memory-critical retirement; the daily integrity verifier is unchanged."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Gateway worker and SQLite handle lifetimes only; MCP tools and schemas unchanged."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The gain on the first turn after a long pause (~2.6 s queue + ~2.7 s respawn) is inferred from the timeline; it is confirmed only by a bench with a > 30 min pause after deployment.",
+    "Idle SQLite handles and the recall worker stay resident up to 12 h; settled RSS was 923 MB idle and 962 MB with both warm, re-measured after deployment.",
+    "The shared handle window also applies to the state read worker pool, the reclamation and transcript workers; their idle threads stay alive longer.",
+    "A Gateway restart (deploy, night) still starts cold."
+  ],
+  "rollback": "companion-deploy.sh of the previous commit undoes the set when the previous manifest differs, then the previous runtime-sync re-applies its own; or --patch-set memory-retrieval-warm --rollback then a Gateway restart."
+}
