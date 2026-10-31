@@ -73,6 +73,36 @@ async function main() {
     assert.equal(u.handled, true); assert.match(u.reply.text, /n'ai pas compris/); checks += 2;
   }
 
+  // --- WhatsApp owner while Samantha restarts (Amine 28/10, replaces D-B) ---
+  // The coordinator kept nothing and ran nothing (retryable): the same event is submitted again until she is ready.
+  {
+    const saved = { ...dialogue.DEFER_UNTIL_READY };
+    Object.assign(dialogue.DEFER_UNTIL_READY, { windowMs: 200, stepMs: 10 });
+    const event = (content) => ({ content, senderIsOwner: true, isGroup: false, sessionKey: "agent:main:whatsapp:direct:21600000000" });
+    const ctx = (runId) => ({ agentId: "main", channel: "whatsapp", sessionKey: "agent:main:whatsapp:direct:21600000000", runId });
+    const seen = [];
+    const restarting = async (message, options) => {
+      seen.push(options.dialogue.event.eventRef);
+      return seen.length < 3
+        ? { outcome: "TECHNICAL_FAILURE", reasonCode: "interpretation_not_dispatched", retryable: true, handled: true, text: "Le service n'a pas répondu ; rien n'a été exécuté." }
+        : { outcome: "COMPLETED", text: "Ton solde Orange : 12,4 DT.", handled: true };
+    };
+    const ready = await fastPath.handleOwnerFastPath(event("mon solde orange"), ctx("wamid-restart"), restarting);
+    assert.deepEqual(ready, { handled: true, reply: { text: "Ton solde Orange : 12,4 DT." } }); checks++;
+    assert.deepEqual(seen, ["wamid-restart", "wamid-restart", "wamid-restart"], "the same event, never a new one"); checks++;
+    let count = 0;
+    const down = async () => { count++; return { outcome: "MAINTENANCE", reasonCode: "maintenance", retryable: true, handled: true, text: "maintenance" }; };
+    const still = await fastPath.handleOwnerFastPath(event("mon solde orange"), ctx("wamid-down"), down);
+    assert.deepEqual(still, { handled: true, reply: { text: dialogue.STILL_RESTARTING_TEXT } }); checks++;
+    assert.ok(count >= 2 && count <= 21, String(count)); checks++;
+    count = 0;
+    const final = async () => { count++; return { outcome: "TECHNICAL_FAILURE", reasonCode: "unavailable", handled: true, text: "Orange KO" }; };
+    const failed = await fastPath.handleOwnerFastPath(event("mon solde orange"), ctx("wamid-final"), final);
+    assert.deepEqual(failed, { handled: true, reply: { text: "Orange KO" } });
+    assert.equal(count, 1, "a final failure is never submitted again"); checks += 2;
+    Object.assign(dialogue.DEFER_UNTIL_READY, saved);
+  }
+
   // --- Voice relay ---
   {
     const { runner, calls } = fakeCoordinator();
