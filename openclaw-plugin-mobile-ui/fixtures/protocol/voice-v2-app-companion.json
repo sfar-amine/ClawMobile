@@ -33,7 +33,7 @@
   },
   "deferredReadback": {
     "optIn": "POST /v1/extensions/claw-live/capability voiceTurn.deferredReadback = 1, only after warmReady.deferredReadback = 1",
-    "pendingNotice": "Je cherche encore, je te donne la réponse dès que je l'ai.",
+    "pendingNotice": "Je te donne la réponse dès que je l'ai.",
     "events": ["deferredReady", "deferredDropped"],
     "dropReasons": ["superseded", "expired"],
     "admitted": ["notice", "result"],
@@ -42,6 +42,29 @@
     "maxOpenPerSession": 3,
     "abandonAfterReadyMs": 90000,
     "followHorizonMs": 300000
+  },
+  "waitingCues": {
+    "runActivity": "GET /v1/runs/{runId} and GET /v1/runs/by-client/{clientRunId}: progress.activity = {tool, action?, at?}, the latest typed Samantha tool the run started; absent on an older Companion (generic phrase)",
+    "toolPattern": "^samantha_[a-z0-9_]{1,100}$",
+    "actionPattern": "^[a-z][a-z0-9_.-]{0,127}$",
+    "excludedTools": ["samantha_catalogue"],
+    "modes": ["phrase", "sound", "silence"],
+    "defaultMode": "phrase",
+    "firstCueMs": 1500,
+    "repeatEveryMs": 6000,
+    "maxCuesPerTurn": 5,
+    "phrasesPerTurn": 1,
+    "phrases": {
+      "samantha_utility_billing": "Je regarde tes factures.",
+      "samantha_steg": "Je regarde tes factures.",
+      "samantha_sonede": "Je regarde tes factures.",
+      "samantha_topnet": "Je regarde tes factures.",
+      "samantha_agenda": "Je consulte ton agenda.",
+      "samantha_maxit_tunisie": "Je regarde ton compte Orange.",
+      "samantha_pulse": "Je regarde dans Pulse.",
+      "default": "Je m'en occupe."
+    },
+    "budgetNotice": "deferredReadback.pendingNotice, once per turn, in every mode (information, not filler)"
   },
   "audio": ["sessionEpoch", "turnId", "firstSample", "samples", "sampleRate", "data"],
   "correlation": {"values": ["exact", "stale_ignored", "ambiguous"], "unknown": "fatal"},

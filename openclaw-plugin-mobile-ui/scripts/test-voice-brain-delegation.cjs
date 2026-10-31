@@ -141,7 +141,7 @@ const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resol
    const c=clock();let polls=0;
    const r=await brain.delegateVoiceTurnToBrain('Fais-moi un résumé de ma semaine',ctx(),{...c,budgetMs:30_000,
     submit:async()=>({success:true,accepted:true,runId:'run_2',state:'running',result:'…'}),status:async()=>{polls++;return {success:true,runId:'run_2',state:'running',message:''};}});
-   assert.equal(r.state,'pending');assert.equal(r.text,"Je cherche encore, je te donne la réponse dès que je l'ai.");assert.equal(r.deferredReadback,undefined);assert.equal(r.voice.verbatim,r.text);assert.ok(polls>=50&&polls<=61);
+   assert.equal(r.state,'pending');assert.equal(r.text,"Je te donne la réponse dès que je l'ai.");assert.equal(r.deferredReadback,undefined);assert.equal(r.voice.verbatim,r.text);assert.ok(polls>=50&&polls<=61);
   });
   await test('an immediate canonical result needs no polling',async()=>{
    let polls=0;
@@ -241,7 +241,7 @@ const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resol
    assert.match(block,/routeUnresolvedVoiceTurn\(text, \{sessionId, clientRunId: String\(body\.clientRunId \|\| ""\), admission: admission\.ticket, assertCurrent\}/);
    assert.match(block,/resolve: \(unresolved\) => capabilityBridge\(unresolved, \{execute:false,surface:"claw_live",caller:"owner",timeoutSeconds:5\}\)/);
    assert.match(block,/execute: \(unresolved\) => capabilityBridge\(unresolved, \{execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35\}\)/);
-   assert.match(block,/submit: submitIntent, status: getRunStatus/);
+   assert.match(block,/submit: submitIntent, status: voiceRunStatus, pollMs: VOICE_RUN_POLL_MS/);
    assert.match(block,/console\.log\(voiceTurnLogLine\(result, Date\.now\(\) - turnStarted\)\);/);
    const agent=fs.readFileSync(path.join(__dirname,'../src/companion/openclawAgentClient.ts'),'utf8');
    assert.match(agent,/const canonical=compactOwnerAgentContext\(options\);/);

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "sdkVersion": "2026.9.6",
+  "source": "Public openclaw@2026.9.6 tar (npm pack, same tar as fixtures/s24-2026-10-26-gateway-prep-stages). Both modules are imported by builtin-openclaw-q1hiFm14.mjs, whose public bytes were verified identical to the S24 file on 26/10 (that fixture). gzip -9n, deterministic. No runtime log, configuration, transcript or user text.",
+  "publicTarSha256": "1a7355691bc0e605222ba818f1f72c1787253c78dfeb0df6be2086ec73b71e63",
+  "modules": [
+    {"name": "date-time-CaOYkXPL.mjs", "bytes": 6770, "sha256": "98e20008267cd6be2f4a8ce583f70e7e6fd26f85cef7e08470c83d031f061e79",
+     "regions": ["src/agents/date-time.ts"], "use": "buildTemporalContextSection: the system prompt's Temporal Context (date only, « For the exact current time, use `session_status` »)"},
+    {"name": "format-datetime-CSLJIAzN.mjs", "bytes": 5233, "sha256": "5f7fe534d25412e67fb25b596989b76b8228a1beaedfb2ca1766c7dd45d25818",
+     "regions": ["src/infra/format-time/format-datetime.ts"], "use": "formatZonedTimestamp: the SDK's user-message timestamp envelope format"}
+  ],
+  "boundary": "../s24-2026-10-26-gateway-prep-stages/builtin-openclaw-q1hiFm14.mjs.gz (S24-identical): buildTimestampPrefix and stampUserTextWithMessageTimestamp, the LLM-boundary stamp that keeps an existing envelope.",
+  "observation": "S24 31/10 voice bench, brain-only, core 446945af: « quelle heure est-il » 12.0 s from t25 to t30 (the brain called a tool for the time) against 6.2 s for « merci Samantha » (no tool). Reported by Amine; no transcript copied."
+}
