@@ -19,5 +19,27 @@
         ]
       ]
     }
-  ]
+  ],
+  "packages": {
+    "2026.10.9": {
+      "files": [
+        {
+          "root": "openclaw",
+          "path": "dist/runtime-fLuYb9ac.mjs",
+          "original": "682171868d4700f223e06b8ba71fd9484c1ded46647ed7aa364413c0a99ab6e1",
+          "patched": "7010667f97233dfd4af97cf727248a57949ab90895a9d2854847246911ea2858",
+          "replacements": [
+            [
+              "import { isDeepStrictEqual } from \"node:util\";",
+              "import { c as getScopedAuthProfileEnv } from \"./store-CGYBYVbs.mjs\";\nimport { isDeepStrictEqual } from \"node:util\";"
+            ],
+            [
+              "const runtimeEnv = mergeSecretsRuntimeEnv(params.env);",
+              "const runtimeEnv = mergeSecretsRuntimeEnv(params.env ?? getScopedAuthProfileEnv());"
+            ]
+          ]
+        }
+      ]
+    }
+  }
 }

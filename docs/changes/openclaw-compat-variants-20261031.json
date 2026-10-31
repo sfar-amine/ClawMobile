@@ -1,0 +1,85 @@
+{
+  "version": 2,
+  "id": "openclaw-compat-variants-20261031",
+  "date": "2026-10-31",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The existing openclaw-compat owner selects the pinned file set of the installed OpenClaw version: package_version + files keep the 2026.9.6 set, an optional packages map adds 2026.10.9 sets for memory-retrieval-warm, native-turn-provenance, agent-exec-auth-scope and model-flow-selection. One checkout now owns these patches before, during and after an OpenClaw upgrade or its rollback.",
+  "reason": "OpenClaw 2026.10.9 preparation (S24 31/10): every pinned patch refused another version, and model-flow-selection refusing stops gateway-start. The sets were ported to the npm 2026.10.9 modules, rebuilt identically on a candidate installed in isolation on the S24, where the five patched model-flow modules import with their real dependencies.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/openclaw-compat-variants-20261031.json",
+    "docs/changes/openclaw-compat-variants-20261031.md",
+    "installer/termux-lite/openclaw-compat/agent-exec-auth-scope.json",
+    "installer/termux-lite/openclaw-compat/memory-retrieval-warm.json",
+    "installer/termux-lite/openclaw-compat/model-flow-selection.json",
+    "installer/termux-lite/openclaw-compat/native-turn-provenance.json",
+    "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
+    "installer/termux-lite/test-openclaw-compat-variants.py",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/agent-runner-run-DEfqFyz9.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/compact-5sjN3p_L.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/config-contracts-DzLaG7FV.d.ts.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/context-engine-maintenance-lAvtCTBg.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/dispatch-from-config-D0ByBFxM.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/embedded-agent-DoEPu8ye.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/get-reply-XXltnwYw.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/hooks-CgZHhfMh.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/manager-cpu-worker-runtime-h904LJhI.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/run-entry-BnMGfzuI.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/runtime-fLuYb9ac.mjs.gz"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-openclaw-compat-variants.py",
+      "status": "passed",
+      "evidence": "4 tests on the captured 2026.10.9 modules: each variant applies atomically, idempotently, reverses exactly; 2026.9.6 sets unchanged; unknown version refused before any write; patched modules parse and the model-profile exports exist. Registered in ci.yml."
+    },
+    {
+      "name": "test-native-turn-provenance.py, test-model-flow-selection.py, test-agent-exec-auth-scope.py, test-whatsapp-network-recovery.py, test-memory-retrieval-warm.py, test-runtime-sync.py, test-gateway-prep-stages.py, test-ci-registration.py",
+      "status": "passed",
+      "evidence": "Existing 2026.9.6 owners and their deploy/gateway guards green on this head."
+    }
+  ],
+  "documentation": [
+    "docs/changes/openclaw-compat-variants-20261031.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Compatibility owner and pinned manifests only; no route, action or capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same owner, same manifests; an optional per-version map; no new store, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "OpenClaw compatibility patches only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "No effect on the installed 2026.9.6: the owner keeps selecting the same files.",
+    "Not yet in the 2026.10.9 sets: whatsapp-network-recovery (its WhatsApp package version for 2026.10.9 is not pinned yet) and the Android filesystem patch (EACCES copy fallbacks, /proc/self/ns/pid) of openclaw-android; gateway-prep-stages stays 2026.9.6-only (diagnostic, never enabled by startup).",
+    "model-flow-selection 2026.10.9 is syntax- and import-verified; its behaviour is proven by the upgrade rehearsal on the S24 before any switch.",
+    "native-turn-provenance 2026.10.9: get-reply always builds its transport object, so a turn carrying only the ingress run id now persists a transport entry."
+  ],
+  "rollback": "Revert this commit: the 2026.9.6 sets are byte-identical; nothing is applied differently on 2026.9.6."
+}

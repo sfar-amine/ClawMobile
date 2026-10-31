@@ -62,5 +62,55 @@
         ]
       ]
     }
-  ]
+  ],
+  "packages": {
+    "2026.10.9": {
+      "files": [
+        {
+          "root": "openclaw",
+          "path": "dist/dispatch-from-config-D0ByBFxM.mjs",
+          "original": "5b42abe88035db530bd69bf397ecc614e129e84e2e7cd8886662c9ac2b983986",
+          "patched": "3164e1974263e9eadcabc87e501a9ebebd0db2257937201ee06a689757c6353a",
+          "replacements": [
+            [
+              "async function dispatchReplyFromConfigWithQueuePolicy(params, allowActiveQueueResolution) {",
+              "// Samantha native turn provenance v1: one host identity before hooks and retries, reused by the existing executor.\nfunction prepareNativeInboundRunOptions(options) {\n return {...options, runId: options?.runId ?? crypto.randomUUID(), nativeIngressObservedMonoMs: Number(process.hrtime.bigint() / 1000000n)};\n}\nasync function dispatchReplyFromConfigWithQueuePolicy(params, allowActiveQueueResolution) {\n\tparams = {...params, replyOptions: prepareNativeInboundRunOptions(params.replyOptions)};"
+            ],
+            [
+              "\t\tconst nextHookContext = deriveInboundMessageHookContext(sourceCtx, { messageId: messageIdForHook });",
+              "\t\tconst nextHookContext = {...deriveInboundMessageHookContext(sourceCtx, { messageId: messageIdForHook }), runId: normalizedParams.replyOptions.runId};"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/get-reply-XXltnwYw.mjs",
+          "original": "b6d86e987762f58e74aa3c1522f1ba6416734a9ad59fba758a07942f16f2dc31",
+          "patched": "e6d38c97c078aef4b5ef83644f8cfd17ffca52347d48014d049135887c401ceb",
+          "replacements": [
+            [
+              "\tconst transport = {\n\t\t...transportChannel ? { channel: transportChannel } : {},\n",
+              "\tconst transport = {\n\t\t...typeof sessionCtx.AccountId === \"string\" && /^[A-Za-z0-9_.-]{1,80}$/.test(sessionCtx.AccountId) ? { accountId: sessionCtx.AccountId } : {},\n\t\t.../^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(opts?.runId ?? '') ? { ingressRunId: opts.runId, ...(Number.isSafeInteger(opts.nativeIngressObservedMonoMs) && opts.nativeIngressObservedMonoMs >= 0 ? { ingressObservedMonoMs: opts.nativeIngressObservedMonoMs } : {}) } : {},\n\t\t...transportChannel ? { channel: transportChannel } : {},\n"
+            ],
+            [
+              "\tconst followupRun = {\n\t\tprompt: queuedBody,",
+              "\tconst followupRun = {\n\t\t.../^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(opts?.runId ?? '') ? { ingressRunId: opts.runId } : {},\n\t\tprompt: queuedBody,"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/agent-runner-run-DEfqFyz9.mjs",
+          "original": "c8e82781967a3f0043511a51ebc89346a2f671ded666b61c70ab96c03c08c44b",
+          "patched": "a16cb04da389535a0f89e31ba1981bd127fc11329014b512f13d1f4bda5f3660",
+          "replacements": [
+            [
+              "\t\t\trunId: crypto.randomUUID(),\n\t\t\tqueued:",
+              "\t\t\trunId: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(queued.ingressRunId ?? '') ? queued.ingressRunId : crypto.randomUUID(),\n\t\t\tqueued:"
+            ]
+          ]
+        }
+      ]
+    }
+  }
 }
