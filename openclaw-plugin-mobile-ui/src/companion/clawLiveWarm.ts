@@ -12,6 +12,7 @@ import { createClawLiveToken, validatedClawLiveVoice, CLAW_LIVE_MODEL, type Claw
 import { reconnectDelay } from "./reconnectPolicy";
 import { VoiceUnderstandingState } from "./clawLiveUnderstanding";
 import type { VoiceDeferredOwner } from "./voiceBrainDelegation";
+import { voiceTurnStages, voiceStagesLine, type ObservedRunTiming, type VoiceTurnStages } from "./voiceTurnStages";
 
 const PROVIDER_URL="wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained";
 const SOCKET_PATH="/v1/extensions/claw-live/socket";
@@ -31,7 +32,13 @@ type WarmDeps={
   retryDelay?:(attempt:number)=>number;
   telemetry?:VoiceTelemetry;
   ownerHandoffWaitMs?:number;
+  /** Run registry marks of a brain run (runs.observedRunTiming), memory only. */
+  runTiming?:(runId:string)=>ObservedRunTiming;
+  /** Bounded process log sink of the stage line (console.log, rotated by bounded-log.py). */
+  log?:(line:string)=>void;
 };
+/** Last voice turn stage records kept for warm-status (bounded, integers and run ids only). */
+const VOICE_STAGES_KEPT=8;
 
 function safeMeta(req:http.IncomingMessage):LocalMeta {
   const u=new URL(req.url||SOCKET_PATH,"http://127.0.0.1");
@@ -94,6 +101,9 @@ export class ClawLiveWarmCore {
   private telemetrySid="";
   private telemetryTurns=new Map<string,number>();
   private clientWarmHit=new Map<WebSocket,boolean>();
+  private readonly runTiming:(runId:string)=>ObservedRunTiming;
+  private readonly log:(line:string)=>void;
+  private voiceStages:VoiceTurnStages[]=[];
   /** Lot 41 piste 2: ephemeral « Compris / Ce n'est pas ça » slot of the single voice owner. */
   readonly understanding=new VoiceUnderstandingState(()=>this.now());
 
@@ -105,6 +115,9 @@ export class ClawLiveWarmCore {
     this.retryDelay=deps.retryDelay||reconnectDelay;
     this.ownerHandoffWaitMs=Math.max(1,Math.min(2_000,deps.ownerHandoffWaitMs??750));
     this.telemetry=deps.telemetry||new VoiceTelemetry();
+    // Lazy: the run registry module is loaded only when a stage record is written.
+    this.runTiming=deps.runTiming||((runId)=>require("./runs").observedRunTiming(runId));
+    this.log=deps.log||((line)=>console.log(line));
   }
 
   status(){
@@ -114,17 +127,30 @@ export class ClawLiveWarmCore {
       conversationBound:Boolean(this.conversationId&&this.conversationId!=="__prewarm__"),resumable:this.hasValidResumeHandle(),historyLoaded:this.historyLoaded,
       connectedAt:this.connectedAt||null,readyAt:this.readyAt||null,lastUsedAt:this.lastUsedAt||null,
       lastSetupMs:this.lastSetupMs,resumedLast:this.resumedLast,reconnectAttempts:this.reconnectAttempts,
-      lastError:this.lastError||null,idleMs:this.idleMs,telemetry:this.telemetry.status(),
+      lastError:this.lastError||null,idleMs:this.idleMs,telemetry:this.telemetry.status(),voiceStages:[...this.voiceStages],
     };
   }
 
   private trace(ev:VoiceTelemetryCode,turn=0,x:Record<string,number|boolean>={}) {
     if(this.telemetrySid)this.telemetry.emit(this.telemetrySid,turn,ev,{connection:this.connectionGeneration,...x});
   }
-  private observeTurn(ev:string,id:string,x:Record<string,number|boolean>={}) {
+  private observeTurn(ev:string,id:string,x:Record<string,number|boolean>={},protocol?:VoiceTurnProtocol) {
     if(ev==="input_start"&&!this.telemetryTurns.has(id)&&this.telemetryTurns.size<64)this.telemetryTurns.set(id,this.telemetryTurns.size+1);
     const turn=this.telemetryTurns.get(id);
     if(turn!==undefined&&ev!=="input_start")this.trace(ev as VoiceTelemetryCode,turn,x);
+    // First audio of the turn's answer (receipt phase): one stage record per turn, always on (not the lab telemetry).
+    if(ev==="t30p"&&x.phase===1&&protocol)this.recordVoiceStages(protocol,id);
+  }
+  /** Instrumentation never changes the turn: any failure here is dropped. */
+  private recordVoiceStages(protocol:VoiceTurnProtocol,id:string) {
+    try {
+      const marks=protocol.stageMarks(id);if(!marks)return;
+      let run:ObservedRunTiming=null;
+      if(marks.runId)try{run=this.runTiming(marks.runId);}catch{run=null;}
+      const stages=voiceTurnStages(marks,run);if(!stages)return;
+      this.voiceStages=[...this.voiceStages,stages].slice(-VOICE_STAGES_KEPT);
+      this.log(voiceStagesLine(stages));
+    } catch {}
   }
 
   private armIdleTimer(){
@@ -216,10 +242,10 @@ export class ClawLiveWarmCore {
     if(ws.readyState!==WebSocket.OPEN)return;
     const meta=this.clientMeta.get(ws);
     const warmHit=this.clientWarmHit.get(ws)===true;
-    if(meta?.protocol===2&&!this.protocols.has(ws))this.protocols.set(ws,new VoiceTurnProtocol(this.connectionGeneration,meta.sessionEpoch!,
+    if(meta?.protocol===2&&!this.protocols.has(ws)){const protocol:VoiceTurnProtocol=new VoiceTurnProtocol(this.connectionGeneration,meta.sessionEpoch!,
       value=>{if(this.providerReady&&this.provider?.readyState===WebSocket.OPEN)this.provider.send(JSON.stringify(value));},
       value=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(value));},
-      (ev,id,x)=>this.observeTurn(ev,id,x),undefined,warmHit,undefined,true));
+      (ev,id,x)=>this.observeTurn(ev,id,x,protocol),undefined,warmHit,undefined,true);this.protocols.set(ws,protocol);}
     this.trace("t07",0,{cached:warmHit});
     ws.send(JSON.stringify({warmReady:{historyRequired,resumed:this.resumedLast,setupMs:this.lastSetupMs,state:"warm",
       protocolVersion:meta?.protocol===2?2:1,connectionEpoch:this.connectionGeneration,sessionEpoch:meta?.sessionEpoch,
