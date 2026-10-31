@@ -3,7 +3,7 @@
   "id": "voice-waiting-cues-20261031",
   "date": "2026-10-31",
   "origin": "chat",
-  "kind": "feature",
+  "kind": "capability",
   "summary": "Samantha Voix waiting cues (Amine 31/10, « go pour tout »): the run status now carries progress.activity, the latest typed Samantha tool the brain run started (name and action only), so the app says one useful phrase per turn after 1.5 s (« Je regarde tes factures. »), then at most a soft earcon; the 30 s budget notice becomes « Je te donne la réponse dès que je l'ai. ».",
   "reason": "S24 voice bench 31/10: generic local waiting clips relaunched every 5-10 s while the brain works (waiting_local, relaunch_local), then « Je cherche encore, … » beyond 30 s; Amine finds the repetition annoying and decided the target behaviour.",
   "files": [
