@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "id": "owner-defer-until-ready-20261031",
+  "date": "2026-10-31",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The owner WhatsApp turn (handleOwnerFastPath) keeps a message the dialogue coordinator marks retryable and submits the same event again every 5 s for at most 5 min, like the Pulse room since 28/10; past the bound it says Samantha is still restarting and that nothing ran. The bounded loop moves to dialogueSurface (dialogueTurnUntilReady), shared by both surfaces.",
+  "reason": "Amine 28/10 (EVT-3334, replaces D-B): a message received while Samantha updates or restarts is kept and handled once she is ready, then answered. pulse-room-defer-until-ready-20261028 covered the Pulse room only and listed owner WhatsApp turns as unchanged; Amine's own messages during a deploy still got the coordinator's « rien n'a été exécuté » failure. The coordinator already marks these turns retryable for every surface (closed maintenance window, interpretation never dispatched) and commits nothing.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/dialogueSurface.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/pulseRoomFastPath.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-e3-surfaces.cjs",
+    "docs/changes/owner-defer-until-ready-20261031.json",
+    "docs/changes/owner-defer-until-ready-20261031.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-e3-surfaces.cjs",
+      "status": "passed",
+      "evidence": "46 checks; new: an owner message seen twice as interpretation_not_dispatched is answered on the third submission of the same eventRef; a coordinator still in maintenance yields the still-restarting text within the bound (2-21 submissions with a 200 ms window); a final TECHNICAL_FAILURE is submitted once."
+    },
+    {
+      "name": "test-pulse-room-fast-path.cjs, test-contact-room-fast-path.cjs, test-whatsapp-rooms-paired.cjs, test-model-fast-path.cjs; tsc",
+      "status": "passed",
+      "evidence": "Pulse room keeps its 28/10 behaviour through the shared helper (DEFER_UNTIL_READY re-exported, same object)."
+    }
+  ],
+  "documentation": [
+    "docs/changes/owner-defer-until-ready-20261031.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Surface waiting rule; no route, action or capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuses the coordinator's retryable flag and the existing bounded loop; no queue, store, scheduler or retry engine added. The coordinator stays the only owner of the decision; the event is the same (idempotent eventRef)."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Plugin owner WhatsApp hook only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "App and voice turns keep their behaviour: a person waiting on screen or on the line gets the coordinator reply at once rather than a 5 min hold.",
+    "A message that never reached the plugin (Gateway itself down) depends on WhatsApp redelivery, unchanged.",
+    "Live proof: an owner WhatsApp message sent during a core deploy is answered once Samantha is ready."
+  ],
+  "rollback": "Revert this commit; the Pulse room keeps the same loop inline as before."
+}
