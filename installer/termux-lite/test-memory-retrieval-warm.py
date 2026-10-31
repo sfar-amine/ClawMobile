@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Memory recall worker keep-alive: pinned existing compatibility owner on the captured public SDK module."""
+"""Memory recall worker and SQLite handle keep-alive: pinned existing compatibility owner on the captured public SDK modules."""
 import gzip
 import hashlib
 import json
@@ -50,13 +50,47 @@ class MemoryRetrievalWarm(unittest.TestCase):
         text = self.module()
         retrieval = text[text.index("const retrieval = new WorkerTaskPool({"):text.index("const indexing = new WorkerTaskPool({")]
         indexing = text[text.index("const indexing = new WorkerTaskPool({"):text.index("async function runMemoryIndexState")]
-        self.assertIn("idleTimeoutMs: 18e5", retrieval)
+        self.assertIn("idleTimeoutMs: 432e5", retrieval)
         self.assertNotIn("idleTimeoutMs", indexing)
         self.assertEqual(text.count("idleTimeoutMs"), 1)
         node = shutil.which("node")
         if node:
             checked = subprocess.run([node, "--check", str(self.root / MANIFEST["files"][0]["path"])], capture_output=True, text=True)
             self.assertEqual(checked.returncode, 0, checked.stderr)
+
+    def test_idle_sqlite_handles_stay_open_twelve_hours(self):
+        measured = json.loads((FIXTURE / "measurements.json").read_text())
+        handle = next(item for item in MANIFEST["files"] if item["path"].endswith("sqlite-handle-lifecycle-dWd9h3ii.mjs"))
+        self.assertEqual(measured["handle_module"]["sha256"], handle["original"])
+        self.assertEqual(self.cli("apply").returncode, 0)
+        text = (self.root / handle["path"]).read_text()
+        self.assertIn("const SQLITE_IDLE_HANDLE_TTL_MS = 432e5;", text)
+        self.assertNotIn("18e5", text)
+        self.assertIn("export { SQLITE_IDLE_HANDLE_TTL_MS as t };", text)
+        variant = MANIFEST["packages"]["2026.10.9"]["files"]
+        self.assertIn(handle, variant, "same public module in 2026.10.9, same pinned replacement")
+        node = shutil.which("node")
+        if node:
+            checked = subprocess.run([node, "--check", str(self.root / handle["path"])], capture_output=True, text=True)
+            self.assertEqual(checked.returncode, 0, checked.stderr)
+
+    def test_deployed_thirty_minute_patch_upgrades_and_rolls_back(self):
+        entry = MANIFEST["files"][0]
+        previous = entry["predecessors"][0]
+        target = self.root / entry["path"]
+        text = target.read_text()
+        for old, new in previous["replacements"]:
+            text = text.replace(old, new, 1)
+        target.write_text(text)
+        self.assertEqual(hashlib.sha256(target.read_bytes()).hexdigest(), previous["patched"])
+        self.assertIn("idleTimeoutMs: 18e5", text)
+        self.assertNotEqual(self.cli("check").returncode, 0)
+        result = self.cli("apply")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for item in MANIFEST["files"]:
+            self.assertEqual(hashlib.sha256((self.root / item["path"]).read_bytes()).hexdigest(), item["patched"])
+        self.assertEqual(self.cli("rollback").returncode, 0)
+        self.assertEqual(hashlib.sha256(target.read_bytes()).hexdigest(), entry["original"])
 
     def test_captured_set_atomic_idempotent_and_reversible(self):
         original = self.snapshot()

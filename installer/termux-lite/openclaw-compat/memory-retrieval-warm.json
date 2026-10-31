@@ -1,17 +1,40 @@
 {
   "version": 1,
   "package_version": "2026.9.6",
-  "purpose": "Keep the existing memory-core recall worker pool warm for 30 min instead of the WorkerTaskPool 60 s default, so a spoken turn after a pause does not respawn it on the critical path; the pool's own memory-critical retirement is unchanged.",
+  "purpose": "Keep the existing memory-core recall worker pool and idle SQLite handles warm for 12 h instead of the WorkerTaskPool 60 s default and the 30 min handle window, so a spoken turn after a pause neither respawns the recall worker nor reopens the agent database (whose reopen queues an integrity quick_check ahead of the session write) on the critical path; the pool's own memory-critical retirement is unchanged.",
   "files": [
     {
       "root": "openclaw",
       "path": "dist/manager-cpu-worker-runtime-Egp8qeu_.mjs",
       "original": "43705d278f5fe9851b6440a4772abb631940d45dba8ed0c42449c274d3df9df7",
-      "patched": "cfe645ed27ab67a93af5f6f371bee6f996e53c82706b3e26666216d7e9db30cb",
+      "patched": "baf543a525181c51782dc9fdf09f336bbca2676d1dd8c964eadf8f2be63ce5a7",
       "replacements": [
         [
           "const retrieval = new WorkerTaskPool({\n\tworkerUrl: resolveRuntimeWorkerUrl(memoryCpuProcessEntrypoints.search),\n\tmaxWorkers: 1,\n\tsharedCompute: true\n});",
-          "const retrieval = new WorkerTaskPool({\n\tworkerUrl: resolveRuntimeWorkerUrl(memoryCpuProcessEntrypoints.search),\n\tmaxWorkers: 1,\n\tsharedCompute: true,\n\t// Samantha S24 31/10: keep the recall worker between spoken turns (60 s default = a ~2.5 s respawn on most\n\t// voice turns). The pool keeps its memory-critical retirement because the timeout stays above zero.\n\tidleTimeoutMs: 18e5\n});"
+          "const retrieval = new WorkerTaskPool({\n\tworkerUrl: resolveRuntimeWorkerUrl(memoryCpuProcessEntrypoints.search),\n\tmaxWorkers: 1,\n\tsharedCompute: true,\n\t// Samantha S24 31/10: keep the recall worker between spoken turns for 12 h (60 s default = a ~2.5 s respawn on\n\t// most voice turns; 30 min still left the first turn after a pause cold). The pool keeps its memory-critical retirement because the timeout stays above zero.\n\tidleTimeoutMs: 432e5\n});"
+        ]
+      ],
+      "predecessors": [
+        {
+          "patched": "cfe645ed27ab67a93af5f6f371bee6f996e53c82706b3e26666216d7e9db30cb",
+          "replacements": [
+            [
+              "const retrieval = new WorkerTaskPool({\n\tworkerUrl: resolveRuntimeWorkerUrl(memoryCpuProcessEntrypoints.search),\n\tmaxWorkers: 1,\n\tsharedCompute: true\n});",
+              "const retrieval = new WorkerTaskPool({\n\tworkerUrl: resolveRuntimeWorkerUrl(memoryCpuProcessEntrypoints.search),\n\tmaxWorkers: 1,\n\tsharedCompute: true,\n\t// Samantha S24 31/10: keep the recall worker between spoken turns (60 s default = a ~2.5 s respawn on most\n\t// voice turns). The pool keeps its memory-critical retirement because the timeout stays above zero.\n\tidleTimeoutMs: 18e5\n});"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "root": "openclaw",
+      "path": "dist/sqlite-handle-lifecycle-dWd9h3ii.mjs",
+      "original": "147169a3cc9f3b60c26612c408e7f26111ddf342c63bf5264ef16648dceb91a5",
+      "patched": "0459b5b96984f2b8d42fec84561fcc7b1573fe56bd5d41b5c4054d5822ff050f",
+      "replacements": [
+        [
+          "const SQLITE_IDLE_HANDLE_TTL_MS = 18e5;",
+          "// Samantha S24 31/10: a 30 min window closes the agent database between spoken turns; its reopen queues an\n// integrity quick_check that holds the session writer ~2.6 s on the next turn. Keep idle handles 12 h.\nconst SQLITE_IDLE_HANDLE_TTL_MS = 432e5;"
         ]
       ]
     }
@@ -23,11 +46,23 @@
           "root": "openclaw",
           "path": "dist/manager-cpu-worker-runtime-h904LJhI.mjs",
           "original": "a07b9d462e73c0b79c2b27768b1aee7c19d9213dde38ed6d0fb8f15b0cad717f",
-          "patched": "259552beb3a9e01177b8b294574fcb313a3f6ee4dc4ca1d0af4e8134b8b2f8da",
+          "patched": "6a7123b8240cec78741b7ca8226c0ff6e3b3fe34f05d9f0a18864d4eb4e8f580",
           "replacements": [
             [
               "const retrieval = new WorkerTaskPool({\n\tworkerUrl: resolveRuntimeWorkerUrl(memoryCpuProcessEntrypoints.search),\n\tworkerClass: \"reader\",\n\tsharedCompute: true\n});",
-              "const retrieval = new WorkerTaskPool({\n\tworkerUrl: resolveRuntimeWorkerUrl(memoryCpuProcessEntrypoints.search),\n\tworkerClass: \"reader\",\n\tsharedCompute: true,\n\t// Samantha S24 31/10: keep the recall worker between spoken turns (60 s default = a ~2.5 s respawn on most\n\t// voice turns). The pool keeps its memory-critical retirement because the timeout stays above zero.\n\tidleTimeoutMs: 18e5\n});"
+              "const retrieval = new WorkerTaskPool({\n\tworkerUrl: resolveRuntimeWorkerUrl(memoryCpuProcessEntrypoints.search),\n\tworkerClass: \"reader\",\n\tsharedCompute: true,\n\t// Samantha S24 31/10: keep the recall worker between spoken turns for 12 h (60 s default = a ~2.5 s respawn on\n\t// most voice turns; 30 min still left the first turn after a pause cold). The pool keeps its memory-critical retirement because the timeout stays above zero.\n\tidleTimeoutMs: 432e5\n});"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/sqlite-handle-lifecycle-dWd9h3ii.mjs",
+          "original": "147169a3cc9f3b60c26612c408e7f26111ddf342c63bf5264ef16648dceb91a5",
+          "patched": "0459b5b96984f2b8d42fec84561fcc7b1573fe56bd5d41b5c4054d5822ff050f",
+          "replacements": [
+            [
+              "const SQLITE_IDLE_HANDLE_TTL_MS = 18e5;",
+              "// Samantha S24 31/10: a 30 min window closes the agent database between spoken turns; its reopen queues an\n// integrity quick_check that holds the session writer ~2.6 s on the next turn. Keep idle handles 12 h.\nconst SQLITE_IDLE_HANDLE_TTL_MS = 432e5;"
             ]
           ]
         }
