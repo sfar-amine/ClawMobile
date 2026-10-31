@@ -1,0 +1,70 @@
+{
+  "version": 2,
+  "id": "brain-device-typed-tool-20261031",
+  "date": "2026-10-31",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "samantha_device_assistance (typed phone owner projected by samantha-ui-playbooks#369) joins DIRECT_TYPED_TOOLS (catalogMode direct-only). The shared typed-tool instruction now says only actions marked « récapitulatif puis confirmation » need a recap and a later user turn; the others run directly (Amine 31/10: torch, Do Not Disturb, timer, alarm, Settings page). Direct prompt surface bound raised from 30,000 to 32,000 characters.",
+  "reason": "S24 31/10: no typed tool touched the phone; the brain improvised with the shell (35 s for the torch). The old shared sentence told the brain that every business write needs a recap, contradicting the owner's closed direct list.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-tools-direct-visible.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-device-direct.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/playbooks-2026-10-31-device-typed-tool/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/playbooks-2026-10-31-device-typed-tool/device-assistance-tool.json",
+    "docs/changes/brain-device-typed-tool-20261031.json",
+    "docs/changes/brain-device-typed-tool-20261031.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-device-direct.cjs",
+      "status": "passed",
+      "evidence": "New, in ci.yml. Catalogue = S24 capture 2026-10-25 + the playbooks source projection of samantha_device_assistance; readTypedToolCatalogue accepts it; descriptor direct-only; none of the five direct actions is marked « récapitulatif puis confirmation »; a non-owner gets no factory; direct surface 31,231 chars (bound 32,000); device.torch.set runs one owner invocation with exactly {on:true}."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-tools-direct-visible.cjs, test-typed-capability-tools.cjs, test-typed-direct-call-id.cjs, test-brain-only-entry.cjs; tsc build",
+      "status": "passed",
+      "evidence": "Green; direct surface on the S24 capture 27,850 chars; the device tool, absent from the 25/10 capture, is excluded explicitly there and covered by the new test."
+    }
+  ],
+  "documentation": [
+    "docs/changes/brain-device-typed-tool-20261031.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No route or capability change here; device.assistance and its typed intents are declared in samantha-ui-playbooks (#369). No acceptance line needed (no new route)."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same typed tool factory, guard and helper; one more name in the existing direct-only set and one instruction sentence."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Model-visible tool surface of the brain only; MCP tools and schemas unchanged."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "The device tool fixture is a source projection; replace it with the S24 compiled catalogue after the playbooks activation.",
+    "Live recette on the S24 not done from this task."
+  ],
+  "rollback": "Revert this commit and redeploy the previous Companion commit with companion-deploy.sh."
+}
