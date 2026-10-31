@@ -1,0 +1,83 @@
+{
+  "version": 2,
+  "id": "openclaw-android-fs-compat-20261031",
+  "date": "2026-10-31",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "New pinned set android-fs-compat in the existing openclaw-compat owner: nothing on 2026.9.6; on 2026.10.9, 12 public modules (OpenClaw dist and @openclaw/fs-safe 0.26.0) get EACCES copy fallbacks, rename-based migration artifact moves and an unavailable pid namespace. Applied/checked by runtime-sync, gateway-start, undone by the deploy rollback.",
+  "reason": "S24 31/10: /proc/self/ns/pid is absent (ENOENT) and hard links and clones are refused (EACCES) in the Termux sandbox. OpenClaw 2026.10 fails to start its gateway lock and its session migration without these fallbacks (openclaw-android Script v1.2.5 and v1.3.0). The upstream content-based patch applies fully to the 2026.10.9 candidate installed on the S24 (patched=18, problems=0); its result is pinned here byte for byte.",
+  "files": [
+    "docs/changes/openclaw-android-fs-compat-20261031.json",
+    "docs/changes/openclaw-android-fs-compat-20261031.md",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/gateway-start.sh",
+    "installer/termux-lite/openclaw-compat/NOTICE.md",
+    "installer/termux-lite/openclaw-compat/android-fs-compat.json",
+    "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
+    "installer/termux-lite/runtime-sync.sh",
+    "installer/termux-lite/test-openclaw-compat-variants.py",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/backup-create-NzaeFxuD.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/copy-file-input.js.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/gateway-state-owner-eDtEELE9.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/managed-handoff-runtime.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/openclaw-state-lease-heartbeat.worker.js.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/openclaw-state-read.worker.js.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/package-update-activation-recovery.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/publish-file.js.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/service-child-group-anchor.js.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/session-sqlite-migration-manifest-DJRPZECe.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/sqlite-readonly-location.worker.js.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/sqlite-snapshot-staging-owner-fZYx7l2t.mjs.gz"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-openclaw-compat-variants.py",
+      "status": "passed",
+      "evidence": "5 tests: the android set applies atomically/idempotently and reverses on the 12 captured modules; nothing on 2026.9.6; patched files parse; runtime-sync/gateway-start/deploy rollback own it (rollback guard executed)."
+    },
+    {
+      "name": "test-memory-retrieval-warm.py, test-native-turn-provenance.py, test-runtime-sync.py, test-agent-exec-auth-scope.py, test-model-flow-selection.py, test-whatsapp-network-recovery.py",
+      "status": "passed",
+      "evidence": "Neighbouring owners green on this head."
+    }
+  ],
+  "documentation": [
+    "docs/changes/openclaw-android-fs-compat-20261031.md",
+    "installer/termux-lite/openclaw-compat/NOTICE.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "OpenClaw compatibility patch; no route or capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "One more pinned set of the existing owner."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "OpenClaw compatibility only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "No effect on the installed 2026.9.6 (empty set).",
+    "Its runtime effect is proven by the 2026.10.9 rehearsal on the S24 (gateway start and session migration on a copy of the state)."
+  ],
+  "rollback": "Revert: the set is empty on 2026.9.6; on 2026.10.9 the deploy rollback restores the original modules."
+}

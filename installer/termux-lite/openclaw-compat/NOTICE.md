@@ -41,3 +41,8 @@ binary, without cloning the upstream installer at install time.
 
 
 Native turn provenance (2026-10-26) uses the same hash-pinned, reversible compatibility owner for OpenClaw2026.9.6. It assigns one run UUID and monotonic start at canonical native dispatch and preserves them through existing reply/followup owners and protected user transport. Admitted user input and confirmed steer adoption are observed via the existing public runtime.events.onSessionTranscriptUpdate API, independent of optional early channel received hooks, with no additional native hook, semantic routing or automatic interruption. Original complete public sources are compressed fixtures; the JSON manifest contains exact replacements and before/after hashes. Unsupported module generations are refused before any write.
+
+The `android-fs-compat` set (OpenClaw 2026.10.9) pins the result of openclaw-android's
+`platforms/openclaw/patches/openclaw-patch-hardlink.sh` (MIT, script SHA-256 c9f4cd96…7386d5) on the exact
+public modules: EACCES joins the copy fallbacks, migration artifacts move by rename when a hard link is refused,
+and `/proc/self/ns/pid` reads as unavailable. Same license as above.
