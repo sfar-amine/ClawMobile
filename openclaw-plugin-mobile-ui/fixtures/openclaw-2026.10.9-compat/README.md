@@ -11,3 +11,9 @@ résultat (empreinte de la liste de fichiers `514eed9e…` des deux côtés). Le
 avec leurs dépendances réelles (`hooks`, `context-engine-maintenance`, `compact`, `embedded-agent`, `run-entry`).
 
 Aucun transcript, aucune configuration, aucun identifiant : seulement du code public, sous licence OpenClaw.
+
+WhatsApp : `connection-controller-CejM7bhn.mjs.gz` et `monitor-DVzumwCI.mjs.gz` sont les modules publics du paquet npm
+`@openclaw/whatsapp@2026.10.9` (`npm pack`, même jour), plugin que OpenClaw installe à sa propre version ;
+`server-runtime-startup-services-CSJSnUKS.mjs.gz` vient de `openclaw@2026.10.9`. Ils portent la variante 2026.10.9 du jeu
+`whatsapp-network-recovery` : même correctif, ancres suivies là où l'amont a déplacé `heartbeatSeconds`,
+`reconnectPolicy` et `keepAlive` sous `this.params` et fusionné la décision de reprise.
