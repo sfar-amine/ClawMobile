@@ -15,6 +15,7 @@
     "installer/termux-lite/openclaw-compat/model-flow-selection.json",
     "installer/termux-lite/openclaw-compat/native-turn-provenance.json",
     "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
+    "installer/termux-lite/test-memory-retrieval-warm.py",
     "installer/termux-lite/test-openclaw-compat-variants.py",
     "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md",
     "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/agent-runner-run-DEfqFyz9.mjs.gz",

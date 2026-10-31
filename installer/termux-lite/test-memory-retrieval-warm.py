@@ -82,7 +82,7 @@ class MemoryRetrievalWarm(unittest.TestCase):
 
     def test_unsupported_version_refuses_without_write(self):
         original = self.snapshot()
-        (self.root / "package.json").write_text('{"version":"2026.10.9"}')
+        (self.root / "package.json").write_text('{"version":"2026.10.8"}')
         result = self.cli("apply")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("unsupported_package_version", result.stdout)
