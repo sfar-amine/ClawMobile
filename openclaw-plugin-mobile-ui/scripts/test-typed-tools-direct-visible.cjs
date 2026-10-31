@@ -83,7 +83,10 @@ assert.deepEqual(names.filter((name) => name !== 'samantha_catalogue').sort(), [
   'fixture tool names equal the S24 projection of 30/10');
 for (const name of names) pluginToolNames.add(name);
 assert(typed.DIRECT_TYPED_TOOLS.has('samantha_utility_billing'));
-for (const name of typed.DIRECT_TYPED_TOOLS) assert(names.includes(name), `${name} exists in the projection`);
+// samantha_device_assistance (31/10) exists once its playbooks are activated: test-typed-device-direct.cjs covers it.
+const pendingActivation = new Set(['samantha_device_assistance']);
+const directInCapture = [...typed.DIRECT_TYPED_TOOLS].filter((name) => !pendingActivation.has(name));
+for (const name of directInCapture) assert(names.includes(name), `${name} exists in the projection`);
 for (const tool of descriptors)
   assert.equal(tool.catalogMode, typed.DIRECT_TYPED_TOOLS.has(tool.name) ? 'direct-only' : undefined, tool.name);
 
@@ -114,7 +117,7 @@ assert(before.cataloged.includes('samantha_utility_billing'));
 assert.deepEqual(before.visible.sort(), ['exec', 'read', 'tool_call', 'tool_describe', 'tool_search']);
 // After: the frequent owners are model-visible and outside the catalog; the others stay searchable.
 const after = surface(descriptors.map(sdkWrapped));
-for (const name of typed.DIRECT_TYPED_TOOLS) {
+for (const name of directInCapture) {
   assert(after.visible.includes(name), `${name} visible`);
   assert(!after.cataloged.includes(name), `${name} not cataloged`);
 }
@@ -125,7 +128,8 @@ assert(after.visible.includes('tool_search') && after.cataloged.includes('progre
 // Prompt budget of the direct surface (schema + description, characters).
 const directChars = descriptors.filter((tool) => typed.DIRECT_TYPED_TOOLS.has(tool.name))
   .reduce((total, tool) => total + tool.description.length + JSON.stringify(tool.parameters).length, 0);
-assert(directChars <= 30000, `direct typed surface ${directChars} chars`);
+// 30000 until 31/10; the device owner (one schema per closed parameter shape) adds about 3 000.
+assert(directChars <= 32000, `direct typed surface ${directChars} chars`);
 
 // 3. A billing question now needs exactly one typed tool call, the first business call of the turn.
 (async () => {

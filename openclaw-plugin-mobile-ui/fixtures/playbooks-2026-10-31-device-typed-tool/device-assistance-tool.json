@@ -1,0 +1,372 @@
+{
+ "source": {
+  "repository": "sfar-amine/samantha-ui-playbooks",
+  "commit": "0f4491811b7219816ee4f48a13424fade0922f04",
+  "generator": "skill_intelligence.typed_tools.project_tools",
+  "capabilityRevision": "cacd3cbc4d1e8de0"
+ },
+ "tool": {
+  "name": "samantha_device_assistance",
+  "domain": "device-assistance",
+  "description": "Actions du téléphone S24",
+  "actions": [
+   {
+    "action": "device.alarm.next",
+    "description": "voir la prochaine alarme",
+    "params": {
+     "type": "object",
+     "properties": {},
+     "required": [],
+     "additionalProperties": false
+    },
+    "risk": "read",
+    "confirmationRequired": false,
+    "directExecution": true,
+    "canonicalStatus": "ready",
+    "executionMode": "command",
+    "ownerReferences": [
+     "device/typed_device.py",
+     "device/assistant.py",
+     "device/SKILL.md",
+     "docs/changes/device-typed-tools-20261031.md"
+    ],
+    "examples": [
+     "c'est quand ma prochaine alarme ?"
+    ]
+   },
+   {
+    "action": "device.alarm.set",
+    "description": "régler une alarme",
+    "params": {
+     "type": "object",
+     "properties": {
+      "hour": {
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 23
+      },
+      "minute": {
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 59
+      },
+      "label": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 60
+      }
+     },
+     "required": [
+      "hour",
+      "minute"
+     ],
+     "additionalProperties": false
+    },
+    "risk": "write",
+    "confirmationRequired": false,
+    "directExecution": true,
+    "canonicalStatus": "ready",
+    "executionMode": "command",
+    "ownerReferences": [
+     "device/typed_device.py",
+     "device/assistant.py",
+     "device/SKILL.md",
+     "docs/changes/device-typed-tools-20261031.md"
+    ],
+    "examples": [
+     "mets une alarme à 7 h",
+     "réveille-moi à 6 h 45"
+    ]
+   },
+   {
+    "action": "device.dnd.read",
+    "description": "voir si Ne pas déranger est activé",
+    "params": {
+     "type": "object",
+     "properties": {},
+     "required": [],
+     "additionalProperties": false
+    },
+    "risk": "read",
+    "confirmationRequired": false,
+    "directExecution": true,
+    "canonicalStatus": "ready",
+    "executionMode": "command",
+    "ownerReferences": [
+     "device/typed_device.py",
+     "device/assistant.py",
+     "device/SKILL.md",
+     "docs/changes/device-typed-tools-20261031.md"
+    ],
+    "examples": [
+     "ne pas déranger est activé ?"
+    ]
+   },
+   {
+    "action": "device.dnd.set",
+    "description": "activer ou désactiver Ne pas déranger",
+    "params": {
+     "type": "object",
+     "properties": {
+      "on": {
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "on"
+     ],
+     "additionalProperties": false
+    },
+    "risk": "write",
+    "confirmationRequired": false,
+    "directExecution": true,
+    "canonicalStatus": "ready",
+    "executionMode": "command",
+    "ownerReferences": [
+     "device/typed_device.py",
+     "device/assistant.py",
+     "device/SKILL.md",
+     "docs/changes/device-typed-tools-20261031.md"
+    ],
+    "examples": [
+     "active ne pas déranger",
+     "coupe le mode ne pas déranger"
+    ]
+   },
+   {
+    "action": "device.photos.today",
+    "description": "lister les photos prises aujourd'hui ou hier",
+    "params": {
+     "type": "object",
+     "properties": {
+      "day": {
+       "type": "string",
+       "enum": [
+        "today",
+        "yesterday"
+       ]
+      }
+     },
+     "required": [],
+     "additionalProperties": false
+    },
+    "risk": "read",
+    "confirmationRequired": false,
+    "directExecution": true,
+    "canonicalStatus": "ready",
+    "executionMode": "command",
+    "ownerReferences": [
+     "device/typed_device.py",
+     "device/assistant.py",
+     "device/SKILL.md",
+     "docs/changes/device-typed-tools-20261031.md"
+    ],
+    "examples": [
+     "quelles photos j'ai prises aujourd'hui",
+     "combien de photos hier"
+    ]
+   },
+   {
+    "action": "device.settings.open",
+    "description": "ouvrir une page des réglages",
+    "params": {
+     "type": "object",
+     "properties": {
+      "page": {
+       "type": "string",
+       "enum": [
+        "wifi",
+        "bluetooth",
+        "airplane",
+        "connections",
+        "mobile_network",
+        "data_usage",
+        "display",
+        "sound",
+        "battery",
+        "battery_saver",
+        "location",
+        "nfc",
+        "date_time",
+        "apps",
+        "storage",
+        "security",
+        "accessibility",
+        "home"
+       ]
+      }
+     },
+     "required": [
+      "page"
+     ],
+     "additionalProperties": false
+    },
+    "risk": "write",
+    "confirmationRequired": false,
+    "directExecution": true,
+    "canonicalStatus": "ready",
+    "executionMode": "command",
+    "ownerReferences": [
+     "device/typed_device.py",
+     "device/assistant.py",
+     "device/SKILL.md",
+     "docs/changes/device-typed-tools-20261031.md"
+    ],
+    "examples": [
+     "ouvre les réglages Bluetooth",
+     "ouvre les paramètres Wi-Fi"
+    ]
+   },
+   {
+    "action": "device.sms.latest",
+    "description": "lire les derniers SMS reçus",
+    "params": {
+     "type": "object",
+     "properties": {
+      "count": {
+       "type": "integer",
+       "minimum": 1,
+       "maximum": 5
+      }
+     },
+     "required": [],
+     "additionalProperties": false
+    },
+    "risk": "read",
+    "confirmationRequired": false,
+    "directExecution": true,
+    "canonicalStatus": "ready",
+    "executionMode": "command",
+    "ownerReferences": [
+     "device/typed_device.py",
+     "device/assistant.py",
+     "device/SKILL.md",
+     "docs/changes/device-typed-tools-20261031.md"
+    ],
+    "examples": [
+     "lis-moi mon dernier SMS",
+     "mes 3 derniers SMS"
+    ]
+   },
+   {
+    "action": "device.status.read",
+    "description": "lire l'état du téléphone (batterie, Wi-Fi, Bluetooth, volume)",
+    "params": {
+     "type": "object",
+     "properties": {},
+     "required": [],
+     "additionalProperties": false
+    },
+    "risk": "read",
+    "confirmationRequired": false,
+    "directExecution": true,
+    "canonicalStatus": "ready",
+    "executionMode": "command",
+    "ownerReferences": [
+     "device/typed_device.py",
+     "device/assistant.py",
+     "device/SKILL.md",
+     "docs/changes/device-typed-tools-20261031.md"
+    ],
+    "examples": [
+     "quel est mon niveau de batterie",
+     "état du téléphone",
+     "le Wi-Fi est activé ?"
+    ]
+   },
+   {
+    "action": "device.timer.start",
+    "description": "lancer un minuteur",
+    "params": {
+     "type": "object",
+     "properties": {
+      "seconds": {
+       "type": "integer",
+       "minimum": 1,
+       "maximum": 86399
+      },
+      "label": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 60
+      }
+     },
+     "required": [
+      "seconds"
+     ],
+     "additionalProperties": false
+    },
+    "risk": "write",
+    "confirmationRequired": false,
+    "directExecution": true,
+    "canonicalStatus": "ready",
+    "executionMode": "command",
+    "ownerReferences": [
+     "device/typed_device.py",
+     "device/assistant.py",
+     "device/SKILL.md",
+     "docs/changes/device-typed-tools-20261031.md"
+    ],
+    "examples": [
+     "mets un minuteur de 5 minutes",
+     "minuteur 20 minutes pour les pâtes"
+    ]
+   },
+   {
+    "action": "device.torch.read",
+    "description": "voir si la torche est allumée",
+    "params": {
+     "type": "object",
+     "properties": {},
+     "required": [],
+     "additionalProperties": false
+    },
+    "risk": "read",
+    "confirmationRequired": false,
+    "directExecution": true,
+    "canonicalStatus": "ready",
+    "executionMode": "command",
+    "ownerReferences": [
+     "device/typed_device.py",
+     "device/assistant.py",
+     "device/SKILL.md",
+     "docs/changes/device-typed-tools-20261031.md"
+    ],
+    "examples": [
+     "la torche est allumée ?"
+    ]
+   },
+   {
+    "action": "device.torch.set",
+    "description": "allumer ou éteindre la torche",
+    "params": {
+     "type": "object",
+     "properties": {
+      "on": {
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "on"
+     ],
+     "additionalProperties": false
+    },
+    "risk": "write",
+    "confirmationRequired": false,
+    "directExecution": true,
+    "canonicalStatus": "ready",
+    "executionMode": "command",
+    "ownerReferences": [
+     "device/typed_device.py",
+     "device/assistant.py",
+     "device/SKILL.md",
+     "docs/changes/device-typed-tools-20261031.md"
+    ],
+    "examples": [
+     "allume la torche",
+     "éteins la lampe torche"
+    ]
+   }
+  ]
+ }
+}
