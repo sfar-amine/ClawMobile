@@ -343,6 +343,7 @@ jobs:
           node scripts/test-voice-turn-protocol.cjs
           node scripts/test-voice-async-readback.cjs
           node scripts/test-voice-deferred-readback.cjs
+          node scripts/test-voice-waiting-cues.cjs
           node scripts/test-voice-readback-persistence.cjs
           node scripts/test-turn-budget.cjs
           node scripts/test-claw-live-token-failure.cjs
