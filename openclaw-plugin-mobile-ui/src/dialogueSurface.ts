@@ -187,6 +187,24 @@ export async function dialogueTurn(runner: DialogueRunner, input: DialogueInput)
   }
 }
 
+/** Waiting bound while Samantha restarts (S24 28/10: Gateway up, interpreter ready about 1 min 40 s later). */
+export const DEFER_UNTIL_READY = { windowMs: 5 * 60_000, stepMs: 5_000 };
+export const STILL_RESTARTING_TEXT = "Samantha redémarre encore : rien n’a été exécuté. Renvoie ta demande dans quelques minutes, stp.";
+
+/**
+ * Amine 28/10 (replaces D-B): a message received while Samantha restarts is kept and handled once she is ready.
+ * The coordinator marks a turn retryable only when it kept nothing and ran nothing (closed maintenance window,
+ * interpretation never dispatched); the same event is submitted again, bounded. Any other reply is final.
+ */
+export async function dialogueTurnUntilReady(runner: DialogueRunner, input: DialogueInput): Promise<DialogueReply> {
+  let turn = await dialogueTurn(runner, input);
+  for (const until = Date.now() + DEFER_UNTIL_READY.windowMs; turn.retryable === true && Date.now() + DEFER_UNTIL_READY.stepMs <= until;) {
+    await new Promise(done => setTimeout(done, DEFER_UNTIL_READY.stepMs));
+    turn = await dialogueTurn(runner, input);
+  }
+  return turn;
+}
+
 /** Second half of a deferred turn (app, doc 43): execute or abort the hand-off already committed with its decision. */
 export async function dialogueHandoff(runner: DialogueRunner, input: DialogueInput, goalRef: string, abort = false): Promise<DialogueReply> {
   try {
