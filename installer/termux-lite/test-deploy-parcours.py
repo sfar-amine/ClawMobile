@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """deploy-parcours.py verdicts on replies captured on the S24 (29/10 23:00 Tunis, Pulse closed), no network."""
-import importlib.util, json, unittest
+import importlib.util, json, sqlite3, tempfile, unittest
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location("parcours", Path(__file__).with_name("deploy-parcours.py"))
@@ -12,6 +12,9 @@ CLOSED = ("Pulse est fermé en ce moment (ouvert du lundi au vendredi de 9:00 à
           "Réessaie demain à partir de 9:00.")
 RECAP = ("Confirme cette action :\nAjouter ce rendez-vous à ton agenda Google.\nTitre : Recette déploiement\n"
          "Début : 2026-10-30T10:00:00+01:00\nConfirmer ?")
+# S24 31/10 12:02: revoked Google token during owner_read (real tool result, see the fixture provenance).
+AUTH = json.loads((Path(__file__).resolve().parents[2] / "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-agenda-auth-revoked/"
+                   "parcours-owner-read.json").read_text())
 GENERIC = "La préparation ou la vérification de cette commande n’a pas abouti. Aucun nouvel essai automatique n’est lancé."
 
 
@@ -66,6 +69,92 @@ class Verdicts(unittest.TestCase):
         self.assertEqual(p.verdict("owner_read", "", "429 rate limit"), ("inconclusive", "provider_unavailable"))
         self.assertEqual(p.verdict("contact_read", "Le modèle n’est pas joignable pour le moment.", None),
                          ("inconclusive", "provider_unavailable"))
+
+
+class ProviderAuthorization(unittest.TestCase):
+    """S24 31/10 12:02: an expired/revoked Google access is the owner's action, never a candidate regression."""
+    def transcript(self, rows, session="agent:main:recette-deploy:20261031T110200Z"):
+        directory = tempfile.TemporaryDirectory(); self.addCleanup(directory.cleanup)
+        db = Path(directory.name) / "openclaw-agent.sqlite"
+        conn = sqlite3.connect(db)
+        conn.execute("CREATE TABLE session_nodes (session_key TEXT, current_session_id TEXT, display_name TEXT, label TEXT)")
+        conn.execute("CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, event_json TEXT, created_at TEXT)")
+        conn.execute("INSERT INTO session_nodes VALUES (?, 's-1', NULL, NULL)", (session.lower(),))
+        conn.executemany("INSERT INTO transcript_events VALUES (?, ?, ?, '')",
+                         [(sid, n, json.dumps(event, ensure_ascii=False)) for n, (sid, event) in enumerate(rows)])
+        conn.commit(); conn.close()
+        return p.TurnCauses(session, db)
+
+    @staticmethod
+    def tool_result(result, name="samantha_agenda"):
+        return {"type": "message", "message": {"role": "toolResult", "toolName": name, "isError": False,
+                                               "content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}]}}
+
+    def test_s24_generic_reply_with_the_receipt_cause_is_inconclusive(self):
+        causes = self.transcript([("s-1", self.tool_result(AUTH["tool_result"]))])
+        cause = causes.cause(0)
+        self.assertEqual(cause, "google_authorization_unavailable")
+        self.assertEqual(p.verdict("owner_read", AUTH["owner_reply"], None, cause),
+                         ("inconclusive", "provider_authorization_expired"))
+        # Without the receipt the generic sentence stays a broken path (it is not a reliable signal alone).
+        self.assertEqual(p.verdict("owner_read", AUTH["owner_reply"], None), ("failed", "broken_reply"))
+
+    def test_named_sentence_is_inconclusive_unless_the_receipt_contradicts_it(self):
+        fixed = AUTH["owner_reply_after_playbooks_fix"]
+        for cause in (None, "google_authorization_revoked", "google_authorization_unavailable"):
+            with self.subTest(cause=cause):
+                self.assertEqual(p.verdict("owner_read", fixed, None, cause), ("inconclusive", "provider_authorization_expired"))
+        for reworded in ("Ton accès Google a expiré, il faut reconnecter ton agenda Google.",
+                         "Ton agenda Google n’est pas connecté : il faut le reconnecter.",
+                         "Je ne peux pas l’ajouter : l’accès à ton agenda Google a été révoqué."):
+            with self.subTest(reworded=reworded):
+                self.assertEqual(p.verdict("write_recap", reworded, None), ("inconclusive", "provider_authorization_expired"))
+        # The turn's typed tool results were read and name no such cause: an unfounded claim fails.
+        self.assertEqual(p.verdict("owner_read", fixed, None, "other"), ("failed", "unconfirmed_provider_authorization"))
+        # Ordinary failures keep their verdict; a provider outage keeps its own reason.
+        self.assertEqual(p.verdict("owner_read", "", None, "google_authorization_revoked"), ("failed", "empty_reply"))
+        self.assertEqual(p.verdict("owner_read", "", "TimeoutExpired", "google_authorization_revoked"), ("failed", "path_error"))
+        self.assertEqual(p.verdict("owner_read", OWNER_READ, None, "other"), ("passed", "ok"))
+        self.assertEqual(p.verdict("owner_read", "Le modèle n’est pas joignable.", None, "google_authorization_revoked"),
+                         ("inconclusive", "provider_unavailable"))
+
+    def test_turn_causes_read_only_this_turn(self):
+        other_session = self.tool_result(AUTH["tool_result"])
+        completed = self.tool_result({"state": "COMPLETED", "facts": {"state": "completed", "events": []}})
+        causes = self.transcript([("s-1", self.tool_result(AUTH["tool_result"])), ("s-2", other_session),
+                                  ("s-1", completed), ("s-1", {"message": {"role": "assistant", "content": "x"}})])
+        # The earlier turn's failure (rowid 1) is not this turn's; this turn's completed read names no cause.
+        self.assertEqual(causes.cause(1), "other")
+        self.assertEqual(causes.cause(0), "google_authorization_unavailable")
+        self.assertEqual(causes.cause(3), None)
+        self.assertEqual(causes.mark(), 4)
+        self.assertIsNone(causes.cause(None))
+        # Non-typed tools, failures with another cause, unreadable rows: never an authorization.
+        causes = self.transcript([("s-1", self.tool_result(AUTH["tool_result"], name="exec")),
+                                  ("s-1", self.tool_result({"state": "FAILED", "facts": {"reason": "calendar_outcome_unverified"}})),
+                                  ("s-1", {"message": {"role": "toolResult", "toolName": "samantha_agenda", "content": "not json"}})])
+        self.assertEqual(causes.cause(0), "other")
+        missing = p.TurnCauses("agent:main:recette-deploy:x", Path(tempfile.gettempdir()) / "absent-parcours.sqlite")
+        self.assertEqual((missing.mark(), missing.cause(0)), (None, None))
+
+    def test_run_names_the_reason_and_never_masks_another_failure(self):
+        class Causes:
+            def __init__(self, found): self.found, self.turn = list(found), 0
+            def mark(self): self.turn += 1; return self.turn
+            def cause(self, mark): return self.found[mark - 1]
+        owner = lambda replies: (lambda text: (replies.pop(0), 1.0, None))
+        room = lambda replies: (lambda text: (replies.pop(0), 1.0, None))
+        report = p.run_all(owner([AUTH["owner_reply"], RECAP, "ok"]), room([CLOSED, CLOSED, CLOSED]),
+                           lambda: ([200, 200, 200], 0.1), Causes(["google_authorization_unavailable", "other"]))
+        self.assertEqual(report["state"], "inconclusive")
+        self.assertEqual(report["paths"][0], {"path": "owner_read", "state": "inconclusive",
+                                              "reason": "provider_authorization_expired", "seconds": 1.0})
+        self.assertEqual(report["paths"][3]["state"], "passed")
+        # Another path broken for another reason still fails the run (the caller rolls back).
+        report = p.run_all(owner([AUTH["owner_reply"], RECAP, "ok"]), room([CLOSED, GENERIC, CLOSED]),
+                           lambda: ([200, 200, 200], 0.1), Causes(["google_authorization_unavailable", "other"]))
+        self.assertEqual(report["state"], "failed")
+        self.assertNotIn("agenda", json.dumps(report))
 
 
 class Run(unittest.TestCase):
