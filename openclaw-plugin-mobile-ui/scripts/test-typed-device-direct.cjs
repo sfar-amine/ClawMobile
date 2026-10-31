@@ -40,7 +40,10 @@ const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../openclaw.pl
 for (const name of [...typed.DIRECT_TYPED_TOOLS, ...descriptors.map((entry) => entry.name)])
   assert(manifest.contracts.tools.includes(name), `${name} declared in openclaw.plugin.json contracts.tools`);
 
-const direct = ['device.torch.set', 'device.dnd.set', 'device.timer.start', 'device.alarm.set', 'device.settings.open'];
+// Amine 31/10: five reversible settings, then the classic ones (samantha-ui-playbooks#372), all direct.
+const direct = ['device.torch.set', 'device.dnd.set', 'device.timer.start', 'device.alarm.set', 'device.settings.open',
+  'device.volume.set', 'device.brightness.set', 'device.ringer.set', 'device.battery_saver.set', 'device.bluetooth.set',
+  'device.wifi.enable', 'device.app.open', 'device.screenshot.take'];
 const lines = tool.description.split('\n');
 for (const action of direct) {
   const line = lines.find((entry) => entry.startsWith(action + ':'));
@@ -57,8 +60,9 @@ assert.equal(typed.createTypedCapabilityTools({...ctx, senderIsOwner: false}, {h
 // Prompt budget of the whole direct surface with the device owner (schema + description, characters).
 const directChars = descriptors.filter((entry) => typed.DIRECT_TYPED_TOOLS.has(entry.name))
   .reduce((total, entry) => total + entry.description.length + JSON.stringify(entry.parameters).length, 0);
-// 30000 until 31/10; the device owner (one schema per closed parameter shape) adds about 3 000.
-assert(directChars <= 32000, `direct typed surface ${directChars} chars`);
+// 30000 until 31/10; the device owner (one schema per closed parameter shape) adds about 3 000, and the classic
+// settings of samantha-ui-playbooks#372 about 1 500 more (32 725 measured on that projection).
+assert(directChars <= 34000, `direct typed surface ${directChars} chars`);
 
 (async () => {
   const args = {action: 'device.torch.set', params: {on: true}};

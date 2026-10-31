@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "id": "plugin-device-classic-fixture-20261031",
+  "date": "2026-10-31",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "The device typed-tool fixture is regenerated from samantha-ui-playbooks#372 (19 actions, 13 direct: the five reversible settings plus volume, brightness, ringer, battery saver, Bluetooth, Wi-Fi on, app open, screenshot). test-typed-device-direct.cjs checks the 13 direct actions and raises the direct prompt-surface bound from 32,000 to 34,000 characters (32,725 measured).",
+  "reason": "samantha-ui-playbooks#372 adds eight direct phone settings to samantha_device_assistance; the plugin needs no code change (the tool is already declared and direct-only), but its fixture and prompt budget must follow the projection the brain will see.",
+  "files": [
+    "openclaw-plugin-mobile-ui/fixtures/playbooks-2026-10-31-device-typed-tool/device-assistance-tool.json",
+    "openclaw-plugin-mobile-ui/fixtures/playbooks-2026-10-31-device-typed-tool/README.md",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-device-direct.cjs",
+    "docs/changes/plugin-device-classic-fixture-20261031.json",
+    "docs/changes/plugin-device-classic-fixture-20261031.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-device-direct.cjs",
+      "status": "passed",
+      "evidence": "{\"deviceActions\":19,\"directActions\":13,\"directChars\":32725,\"ownerInvocations\":1}; fails with the old 32,000 bound (32,725)."
+    },
+    {
+      "name": "test-typed-tools-direct-visible.cjs, test-typed-capability-tools.cjs, test-capability-tool.cjs; tsc build",
+      "status": "passed",
+      "evidence": "Green on this head."
+    }
+  ],
+  "documentation": [
+    "docs/changes/plugin-device-classic-fixture-20261031.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Fixture and test bound only; the capability change lives in samantha-ui-playbooks#372."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No source change; fixture and test only."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Fixture and test only; MCP tools and schemas unchanged."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "The fixture is a source projection; the S24 compiled catalogue after activation of #372 can replace it."
+  ],
+  "rollback": "Revert this commit (no deployment effect: fixture and test only)."
+}
