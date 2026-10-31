@@ -509,6 +509,20 @@ export function observeRunStage(stages:Pick<GatewayObservationTiming,"runStarted
   else if(stream==="tool"&&data?.phase==="start"){stages.firstToolAt??=now;stages.toolStarts=Math.min(OBSERVED_TOOL_STARTS_MAX,(stages.toolStarts??0)+1);}
   else if(stream==="assistant"&&(typeof data?.delta==="string"&&data.delta.length>0||typeof data?.text==="string"&&data.text.length>0))stages.firstTextAt??=now;
 }
+/**
+ * True while this process follows the run's Gateway socket and the run is not terminal: getRunStatus would answer
+ * running from the same memory row (observedRunStatus), after parsing runs.json twice. Voice polls use it to skip that
+ * read while the brain works; any other case (terminal, reconcile, expired, unknown) takes the full getRunStatus.
+ */
+export function followedRunStillRunning(runId:string,now=Date.now()):boolean {
+  const run=submittedRuns.get(runId),observation=run?.gatewayObservation;
+  return !!run&&observation?.epoch===GATEWAY_OBSERVER_EPOCH&&observation.state==="following"&&now<observation.deadlineAt&&
+    run.state==="running";
+}
+/** Voice brain polls: a followed running run from memory, every other case through the full getRunStatus, unchanged. */
+export function voiceRunStatus(runId:string):Promise<CompanionRunStatus> {
+  return followedRunStillRunning(runId)?Promise.resolve({runId,state:"running"} as CompanionRunStatus):getRunStatus(runId);
+}
 /** Voice latency stages: wall-clock marks of one Companion run, from memory only (no registry read, no text). */
 export function observedRunTiming(runId:string):{acceptedAt:number;state?:string}&GatewayObservationTiming|null {
   const run=submittedRuns.get(runId);

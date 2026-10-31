@@ -241,7 +241,7 @@ const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resol
    assert.match(block,/routeUnresolvedVoiceTurn\(text, \{sessionId, clientRunId: String\(body\.clientRunId \|\| ""\), admission: admission\.ticket, assertCurrent\}/);
    assert.match(block,/resolve: \(unresolved\) => capabilityBridge\(unresolved, \{execute:false,surface:"claw_live",caller:"owner",timeoutSeconds:5\}\)/);
    assert.match(block,/execute: \(unresolved\) => capabilityBridge\(unresolved, \{execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35\}\)/);
-   assert.match(block,/submit: submitIntent, status: getRunStatus/);
+   assert.match(block,/submit: submitIntent, status: voiceRunStatus, pollMs: VOICE_RUN_POLL_MS/);
    assert.match(block,/console\.log\(voiceTurnLogLine\(result, Date\.now\(\) - turnStarted\)\);/);
    const agent=fs.readFileSync(path.join(__dirname,'../src/companion/openclawAgentClient.ts'),'utf8');
    assert.match(agent,/const canonical=compactOwnerAgentContext\(options\);/);
