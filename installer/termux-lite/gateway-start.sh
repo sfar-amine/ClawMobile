@@ -87,5 +87,17 @@ if [ -f "$NATIVE_PATCH_DIR/native-turn-provenance.json" ]; then
     echo "[lite] WARNING: native turn provenance patch unsupported; runtime drift requires review." >&2
 fi
 
+# The memory recall worker keep-alive follows checkout ownership like the other sets. A refusal only costs latency.
+MEMORY_PATCH_DIR="${CLAW_CORE_REPO:-$HOME/ClawMobile}/installer/termux-lite/openclaw-compat"
+MEMORY_PATCH_MODE=--apply
+if [ ! -f "$MEMORY_PATCH_DIR/memory-retrieval-warm.json" ]; then
+  MEMORY_PATCH_DIR="$SCRIPT_DIR/openclaw-compat"
+  MEMORY_PATCH_MODE=--rollback
+fi
+if [ -f "$MEMORY_PATCH_DIR/memory-retrieval-warm.json" ]; then
+  python3 "$MEMORY_PATCH_DIR/whatsapp-network-recovery.py" --patch-set memory-retrieval-warm "$MEMORY_PATCH_MODE" >&2 ||
+    echo "[lite] WARNING: memory recall keep-alive patch unsupported; runtime drift requires review." >&2
+fi
+
 echo "[lite] Starting OpenClaw Gateway through fast recovery path..."
 exec openclaw gateway --bind "$GATEWAY_BIND" --port "$GATEWAY_PORT" --verbose

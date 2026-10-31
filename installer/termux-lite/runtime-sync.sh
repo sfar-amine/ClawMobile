@@ -76,6 +76,7 @@ if [ "$mode" = check ]; then
   python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set agent-exec-auth-scope --check >/dev/null 2>&1 || drift+=(openclaw:agent_exec_auth_scope)
   python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set model-flow-selection --check >/dev/null 2>&1 || drift+=(openclaw:model_flow_selection)
   python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set native-turn-provenance --check >/dev/null 2>&1 || drift+=(openclaw:native_turn_provenance)
+  python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set memory-retrieval-warm --check >/dev/null 2>&1 || drift+=(openclaw:memory_retrieval_warm)
   list=$(printf '"%s",' "${drift[@]}"); list="[${list%,}]"; [ "${#drift[@]}" -eq 0 ] && list='[]'
   printf '{"ok":%s,"commit":"%s","drift":%s}\n' "$([ "${#drift[@]}" -eq 0 ] && echo true || echo false)" "$commit" "$list"
   [ "${#drift[@]}" -eq 0 ]; exit $?
@@ -85,6 +86,7 @@ dispatch_contract || fail openclaw_before_dispatch_missing
 wa_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --apply) || fail whatsapp_network_recovery_refused
 auth_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set agent-exec-auth-scope --apply) || fail agent_exec_auth_scope_refused
 native_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set native-turn-provenance --apply) || fail native_turn_provenance_refused
+memory_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set memory-retrieval-warm --apply) || fail memory_retrieval_warm_refused
 
 model_flow_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set model-flow-selection --apply) || fail model_flow_selection_refused
 
@@ -98,7 +100,7 @@ fi
 # 2. The Gateway loads its plugin at start only: restart it gracefully when the plugin changed, then wait for it.
 # Before the Tier0 promotion: a restart inside the soak window reads as a health regression (S24 12/10, 17:31 —
 # release 5631a6aa rolled back to the 11/10 release after one bad sample).
-if [ "$plugin" = synced ] || [[ "$wa_patch" == *'"applied"'* ]] || [[ "$auth_patch" == *'"applied"'* ]] || [[ "$native_patch" == *'"applied"'* ]] || [[ "$model_flow_patch" == *'"applied"'* ]]; then
+if [ "$plugin" = synced ] || [[ "$wa_patch" == *'"applied"'* ]] || [[ "$auth_patch" == *'"applied"'* ]] || [[ "$native_patch" == *'"applied"'* ]] || [[ "$memory_patch" == *'"applied"'* ]] || [[ "$model_flow_patch" == *'"applied"'* ]]; then
   if [ -n "${SAMANTHA_DEPLOY_LOCK_FD:-}" ]; then
     # Companion cannot inherit our flock over HTTP. Run its SAME stop/start
     # owner in this process tree, with the verified inherited EX description.

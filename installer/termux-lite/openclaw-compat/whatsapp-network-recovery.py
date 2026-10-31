@@ -82,7 +82,7 @@ def main():
         group.add_argument("--" + mode, dest="mode", action="store_const", const=mode)
     ap.add_argument("--openclaw-root", type=Path, default=Path(os.environ.get("PREFIX", "/data/data/com.termux/files/usr")) / "lib/node_modules/openclaw")
     ap.add_argument("--whatsapp-root", type=Path)
-    ap.add_argument("--patch-set", choices=("whatsapp-network-recovery", "agent-exec-auth-scope", "native-turn-provenance", "model-flow-selection", "gateway-prep-stages"), default="whatsapp-network-recovery")
+    ap.add_argument("--patch-set", choices=("whatsapp-network-recovery", "agent-exec-auth-scope", "native-turn-provenance", "model-flow-selection", "gateway-prep-stages", "memory-retrieval-warm"), default="whatsapp-network-recovery")
     args = ap.parse_args()
     try:
         manifest_path = MANIFEST.with_name(args.patch_set + ".json")
