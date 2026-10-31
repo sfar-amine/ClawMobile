@@ -32,10 +32,12 @@ const DEFAULT_GATEWAY_CALL_TIMEOUT_MS = 10_000;
  * the display strips it (stripConversationTransport). The notice below is static, in the cached system prefix.
  */
 export const OWNER_TIME_ZONE = "Africa/Tunis";
-let ownerClockFormatter: Intl.DateTimeFormat | undefined;
+// Built (and used once) when the module loads: the first Intl formatter loads time-zone data, a cost that belongs
+// to Companion start-up, never to an owner turn (test-canonical-agent-bootstrap budget: owner ≤ 1.1 × public turn).
+const ownerClockFormatter = new Intl.DateTimeFormat("en-US", {timeZone: OWNER_TIME_ZONE, year: "numeric", month: "2-digit",
+  day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short", weekday: "short"});
+ownerClockFormatter.formatToParts(new Date(0));
 export function ownerTurnClockPrefix(now = Date.now()): string {
-  ownerClockFormatter ??= new Intl.DateTimeFormat("en-US", {timeZone: OWNER_TIME_ZONE, year: "numeric", month: "2-digit",
-    day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short", weekday: "short"});
   const parts = Object.fromEntries(ownerClockFormatter.formatToParts(new Date(now)).map(({type, value}) => [type, value]));
   const tz = parts.timeZoneName?.trim();
   if (!parts.weekday || !parts.year || !parts.month || !parts.day || !parts.hour || !parts.minute) return "";
