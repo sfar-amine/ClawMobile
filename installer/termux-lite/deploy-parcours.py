@@ -12,11 +12,13 @@ playbooks snapshot. Nothing is sent on WhatsApp and nothing is written:
 
 Exit 0 = passed, 1 = a path failed (the caller rolls back), 3 = inconclusive (provider unavailable), 2 = usage.
 One JSON object on stdout: the receipt section."""
-import json, os, re, subprocess, sys, time, urllib.error, urllib.request
+import functools, json, os, re, subprocess, sys, time, urllib.error, urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 COMPANION = "http://127.0.0.1:8765/v1"
+# One fresh owner session per run (S24 31/10 00:57: the reused session kept a refused agenda call of the previous
+# deployment and the brain answered « toujours indisponible » without calling the tool, so the run judged history).
 OWNER_SESSION = "agent:main:recette-deploy"
 ROOM_RUNNER = HERE / "deploy-parcours-room.cjs"
 OWNER_TIMEOUT_S, ROOM_TIMEOUT_S = 150, 90
@@ -25,7 +27,7 @@ CLOSED = re.compile(r"Pulse est fermé")
 BROKEN = re.compile(r"n’a pas abouti|n'a pas abouti|pas confirmé|n’est pas établi|n'est pas établi|reste à vérifier|"
                     r"n’ai pas pu|n'ai pas pu|erreur interne|Rien n’a été exécuté\.$|"
                     # S24 30/10 dbe0f455: a refused typed tool call rendered as this (owner_read passed by mistake).
-                    r"est momentanément indisponible")
+                    r"est (?:momentanément |toujours )?indisponible")
 # A provider outage: inconclusive, never a rollback.
 OUTAGE = re.compile(r"modèle n’est pas joignable|modèle n'est pas joignable|interpretation_unavailable|"
                     r"rate.?limit|overloaded|429|503 Service", re.I)
@@ -33,11 +35,15 @@ DONE_WRITE = re.compile(r"\b(ajouté|créé|enregistré|c’est fait|c'est fait)
 PATHS = ("owner_read", "contact_read", "incomplete_ask", "write_recap", "app_read")
 
 
-def owner_turn(text, run=subprocess.run):
+def fresh_owner_session(now=time.gmtime):
+    return OWNER_SESSION + ":" + time.strftime("%Y%m%dT%H%M%SZ", now())
+
+
+def owner_turn(text, run=subprocess.run, session=OWNER_SESSION):
     """One owner-brain turn through the Gateway, no delivery: (text, seconds, error)."""
     began = time.monotonic()
     try:
-        p = run(["openclaw", "agent", "--agent", "main", "--session-key", OWNER_SESSION, "--message", text,
+        p = run(["openclaw", "agent", "--agent", "main", "--session-key", session, "--message", text,
                  "--json", "--timeout", str(OWNER_TIMEOUT_S - 20)],
                 capture_output=True, text=True, timeout=OWNER_TIMEOUT_S)
         value = json.loads(p.stdout or "{}")
@@ -90,7 +96,8 @@ def verdict(path, text, error):
     return "passed", "ok"
 
 
-def run_all(owner=owner_turn, room=room_turn, app=app_read):
+def run_all(owner=None, room=room_turn, app=app_read):
+    owner = owner or functools.partial(owner_turn, session=fresh_owner_session())
     rows = []
     def record(path, text, took, error):
         state, reason = verdict(path, text, error)

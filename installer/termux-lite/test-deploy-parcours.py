@@ -42,6 +42,26 @@ class Verdicts(unittest.TestCase):
         self.assertEqual(p.verdict("owner_read", read, None), ("failed", "broken_reply"))
         self.assertEqual(p.verdict("write_recap", write, None), ("failed", "broken_reply"))
 
+    def test_history_bound_refusal_is_broken(self):
+        # S24 31/10 00:57 Tunis, reused session: no tool call, the brain repeated the previous refusal.
+        self.assertEqual(p.verdict("owner_read", "Je ne peux toujours pas consulter ton agenda : l’accès Agenda est "
+                                   "indisponible pour le moment.", None), ("failed", "broken_reply"))
+        self.assertEqual(p.verdict("write_recap", "Je ne peux pas préparer l’ajout : l’accès Agenda est toujours "
+                                   "indisponible. Aucun rendez-vous n’a été créé ni mis en attente.", None),
+                         ("failed", "broken_reply"))
+
+    def test_each_run_uses_a_fresh_owner_session(self):
+        keys = []
+        def run(args, **kw):
+            keys.append(args[args.index("--session-key") + 1])
+            class P: stdout = json.dumps({"status": "ok", "result": {"payloads": [{"text": "ok"}]}}); returncode = 0
+            return P()
+        import functools, time as t
+        for stamp in ((2026, 10, 31, 0, 50, 19, 4, 304, 0), (2026, 10, 31, 1, 20, 2, 4, 304, 0)):
+            key = p.fresh_owner_session(lambda: t.struct_time(stamp))
+            p.owner_turn("x", run=run, session=key)
+        self.assertEqual(keys, ["agent:main:recette-deploy:20261031T005019Z", "agent:main:recette-deploy:20261031T012002Z"])
+
     def test_outage_is_inconclusive_never_a_rollback(self):
         self.assertEqual(p.verdict("owner_read", "", "429 rate limit"), ("inconclusive", "provider_unavailable"))
         self.assertEqual(p.verdict("contact_read", "Le modèle n’est pas joignable pour le moment.", None),
