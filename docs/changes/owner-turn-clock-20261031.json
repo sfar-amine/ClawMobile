@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "owner-turn-clock-20261031",
+  "date": "2026-10-31",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Every owner turn sent by submitToOpenClawAgent now starts with the Tunis local time in the SDK's own envelope format ([DOW YYYY-MM-DD HH:MM TZ], kept as is by the SDK LLM boundary, persisted with the message, stripped at display), and the owner context gets a static ## HORLOGE notice telling the brain to answer time, date, day and relative dates from it without any tool. Non-owner and slash turns are unchanged.",
+  "reason": "S24 31/10 brain-only voice bench: « quelle heure est-il » took 12.0 s against 6.2 s for a no-tool turn. OpenClaw 2026.9.6's Temporal Context gives the date only and says « For the exact current time, use session_status », a core tool behind Tool Search: two extra model steps (2.5-3.8 s each). The SDK message stamp follows the host time zone, not guaranteed to be Tunis on Termux.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-turn-clock.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-canonical-agent-bootstrap.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-owner-clock/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-owner-clock/provenance.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-owner-clock/date-time-CaOYkXPL.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-owner-clock/format-datetime-CSLJIAzN.mjs.gz",
+    "docs/changes/owner-turn-clock-20261031.json",
+    "docs/changes/owner-turn-clock-20261031.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-owner-turn-clock.cjs",
+      "status": "passed",
+      "evidence": "New, in ci.yml. Exact public SDK 2026.9.6 functions: Temporal Context sends the brain to session_status; the Companion envelope equals formatZonedTimestamp for Africa/Tunis (bench instant, Tunis midnight, year change); the S24-identical LLM boundary keeps it (a UTC host would stamp one hour early); real submission path: envelope, notice, display strip, system context stable across clock changes, non-owner and slash turns unchanged. Also green with TZ=Asia/Bahrain. Fails on the base commit."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-canonical-agent-bootstrap.cjs",
+      "status": "passed",
+      "evidence": "Updated: owner message = Tunis envelope + transport label + text; owner extraSystemPrompt = canonical context + clock notice."
+    },
+    {
+      "name": "test-conversation-origin, test-edit-replay, test-intent-interpreter-port, test-owner-foundation, test-owner-turn-admission, test-request-language-transport, test-typed-failure-presentation, test-voice-relay-brain-only, test-brain-only-entry, test-phone-datetime; tsc",
+      "status": "passed",
+      "evidence": "Green in the container on this branch."
+    }
+  ],
+  "documentation": ["docs/changes/owner-turn-clock-20261031.md"],
+  "capabilities": {"impact": "none", "reason": "No route, tool or pre-router: the brain answers, with one more context fact. The phone date/time fast path stays disabled in brain-only mode, as before."},
+  "architecture": {"changed": false, "reason": "Same agent submission owner and transport label; the SDK's own envelope format and LLM-boundary rule; no new store or route."},
+  "mcp_owner_parity": {
+    "tools": {"claw_context": "verified_no_impact", "claw_resolve": "verified_no_impact", "claw_execute": "verified_no_impact", "claw_exec": "verified_no_impact", "claw_status": "verified_no_impact", "claw_artifact_read": "verified_no_impact"},
+    "attached": {"schemas": "verified_no_impact", "adapters": "verified_no_impact", "documentation": "verified_impacted", "tests": "verified_impacted", "runtime": "verified_impacted"},
+    "evidence": ["Companion owner turn message and system context only; MCP unaffected."]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Live proof after deployment: « quelle heure est-il » and « on est quel jour » in brain-only voice answer with zero tool call (transcript_events) and the [voice-stages] line shows tools=-.",
+    "The zone is Tunis for every owner turn (Amine's home zone); a trip abroad keeps Tunis time unless he asks for another zone.",
+    "The owner system prefix changes once (one prompt cache miss per session after deployment)."
+  ],
+  "rollback": "Revert this commit and redeploy the previous core with companion-deploy.sh."
+}

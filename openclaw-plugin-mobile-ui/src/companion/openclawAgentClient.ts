@@ -23,6 +23,26 @@ const DEFAULT_SUBMIT_TIMEOUT_MS = 15_000;
 const DEFAULT_FINAL_TIMEOUT_MS = 120_000;
 const DEFAULT_GATEWAY_CALL_TIMEOUT_MS = 10_000;
 
+/**
+ * Owner clock (S24 31/10: « quelle heure est-il » took 12.0 s instead of 6.2 s). OpenClaw's system prompt carries only
+ * the current date and « For the exact current time, use `session_status` », and session_status sits behind Tool Search:
+ * the brain searched then called it, two extra model steps. Each owner turn now starts with the Tunis local time in the
+ * SDK's own envelope format (`[DOW YYYY-MM-DD HH:MM TZ] `, formatZonedTimestamp): the SDK keeps an existing envelope
+ * instead of stamping the host time zone, the text is persisted with the message (prompt cache chain unchanged) and
+ * the display strips it (stripConversationTransport). The notice below is static, in the cached system prefix.
+ */
+export const OWNER_TIME_ZONE = "Africa/Tunis";
+let ownerClockFormatter: Intl.DateTimeFormat | undefined;
+export function ownerTurnClockPrefix(now = Date.now()): string {
+  ownerClockFormatter ??= new Intl.DateTimeFormat("en-US", {timeZone: OWNER_TIME_ZONE, year: "numeric", month: "2-digit",
+    day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short", weekday: "short"});
+  const parts = Object.fromEntries(ownerClockFormatter.formatToParts(new Date(now)).map(({type, value}) => [type, value]));
+  const tz = parts.timeZoneName?.trim();
+  if (!parts.weekday || !parts.year || !parts.month || !parts.day || !parts.hour || !parts.minute) return "";
+  return `[${parts.weekday} ${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}${tz ? " " + tz : ""}] `;
+}
+export const OWNER_CLOCK_NOTICE = "## HORLOGE\nLe message utilisateur courant commence par l'heure locale de Tunis (Africa/Tunis) au moment de la demande, posée par le Companion, par exemple [Sat 2026-10-31 14:05 GMT+1]. Pour l'heure, la date, le jour ou une date relative (demain, dans trois jours), réponds directement depuis ce repère, sans aucun outil : ni session_status, ni tool_search, ni commande. Un outil ne sert que pour un autre fuseau horaire ou une précision à la seconde.";
+
 export function responseLanguageInstruction(language:ResponseLanguage|undefined):string {
   return language==='en'
     ? "Answer this turn in English. This is the request language, independent of the phone UI language."
@@ -46,13 +66,14 @@ export async function submitToOpenClawAgent(
   const agentId = options.voiceDelegation === true ? "main" : (process.env.CLAWMOBILE_AGENT_ID || "").trim();
   const canonical=compactOwnerAgentContext(options);
   const languagePrompt=responseLanguageInstruction(options.responseLanguage);
-  const responseContext=[canonical,languagePrompt].filter(Boolean).join("\n\n");
+  const owner=options.authority==="owner";
+  const responseContext=[canonical,owner?OWNER_CLOCK_NOTICE:"",languagePrompt].filter(Boolean).join("\n\n");
   const params = {
     sessionKey,
     ...(agentId ? { agentId } : {}),
     label: "ClawMobile Companion",
     // Slash commands must remain first for Gateway dispatch. Ordinary turns carry one transport label; later lookalikes remain user content.
-    message: text.trimStart().startsWith("/") ? text : `[companion-session:${normalizedSessionId}]\n${text}`,
+    message: text.trimStart().startsWith("/") ? text : `${owner?ownerTurnClockPrefix():""}[companion-session:${normalizedSessionId}]\n${text}`,
     deliver: false,
     bootstrapContextMode: "lightweight",
     ...(responseContext?{extraSystemPrompt:responseContext}:{}),
