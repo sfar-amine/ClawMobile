@@ -194,6 +194,50 @@ export function runProgressSteps(run: RunProgressSource): RunProgressSteps | und
   return result;
 }
 
+/**
+ * Waiting cues of Samantha Voix (Amine 31/10/2026, « go pour tout »): the latest typed Samantha tool a run started, so
+ * the voice can say once what is being done (« Je regarde tes factures. »). Only the tool name and its action, never a
+ * parameter, an argument or a result. Discovery (`samantha_catalogue`) is not an activity.
+ */
+export type RunActivity = {tool: string; action?: string; at?: number};
+const TYPED_TOOL = /^samantha_[a-z0-9_]{1,100}$/;
+const TYPED_ACTION = /^[a-z][a-z0-9_.-]{0,127}$/;
+const NOT_AN_ACTIVITY = new Set(["samantha_catalogue"]);
+
+/** Activity of a typed tool call seen on the Gateway stream (`data.name`, `data.args.action`), or undefined. */
+export function typedToolActivity(name: unknown, args: unknown, at?: number): RunActivity | undefined {
+  if (typeof name !== "string" || !TYPED_TOOL.test(name) || NOT_AN_ACTIVITY.has(name)) return undefined;
+  const action = args && typeof args === "object" && !Array.isArray(args) ? (args as Record<string, unknown>).action : undefined;
+  return {tool: name, ...(typeof action === "string" && TYPED_ACTION.test(action) ? {action} : {}),
+    ...(typeof at === "number" && Number.isSafeInteger(at) && at > 0 ? {at} : {})};
+}
+
+/** A stored or received activity, validated field by field; anything else is dropped. */
+export function readRunActivity(value: unknown): RunActivity | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const v = value as Record<string, unknown>;
+  return typedToolActivity(v.tool, {action: v.action}, typeof v.at === "number" ? v.at : undefined);
+}
+
+/**
+ * The run's current activity: the one recorded by the Gateway observer, else the latest typed tool call of its
+ * transcript events (`Calling samantha_….`, action read from the bounded argument summary).
+ */
+export function runActivity(progress: {activity?: unknown; events?: CompanionRunProgressEvent[]} | undefined): RunActivity | undefined {
+  const recorded = readRunActivity(progress?.activity);
+  if (recorded) return recorded;
+  const events = Array.isArray(progress?.events) ? progress!.events : [];
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i];
+    if (event?.type !== "tool.call" || typeof event.label !== "string") continue;
+    const name = /^Calling (samantha_[a-z0-9_]{1,100})\.$/.exec(event.label)?.[1];
+    if (!name || NOT_AN_ACTIVITY.has(name)) continue;
+    const action = typeof event.detail === "string" ? /"action"\s*:\s*"([a-z][a-z0-9_.-]{0,127})"/.exec(event.detail)?.[1] : undefined;
+    return typedToolActivity(name, {action}, event.at);
+  }
+  return undefined;
+}
+
 /** A transport/tool label (« Calling exec. », « Completed read. », « Completed. ») that must not reach Amine as live text. */
 export function isTechnicalProgressLabel(label: unknown): boolean {
   return typeof label !== "string" || !label.trim() || TECHNICAL_LABEL.test(label.trim());

@@ -1,0 +1,106 @@
+{
+  "version": 2,
+  "id": "voice-waiting-cues-20261031",
+  "date": "2026-10-31",
+  "origin": "chat",
+  "kind": "feature",
+  "summary": "Samantha Voix waiting cues (Amine 31/10, « go pour tout »): the run status now carries progress.activity, the latest typed Samantha tool the brain run started (name and action only), so the app says one useful phrase per turn after 1.5 s (« Je regarde tes factures. »), then at most a soft earcon; the 30 s budget notice becomes « Je te donne la réponse dès que je l'ai. ».",
+  "reason": "S24 voice bench 31/10: generic local waiting clips relaunched every 5-10 s while the brain works (waiting_local, relaunch_local), then « Je cherche encore, … » beyond 30 s; Amine finds the repetition annoying and decided the target behaviour.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/runProgress.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceBrainDelegation.ts",
+    "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-waiting-cues.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-deferred-readback.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-brain-delegation.cjs",
+    ".github/workflows/ci.yml",
+    "docs/work/samantha-runtime/contracts/voice-option-a.md",
+    "docs/changes/voice-waiting-cues-20261031.md"
+  ],
+  "routes": [
+    {
+      "route": "GET /v1/runs/{runId}",
+      "change": "optional progress.activity {tool, action?, at?} (latest typed samantha_* tool started by the run)",
+      "budget": "unchanged; no Gateway read for an observed run",
+      "capability": "unchanged"
+    },
+    {
+      "route": "GET /v1/runs/by-client/{clientRunId}",
+      "change": "same optional progress.activity",
+      "budget": "unchanged",
+      "capability": "unchanged"
+    },
+    {
+      "route": "POST /v1/extensions/claw-live/capability",
+      "change": "pending brain notice text: « Je te donne la réponse dès que je l'ai. »",
+      "budget": "unchanged 30 s voice budget",
+      "capability": "NO_CAPABILITY (voice surface owner route)"
+    }
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-voice-waiting-cues.cjs",
+      "status": "passed",
+      "evidence": "5 cases, new, registered in .github/workflows/ci.yml job mobile-ui-plugin; S24 typed tool captures."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-voice-deferred-readback.cjs, test-voice-brain-delegation.cjs",
+      "status": "passed",
+      "evidence": "Updated notice text, already registered."
+    },
+    {
+      "name": "test-gateway-run-observation, test-run-progress*, test-voice-turn-protocol, test-warm-v2-ownership, test-voice-async-readback, installer test-runtime-sync.py, test-runtime-foundations.py",
+      "status": "passed",
+      "evidence": "Unchanged, rerun locally on the change."
+    }
+  ],
+  "fixtures": {
+    "path": "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-30-direct-call-id, s24-2026-10-30-tool-search-direct, s24-2026-10-25-typed-tools",
+    "provenance": "Existing S24 captures reused (typed tool calls with actions, 30/10 brain run tool sequence, compiled typed tool names); no new capture (no S24 access for this lot)."
+  },
+  "documentation": [
+    "docs/changes/voice-waiting-cues-20261031.md",
+    "docs/work/samantha-runtime/contracts/voice-option-a.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No capability added or changed: a read-only status field and a notice text. Payment and deterministic routes are unchanged."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing owners only: the Gateway run observer and the run status projection carry the activity; the app's existing local clip owner says the phrase; VoiceTurnProtocol keeps the notice exactly once. No new store, router, scheduler, queue or retry."
+  },
+  "app_impact": {
+    "required": true,
+    "detail": "The paired APK reads progress.activity and replaces the repeated waiting clips with one phrase, earcons and the setting; without it the deployed app keeps its clips and hears the new notice wording."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Run status field and voice notice only; no MCP tool, schema or adapter change."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "On the S24 the brain session starts 10-22 s after acceptance, so at 1.5 s the typed tool is rarely known yet: the phrase will mostly be the generic one until the brain gets faster.",
+    "The typed tool stream frame (data.name, data.args.action) follows the shape the observer already reads; to confirm on the S24 at the recette (logcat waiting_cue phrase=… source=…). Tool Search's wrapped tool_call is not read."
+  ],
+  "rollback": "Revert this commit and redeploy the Companion with companion-deploy.sh; the new app falls back to the generic phrase and the old notice."
+}

@@ -23,8 +23,12 @@ export const VOICE_BRAIN_SOURCE = "samantha_brain";
  */
 export const VOICE_DEFERRED_FOLLOW_MS = 5 * 60_000;
 export const VOICE_DEFERRED_POLL_MS = 1_000;
-/** Said once when the brain has not answered within the voice budget; the answer follows in the same voice session. */
-export const VOICE_PENDING_NOTICE = "Je cherche encore, je te donne la réponse dès que je l'ai.";
+/**
+ * Said once when the brain has not answered within the voice budget; the answer follows in the same voice session.
+ * Waiting cues (Amine 31/10/2026): the app already said what is being done, so this is information only, never a second
+ * « je cherche encore » filler; it is the only notice of the turn (the app plays no spoken filler after its one phrase).
+ */
+export const VOICE_PENDING_NOTICE = "Je te donne la réponse dès que je l'ai.";
 const VERBATIM_MAX_CHARS = 600;
 const PENDING_TEXT = VOICE_PENDING_NOTICE;
 const UNKNOWN_TEXT = "Je vérifie dans la discussion. Ne rejoue pas cette demande : son statut est incertain.";

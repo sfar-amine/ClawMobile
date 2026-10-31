@@ -1,7 +1,7 @@
 import type {OwnerTurnObserver} from "./ownerTurnGateway";
 import {readRunWebResult, type RunWebResult} from "./runWeb";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
-import {isTechnicalProgressLabel, runProgressSteps} from "./runProgress";
+import {isTechnicalProgressLabel, readRunActivity, runActivity, runProgressSteps, typedToolActivity} from "./runProgress";
 import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision,type ReceiptPresentation} from "./receiptPresentation";
 import {projectRunPayment} from "./runPaymentPresentation";
 import { structuredNotification } from "./notificationText";
@@ -504,7 +504,8 @@ function readGatewayProgress(v:any):CompanionRunProgress|undefined {
   const rawCard=v.card;
   const card=rawCard?projectProgressCard({...rawCard,steps:Array.isArray(rawCard.steps)?rawCard.steps.map((step:any)=>({step:step.label,
     status:step.state==="done"?"completed":step.state==="running"?"in_progress":"pending"})):[]}):null;
-  return events.length||card?{text:"",events,...(card?{card}:{})}:undefined;
+  const activity=readRunActivity(v.activity);
+  return events.length||card||activity?{text:"",events,...(card?{card}:{}),...(activity?{activity}:{})}:undefined;
 }
 function observedRunStatus(stored:StoredRun):CompanionRunStatus {
   return {...statusFromStoredRun(stored),...(stored.gatewayProgress?{progress:stored.gatewayProgress}:{})};
@@ -591,6 +592,10 @@ export async function observeGatewayRun(runId:string,sessionKey:string):Promise<
         } finally {cardQueued=false;}});
         return;
       }
+      // Waiting cues (Amine 31/10): the latest typed Samantha tool started, name and action only, for the voice's one
+      // phrase « Je regarde tes factures. ». Never a parameter; it is not a step and never a result.
+      const activity=p.stream==="tool"&&data?.phase==="start"?typedToolActivity(data?.name,data?.args,Date.now()):undefined;
+      if(activity)enqueue(async()=>{await updateObservedRun(runId,r=>bound(r)?{...r,gatewayProgress:{...(r.gatewayProgress||{text:"",events:[]}),activity}}:undefined);});
       // Only titled tool boundaries are progress. Assistant deltas never become facts or terminal success.
       const title=cardText(data?.args?.title,160);
       if(p.stream!=="tool"||!["start","result"].includes(data?.phase)||typeof id!=="string"||
@@ -1365,6 +1370,9 @@ function withOwnerFields(status: CompanionRunStatus, stored?: StoredRun | null):
 function withRunSteps(status: CompanionRunStatus, stored?: StoredRun | null): CompanionRunStatus {
   if (!stored) return status;
   status = withOwnerFields(status, stored);
+  // Waiting cues: the same activity whether the run is read by id or by its clientRunId (the voice reads both).
+  const activity = runActivity(status.progress) ?? readRunActivity(stored.gatewayProgress?.activity);
+  if (activity) status = {...status, progress: {...(status.progress || {text: "", events: []}), activity}};
   const derived = runProgressSteps({
     executionSource: stored.executionSource, state: status.state, error: stored.error,
     acceptedAt: stored.acceptedAt, updatedAt: stored.updatedAt ?? status.updatedAt, modality: stored.modality,
