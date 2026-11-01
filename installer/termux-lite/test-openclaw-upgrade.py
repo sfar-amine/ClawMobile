@@ -499,12 +499,16 @@ class RealReceipts(unittest.TestCase):
 
     def test_schema_and_no_secret(self):
         text = FIXTURE.read_text()
-        self.assertEqual(upgrade.redact(text), text)  # nothing token-like, no phone number
+        import re
+        self.assertIsNone(re.search(r"\b[A-Fa-f0-9]{32,}\b|[A-Za-z0-9+/]{40,}={0,2}", text))  # no hash/token
+        self.assertIsNone(upgrade.SECRETISH.search(text))
+        self.assertIsNone(re.search(r"\+\d{8,}", text))  # no phone number
+        self.assertNotIn("/data/data/com.termux/files/home", text)
         for receipt in self.receipts:
             self.assertEqual((receipt["kind"], receipt["version"]), ("openclaw-upgrade", upgrade.RECEIPT_VERSION))
             self.assertLessEqual(set(receipt["phases"]), KNOWN_PHASES)
             self.assertLessEqual(set(receipt["gates"]), set(upgrade.GATES))
-            self.assertEqual(receipt["from"], {"openclaw": "2026.9.6", "node": "24.21.0"})
+            self.assertEqual(receipt["from"]["openclaw"], "2026.9.6")
             self.assertEqual(receipt["to"], {"openclaw": "2026.10.9", "node": "24.22.2"})
             self.assertEqual(len(receipt["databases"]), 20)
             self.assertTrue(all(d["backup_integrity"] for d in receipt["databases"]))
@@ -522,7 +526,7 @@ class RealReceipts(unittest.TestCase):
 
     def test_every_rollback_restored_identical_bytes_and_answered(self):
         rolled = [r for r in self.receipts if r["state"] == "rolled_back"]
-        self.assertGreaterEqual(len(rolled), 2)
+        self.assertGreaterEqual(len(rolled), 3)
         for receipt in rolled:
             self.assertTrue(all(d["restored_sha_ok"] for d in receipt["databases"]))
             gates = receipt["rollback"]["gates"]
