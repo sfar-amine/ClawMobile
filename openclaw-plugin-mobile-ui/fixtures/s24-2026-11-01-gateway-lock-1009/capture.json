@@ -1,0 +1,19 @@
+{
+  "source": "S24 prod, read-only capture 2026-11-01 22:36-22:40 UTC; home shown as ~, owner UUID masked",
+  "openclaw_version": "2026.10.9",
+  "lock_dir": "~/.openclaw/tmp/openclaw-<uid>",
+  "lock_dir_listing": [
+    "device-identity.27025f5d.lock.sqlite",
+    "gateway.b4424d84.lock.sqlite",
+    "gateway.state.lock",
+    "gateway.state.lock.sqlite",
+    "state.27025f5de024db73.lock"
+  ],
+  "gateway.state.lock": {"pid": 7574, "ownerId": "<masked>", "startTime": 45697416, "createdAt": "2026-11-01T22:30:25.783Z", "port": 18789, "configPath": "~/.openclaw/openclaw.json", "stateDir": "~/.openclaw"},
+  "state.27025f5de024db73.lock": {"pid": 7574, "ownerId": "<masked>", "startTime": 45697416, "createdAt": "2026-11-01T22:30:25.783Z", "port": 18789},
+  "owner_pid_7574": "dead",
+  "port_18789": "closed",
+  "companion_8765": 200,
+  "gateway_start_log": "[lite] ERROR: gateway lock preflight refused recovery: {\"count\": 0, \"reason\": \"config_lock_ambiguous\", \"state\": \"unsafe\"}",
+  "context": "companion-deploy 9862fd25 rollback (22:35 UTC): the runtime restart stopped the 10.9 Gateway, whose config lock is named state.<hash>.lock; gateway-preflight only globbed gateway.*.lock, found 0 candidates and refused, leaving the Gateway down until the two stale lock files were quarantined by hand at about 22:37 UTC; its supervisor restarted the Gateway at once (plugins loading 22:37:33 UTC, live by 22:40 UTC)."
+}

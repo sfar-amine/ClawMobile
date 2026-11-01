@@ -122,6 +122,36 @@ class StaleLockTests(unittest.TestCase):
         )
         self.assertEqual(result["state"], "stale_recoverable")
 
+    def use_openclaw_1009_layout(self):
+        # S24 01/11 23:35 (OpenClaw 2026.10.9): the config lock is state.<hash>.lock, no .sqlite sibling.
+        self.config_lock.unlink(); Path(str(self.config_lock) + ".sqlite").unlink()
+        self.config_lock = self.lock_dir / "state.27025f5de024db73.lock"
+        self.config_lock.write_text(json.dumps(self.payload))
+
+    def test_openclaw_1009_config_lock_is_recognised_and_recovered(self):
+        self.use_openclaw_1009_layout()
+        status = guard.stale_gateway_lock_status(
+            self.state, self.config, 18789, proc_root=self.proc, port_probe=lambda port: False)
+        self.assertEqual(status["state"], "stale_recoverable")
+        result = guard.recover_stale_gateway_locks(
+            self.state, self.config, 18789, proc_root=self.proc,
+            backup_root=self.root / "backups", port_probe=lambda port: False)
+        self.assertEqual(result["state"], "recovered")
+        self.assertFalse(self.config_lock.exists()); self.assertFalse(self.state_lock.exists())
+        self.assertTrue((Path(result["backup"]) / self.config_lock.name).is_file())
+
+    def test_openclaw_1009_live_owner_is_never_reclaimed(self):
+        self.use_openclaw_1009_layout(); self.add_process()
+        status = guard.stale_gateway_lock_status(
+            self.state, self.config, 18789, proc_root=self.proc, port_probe=lambda port: False)
+        self.assertEqual(status["state"], "active_owner")
+
+    def test_both_layouts_for_the_same_config_stay_ambiguous(self):
+        (self.lock_dir / "state.27025f5de024db73.lock").write_text(json.dumps(self.payload))
+        status = guard.stale_gateway_lock_status(
+            self.state, self.config, 18789, proc_root=self.proc, port_probe=lambda port: False)
+        self.assertEqual(status, {"state": "unsafe", "reason": "config_lock_ambiguous", "count": 2})
+
     def test_listener_blocks_lock_recovery(self):
         result = guard.stale_gateway_lock_status(
             self.state, self.config, 18789, proc_root=self.proc,

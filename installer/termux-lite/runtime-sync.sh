@@ -38,8 +38,7 @@ commit="${1:-$head}"; [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || { echo "usage: $0 [--
 
 plugin=unchanged; release=unchanged; gateway=unchanged; tools=unchanged; rules=unchanged
 fail(){ printf '{"ok":false,"reason":"%s","plugin":"%s","release":"%s","gateway":"%s","tools":"%s","rules":"%s"}\n' "$1" "$plugin" "$release" "$gateway" "$tools" "$rules"; exit 1; }
-# The extension holds the plugin's runtime set only (#126, lib.sh); an earlier full copy is drift.
-same_plugin(){ clawmobile_plugin_runtime_current "$PLUGIN" "$EXT"; }
+same_plugin(){ [ -d "$EXT" ] && diff -rq --exclude=node_modules --exclude=.git --exclude=.openclaw-plugin-installed-lite.stamp "$PLUGIN" "$EXT" >/dev/null 2>&1; }
 release_commit(){ python3 -c 'import json,sys
 try: print(json.load(open(sys.argv[1])).get("source_commit") or "")
 except (OSError,ValueError): print("")' "$CURRENT/manifest.json"; }
