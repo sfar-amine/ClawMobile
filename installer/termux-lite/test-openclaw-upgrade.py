@@ -435,6 +435,18 @@ class OpenClawUpgrade(unittest.TestCase):
         self.assertIn("triage_guard", doc["detail"])
         self.assertIn("egress_proxy", doc["detail"])
         self.assertEqual(r.served_version(), "2026.9.6")
+        # Once the checkout pins the secret egress proxy CA fix (#511), egress_proxy no longer refuses; the rest still does.
+        egress = r.td / "compat-egress"; egress.mkdir()
+        (egress / "android-fs-compat.json").write_text(json.dumps({"packages": {"2026.10.9": {"files": [
+            {"root": "openclaw", "path": "dist/ca-D3c9PAvv.mjs",
+             "patched": "5b1fd3ecdfae563cca56a9f9424f6afe72f4b7a1699699aa89c7b78f134abd2f"}]}}}))
+        layout = json.loads(r.layout_path.read_text()); layout["compat_dir"] = str(egress)
+        r.layout_path.write_text(json.dumps(layout))
+        doc = r.receipt(r.run())
+        self.assertEqual(doc["state"], "refused")
+        self.assertNotIn("egress_proxy", doc["detail"])
+        self.assertIn("triage_guard", doc["detail"])
+        self.assertEqual(r.served_version(), "2026.9.6")
 
     def test_heavy_job_refuses(self):
         r = self.make()

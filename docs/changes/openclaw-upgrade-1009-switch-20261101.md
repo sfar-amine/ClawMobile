@@ -21,7 +21,7 @@ Les phases, chronométrées dans le reçu :
    - jeux de compatibilité vérifiés sur le candidat ;
    - ligne 2026.10.9 du SDK dans le plugin Samantha déployé ;
    - garde anti-triage dans `gateway-start.sh` ;
-   - `secrets.egressProxy` non configuré. Sinon le préflight refuse, tant que le correctif du Worker n'est pas déployé ; il faudra alors passer `--skip-prerequisite egress_proxy`.
+   - `secrets.egressProxy` non configuré, ou correctif du module CA du proxy (`dist/ca-D3c9PAvv.mjs`) épinglé dans `android-fs-compat` (#511). Sinon le préflight refuse sur `egress_proxy` ; aucun `--skip-prerequisite egress_proxy` n'est nécessaire une fois #511 fusionnée.
 
    Un préflight à blanc de la prod (`--dry-run`, 18:23) refuse aujourd'hui sur `agent-exec-auth-scope`, `gateway-prep-stages`, `triage_guard` et `egress_proxy`. Il trouve la Gateway, les 20 bases (302 Mo) et la ligne SDK 2026.10.9 du plugin déployé. Un refus ne coupe rien.
 2. **stage**, Gateway encore en service : copie du candidat OpenClaw et de Node à côté des arbres vivants. `@openclaw/whatsapp@2026.10.9` est installé par npm dans une copie de son projet.

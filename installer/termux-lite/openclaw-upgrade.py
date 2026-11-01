@@ -66,6 +66,10 @@ class Failed(Exception):
     """A phase or gate failed after the Gateway was stopped: rollback follows."""
 
 
+# Secret egress proxy CA module of 2026.10.9 and its pinned Termux fix (#511, android-fs-compat).
+EGRESS_CA_MODULE = "dist/ca-D3c9PAvv.mjs"
+EGRESS_CA_PATCHED = "5b1fd3ecdfae563cca56a9f9424f6afe72f4b7a1699699aa89c7b78f134abd2f"
+
 # Compatibility manifests of this checkout (CLAW_RUNTIME_ROOT or the script's own folder, never a hard-coded copy).
 COMPAT_DIR = os.path.join(os.environ.get("CLAW_RUNTIME_ROOT") or os.path.dirname(os.path.abspath(__file__)),
                           "openclaw-compat")
@@ -650,6 +654,23 @@ class Upgrade:
                 results[name] = "refused:check_failed"
         return results
 
+    def egress_proxy_fix_pinned(self) -> bool:
+        """True when android-fs-compat pins the patched secret egress proxy CA module for the target version."""
+        try:
+            manifest = json.loads((Path(self.l["compat_dir"]) / "android-fs-compat.json").read_text())
+            files = manifest["packages"][self.l["target_version"]]["files"]
+        except (OSError, ValueError, KeyError, TypeError):
+            return False
+        rows = files.values() if isinstance(files, dict) else files
+        for row in rows:
+            if isinstance(row, dict) and row.get("path", row.get("file")) == EGRESS_CA_MODULE \
+                    and row.get("patched") == EGRESS_CA_PATCHED:
+                return True
+        if isinstance(files, dict):
+            row = files.get(EGRESS_CA_MODULE)
+            return isinstance(row, dict) and row.get("patched") == EGRESS_CA_PATCHED
+        return False
+
     def preflight(self) -> None:
         with self.phase("preflight") as p:
             self.acquire_lock()
@@ -705,13 +726,15 @@ class Upgrade:
                 if not p["triage_guard"]:
                     missing.append("triage_guard")
             # S24 rehearsal: with secrets.egressProxy configured, the 2026.10.9 Gateway refuses to start ("Secret egress
-            # proxy Worker is unavailable"). Refuse before any outage until a fix is deployed (then skip explicitly).
+            # proxy Worker is unavailable": its CA needs openssl, found only under Termux). Refuse before any outage
+            # unless this checkout pins the CA module fix in android-fs-compat (#511), verified on the candidate.
             try:
                 secrets = json.loads(Path(self.l["config"]).read_text()).get("secrets") or {}
                 p["egress_proxy_configured"] = bool(secrets.get("egressProxy"))
             except (OSError, ValueError, AttributeError):
                 p["egress_proxy_configured"] = None
-            if p["egress_proxy_configured"] is not False:
+            p["egress_proxy_fix"] = self.egress_proxy_fix_pinned()
+            if p["egress_proxy_configured"] is not False and not p["egress_proxy_fix"]:
                 missing.append("egress_proxy")
             # The Samantha plugin (Gateway and Companion) must carry the 2026.10.9 SDK row (#500) before the switch.
             dist = self.state / "extensions" / self.l["plugin_id"] / "dist"
