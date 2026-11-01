@@ -402,7 +402,8 @@ print(json.dumps({'state':'STAGED','id':'fixture.xlsx','path':'/synthetic-sdk-ou
             "child=subprocess.Popen([sys.executable,'-c',"
             + repr("import pathlib,time;time.sleep(.8);pathlib.Path("+repr(str(effect))+").write_text('unexpected')")
             + "])\n"
-            + "open("+repr(str(pids))+",'w').write(json.dumps([os.getpid(),child.pid]))\n"
+            + "open("+repr(str(pids)+'.tmp')+",'w').write(json.dumps([os.getpid(),child.pid]))\n"
+            + "os.replace("+repr(str(pids)+'.tmp')+","+repr(str(pids))+")\n"
             + "time.sleep(5)\n")
         source = str(Path(__file__).with_name('people-trusted.py'))
         runner = self.root/'actual-main-fixture.py'
