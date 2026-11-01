@@ -1,3 +1,6 @@
+import fs from "fs";
+import path from "path";
+import {createRequire} from "module";
 import {pathToFileURL} from "url";
 
 /** Single version table of the installed OpenClaw SDK surfaces this plugin imports.
@@ -109,9 +112,21 @@ const nativeImport = new Function("specifier", "return import(specifier)") as (s
  * package it imports (S24 01/11: 21 045 files and 190 MB for the session store surface, at each Gateway restart).
  * The Companion process has no such link: it keeps the file URL found from the installed package. */
 export function importHostModule(file: string, specifier: string): Promise<any> {
-  let local: string | undefined;
-  try { local = require.resolve(specifier); } catch {}
-  return nativeImport(local === file ? specifier : pathToFileURL(file).href);
+  return nativeImport(nativeResolution(specifier) === file ? specifier : pathToFileURL(file).href);
+}
+
+/** File that the native `import(specifier)` of this module loads, or undefined when it would not resolve.
+ * ESM looks a bare specifier up only in the `node_modules` of this module's ancestors, the first existing package
+ * folder winning; `require.resolve` also searches NODE_PATH and the global folders, where `import()` then fails with
+ * ERR_MODULE_NOT_FOUND. The export map of that package is applied by CommonJS from that same folder. */
+function nativeResolution(specifier: string, from: string = __dirname): string | undefined {
+  const name = specifier.startsWith("@") ? specifier.split("/", 2).join("/") : specifier.split("/", 1)[0];
+  for (let directory = from; ; directory = path.dirname(directory)) {
+    if (fs.statSync(path.join(directory, "node_modules", name), {throwIfNoEntry: false})?.isDirectory()) {
+      try { return createRequire(path.join(directory, "noop.js")).resolve(specifier); } catch { return undefined; }
+    }
+    if (path.dirname(directory) === directory) return undefined;
+  }
 }
 
 /** Value of a numeric constant that a hashed chunk exports, read as text and never imported (#126): importing the

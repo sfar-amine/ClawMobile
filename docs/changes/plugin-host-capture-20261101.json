@@ -4,7 +4,7 @@
   "date": "2026-11-01",
   "origin": "chat",
   "kind": "repair",
-  "summary": "#126 (after #498): the plugin no longer makes the Gateway copy OpenClaw into its plugin capture. Host SDK modules are imported by bare openclaw/plugin-sdk/... specifier when the module itself resolves the same file (Gateway capture link to the live host), the model profile contract is read from its hashed chunk as text instead of imported, and the extension directory holds the runtime set only (dist and the two manifests).",
+  "summary": "#126 (after #498): the plugin no longer makes the Gateway copy OpenClaw into its plugin capture. Host SDK modules are imported by bare openclaw/plugin-sdk/... specifier when a native import() from the module resolves the same file (Gateway capture link to the live host; ancestor node_modules only, never NODE_PATH or global folders), the model profile contract is read from its hashed chunk as text instead of imported, and the extension directory holds the runtime set only (dist and the two manifests).",
   "reason": "S24 01/11 18:25 (e0093963, #498 deployed): the first owner turn still spent 72.4 s under plugin-generation-artifact. The process capture directory showed 21 045 host files (openclaw dist 1 057 files and 192 whole packages, 190 MB) copied because loadInstalledSessionStoreSdk imported the session store surface and the contract chunk by file URL: 41.9 s of the profile (36.8 s before #498). The plugin directory itself (983 files, 826 of them fixtures, scripts and sources) was copied twice (about 4 s). The capture is a per-process snapshot removed at exit, never a reusable cache.",
   "files": [
     "openclaw-plugin-mobile-ui/src/companion/openclawSdkVersions.ts",
@@ -25,7 +25,12 @@
     {
       "name": "openclaw-plugin-mobile-ui/scripts/test-plugin-capture-size.cjs",
       "status": "passed",
-      "evidence": "Already in .github/workflows/ci.yml, extended (Node 20 and 22): contract read from the real 2026.9.6 and 2026.10.9 chunks (patched 1, npm original 0, aliased or duplicated 0); built plugin laid out as an OpenClaw capture with the host link: the session store, owner turn, official Gateway and media-store loaders issue 10 host imports, all bare openclaw/plugin-sdk/..., none file: or absolute, the real patched contract chunk is never imported and the session module is the host's own instance; Companion layout without the link still loads through the CLI binary. Fails when importHostModule is reverted to file URLs."
+      "evidence": "Already in .github/workflows/ci.yml, extended (Node 20 and 22): contract read from the real 2026.9.6 and 2026.10.9 chunks (patched 1, npm original 0, aliased or duplicated 0); built plugin laid out as an OpenClaw capture with the host link: the session store, owner turn, official Gateway and media-store loaders issue 10 host imports, all bare openclaw/plugin-sdk/..., none file: or absolute, the real patched contract chunk is never imported and the session module is the host's own instance; Companion layout without the link still loads through the CLI binary by file URL, now checked in a fresh process with at least 6 host imports (in-process the cached import helper kept the Gateway copy as referrer); a package reachable only through NODE_PATH also keeps the file URL. Fails when importHostModule is reverted to file URLs, and when its guard goes back to require.resolve (ERR_MODULE_NOT_FOUND). Fails when importHostModule is reverted to file URLs."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-persistent-gateway-transport.cjs, test-gateway-entrypoint.cjs, test-official-gateway-owner.cjs, test-qa-media-stage.cjs (Test persistent Gateway owner transport preparation)",
+      "status": "passed",
+      "evidence": "Unchanged tests, Node 20 and 22. test-gateway-entrypoint.cjs failed on the first head (gateway_connect_refused): its synthetic SDK is reachable through NODE_PATH, which require.resolve honours and native import() does not, so the bare specifier was chosen and could not load. The guard now follows native ESM lookup and keeps the file URL there."
     },
     {
       "name": "installer/termux-lite/test-plugin-install-noninteractive.sh",

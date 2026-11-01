@@ -133,9 +133,35 @@ assert.strictEqual(readChunkConstExport(`const ${SYMBOL} = 3;\nexport { a as b, 
     assert.strictEqual(sessions.getSessionEntry, shared.getSessionEntry, "same host module instance");
 
     // 6. Companion (no capture, no link): the installed package found from the CLI binary, by file URL as before.
-    const companion = layout("companion", false);
-    await loadAll(companion, bin);
-    assert.ok(hostImports(companion.capture).every(([specifier]) => specifier.startsWith(hostUrl)));
+    // 7. A package reachable only through NODE_PATH (or a global folder) resolves for require.resolve but not for a
+    // native import(): the file URL is kept, never a bare specifier that ESM cannot find.
+    // Each runs in a fresh process: V8 caches the plugin's `new Function` import helper by source, so in this process
+    // every later copy would import with the Gateway copy (and its host link) as referrer.
+    const freshCompanion = (name, binary, env) => {
+      const companion = layout(name, false);
+      const child = require("child_process").spawnSync(process.execPath, ["-e", `
+        const assert = require("assert"), path = require("path");
+        require("module").register(${JSON.stringify(pathToFileURL(hooks).href)});
+        const load = (file) => require(path.join(${JSON.stringify(companion.plugin)}, "dist/companion", file));
+        (async () => {
+          const binary = ${JSON.stringify(binary)};
+          const sessions = await load("ownerTurnGateway.js").loadInstalledSessionStoreSdk(binary);
+          const turn = await load("ownerTurnGateway.js").loadInstalledGatewaySdk(binary);
+          const official = load("officialGatewayOwner.js");
+          const gateway = await official.loadOfficialGatewaySdk(binary), media = await official.loadOfficialMediaStore(binary);
+          assert.strictEqual(sessions.modelProfileContractVersion, 1);
+          assert.strictEqual(sessions.getSessionEntry.subpath, "session-store-runtime");
+          assert.strictEqual(turn.GatewayClient.subpath, "gateway-runtime");
+          assert.strictEqual(gateway.resolveSecretRefValues.subpath, "secret-ref-runtime");
+          assert.strictEqual(media.saveMediaBuffer.subpath, "media-store");
+        })().catch((error) => { console.error(error); process.exitCode = 1; });`],
+        {env: {...process.env, NODE_PATH: "", ...env}, encoding: "utf8", timeout: 30000});
+      assert.strictEqual(child.status, 0, name + ": " + child.stderr);
+      const imports = hostImports(companion.capture);
+      assert.ok(imports.length >= 6 && imports.every(([specifier]) => specifier.startsWith(hostUrl)), name + ": " + JSON.stringify(imports));
+    };
+    freshCompanion("companion", bin, {});
+    freshCompanion("companion-node-path", path.join(work, "no-such-binary"), {NODE_PATH: path.dirname(host)});
     assert.ok(!fs.readFileSync(log, "utf8").includes("setup-B7DuERIi.mjs"));
     console.log("plugin capture size test passed: captured", captured.length === 0 ? "ws" : "?", "(19 of 635 files);",
       imports.length, "host imports by bare specifier, contract read as text, host instance shared");
