@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "id": "openclaw-startup-triage-optout-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "New pinned compatibility set startup-triage-optout (OpenClaw 2026.9.6 and 2026.10.9): one guard at the head of triageAfterFailure returns before any triage process, managed-handoff claim, embedded repair turn or external coding agent when a gateway-startup failure meets OPENCLAW_STARTUP_TRIAGE=off. gateway-start.sh exports the variable only after the set is applied and verified; runtime-sync checks and applies it, deploy rollback undoes it.",
+  "reason": "A failed Gateway start makes OpenClaw (installed 2026.9.6 and candidate 2026.10.9) start an unsupervised repair turn with the configured model or claude -p (seen in the 01/11 rehearsal). Upstream has no dedicated setting; the existing guards carry other meanings and are not repurposed (decision after PR #504).",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/openclaw-startup-triage-optout-20261101.json",
+    "docs/changes/openclaw-startup-triage-optout-20261101.md",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/gateway-start.sh",
+    "installer/termux-lite/openclaw-compat/startup-triage-optout.json",
+    "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
+    "installer/termux-lite/runtime-sync.sh",
+    "installer/termux-lite/test-startup-triage-optout.py",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/run-HO6sETAH.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/startup-triage-optout-harness.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/triage-failure-8uvnbYn8.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/triage-failure-DoR3aje_.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.9.6-compat/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.9.6-compat/run-S_R0Bn7l.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.9.6-compat/triage-failure-BI1ymYSt.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.9.6-compat/triage-failure-B_xmAewo.mjs.gz"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-startup-triage-optout.py",
+      "status": "passed",
+      "evidence": "10 tests, Node 26.11.1: pinned originals equal the S24 modules; both variants apply, check, re-apply and roll back exactly; unknown hash or version refused before any write; VM run of the public original and patched bodies (opted out: no effect at all; otherwise identical); node --check; final-start and in-process restart paths reach the guarded function; 2026.10.9 restart recovery awaits the operator; export only after a verified apply; sync/deploy wiring; import guard; disjoint set. Registered in ci.yml."
+    },
+    {
+      "name": "test-openclaw-compat-imports.py (with both npm archives), test-gateway-prep-stages.py, test-gateway-prep-stages-1009.py, test-openclaw-compat-variants.py, test-memory-retrieval-warm.py, test-model-flow-selection.py, test-native-turn-provenance.py, test-agent-exec-auth-scope.py, test-whatsapp-network-recovery.py, test-runtime-sync.py, test-runtime-start-command.py, test-companion-deploy-preflight.py, test-companion-deploy-root.py, test-companion-rollback-identity.py, test-gateway-preflight.py, test-no-hardcoded-clawmobile.py, test-health-deploy-lock.py, test-qa-deploy-protection.py, test-companion-acceptance-settle.py, test-maintenance-epoch-cas.py, test-tier0-control.py, test-ci-registration.py",
+      "status": "passed",
+      "evidence": "Existing owners and every test reading gateway-start.sh, runtime-sync.sh or companion-deploy.sh green on this head."
+    }
+  ],
+  "documentation": [
+    "docs/changes/openclaw-startup-triage-optout-20261101.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.9.6-compat/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Compatibility set, startup wiring and tests only; no route, action or capability (NO_CAPABILITY)."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same owner, manifest format and ownership pattern as the other pinned sets; no new store, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "Gateway start environment and one OpenClaw module guard; no MCP tool or schema touched."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "S24 hashes read only (01/11): production 2026.9.6 triage-failure modules and the isolated 2026.10.9 candidate match npm; nothing was applied or restarted on the S24.",
+    "The first runtime-sync on 2026.9.6 applies the set and restarts the Gateway once through the existing path.",
+    "Update-failure triage (openclaw update run by hand) is intentionally unchanged."
+  ],
+  "rollback": "Revert this commit: runtime-sync and deploy rollback undo the set; by hand, --patch-set startup-triage-optout --rollback then restart through the Gateway owner."
+}
