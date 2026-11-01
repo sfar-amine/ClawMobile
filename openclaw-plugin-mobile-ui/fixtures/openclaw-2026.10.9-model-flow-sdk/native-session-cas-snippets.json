@@ -1,0 +1,270 @@
+{
+ "version": 1,
+ "capture": {
+  "runtimeCapture": false,
+  "kind": "public npm package function source only; no database, configuration or transcript payload",
+  "package": "openclaw@2026.10.9",
+  "tarball_sha256": "43c61a00ef2c73416a072a7216cb3be80555d6740199f07194da2714283b04ab",
+  "date": "2026-11-01"
+ },
+ "files": [
+  {
+   "module": "session-store-runtime-B8fW3ciZ.mjs",
+   "source_sha256": "b09c1a9b310c3f8b42c734e3ef864d28ac8ce6793e3036291fd4257b44200b37",
+   "source_bytes": 11818,
+   "snippets": [
+    {
+     "name": "preserveGenerationPrivateFields+getSessionEntry",
+     "line": 38,
+     "begin": "function preserveGenerationPrivateFields(",
+     "end": "/** Reads the current session binding",
+     "source": "function preserveGenerationPrivateFields(persistedEntry, publicPatch) {\n\tconst nextSessionId = Object.hasOwn(publicPatch, \"sessionId\") ? publicPatch.sessionId : persistedEntry.sessionId;\n\tconst nextLifecycleRevision = Object.hasOwn(publicPatch, \"lifecycleRevision\") ? publicPatch.lifecycleRevision : persistedEntry.lifecycleRevision;\n\tconst privateFields = generationValidPrivateFieldsForSameSession(persistedEntry, nextSessionId, nextLifecycleRevision);\n\treturn privateFields ? {\n\t\t...publicPatch,\n\t\t...!Object.hasOwn(publicPatch, \"lifecycleRevision\") && persistedEntry.lifecycleRevision !== void 0 ? { lifecycleRevision: persistedEntry.lifecycleRevision } : {},\n\t\t...privateFields\n\t} : clearGenerationPrivateFieldsForRotatedSessionPatch(persistedEntry, publicPatch);\n}\n/** @deprecated Use getSessionEntryAsync. Removed at the next Plugin SDK major. */\nfunction getSessionEntry(params) {\n\tconst entry = loadSessionEntryReadOnly(toSessionAccessScope(params));\n\treturn entry ? projectPluginSessionEntry(entry) : void 0;\n}\n",
+     "snippet_sha256": "585e55280825893875e62437cc7d7833aaf85cc308e3690307ef068bbf6cfe5d"
+    },
+    {
+     "name": "listSessionEntries",
+     "line": 66,
+     "begin": "function listSessionEntries(",
+     "end": "/** Reads transcript events",
+     "source": "function listSessionEntries(params = {}) {\n\treturn (params.readOnly ? listSessionEntriesReadOnly : listSessionEntriesCore)({\n\t\t...params.agentId !== void 0 ? { agentId: params.agentId } : {},\n\t\t...params.env !== void 0 ? { env: params.env } : {},\n\t\t...params.hydrateSkillPromptRefs !== void 0 ? { hydrateSkillPromptRefs: params.hydrateSkillPromptRefs } : {},\n\t\t...params.storePath !== void 0 ? { storePath: params.storePath } : {}\n\t}).map(({ sessionKey, entry }) => ({\n\t\tsessionKey,\n\t\tentry: projectPluginSessionEntry(entry)\n\t}));\n}\n",
+     "snippet_sha256": "18717e4543eec8c3d916ccf9c285afe778f52a014847dd69b1ec4bac1baea663"
+    },
+    {
+     "name": "patchSessionEntry",
+     "line": 82,
+     "begin": "async function patchSessionEntry(",
+     "end": "/** @deprecated Use readSessionUpdatedAtAsync.",
+     "source": "async function patchSessionEntry(params) {\n\tconst entry = await patchSessionEntryCore(toSessionAccessScope(params), async (internalEntry, context) => {\n\t\tconst persistedEntry = internalEntry;\n\t\tconst patch = await params.update(projectPluginSessionEntry(internalEntry), { existingEntry: context.existingEntry ? projectPluginSessionEntry(context.existingEntry) : void 0 });\n\t\tif (!patch) return null;\n\t\treturn preserveGenerationPrivateFields(persistedEntry, projectPublicSessionEntryPatch(patch));\n\t}, {\n\t\t...sessionEntryCommitGuardOptions(captureExternalSessionCommitGuard(params.assertCommitAllowed)),\n\t\tfallbackEntry: params.fallbackEntry ? projectPluginSessionEntry(params.fallbackEntry) : void 0,\n\t\tmaintenanceConfig: params.maintenanceConfig !== void 0 ? normalizeResolvedMaintenanceConfigInput(params.maintenanceConfig) : void 0,\n\t\tpreserveActivity: params.preserveActivity,\n\t\trequireWriteSuccess: params.requireWriteSuccess,\n\t\treplaceEntry: params.replaceEntry,\n\t\tskipMaintenance: params.skipMaintenance\n\t});\n\treturn entry ? projectPluginSessionEntry(entry) : null;\n}\n",
+     "snippet_sha256": "6c7be17fad6cd6af0f6245d01037f0883a1a3ae203f67e26b904a266ee003c15"
+    }
+   ]
+  },
+  {
+   "module": "session-store-runtime-internal-CtkzYf1V.mjs",
+   "source_sha256": "89e17c687b4677190110cca4f46bb6635cb83cb3a450cae7eed3707420f494f2",
+   "source_bytes": 3758,
+   "snippets": [
+    {
+     "name": "toSessionAccessScope..clearGenerationPrivateFieldsForRotatedSessionPatch",
+     "line": 25,
+     "begin": "function toSessionAccessScope(",
+     "end": "//#endregion\nexport {",
+     "source": "function toSessionAccessScope(params) {\n\treturn {\n\t\tsessionKey: params.sessionKey,\n\t\t...params.agentId !== void 0 ? { agentId: params.agentId } : {},\n\t\t...params.env !== void 0 ? { env: params.env } : {},\n\t\t...params.hydrateSkillPromptRefs !== void 0 ? { hydrateSkillPromptRefs: params.hydrateSkillPromptRefs } : {},\n\t\t...params.readConsistency !== void 0 ? { readConsistency: params.readConsistency } : {},\n\t\t...params.storePath !== void 0 ? { storePath: params.storePath } : {}\n\t};\n}\nfunction projectPluginSessionEntry(entry) {\n\treturn {\n\t\t...projectPublicSessionEntry(entry),\n\t\t...entry.restartRecoveryRuns ? { restartRecoveryRuns: entry.restartRecoveryRuns.map((run) => ({ ...run })) } : {}\n\t};\n}\nfunction generationValidPrivateFieldsForSameSession(existingEntry, nextSessionId, nextLifecycleRevision) {\n\tif (!existingEntry || existingEntry.sessionId !== nextSessionId || existingEntry.lifecycleRevision !== nextLifecycleRevision) return;\n\tconst state = {\n\t\t...existingEntry.cliHistoryBoundary ? { cliHistoryBoundary: existingEntry.cliHistoryBoundary } : {},\n\t\t...existingEntry.activeWriterRunId !== void 0 ? { activeWriterRunId: existingEntry.activeWriterRunId } : {},\n\t\t...existingEntry.lifecycleRunId !== void 0 ? { lifecycleRunId: existingEntry.lifecycleRunId } : {},\n\t\t...existingEntry.pendingProjectGitUrl !== void 0 ? { pendingProjectGitUrl: existingEntry.pendingProjectGitUrl } : {},\n\t\t...existingEntry.transcriptByteCompactionLatch ? { transcriptByteCompactionLatch: existingEntry.transcriptByteCompactionLatch } : {},\n\t\t...existingEntry.sessionDiffBaselineCapture ? { sessionDiffBaselineCapture: existingEntry.sessionDiffBaselineCapture } : {},\n\t\t...existingEntry.mainRestartRecovery ? {\n\t\t\tabortedLastRun: existingEntry.abortedLastRun,\n\t\t\trestartRecoveryRuns: existingEntry.restartRecoveryRuns,\n\t\t\tmainRestartRecovery: existingEntry.mainRestartRecovery\n\t\t} : {}\n\t};\n\treturn Object.keys(state).length > 0 ? state : void 0;\n}\nfunction clearGenerationPrivateFieldsForRotatedSessionPatch(existingEntry, publicPatch) {\n\treturn Object.hasOwn(publicPatch, \"sessionId\") && publicPatch.sessionId !== existingEntry.sessionId || Object.hasOwn(publicPatch, \"lifecycleRevision\") && publicPatch.lifecycleRevision !== existingEntry.lifecycleRevision ? {\n\t\t...publicPatch,\n\t\t...SESSION_ENTRY_PRIVATE_CLEAR_PATCH,\n\t\t...MAIN_SESSION_RECOVERY_CLEAR_PATCH\n\t} : publicPatch;\n}\n",
+     "snippet_sha256": "b8954dc0861da77eb908547a01ce3b3d9e64bc325b422f32c6af0b57fc666e1c"
+    }
+   ]
+  },
+  {
+   "module": "session-entry-projection-DwG6-KIA.mjs",
+   "source_sha256": "87cef8467ab223efcf90dded7e25d2cfbd1ccb725d736aca68e48a804fb71eba",
+   "source_bytes": 2911,
+   "snippets": [
+    {
+     "name": "projection-region",
+     "line": 4,
+     "begin": "const SESSION_ENTRY_PRIVATE_CLEAR_PATCH = {",
+     "end": "const COMPACTION_RUN_USAGE_CLEAR_PATCH",
+     "source": "const SESSION_ENTRY_PRIVATE_CLEAR_PATCH = {\n\tactiveWriterRunId: void 0,\n\tlastRunId: void 0,\n\tlifecycleRunId: void 0,\n\tmainRestartRecovery: void 0,\n\trestartRecoveryOperatorSource: void 0,\n\tpendingProjectGitUrl: void 0,\n\tpendingWorktree: void 0,\n\tsessionDiffBaselineCapture: void 0,\n\ttranscriptByteCompactionLatch: void 0\n};\nconst PRIVATE_SESSION_ENTRY_KEYS = [\n\t\"inheritedGitContributorProfileIds\",\n\t\"profileInvolvement\",\n\t\"cliHistoryBoundary\",\n\t\"publicShare\",\n\t\"activeWriterRunId\",\n\t\"lastRunId\",\n\t\"lifecycleRunId\",\n\t\"mainRestartRecovery\",\n\t\"restartRecoveryOperatorSource\",\n\t\"pendingProjectGitUrl\",\n\t\"pendingWorktree\",\n\t\"sessionDiffBaselineCapture\",\n\t\"transcriptByteCompactionLatch\"\n];\nfunction stripPrivateSessionEntryFields(entry) {\n\tconst projected = { ...entry };\n\tfor (const key of PRIVATE_SESSION_ENTRY_KEYS) delete projected[key];\n\tdelete projected.thinkingLevelSelection;\n\tdelete projected.compactionCheckpoints;\n\tif (entry.modelFallback) {\n\t\tconst { prevThinkingLevelSelection: _privateSelection, ...modelFallback } = entry.modelFallback;\n\t\tprojected.modelFallback = modelFallback;\n\t} else delete projected.modelFallback;\n\treturn projected;\n}\nfunction projectPublicSessionEntry(entry) {\n\treturn stripPrivateSessionEntryFields(entry);\n}\nfunction projectPublicSessionEntryPatch(patch) {\n\treturn stripPrivateSessionEntryFields(patch);\n}\n",
+     "snippet_sha256": "c579284aa9f8f09100595e1ae634ed73076be5a532032b736476c715a347e783"
+    }
+   ]
+  },
+  {
+   "module": "main-session-recovery-clear-B0tByn8u.mjs",
+   "source_sha256": "00559298d222e0ffa03047b4d0f071bc262da821339e8f1e08c7f33f55196e85",
+   "source_bytes": 1735,
+   "snippets": [
+    {
+     "name": "MAIN_SESSION_RECOVERY_CLEAR_PATCH",
+     "line": 13,
+     "begin": "const MAIN_SESSION_RECOVERY_CLEAR_PATCH = {",
+     "end": "function buildMainSessionRecoveryClearPatch(",
+     "source": "const MAIN_SESSION_RECOVERY_CLEAR_PATCH = {\n\tabortedLastRun: false,\n\trestartRecoveryRuns: void 0,\n\tmainRestartRecovery: void 0\n};\n",
+     "snippet_sha256": "c3b91ed102214ff01c9a5c96dbb0afb099a27226a8fd892ffecf37e0ea45c050"
+    }
+   ]
+  },
+  {
+   "module": "session-source-authority-h1UO3u0I.mjs",
+   "source_sha256": "002a834db1bfe0c739e11002db3440becc9af63f74383ff3c95274e6c3955357",
+   "source_bytes": 8567,
+   "snippets": [
+    {
+     "name": "sessionEntryCommitGuardOptions",
+     "line": 4,
+     "begin": "function sessionEntryCommitGuardOptions(",
+     "end": "/** Install transaction facts",
+     "source": "function sessionEntryCommitGuardOptions(source) {\n\treturn source?.nativeSource ? { assertCommitAllowed: source } : { workerGuard: { source } };\n}\n",
+     "snippet_sha256": "e71e6f509d7444ac65519b46423356ce2ca31beab5417ea07c7cefbfee47c0f8"
+    },
+    {
+     "name": "captureExternalSessionCommitGuard",
+     "line": 22,
+     "begin": "/** Classify request/SDK callbacks",
+     "end": "async function releaseSessionSourceAuthorities(",
+     "source": "/** Classify request/SDK callbacks before adapters compose them with prepared internal authority. */\nfunction captureExternalSessionCommitGuard(guard) {\n\treturn guard && !guard.prepareSessionSource ? Object.assign(() => guard(), {\n\t\tnativeSource: true,\n\t\topaqueCommitGuard: true\n\t}) : guard;\n}\n",
+     "snippet_sha256": "ae0aaf396fead22c80c494034ad46b8c1e59f3bbbc34050f764ff545e61ee8b0"
+    },
+    {
+     "name": "prepareSessionSourceAuthority",
+     "line": 38,
+     "begin": "async function prepareSessionSourceAuthority(",
+     "end": "/** Bootstrap grants",
+     "source": "async function prepareSessionSourceAuthority(assertion) {\n\treturn assertion?.prepareSessionSource ? assertion.prepareSessionSource() : {\n\t\tassertCurrent: () => assertion?.(),\n\t\tchecks: [],\n\t\tnativeSource: assertion?.nativeSource,\n\t\topaqueCommitGuard: assertion?.opaqueCommitGuard\n\t};\n}\n",
+     "snippet_sha256": "b640c7574a6a17d1ef0060ca3bb315b343e8d1be0020ef01092046bddc0d2156"
+    }
+   ]
+  },
+  {
+   "module": "session-accessor.sqlite-entry-DLa7_9ui.mjs",
+   "source_sha256": "5b2cdf8f46e5ccabf25b066cd805965142c0ac15e5ad9af7b5720a7bef36bb94",
+   "source_bytes": 56975,
+   "snippets": [
+    {
+     "name": "captureSessionEntryPatchSource",
+     "line": 475,
+     "begin": "function captureSessionEntryPatchSource(",
+     "end": "//#endregion\n//#region src/config/sessions/session-incognito-entry-patch.ts",
+     "source": "function captureSessionEntryPatchSource(params) {\n\tconst { resolved: scope, sessionKey, capturedSource: captured, options } = params;\n\tconst { retainedExecution } = options;\n\tconst resolved = {\n\t\t...scope,\n\t\tenv: cloneEnvWithPlatformSemantics(scope.env ?? process.env)\n\t};\n\tresolved.env.OPENCLAW_STATE_DIR = resolveStateDir(resolved.env);\n\tconst databaseOptions = toDatabaseOptions(resolved);\n\tconst databasePath = resolveOpenClawAgentSqlitePath(databaseOptions);\n\tconst targetIdentity = readDatabasePathIdentitySync(databasePath);\n\tresolved.path = databasePath;\n\tdatabaseOptions.path = databasePath;\n\tconst incognito = isIncognitoOpenClawAgentSqlitePath(databasePath, databaseOptions);\n\tconst incognitoBinding = captureIncognitoSessionBinding({\n\t\tagentId: databaseOptions.agentId,\n\t\tenv: resolved.env,\n\t\tsessionKey,\n\t\tstorePath: databasePath\n\t});\n\tconst useWorker = !incognitoBinding && isMainThread && !options.shouldCommit && !options.assertCommitAllowed && supportsOpenClawAgentDatabaseExecution(databaseOptions);\n\tconst ensure = options.workerGuard?.ensureIdentitySource;\n\tif (ensure && (!useWorker || typeof params.update === \"function\" || params.update.kind !== \"ensure-identity\" || ensure.agentId !== resolved.agentId)) throw new Error(\"Transaction-local entry authority requires a closed worker ensure\");\n\tif (ensure && (targetIdentity.key !== `file:${String(ensure.source.databaseIdentity)}` || targetIdentity.birthtime !== ensure.source.databaseBirthtime)) throw new Error(\"Transaction-local entry authority differs from its writer\");\n\tconst assertCapturedSource = (database) => {\n\t\tif (!captured) return;\n\t\tif (incognitoBinding) {\n\t\t\tconst { actor } = incognitoBinding;\n\t\t\tactor.assertCurrent();\n\t\t\tif (captured.agentId !== actor.agentId || captured.path !== actor.path || captured.databaseIdentity !== actor.identity.incarnation || captured.databaseBirthtime !== void 0) throw new Error(\"Captured session database changed before entry patch\");\n\t\t\treturn;\n\t\t}\n\t\tif (!database && typeof captured.databaseIdentity === \"string\") assertExistingDatabaseIdentity(captured.path, `file:${captured.databaseIdentity}`, captured.databaseBirthtime);\n\t\tassertCapturedSessionEntryReadSource(captured, database ?? getOpenClawAgentDatabaseIfOpen(databaseOptions));\n\t};\n\tconst assertCurrent = () => {\n\t\tif (retainedExecution) {\n\t\t\tretainedExecution.assertCurrent();\n\t\t\tconst identity = retainedExecution.fileIdentity;\n\t\t\tif (!captured || !identity || retainedExecution.agentId !== databaseOptions.agentId || captured.databaseIdentity !== identity.physicalIdentity || captured.databaseBirthtime !== identity.birthtime) throw new Error(\"Retained session writer differs from its acknowledged source\");\n\t\t}\n\t\tif (targetIdentity.key.startsWith(\"file:\")) assertExistingDatabaseIdentity(databasePath, targetIdentity.key, targetIdentity.birthtime);\n\t\tassertCapturedSource();\n\t};\n\tif (retainedExecution) assertCurrent();\n\treturn {\n\t\tresolved,\n\t\tdatabaseOptions,\n\t\tdatabasePath,\n\t\ttargetIdentity,\n\t\tincognito,\n\t\tincognitoBinding,\n\t\tuseWorker,\n\t\tensureIdentitySource: ensure ? {\n\t\t\tsource: ensure.source,\n\t\t\tagentId: ensure.agentId,\n\t\t\tsessionKey: ensure.sessionKey\n\t\t} : void 0,\n\t\tassertCapturedSource,\n\t\tassertCurrent\n\t};\n}\n",
+     "snippet_sha256": "314fbb8f41670fb8c812c25e1af4274c519a0e0205321b713b8839edd6fb1520"
+    },
+    {
+     "name": "patchSessionEntryCore..patchSessionEntryInScope",
+     "line": 1003,
+     "begin": "/** Patches one entry in the additive SQLite session store. */",
+     "end": "/** Patches one logical entry after validating",
+     "source": "/** Patches one entry in the additive SQLite session store. */\nasync function patchSessionEntryCore(scope, update, options = {}) {\n\treturn await patchSessionEntryInScope(scope, update, options);\n}\n/** Internal fixed operations evaluate the authoritative row inside the writer command. */\nasync function applySessionEntryOperation(scope, operation, options = {}) {\n\treturn await patchSessionEntryInScope(scope, structuredClone(operation), {\n\t\tworkerGuard: {},\n\t\t...options\n\t});\n}\nasync function patchSessionEntryInScope(scope, update, options, databaseAgentId) {\n\tconst resolved = resolveSqliteScope(scope);\n\tif (databaseAgentId) resolved.databaseAgentId = databaseAgentId;\n\tassertCanonicalSessionKeyWrite(resolved.sessionKey, resolved.agentId);\n\treturn await patchSqliteSessionEntrySnapshot({\n\t\toperationLabel: \"session-entry.patch\",\n\t\tvalidateCanonicalKeys: options.replaceEntry !== true,\n\t\toptions,\n\t\tselection: {\n\t\t\tkind: \"entry\",\n\t\t\tsessionKey: resolved.sessionKey,\n\t\t\texact: options.replaceEntry === true\n\t\t},\n\t\treadSnapshot: (database) => readSessionEntrySelectionSnapshot(database, resolved.sessionKey, options.replaceEntry === true),\n\t\tresolved,\n\t\tsessionKey: resolved.sessionKey,\n\t\tstorePath: resolveSessionStorePathForScope(scope),\n\t\tupdate\n\t});\n}\n",
+     "snippet_sha256": "52e9a1d8b267a47f7ec5a101216ad48c878a9b20b48abfbadb8b2c036354f863"
+    },
+    {
+     "name": "patchSqliteSessionEntrySnapshot",
+     "line": 1079,
+     "begin": "/** Callback and fixed-operation patches share",
+     "end": "async function recordInboundSessionMeta(",
+     "source": "/** Callback and fixed-operation patches share source custody, FIFO, and commit publication. */\nasync function patchSqliteSessionEntrySnapshot(params) {\n\tconst { options, sessionKey } = params;\n\tconst captured = params.capturedSource;\n\tconst { resolved, databaseOptions, databasePath, targetIdentity, incognito, incognitoBinding, useWorker, ensureIdentitySource, assertCapturedSource, assertCurrent } = captureSessionEntryPatchSource(params);\n\tconst prepare = async (prepared) => {\n\t\tconst existing = prepared[0]?.entry;\n\t\tif (options.prepareIf?.kind === \"live-model-switch-pending\" && !existing?.liveModelSwitchPending) return;\n\t\tconst writeBase = existing ?? options.fallbackEntry;\n\t\tif (!writeBase) return;\n\t\tlet contextEntry = existing;\n\t\tlet contextEntryBorrowed = true;\n\t\tconst patch = typeof params.update !== \"function\" ? reduceSessionEntryPatch(params.update, writeBase, existing) : await params.update(structuredClone(writeBase), {\n\t\t\tget existingEntry() {\n\t\t\t\tif (contextEntryBorrowed) {\n\t\t\t\t\tcontextEntry = contextEntry ? structuredClone(contextEntry) : void 0;\n\t\t\t\t\tcontextEntryBorrowed = false;\n\t\t\t\t}\n\t\t\t\treturn contextEntry;\n\t\t\t},\n\t\t\tset existingEntry(entry) {\n\t\t\t\tcontextEntry = entry;\n\t\t\t\tcontextEntryBorrowed = false;\n\t\t\t}\n\t\t});\n\t\tconst next = mergeSessionEntryPatch({\n\t\t\t...options,\n\t\t\texisting,\n\t\t\twriteBase,\n\t\t\tpatch,\n\t\t\tsessionKey\n\t\t});\n\t\treturn {\n\t\t\tselection: params.selection,\n\t\t\tprepared,\n\t\t\tsessionKey,\n\t\t\twriteBase,\n\t\t\tnext,\n\t\t\toperationLabel: params.operationLabel,\n\t\t\tvalidateCanonicalKeys: params.validateCanonicalKeys,\n\t\t\tconsumePendingReset: options.consumePendingReset,\n\t\t\tproviderReviewMutation: options.providerReviewMutation,\n\t\t\tshouldCommitIf: options.workerGuard?.shouldCommitIf,\n\t\t\tcliHistory: options.workerGuard?.cliHistory,\n\t\t\tconversation: options.workerGuard?.conversation\n\t\t};\n\t};\n\tconst withDatabase = (operation) => {\n\t\tassertCurrent?.();\n\t\treturn !incognito && !getOpenClawAgentDatabaseIfOpen(databaseOptions) ? withOpenClawAgentDatabaseRuntime(databaseOptions, operation, assertCurrent) : operation();\n\t};\n\tif (incognitoBinding) return (await patchIncognitoSessionEntry({\n\t\t...incognitoBinding,\n\t\tsessionKey,\n\t\tselection: params.selection,\n\t\tassertCurrent() {\n\t\t\tassertCurrent?.();\n\t\t\toptions.workerGuard?.assertCurrent?.();\n\t\t},\n\t\tassertCommitAllowed: options.assertCommitAllowed,\n\t\tshouldCommit: options.shouldCommit,\n\t\tsource: options.workerGuard?.source,\n\t\tprepare,\n\t\tonCommitted: options.onCommitted,\n\t\tonCommittedSource: options.onCommittedSource\n\t})).entry;\n\tlet wrote = false;\n\tconst workerPatch = (preparedSource) => patchSessionEntryInWorker({\n\t\tdatabase: {\n\t\t\t...databaseOptions,\n\t\t\tpath: databasePath\n\t\t},\n\t\tdatabaseIdentity: typeof captured?.databaseIdentity === \"string\" ? captured.databaseIdentity : void 0,\n\t\tagentId: resolved.agentId,\n\t\tselection: params.selection,\n\t\tassertCurrent: () => assertCurrent?.(),\n\t\tguard: options.workerGuard,\n\t\tpreparedSource,\n\t\tretainedExecution: options.retainedExecution,\n\t\treduction: typeof params.update === \"function\" ? void 0 : {\n\t\t\toperation: params.update,\n\t\t\tselection: params.selection,\n\t\t\tsessionKey,\n\t\t\toperationLabel: params.operationLabel,\n\t\t\tvalidateCanonicalKeys: params.validateCanonicalKeys,\n\t\t\tfallbackEntry: options.fallbackEntry,\n\t\t\treplaceEntry: options.replaceEntry,\n\t\t\tpreserveActivity: options.preserveActivity,\n\t\t\tconsumePendingReset: options.consumePendingReset,\n\t\t\tproviderReviewMutation: options.providerReviewMutation,\n\t\t\tshouldCommitIf: options.workerGuard?.shouldCommitIf,\n\t\t\tcliHistory: options.workerGuard?.cliHistory,\n\t\t\tconversation: options.workerGuard?.conversation,\n\t\t\tensureIdentitySource\n\t\t},\n\t\tprepare,\n\t\tonCommitted: options.onCommitted,\n\t\tonCommittedSource: options.onCommittedSource\n\t}).then((result) => {\n\t\twrote = result.wrote;\n\t\treturn result.entry;\n\t});\n\tconst sourceAssertion = options.workerGuard?.source;\n\tconst committed = await runExclusiveSqliteSessionWrite(resolved, async () => {\n\t\tif (useWorker) {\n\t\t\tconst source = await prepareSessionSourceAuthority(sourceAssertion);\n\t\t\tconst locality = !source.nativeSource && source.checks.every(({ predicate }) => targetIdentity.key === `file:${String(predicate.source.databaseIdentity)}`) ? \"same-store\" : \"cross-store\";\n\t\t\tif (ensureIdentitySource && locality !== \"same-store\") {\n\t\t\t\tawait source.release?.();\n\t\t\t\tthrow new Error(\"Transaction-local entry authority differs from its writer\");\n\t\t\t}\n\t\t\tif (locality === \"same-store\") return workerPatch(source);\n\t\t\tawait source.release?.();\n\t\t}\n\t\treturn withDatabase(async () => {\n\t\t\tconst database = openOpenClawAgentDatabase(databaseOptions);\n\t\t\tassertCapturedSource(database);\n\t\t\tconst prepared = params.readSnapshot(database);\n\t\t\tconst input = await prepare(prepared);\n\t\t\tif (!input) return null;\n\t\t\tconst { writeBase, next } = input;\n\t\t\treturn withDatabase(async () => {\n\t\t\t\tlet result = null;\n\t\t\t\tlet committedSource;\n\t\t\t\tlet transcriptPredicate;\n\t\t\t\tconst publish = await runOpenClawAgentWriteWithYieldingAdmission((writeDatabase) => {\n\t\t\t\t\tassertCapturedSource(writeDatabase);\n\t\t\t\t\toptions.workerGuard?.assertCurrent?.();\n\t\t\t\t\tif (options.shouldCommit?.() === false) return;\n\t\t\t\t\tconst predicate = readSessionEntryPatchPredicate(writeDatabase, sessionKey, options.workerGuard?.shouldCommitIf);\n\t\t\t\t\tif (!predicate.matches) return;\n\t\t\t\t\tconst mutation = applySessionEntryPatchInDatabase(writeDatabase, {\n\t\t\t\t\t\toperationLabel: params.operationLabel,\n\t\t\t\t\t\tvalidateCanonicalKeys: params.validateCanonicalKeys,\n\t\t\t\t\t\treadSnapshot: params.readSnapshot,\n\t\t\t\t\t\tprepared,\n\t\t\t\t\t\tsessionKey,\n\t\t\t\t\t\twriteBase,\n\t\t\t\t\t\tnext,\n\t\t\t\t\t\toptions: {\n\t\t\t\t\t\t\t...options,\n\t\t\t\t\t\t\tassertCommitAllowed: () => {\n\t\t\t\t\t\t\t\toptions.assertCommitAllowed?.();\n\t\t\t\t\t\t\t\toptions.workerGuard?.source?.();\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t});\n\t\t\t\t\tresult = mutation.entry;\n\t\t\t\t\ttranscriptPredicate = mutation.entry.sessionId === predicate.transcriptPredicate?.sessionId ? predicate.transcriptPredicate : void 0;\n\t\t\t\t\tif (!mutation.identity) return;\n\t\t\t\t\tif (options.onCommittedSource) {\n\t\t\t\t\t\tconst identity = readOpenClawAgentDatabaseIdentity(writeDatabase);\n\t\t\t\t\t\tcommittedSource = {\n\t\t\t\t\t\t\tagentId: writeDatabase.agentId,\n\t\t\t\t\t\t\tpath: writeDatabase.path,\n\t\t\t\t\t\t\tdatabaseIdentity: identity.identity,\n\t\t\t\t\t\t\tdatabaseBirthtime: identity.birthtime\n\t\t\t\t\t\t};\n\t\t\t\t\t}\n\t\t\t\t\twrote = true;\n\t\t\t\t\treturn prepareSessionIdentityPublication(writeDatabase, resolved.agentId, mutation.identity.previous, mutation.identity.current);\n\t\t\t\t}, databaseOptions, { operationLabel: params.operationLabel });\n\t\t\t\ttry {\n\t\t\t\t\tif (next && result) {\n\t\t\t\t\t\tconst entry = structuredClone(result);\n\t\t\t\t\t\tif (transcriptPredicate) options.onCommitted?.(entry, transcriptPredicate);\n\t\t\t\t\t\telse options.onCommitted?.(entry);\n\t\t\t\t\t\tif (committedSource) options.onCommittedSource?.(committedSource, structuredClone(result));\n\t\t\t\t\t}\n\t\t\t\t} finally {\n\t\t\t\t\tpublish?.();\n\t\t\t\t}\n\t\t\t\treturn result;\n\t\t\t});\n\t\t});\n\t}, params.operationLabel, void 0, options.retainedExecution || useWorker && !sourceAssertion ? \"foreground-reentrant\" : \"foreground\");\n\tif (wrote) kickSessionEntryMaintenanceAfterWrite({\n\t\tactiveSessionKey: sessionKey,\n\t\tarchiveDirectory: resolveSqliteTranscriptArchiveDirectory(resolved),\n\t\tmaintenanceConfig: options.maintenanceConfig,\n\t\tscope: resolved,\n\t\tskipMaintenance: options.skipMaintenance,\n\t\tstorePath: params.storePath\n\t});\n\tkickSessionHistoryDiskBudgetMaintenance({\n\t\t...resolved.agentId ? { agentId: resolved.agentId } : {},\n\t\tenv: resolved.env,\n\t\tstorePath: params.storePath,\n\t\t...options.maintenanceConfig ? { maintenanceConfig: options.maintenanceConfig } : {}\n\t});\n\treturn committed;\n}\n",
+     "snippet_sha256": "b42efdaee05239452dae0644f22d223ea35fe535772b3e26f90ccbae61e757ba"
+    }
+   ]
+  },
+  {
+   "module": "session-entry-patch-operation-C0KSoGVF.mjs",
+   "source_sha256": "9db78a2e87d4f4829dca2a335d19d638a7032a57853b26772ad110961db6dcc7",
+   "source_bytes": 12087,
+   "snippets": [
+    {
+     "name": "mergeSessionEntryPatch",
+     "line": 212,
+     "begin": "function mergeSessionEntryPatch(",
+     "end": "//#endregion\nexport {",
+     "source": "function mergeSessionEntryPatch(params) {\n\tconst { existing, writeBase, patch, sessionKey } = params;\n\tconst creationPatch = !existing && patch ? {\n\t\t...writeBase,\n\t\t...patch\n\t} : patch;\n\tif (!creationPatch) return;\n\tif (params.replaceEntry) return structuredClone(patch);\n\tconst merged = params.preserveActivity ? mergeSessionEntryPreserveActivity(existing, creationPatch) : mergeSessionEntry(existing, creationPatch);\n\treturn preserveSqliteSameKeySessionRolloverLineage({\n\t\tnext: merged,\n\t\tprevious: writeBase,\n\t\tsessionKey\n\t});\n}\n",
+     "snippet_sha256": "65a2e88ec784867a42918fd6858aea56c3d9877b9e4376918faed2e62095b0e4"
+    }
+   ]
+  },
+  {
+   "module": "session-accessor.sqlite-entry-store-CIM2yoGL.mjs",
+   "source_sha256": "8df6508c240e14adeb5a9d66bf6473941d8b05882be74c774d3bf1a5f4a7a1cc",
+   "source_bytes": 53730,
+   "snippets": [
+    {
+     "name": "readSessionEntrySelectionSnapshot..readUnchangedLifecycleTargetSnapshot",
+     "line": 659,
+     "begin": "function readSessionEntrySelectionSnapshot(",
+     "end": "function resolveLifecyclePrimaryEntry(",
+     "source": "function readSessionEntrySelectionSnapshot(database, sessionKey, exact) {\n\tconst scanned = exact ? void 0 : readSessionEntryRowScan(database, sessionKey);\n\tconst selected = exact ? readExactSessionEntryRow(database, sessionKey) : scanned?.selected;\n\treturn selected ? [{\n\t\tentry: selected.entry,\n\t\tsessionKey: selected.row.session_key,\n\t\tpersistedRows: {\n\t\t\tlookupKeys: scanned?.lookupKeys ?? [sessionKey.trim()],\n\t\t\trows: (scanned?.rows ?? [selected.row]).map(retainSessionEntryRowFacts)\n\t\t}\n\t}] : [];\n}\nfunction retainSessionEntryRowFacts(row) {\n\tdelete row.session_diff_baseline_json;\n\tdelete row.skills_snapshot_json;\n\tdelete row.system_prompt_report_json;\n\treturn row;\n}\n/** Reuses preparation only when every persisted column still matches; otherwise hydrate. */\nfunction readUnchangedLifecycleTargetSnapshot(database, prepared) {\n\tconst persisted = prepared[0]?.persistedRows;\n\tif (!persisted || persisted.lookupKeys.length === 0) return;\n\tconst rows = executeSqliteQuerySync(database.db, getSessionKysely(database.db).selectFrom(\"session_nodes\").selectAll().where(\"session_key\", \"in\", sqliteStringSet(persisted.lookupKeys)).orderBy(\"session_key\", \"asc\")).rows;\n\treturn isDeepStrictEqual(rows, persisted.rows, { skipPrototype: true }) ? prepared : void 0;\n}\n",
+     "snippet_sha256": "9d32448fd7e2f6eb65e2ea6f7d32234286c1cf551fc06d87f79c5c746f5dd0ea"
+    }
+   ]
+  },
+  {
+   "module": "session-mutation-conflict-error-CSUFwifz.mjs",
+   "source_sha256": "83cf712bb7ae3090a8cae7d9fb5afa01fec36b94ee0433131bbab479b21ff05b",
+   "source_bytes": 1366,
+   "snippets": [
+    {
+     "name": "SqliteSessionMutationConflictError",
+     "line": 3,
+     "begin": "var SqliteSessionMutationConflictError = class",
+     "end": "var SqliteTranscriptMutationConflictError",
+     "source": "var SqliteSessionMutationConflictError = class extends Error {\n\tconstructor(operationLabel) {\n\t\tsuper(`SQLite session state changed while preparing ${operationLabel}`);\n\t\tthis.operationLabel = operationLabel;\n\t\tthis.name = \"SqliteSessionMutationConflictError\";\n\t}\n};\n",
+     "snippet_sha256": "2061d7920b6d0ded9eddcac10a9ad51c2bf7f7d3bf67e8b03604c6cbef54ae8f"
+    }
+   ]
+  },
+  {
+   "module": "session-accessor.sqlite-entry-equality-w0pZmXiY.mjs",
+   "source_sha256": "15beb2759192ff27962b6c830bfce6f25599eab88f12eac273446cdef18fa07b",
+   "source_bytes": 1530,
+   "snippets": [
+    {
+     "name": "equality-region",
+     "line": 3,
+     "begin": "function sqliteSessionEntriesEqual(",
+     "end": "//#endregion\nexport {",
+     "source": "function sqliteSessionEntriesEqual(left, right) {\n\tif (!left || !right) return left === right;\n\tconst { participants: _leftParticipants, participantCount: _leftParticipantCount, sessionDiffBaseline: leftBaseline, skillsSnapshot: leftSkills, systemPromptReport: leftReport, ...leftEntry } = left;\n\tconst { participants: _rightParticipants, participantCount: _rightParticipantCount, sessionDiffBaseline: rightBaseline, skillsSnapshot: rightSkills, systemPromptReport: rightReport, ...rightEntry } = right;\n\treturn JSON.stringify(leftEntry) === JSON.stringify(rightEntry) && JSON.stringify(leftBaseline) === JSON.stringify(rightBaseline) && JSON.stringify(leftSkills) === JSON.stringify(rightSkills) && JSON.stringify(leftReport) === JSON.stringify(rightReport);\n}\nfunction sqliteLifecycleTargetSnapshotsEqual(left, right) {\n\treturn left.length === right.length && left.every((row, index) => row.sessionKey === right[index]?.sessionKey && sqliteSessionEntriesEqual(row.entry, right[index]?.entry));\n}\nfunction assertLifecycleTargetSnapshotUnchanged(expected, current, operationLabel) {\n\tif (!sqliteLifecycleTargetSnapshotsEqual(expected, current)) throw new SqliteSessionMutationConflictError(operationLabel);\n}\n",
+     "snippet_sha256": "cf65ed7e0e8043464f537a06219eabaf8a618799dc5cd47bb6edcbc62989ddbe"
+    }
+   ]
+  },
+  {
+   "module": "session-accessor.sqlite-entry-mutation-CxTIILGh.mjs",
+   "source_sha256": "5c1212c8b0f1b9091cb3010a20bcd711ad6d080921a5bbd596ae0357abd83faa",
+   "source_bytes": 5325,
+   "snippets": [
+    {
+     "name": "patch-guard+mutation-region",
+     "line": 14,
+     "begin": "function assertSessionEntryPatchCliHistory(",
+     "end": "//#endregion\nexport {",
+     "source": "function assertSessionEntryPatchCliHistory(database, sessionKey, context) {\n\tif (!context) return;\n\tif (context.admission) validateSessionTranscriptContextInDatabase(database, {\n\t\tagentId: database.agentId,\n\t\tpath: database.path,\n\t\tsessionKey,\n\t\tsessionId: context.sessionId\n\t}, { admission: context.admission });\n\tconst fresh = readSessionTranscriptWatermarkInDatabase(database, context.sessionId);\n\tif (fresh.generation !== context.watermark.generation || fresh.maxSeq !== context.watermark.maxSeq) throw new Error(CLI_HISTORY_CHANGED_BEFORE_PREPARATION);\n}\nfunction readSessionEntryPatchPredicate(database, sessionKey, predicate) {\n\tif (!predicate) return { matches: true };\n\tconst watermark = readSessionTranscriptWatermarkInDatabase(database, predicate.sessionId);\n\tif (watermark.generation !== predicate.generation) return { matches: false };\n\tconst transcriptPredicate = {\n\t\tsessionId: predicate.sessionId,\n\t\twatermark\n\t};\n\tconst leafEntryId = predicate.leafEntryId;\n\tif (!leafEntryId) return {\n\t\tmatches: true,\n\t\ttranscriptPredicate\n\t};\n\tconst projection = readCurrentProjectionSnapshot(database, {\n\t\tagentId: database.agentId,\n\t\tpath: database.path,\n\t\tsessionKey,\n\t\tsessionId: predicate.sessionId\n\t}, (snapshot) => readActivePathEntryRelationFromProjection(snapshot, leafEntryId) !== \"off-path\");\n\treturn {\n\t\tmatches: projection.kind === \"value\" && projection.value,\n\t\ttranscriptPredicate\n\t};\n}\n//#endregion\n//#region src/config/sessions/session-accessor.sqlite-entry-mutation.ts\n/** The caller owns transaction admission and publication after the durable commit. */\nfunction replaceSessionEntryInDatabase(database, sessionKey, entry) {\n\tconst identityKeys = collectSessionEntryLookupKeys(sessionKey);\n\tconst previous = readSessionIdentitySnapshot(database, identityKeys);\n\twriteSessionEntry(database, sessionKey, entry);\n\treturn {\n\t\tprevious,\n\t\tcurrent: readSessionIdentitySnapshot(database, identityKeys)\n\t};\n}\n/** Revalidate prepared rows and apply the patch on the already-admitted connection. */\nfunction applySessionEntryPatchInDatabase(database, params) {\n\tif (params.validateCanonicalKeys) assertCanonicalSqliteSessionKeysCurrent(database);\n\tlet fresh = readUnchangedLifecycleTargetSnapshot(database, params.prepared);\n\tif (!fresh) {\n\t\tfresh = params.readSnapshot(database);\n\t\tassertLifecycleTargetSnapshotUnchanged(params.prepared, fresh, params.operationLabel);\n\t}\n\treturn writeSessionEntryPatchInDatabase(database, {\n\t\t...params,\n\t\tfresh\n\t});\n}\n/** Apply a patch evaluated against rows read in this same synchronous transaction. */\nfunction writeSessionEntryPatchInDatabase(database, params) {\n\tconst { fresh } = params;\n\tparams.options.assertCommitAllowed?.();\n\tconst conversation = params.options.workerGuard?.conversation;\n\tif (conversation) assertConversationAuthority(resolveConversationInDatabase(database, conversation.conversationRef), conversation);\n\tassertSessionEntryPatchCliHistory(database, params.sessionKey, params.options.workerGuard?.cliHistory);\n\tif (!params.next) return { entry: structuredClone(params.writeBase) };\n\tconst previous = new Map(fresh.map((row) => [row.sessionKey, row.entry]));\n\tconst selectedPreviousEntry = fresh[0]?.entry ?? params.writeBase;\n\tconst persisted = writeSessionEntry(database, params.sessionKey, params.next, {\n\t\t...params.options.consumePendingReset ? { consumePendingReset: true } : {},\n\t\t...params.options.providerReviewMutation ? { providerReviewMutation: true } : {},\n\t\tpreviousEntry: selectedPreviousEntry,\n\t\t...fresh[0]?.sessionKey === params.sessionKey ? { canonicalPreviousEntry: fresh[0].entry } : {}\n\t});\n\tconst current = /* @__PURE__ */ new Map([[params.sessionKey, persisted]]);\n\treturn {\n\t\tentry: structuredClone(persisted),\n\t\tidentity: {\n\t\t\tprevious,\n\t\t\tcurrent\n\t\t}\n\t};\n}\n",
+     "snippet_sha256": "cd9d2f347baa632ed417e4b1400b2a7039619ca4a749175021374c8f7f391c46"
+    }
+   ]
+  },
+  {
+   "module": "openclaw-agent-db-transaction-D2d1A44G.mjs",
+   "source_sha256": "9bfc1437ffb0127bac2983478a90752700b6bd22acb2ad6329e8819e052f3aa7",
+   "source_bytes": 2209,
+   "snippets": [
+    {
+     "name": "runOpenClawAgentWriteWithYieldingAdmission",
+     "line": 11,
+     "begin": "async function runOpenClawAgentWriteWithYieldingAdmission(",
+     "end": "//#endregion\nexport {",
+     "source": "async function runOpenClawAgentWriteWithYieldingAdmission(operation, options, transactionOptions = {}) {\n\tconst captured = {\n\t\t...options,\n\t\tenv: cloneEnvWithPlatformSemantics(options.env ?? process.env)\n\t};\n\tconst database = openOpenClawAgentDatabase(captured);\n\tcaptured.path = database.path;\n\tconst release = retainAgentDatabase(database.db);\n\ttry {\n\t\treturn await runSqliteImmediateTransaction(database.db, async () => () => {\n\t\t\tassertAgentDeletionDatabaseCleanupAccess(database, captured);\n\t\t\tconst result = operation(database);\n\t\t\tif (!cache.incognito.has(database)) ensureOpenClawAgentDatabasePermissions(database.path, captured);\n\t\t\treturn result;\n\t\t}, {\n\t\t\t...transactionOptions,\n\t\t\tbusyTimeoutMs: readSqliteBusyTimeout(database.db),\n\t\t\tdatabaseLabel: database.path,\n\t\t\toperationLabel: transactionOptions.operationLabel ?? \"agent.write\",\n\t\t\twithCommit: getAgentDeletionDatabaseCleanup(captured)?.withCommit\n\t\t}, (write) => {\n\t\t\tif (getOpenClawAgentDatabaseIfOpen(captured) !== database) throw new Error(`Agent database closed or replaced before write: ${database.path}`);\n\t\t\treturn withSqlitePostCommitPublications(database.db, write);\n\t\t});\n\t} finally {\n\t\trelease();\n\t}\n}\n",
+     "snippet_sha256": "e4a2c96d34501174df1d7819ff62595f8861cf0e268fe780164e0ff512fcc353"
+    }
+   ]
+  },
+  {
+   "module": "openclaw-agent-db-DWI9Bgur.mjs",
+   "source_sha256": "d0e204b720b54029d8bee1b9f517909a80810c16394529b7524bbe34a00fcab7",
+   "source_bytes": 45924,
+   "snippets": [
+    {
+     "name": "runOpenClawAgentWriteTransaction",
+     "line": 108,
+     "begin": "function runOpenClawAgentWriteTransaction(",
+     "end": "\t/** Released SDK guards may read SQLite",
+     "source": "function runOpenClawAgentWriteTransaction(operation, options, transactionOptions = {}) {\n\t\tconst { repairAdmission, ...writeOptions } = transactionOptions;\n\t\tconst database = openAgentDatabase(options, void 0, void 0, repairAdmission);\n\t\tconst deletionCommit = getAgentDeletionDatabaseCleanup(options)?.withCommit;\n\t\tconst withCommit = repairAdmission ? (commit) => {\n\t\t\trepairAdmission.assertCurrent?.();\n\t\t\tif (repairAdmission.expectedIdentity) assertOpenClawAgentDatabaseIdentity(database, repairAdmission.expectedIdentity);\n\t\t\tif (deletionCommit) deletionCommit(commit);\n\t\t\telse commit();\n\t\t} : deletionCommit;\n\t\tconst enteredNestedTransaction = database.db.isTransaction;\n\t\treturn withSqlitePostCommitPublications(database.db, () => runSqliteImmediateTransactionSync(database.db, () => {\n\t\t\tassertAgentDeletionDatabaseCleanupAccess(database, options);\n\t\t\tassertAgentCreationClaimAccess(database, options);\n\t\t\tconst operationResult = operation(database);\n\t\t\tif (!enteredNestedTransaction && !cache.incognito.has(database)) ensureOpenClawAgentDatabasePermissions(database.path, options);\n\t\t\treturn operationResult;\n\t\t}, {\n\t\t\tbusyTimeoutMs: writeOptions.busyTimeoutMs ?? 5e3,\n\t\t\tdatabaseLabel: database.path,\n\t\t\t...writeOptions,\n\t\t\toperationLabel: writeOptions.operationLabel ?? \"agent.write\",\n\t\t\twithCommit\n\t\t}));\n\t}\n",
+     "snippet_sha256": "d75b28827a76bb7c04c668470ec6dcf24410efedc6f845394782ed748ed9c5d3"
+    }
+   ]
+  },
+  {
+   "module": "session-entry-patch.worker-D77IuVN7.mjs",
+   "source_sha256": "67763f79a09d37a0715b6069c22d77f603574a284aa7770fcc292e6cd09b936e",
+   "source_bytes": 7860,
+   "snippets": [
+    {
+     "name": "createSessionWorkerOperationContext..commitSessionEntryPatch",
+     "line": 17,
+     "begin": "function createSessionWorkerOperationContext(",
+     "end": "function transferSessionEntryWorkerCandidate(",
+     "source": "function createSessionWorkerOperationContext(database, options, bound, domain) {\n\tconst native = database.db;\n\tconst context = {\n\t\toptions,\n\t\topen: () => database,\n\t\tadmit(stage, publication) {\n\t\t\tbound.admit(stage, (request, dispatch) => {\n\t\t\t\tif (!isRecord(request.facts)) throw new Error(`${domain} admission omitted its database identity`);\n\t\t\t\tdispatch({\n\t\t\t\t\t...request,\n\t\t\t\t\tfacts: {\n\t\t\t\t\t\t...request.facts,\n\t\t\t\t\t\tpublication\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t});\n\t\t},\n\t\twriteTransaction(operationLabel, owner, write) {\n\t\t\treturn runOpenClawAgentWriteTransaction((current) => {\n\t\t\t\tif (current.db !== native) throw new Error(`${owner} lost its canonical database owner`);\n\t\t\t\tcontext.admit(\"transaction\");\n\t\t\t\treturn write(current);\n\t\t\t}, options, { operationLabel });\n\t\t}\n\t};\n\treturn context;\n}\nfunction readSessionEntryPatchSnapshot(database, selection) {\n\treturn selection.kind === \"target\" ? readLifecycleTargetSnapshot(database, selection.target) : readSessionEntrySelectionSnapshot(database, selection.sessionKey, selection.exact);\n}\nfunction commitSessionEntryPatch(input, { writeTransaction, admit }) {\n\treturn writeTransaction(input.operationLabel, \"Session patch\", (database) => {\n\t\tif (input.ensureIdentitySource && (!(\"operation\" in input) || input.operation.kind !== \"ensure-identity\")) throw new Error(\"Transaction-local entry authority requires a closed ensure\");\n\t\tif (input.ensureIdentitySource) assertCapturedSessionEntryReadSource(input.ensureIdentitySource.source, database);\n\t\tlet authority;\n\t\tlet result;\n\t\tconst predicate = readSessionEntryPatchPredicate(database, input.sessionKey, input.shouldCommitIf);\n\t\tif (!predicate.matches) result = {\n\t\t\tkind: \"session-entry-patch\",\n\t\t\tentry: null\n\t\t};\n\t\telse {\n\t\t\tconst publishRetention = \"operation\" in input || input.next ? captureTrajectoryRuntimeRetentionMetadataMutation(database.db) : void 0;\n\t\t\tconst options = {\n\t\t\t\tconsumePendingReset: input.consumePendingReset,\n\t\t\t\tproviderReviewMutation: input.providerReviewMutation,\n\t\t\t\tworkerGuard: {\n\t\t\t\t\tcliHistory: input.cliHistory,\n\t\t\t\t\tconversation: input.conversation\n\t\t\t\t},\n\t\t\t\tassertCommitAllowed: () => {\n\t\t\t\t\tconst validation = readSessionSourceValidation(database, input.sources);\n\t\t\t\t\tconst { refusedSource } = validation;\n\t\t\t\t\tif (refusedSource) {\n\t\t\t\t\t\tresult = {\n\t\t\t\t\t\t\tkind: \"session-entry-patch\",\n\t\t\t\t\t\t\tentry: null,\n\t\t\t\t\t\t\trefusedSource\n\t\t\t\t\t\t};\n\t\t\t\t\t\ttransferSessionEntryWorkerCandidate(database, admit, result);\n\t\t\t\t\t\tthrow new Error(\"Session source refusal was not rejected\");\n\t\t\t\t\t}\n\t\t\t\t\tadmit(\"transaction\", {\n\t\t\t\t\t\tkind: \"session-entry-patch-validated\",\n\t\t\t\t\t\t...authority ? { authority } : {},\n\t\t\t\t\t\tsourceValidation: validation\n\t\t\t\t\t});\n\t\t\t\t}\n\t\t\t};\n\t\t\tlet mutation;\n\t\t\tif (\"operation\" in input) {\n\t\t\t\tif (input.validateCanonicalKeys) assertCanonicalSqliteSessionKeysCurrent(database);\n\t\t\t\tconst fresh = readSessionEntryPatchSnapshot(database, input.selection);\n\t\t\t\tif (input.ensureIdentitySource) {\n\t\t\t\t\tconst target = input.selection.kind === \"target\" ? input.selection.target : {\n\t\t\t\t\t\tcanonicalKey: input.selection.sessionKey,\n\t\t\t\t\t\tstoreKeys: [input.selection.sessionKey]\n\t\t\t\t\t};\n\t\t\t\t\tif (target.canonicalKey !== input.sessionKey || ![target.canonicalKey, ...target.storeKeys].includes(input.ensureIdentitySource.sessionKey)) throw new Error(\"Entry ensure authority belongs to another session target\");\n\t\t\t\t\tconst sourceKey = fresh[0]?.sessionKey ?? input.sessionKey;\n\t\t\t\t\tauthority = readSessionPendingInputAuthorityFactsInTransaction(database, sourceKey, input.ensureIdentitySource.agentId, /* @__PURE__ */ new Map([[sourceKey, fresh[0]?.entry]]));\n\t\t\t\t}\n\t\t\t\tconst existing = fresh[0]?.entry;\n\t\t\t\tconst writeBase = existing ?? input.fallbackEntry;\n\t\t\t\tif (!writeBase) {\n\t\t\t\t\tresult = {\n\t\t\t\t\t\tkind: \"session-entry-patch\",\n\t\t\t\t\t\tentry: null\n\t\t\t\t\t};\n\t\t\t\t\treturn transferSessionEntryWorkerCandidate(database, admit, result);\n\t\t\t\t}\n\t\t\t\tconst next = mergeSessionEntryPatch({\n\t\t\t\t\t...input,\n\t\t\t\t\texisting,\n\t\t\t\t\twriteBase,\n\t\t\t\t\tpatch: reduceSessionEntryPatch(input.operation, writeBase, existing)\n\t\t\t\t});\n\t\t\t\tmutation = writeSessionEntryPatchInDatabase(database, {\n\t\t\t\t\tsessionKey: input.sessionKey,\n\t\t\t\t\tfresh,\n\t\t\t\t\twriteBase,\n\t\t\t\t\tnext,\n\t\t\t\t\toptions\n\t\t\t\t});\n\t\t\t} else mutation = applySessionEntryPatchInDatabase(database, {\n\t\t\t\t...input,\n\t\t\t\treadSnapshot: (current) => readSessionEntryPatchSnapshot(current, input.selection),\n\t\t\t\toptions\n\t\t\t});\n\t\t\tconst publication = mutation.identity ? prepareSessionEntryReplacementPublication({\n\t\t\t\t...mutation.identity,\n\t\t\t\tpendingArchiveRecovery: false,\n\t\t\t\tmembershipInvalidatedKeys: [],\n\t\t\t\tmaintenancePlans: []\n\t\t\t}, database) : void 0;\n\t\t\tif (mutation.identity) publishRetention?.();\n\t\t\tresult = {\n\t\t\t\tkind: \"session-entry-patch\",\n\t\t\t\tentry: mutation.entry,\n\t\t\t\tpublication,\n\t\t\t\ttranscriptPredicate: mutation.entry.sessionId === predicate.transcriptPredicate?.sessionId ? predicate.transcriptPredicate : void 0\n\t\t\t};\n\t\t}\n\t\treturn transferSessionEntryWorkerCandidate(database, admit, result);\n\t});\n}\n",
+     "snippet_sha256": "ec623bc028139b5ea71e3683c3ea47449581a11f4d62cb7260b90d58fa3b91fd"
+    }
+   ]
+  }
+ ]
+}
