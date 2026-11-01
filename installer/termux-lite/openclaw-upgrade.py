@@ -39,6 +39,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -118,6 +119,8 @@ def default_layout(profile: str, env: dict) -> dict:
             "receipts": "$HOME/.openclaw/deploys", "backups": "$HOME/.openclaw/backups/openclaw-upgrade",
             "lock": "$HOME/.openclaw/deploys/companion-deploy.lock", "foreign_locks": [],
             "pause_patterns": [r"core-services-watchdog\.sh"],
+            "lease_preflight": ["python3", release + "/gateway-preflight.py", "agent-leases", "--state-dir",
+                                "$HOME/.openclaw", "--apply"],
             "companion": {"url": "http://127.0.0.1:8765", "pattern": "dist/companion/server.js",
                           "start": [release + "/companion-server.sh"]},
             "whatsapp_gate": True, "triage_stub_log": None,
@@ -466,9 +469,10 @@ class Upgrade:
         self.window_start_ticks = None
         self.down_at = None
         self.done = {"stopped": False, "backed_up": False, "switched_openclaw": False, "switched_node": False,
-                     "doctor": False, "whatsapp_parked": [], "companion_restarted": False}
+                     "doctor": False, "whatsapp_parked": [], "companion_restarted": False, "companion_stopped": False}
         self.dbs: list[dict] = []
         self.gateway_pid = None
+        self.gateway_child = None
 
     # ----------------------------------------------------------------- plumbing
     def log(self, event: str, **fields) -> None:
@@ -703,6 +707,12 @@ class Upgrade:
         with self.phase(phase) as p:
             pids = listening_pids(int(self.l["port"]))
             p["pids"] = len(pids)
+            comp = self.l.get("companion")
+            if comp:
+                # The Companion loads the installed OpenClaw SDK in-process and opens the agent databases:
+                # it is stopped for a consistent backup and restarted on the switched (or restored) runtime.
+                p["companion"] = kill_pids(find_pids(re.escape(comp["pattern"])), 10)
+                self.done["companion_stopped"] = True
             p.update(kill_pids(pids + sorted(self.triage_pids()), float(self.l["budgets"]["stop_s"])))
             deadline = time.monotonic() + 15
             while listening_pids(int(self.l["port"])) and time.monotonic() < deadline:
@@ -782,9 +792,20 @@ class Upgrade:
     def doctor(self) -> None:
         with self.phase("doctor") as p:
             # OPENCLAW_SHELL=exec: a failing CLI never starts the 2026.10.9 automatic triage (claude -p / embedded turn).
-            rc, out, err, ms = self.cli(["doctor", "--fix", "--non-interactive"], float(self.l["budgets"]["doctor_s"]),
-                                        {"OPENCLAW_SHELL": "exec"}, log_name="doctor")
-            p["rc"], p["cli_ms"] = rc, ms
+            if self.l.get("lease_preflight"):
+                # Existing owner: releases agent DB leases whose PID Android handed to another app.
+                with contextlib.suppress(OSError, subprocess.SubprocessError):
+                    run = subprocess.run(list(self.l["lease_preflight"]), capture_output=True, text=True, timeout=60)
+                    p["lease_preflight_rc"] = run.returncode
+            attempts = 0
+            while True:
+                attempts += 1
+                rc, out, err, ms = self.cli(["doctor", "--fix", "--non-interactive"], float(self.l["budgets"]["doctor_s"]),
+                                            {"OPENCLAW_SHELL": "exec"}, log_name=f"doctor-{attempts}")
+                if rc == 0 or attempts >= 2 or "could not enter maintenance" not in (out + err):
+                    break
+                time.sleep(10)  # a lease still held by the process just stopped: one bounded retry
+            p["rc"], p["cli_ms"], p["attempts"] = rc, ms, attempts
             p["migrated"] = len(re.findall(r"Upgraded agent database schema", out + err))
             self.done["doctor"] = True
             for entry in self.dbs:
@@ -860,7 +881,7 @@ class Upgrade:
                                          start_new_session=True, close_fds=True)
             finally:
                 os.close(fd)
-            self.gateway_pid = child.pid
+            self.gateway_pid, self.gateway_child = child.pid, child
             p["log"] = str(log)
 
     def gate(self, name: str, fn) -> dict:
@@ -884,6 +905,8 @@ class Upgrade:
             codes = [http_status(f"http://127.0.0.1:{port}{path}", 5) for path in self.l["health_paths"]]
             if codes and all(code == 200 for code in codes):
                 return {"ok": True, "ready_ms": int((time.monotonic() - self.down_at) * 1000) if self.down_at else None}
+            if self.gateway_child is not None and self.gateway_child.poll() is not None and not listening_pids(port):
+                return {"ok": False, "detail": f"gateway_exited rc={self.gateway_child.returncode}"}
             time.sleep(1)
         return {"ok": False, "detail": "health_timeout"}
 
@@ -983,6 +1006,8 @@ class Upgrade:
         if not comp:
             return {"ok": True, "skipped": "no_companion_in_profile"}
         kill_pids(find_pids(re.escape(comp["pattern"])), 10)
+        for pid in listening_pids(int(urllib.parse.urlparse(comp["url"]).port or 8765)):
+            kill_pids([pid], 5)
         log = Path(self.l["receipts"]) / f"openclaw-upgrade-{self.stamp}-companion.log"
         fd = os.open(log, os.O_CREAT | os.O_APPEND | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
         try:
@@ -1068,7 +1093,7 @@ class Upgrade:
                             os.rename(path, failed / path.name)
                     os.rename(self.backup / "npm-parked" / name, self.state / "npm/projects" / name)
                 p["whatsapp"] = self.whatsapp_version()
-            if self.done["companion_restarted"] or (self.l.get("companion") and self.done["switched_openclaw"]):
+            if self.done["companion_restarted"] or self.done["companion_stopped"]:
                 rb["steps"]["companion"] = self.companion_restart()
             self.start_gateway("rollback_start")
             gates = rb.setdefault("gates", {})
