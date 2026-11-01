@@ -700,6 +700,15 @@ class Upgrade:
                 p["triage_guard"] = bool(re.search(r"OPENCLAW_SUPERVISOR_MODE|OPENCLAW_SHELL|triage", text))
                 if not p["triage_guard"]:
                     missing.append("triage_guard")
+            # S24 rehearsal: with secrets.egressProxy configured, the 2026.10.9 Gateway refuses to start ("Secret egress
+            # proxy Worker is unavailable"). Refuse before any outage until a fix is deployed (then skip explicitly).
+            try:
+                secrets = json.loads(Path(self.l["config"]).read_text()).get("secrets") or {}
+                p["egress_proxy_configured"] = bool(secrets.get("egressProxy"))
+            except (OSError, ValueError, AttributeError):
+                p["egress_proxy_configured"] = None
+            if p["egress_proxy_configured"] is not False:
+                missing.append("egress_proxy")
             # The Samantha plugin (Gateway and Companion) must carry the 2026.10.9 SDK row (#500) before the switch.
             dist = self.state / "extensions" / self.l["plugin_id"] / "dist"
             p["plugin_sdk_target"] = self.plugin_supports_target(dist)

@@ -424,6 +424,8 @@ class OpenClawUpgrade(unittest.TestCase):
         self.assertIn("disk_insufficient", doc["detail"])
         (r.state / "extensions/openclaw-plugin-mobile-ui/dist/companion/openclawSdkVersions.js").write_text('{"2026.9.6":1}')
         layout = json.loads(r.layout_path.read_text()); layout["disk_factor"] = 3
+        cfg = json.loads((r.state / "openclaw.json").read_text()); cfg["secrets"] = {"egressProxy": {"enabled": True}}
+        (r.state / "openclaw.json").write_text(json.dumps(cfg))
         script = r.td / "gateway-start.sh"; script.write_text("exec openclaw gateway\n")
         layout["gateway_start_script"] = str(script)
         r.layout_path.write_text(json.dumps(layout))
@@ -431,6 +433,7 @@ class OpenClawUpgrade(unittest.TestCase):
         self.assertEqual(doc["state"], "refused")
         self.assertIn("plugin_sdk_target", doc["detail"])
         self.assertIn("triage_guard", doc["detail"])
+        self.assertIn("egress_proxy", doc["detail"])
         self.assertEqual(r.served_version(), "2026.9.6")
 
     def test_heavy_job_refuses(self):

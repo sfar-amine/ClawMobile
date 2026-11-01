@@ -17,7 +17,13 @@ Le script ne crée pas pour autant un second système de déploiement. Il repren
 ## Ce que fait le script
 
 Les phases, chronométrées dans le reçu :
-1. **préflight** (`--wait-calm` comme `companion-deploy.sh`) : charge, mémoire, disque libre au moins égal à 3 fois les bases, aucun job lourd, verrou, versions (9.6 en place, 10.9 et Node 24.22.2 candidats). Prérequis : jeux de compatibilité vérifiés sur le candidat, ligne 2026.10.9 du SDK dans le plugin Samantha déployé, garde anti-triage dans `gateway-start.sh`. Un refus ne coupe rien.
+1. **préflight** (`--wait-calm` comme `companion-deploy.sh`) : charge, mémoire, disque libre au moins égal à 3 fois les bases, aucun job lourd, verrou, versions (9.6 en place, 10.9 et Node 24.22.2 candidats). Prérequis :
+   - jeux de compatibilité vérifiés sur le candidat ;
+   - ligne 2026.10.9 du SDK dans le plugin Samantha déployé ;
+   - garde anti-triage dans `gateway-start.sh` ;
+   - `secrets.egressProxy` non configuré. Sinon le préflight refuse, tant que le correctif du Worker n'est pas déployé ; il faudra alors passer `--skip-prerequisite egress_proxy`.
+
+   Un préflight à blanc de la prod (`--dry-run`, 18:23) refuse aujourd'hui sur `agent-exec-auth-scope`, `gateway-prep-stages`, `triage_guard` et `egress_proxy`. Il trouve la Gateway, les 20 bases (302 Mo) et la ligne SDK 2026.10.9 du plugin déployé. Un refus ne coupe rien.
 2. **stage**, Gateway encore en service : copie du candidat OpenClaw et de Node à côté des arbres vivants. `@openclaw/whatsapp@2026.10.9` est installé par npm dans une copie de son projet.
 3. **stop** : la Gateway est arrêtée par son PID, trouvé de trois façons, chacune vérifiée sur le dossier d'état :
    - le bail OpenClaw `state_leases/gateway-owner` ;
