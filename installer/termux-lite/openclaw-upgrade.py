@@ -7,14 +7,14 @@ refuses `/v1/runtime/restart`, so nothing restarts the Gateway behind this scrip
 
   preflight  load, memory, free disk >= 3x the databases, no heavy job, lock, versions, prerequisites
   stage      candidate OpenClaw and Node copied next to the live trees (Gateway still serving)
-  stop       Gateway stopped by the PID that owns its port; core-services-watchdog paused (SIGSTOP)
+  stop       Gateway (owner lease, title, state dir) and Companion stopped by exact PID; watchdog paused (SIGSTOP)
   backup     every SQLite database through the SQLite backup API (WAL-aware), openclaw.json, credentials,
              agent JSON files; PRAGMA integrity_check on every copy
   switch     live trees renamed aside (rollback copies, same filesystem), candidates renamed in
+  whatsapp   @openclaw/whatsapp 2026.10.9, prepared with npm in a copy of its project during `stage` (OpenClaw's
+             own installer refuses on Android), renamed in before doctor; the old tree parked
   doctor     `openclaw doctor --fix --non-interactive` with the Gateway stopped
   consent    `plugins enable <Samantha plugin> --accept-capabilities` (2026.10.9 registers no tool before it)
-  whatsapp   @openclaw/whatsapp at the target version: prepared with npm in a copy of its project during
-             `stage` (OpenClaw's own installer refuses on Android), renamed in; the old tree parked
   start      Gateway (and the Companion in prod) started; gates: HTTP health, health JSON, Samantha plugin
              loaded with its tools, one real agent turn, WhatsApp connected, no automatic triage process
   receipt    `deployed`, or on any failure after `stop`: automatic restore of databases, config,
@@ -1306,8 +1306,10 @@ class Upgrade:
             self.stop_gateway()
             self.backup_all()
             self.switch()
-            self.doctor()
+            # The 2026.10.9 WhatsApp package is in place before doctor: doctor audits every installed plugin
+            # against the selected host and must never meet a 2026.9.6 package it would try to repair.
             self.whatsapp()
+            self.doctor()
             self.consent()
             if self.l.get("companion"):
                 with self.phase("companion_restart") as p:
