@@ -98,7 +98,7 @@ elif args[:2] == ["plugins", "enable"]:
     assert "--accept-capabilities" in args
     (state / ("consent-" + args[2])).write_text(v)
 elif args[:2] == ["plugins", "inspect"]:
-    n = int(os.environ.get("FAKE_TOOLS", "42"))
+    n = int(os.environ.get("FAKE_TOOLS", "42")) if "--runtime" in args else 0  # static inspect: no tools (S24)
     if v == "2026.10.9" and not (state / ("consent-" + args[2])).exists():
         n = 0  # 2026.10.9: no tool before the capability consent (S24 rehearsal)
     out({"plugin": {"status": "loaded", "toolNames": ["t%d" % i for i in range(n)], "contracts": {"tools": ["t"] * 56}}})
@@ -510,7 +510,9 @@ class RealReceipts(unittest.TestCase):
             self.assertTrue(all(d["backup_integrity"] for d in receipt["databases"]))
 
     def test_doctor_migrates_every_agent_database(self):
-        for receipt in self.receipts:
+        migrated = [r for r in self.receipts if r["phases"].get("doctor", {}).get("ok")]
+        self.assertGreaterEqual(len(migrated), 3)
+        for receipt in migrated:
             agents = [d for d in receipt["databases"] if d["path"].endswith("agent/openclaw-agent.sqlite")]
             self.assertEqual(len(agents), 7)
             for d in agents:
@@ -528,6 +530,13 @@ class RealReceipts(unittest.TestCase):
                 self.assertTrue(gates[name]["ok"], name)
             self.assertEqual(receipt["phases"]["rollback_integrity"]["failed"], [])
             self.assertEqual(receipt["phases"]["rollback_restore"]["openclaw"], "2026.9.6")
+            self.assertIn(receipt["phases"]["rollback_restore"]["node"], ("24.21.0", "24.22.2"))
+
+    def test_old_runtime_answers_on_node_24_22_2(self):
+        kept = [r for r in self.receipts if r["state"] == "rolled_back"
+                and r["phases"]["rollback_restore"]["node"] == "24.22.2"]
+        self.assertEqual(len(kept), 1)  # rollback_node=keep: 2026.9.6 on the new Node
+        self.assertTrue(kept[0]["rollback"]["gates"]["agent_turn"]["ok"])
 
     def test_nominal_receipt_passed_every_gate(self):
         deployed = [r for r in self.receipts if r["state"] == "deployed"]

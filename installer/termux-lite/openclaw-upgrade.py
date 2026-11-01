@@ -1077,7 +1077,9 @@ class Upgrade:
                 "plugin_errors": len(plugins.get("errors") or []), "cli_ms": ms}
 
     def gate_plugin_tools(self) -> dict:
-        rc, doc, ms = self.cli_json(["plugins", "inspect", self.l["plugin_id"], "--json"], float(self.l["budgets"]["cli_s"]),
+        # --runtime: the tools the plugin registers when loaded (a static inspect lists none, in 9.6 as in 10.9).
+        rc, doc, ms = self.cli_json(["plugins", "inspect", self.l["plugin_id"], "--runtime", "--json"],
+                                    float(self.l["budgets"]["cli_s"]),
                                     log_name=self.log_tag("gate-plugin"))
         plugin = (doc or {}).get("plugin") if isinstance(doc, dict) else None
         if not isinstance(plugin, dict):
