@@ -159,9 +159,9 @@ Revenir sur le commit. Le script ne tourne que si on le lance. Après une bascul
 Elle se lance une fois cette PR déployée par `companion-deploy.sh` et les bloquants levés. Préflight seul d'abord, puis la bascule détachée :
 
 ```
-~/.openclaw/releases/current/termux-lite/openclaw-upgrade.sh --profile prod --dry-run
-~/.openclaw/releases/current/termux-lite/openclaw-upgrade.sh --profile prod --wait-calm 900 --detach
-~/.openclaw/releases/current/termux-lite/openclaw-upgrade.sh --profile prod --status
+~/ClawMobile/installer/termux-lite/openclaw-upgrade.sh --profile prod --dry-run
+~/ClawMobile/installer/termux-lite/openclaw-upgrade.sh --profile prod --wait-calm 900 --detach
+~/ClawMobile/installer/termux-lite/openclaw-upgrade.sh --profile prod --status
 ```
 
 La dernière commande lit le reçu `~/.openclaw/deploys/openclaw-upgrade-<stamp>.json`.
