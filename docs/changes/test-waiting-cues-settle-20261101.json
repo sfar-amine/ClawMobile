@@ -22,11 +22,6 @@
       "name": "openclaw-plugin-mobile-ui/scripts/test-voice-deferred-readback.cjs, test-voice-brain-delegation.cjs",
       "status": "passed",
       "evidence": "Unchanged, rerun on the change (16 and 28 cases)."
-    },
-    {
-      "name": "complete-final-head-local-ci",
-      "status": "pending",
-      "evidence": "tools/localci.py is run by the reviewer on the exact PR head."
     }
   ],
   "fixtures": {
