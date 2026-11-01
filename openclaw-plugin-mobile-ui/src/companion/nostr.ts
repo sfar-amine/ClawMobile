@@ -1,16 +1,19 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import {
-  SimplePool,
-  finalizeEvent,
-  generateSecretKey,
-  getPublicKey,
-  nip04,
-  nip19,
-  verifyEvent,
-  type Event,
-} from "nostr-tools";
+import type { Event } from "nostr-tools";
+
+type NostrTools = typeof import("nostr-tools");
+// S24 01/11 (#126): a package listed in `dependencies` is copied file by file into the plugin's generation
+// artifact on the Gateway's main thread at the first owner turn after every restart. nostr-tools and its
+// @noble/@scure tree were 616 of the 635 files (~27 s of a 46 s event-loop stall, WhatsApp dropped in 408).
+// It is a devDependency now (installed by `npm install --include=dev`) and loaded only when a Nostr route runs;
+// the computed name keeps the Gateway's source-reference scan from capturing it at plugin load.
+const NOSTR_PACKAGE = ["nostr", "tools"].join("-");
+let nostrTools: NostrTools | undefined;
+function tools(): NostrTools {
+  return nostrTools ??= require(NOSTR_PACKAGE) as NostrTools;
+}
 import {
   createSkillSharePackage,
   storePendingSkillImport,
@@ -60,7 +63,7 @@ export function getNostrStatus() {
     ok: true,
     configured: Boolean(config.secretKeyHex && publicKey),
     publicKey,
-    npub: publicKey ? nip19.npubEncode(publicKey) : undefined,
+    npub: publicKey ? tools().nip19.npubEncode(publicKey) : undefined,
     relays: config.relays,
     contacts: config.contacts.map(redactContact),
     message: publicKey
@@ -75,8 +78,8 @@ export function setupNostrIdentity(input: { secretKey?: string; relays?: string[
   const generatedSecret = !input.secretKey && !existingSecret;
   const secretKey = input.secretKey
     ? parseSecretKey(input.secretKey)
-    : existingSecret || generateSecretKey();
-  const publicKey = getPublicKey(secretKey);
+    : existingSecret || tools().generateSecretKey();
+  const publicKey = tools().getPublicKey(secretKey);
   const relays = normalizeRelays(input.relays?.length ? input.relays : config.relays);
   const next: NostrConfig = {
     ...config,
@@ -90,7 +93,7 @@ export function setupNostrIdentity(input: { secretKey?: string; relays?: string[
     ok: true,
     configured: true,
     publicKey,
-    npub: nip19.npubEncode(publicKey),
+    npub: tools().nip19.npubEncode(publicKey),
     relays,
     message: input.secretKey
       ? "Nostr identity imported."
@@ -99,7 +102,7 @@ export function setupNostrIdentity(input: { secretKey?: string; relays?: string[
         : "Nostr identity is ready.",
   };
   if (generatedSecret || input.revealSecret === true) {
-    response.nsec = nip19.nsecEncode(secretKey);
+    response.nsec = tools().nip19.nsecEncode(secretKey);
   }
   return response;
 }
@@ -157,7 +160,7 @@ export function upsertNostrContact(input: { pubkey?: string; npub?: string; labe
   const contact: NostrContact = {
     id: existing?.id || `contact_${pubkey.slice(0, 12)}`,
     pubkey,
-    npub: nip19.npubEncode(pubkey),
+    npub: tools().nip19.npubEncode(pubkey),
     label: String(input.label || existing?.label || `Nostr ${pubkey.slice(0, 8)}`).trim(),
     relays: normalizeRelays(input.relays || existing?.relays || []),
     trusted: input.trusted ?? existing?.trusted ?? true,
@@ -199,7 +202,7 @@ export async function sendNostrAgentMessage(input: {
     message: trimMessage(input.message || ""),
     payload: input.payload,
   };
-  const event = finalizeEvent({
+  const event = tools().finalizeEvent({
     kind: MESSAGE_KIND,
     created_at: Math.floor(Date.now() / 1000),
     tags: [
@@ -207,10 +210,10 @@ export async function sendNostrAgentMessage(input: {
       ["client", "clawmobile"],
       ["type", envelope.type],
     ],
-    content: nip04.encrypt(identity.secretKey, recipient, JSON.stringify(envelope)),
+    content: tools().nip04.encrypt(identity.secretKey, recipient, JSON.stringify(envelope)),
   }, identity.secretKey);
   const publish = await publishEvent(relays, event);
-  const recipientNpub = nip19.npubEncode(recipient);
+  const recipientNpub = tools().nip19.npubEncode(recipient);
   const storedMessage = storeOutgoingAgentMessage({
     eventId: event.id,
     recipientPubkey: recipient,
@@ -267,11 +270,11 @@ export async function fetchNostrInbox(input: { limit?: number; since?: number; r
     filter.since = Math.floor(Number(input.since));
   }
 
-  const pool = new SimplePool();
+  const pool = new (tools().SimplePool)();
   try {
     const events = await pool.querySync(relays, filter, { maxWait: 5000, label: "clawmobile-inbox" });
     const messages = events
-      .filter((event) => verifyEvent(event))
+      .filter((event) => tools().verifyEvent(event))
       .sort((a, b) => b.created_at - a.created_at)
       .map((event) => decodeInboxEvent(identity.secretKey, event, input.autoStoreSkillShares !== false));
     const trustedMessages = messages.filter((message) => message.trustedContact === true);
@@ -280,7 +283,7 @@ export async function fetchNostrInbox(input: { limit?: number; since?: number; r
     return {
       ok: true,
       publicKey: identity.publicKey,
-      npub: nip19.npubEncode(identity.publicKey),
+      npub: tools().nip19.npubEncode(identity.publicKey),
       relays,
       messages: trustedMessages,
       stored,
@@ -300,14 +303,14 @@ function decodeInboxEvent(secretKey: Uint8Array, event: Event, autoStoreSkillSha
     eventId: event.id,
     kind: event.kind,
     fromPubkey: event.pubkey,
-    fromNpub: nip19.npubEncode(event.pubkey),
+    fromNpub: tools().nip19.npubEncode(event.pubkey),
     fromLabel: contact?.label,
     trustedContact: Boolean(contact && contact.trusted !== false),
     createdAt: event.created_at * 1000,
     tags: event.tags,
   };
   try {
-    const text = nip04.decrypt(secretKey, event.pubkey, event.content);
+    const text = tools().nip04.decrypt(secretKey, event.pubkey, event.content);
     const envelope = parseEnvelope(text);
     const skillShare = extractSkillShare(envelope);
     const pendingImport = skillShare && autoStoreSkillShares && base.trustedContact === true
@@ -335,7 +338,7 @@ function decodeInboxEvent(secretKey: Uint8Array, event: Event, autoStoreSkillSha
 }
 
 async function publishEvent(relays: string[], event: Event) {
-  const pool = new SimplePool();
+  const pool = new (tools().SimplePool)();
   try {
     const settled = await Promise.allSettled(pool.publish(relays, event, { maxWait: 5000 }));
     const results = settled.map((result, index) => ({
@@ -364,7 +367,7 @@ function requireIdentity() {
   if (!secretKey) {
     throw new Error("Nostr identity is not configured. Call POST /v1/extensions/nostr/setup-key first.");
   }
-  const publicKey = getPublicKey(secretKey);
+  const publicKey = tools().getPublicKey(secretKey);
   return { config, secretKey, publicKey };
 }
 
@@ -465,7 +468,7 @@ function parseSecretKey(value: string) {
   const text = value.trim();
   if (!text) throw new Error("Nostr secret key is empty.");
   if (text.startsWith("nsec1")) {
-    const decoded = nip19.decode(text);
+    const decoded = tools().nip19.decode(text);
     if (decoded.type !== "nsec") throw new Error("Expected an nsec key.");
     return decoded.data;
   }
@@ -478,7 +481,7 @@ function parsePublicKey(value: string) {
   const text = value.trim();
   if (!text) throw new Error("Nostr public key is empty.");
   if (text.startsWith("npub1")) {
-    const decoded = nip19.decode(text);
+    const decoded = tools().nip19.decode(text);
     if (decoded.type !== "npub") throw new Error("Expected an npub key.");
     return decoded.data;
   }
@@ -496,7 +499,7 @@ function safeParsePublicKey(value: string) {
 
 function publicKeyFromSecret(secretKeyHex?: string) {
   const secretKey = hexToBytes(secretKeyHex || "");
-  return secretKey ? getPublicKey(secretKey) : undefined;
+  return secretKey ? tools().getPublicKey(secretKey) : undefined;
 }
 
 function normalizeRelays(relays: string[]) {
