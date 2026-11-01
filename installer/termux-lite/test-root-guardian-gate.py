@@ -5,11 +5,13 @@ import subprocess
 import tempfile
 import time
 import unittest
+import json
 import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 GUARDIAN = ROOT / "samantha-root-guardian.sh"
+CAPTURE = ROOT.parent.parent / "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-tier0-activation-1009/capture.json"
 
 
 class RootGuardianGateTests(unittest.TestCase):
@@ -28,7 +30,7 @@ class RootGuardianGateTests(unittest.TestCase):
         subprocess.run(["pkill", "-f", self.name], check=False)
         self.tmp.cleanup()
 
-    def guardian(self, *, gate_rc, companion_up, rounds=1):
+    def guardian(self, *, gate_rc, companion_up, rounds=1, root=None):
         # Functions of the real guardian; only the AI gate and the Companion probe are synthetic.
         functions = GUARDIAN.read_text().split("\nrefresh_root\n", 1)[0]
         probe = self.home / "probe.sh"
@@ -36,7 +38,7 @@ class RootGuardianGateTests(unittest.TestCase):
             "immune_observe(){ :; }\n"
             f"immune_action(){{ echo gate >>\"$HOME/gate.calls\"; return {gate_rc}; }}\n"
             f"gate_reachable(){{ return {0 if companion_up else 1}; }}\n"
-            "ROOT=$HOME\n"
+            + (f"ROOT='{root}'\n" if root else "ROOT=$HOME\n")
             + f"ensure_supervisor fixture '[{self.name[0]}]{self.name[1:]}' '{self.script}' \"$D/fixture.stderr.log\"\n" * rounds)
         subprocess.run(["bash", str(probe)], env=dict(os.environ, HOME=str(self.home)),
                        check=True, capture_output=True, text=True, timeout=60)
@@ -92,6 +94,82 @@ class RootGuardianGateTests(unittest.TestCase):
             self.assertIn("reason=ai_gate_refused", self.log())
         finally:
             drift.kill(); drift.wait()
+
+
+    # S24 01/11 22:29/22:36: during the tier0 activation the gate refused (its model answers
+    # through the Gateway the deploy restarts) and the orchestrator missed the 120 s window.
+    def activation(self, *, current="20261101T222851-d3beb769", state="activating", deadline_in=100):
+        release = self.home / ".openclaw/releases/20261101T222851-d3beb769/termux-lite"
+        release.mkdir(parents=True, exist_ok=True)
+        tier0 = self.home / ".openclaw/tier0"
+        tier0.mkdir(parents=True, exist_ok=True)
+        (tier0 / "state.json").write_text(
+            '{"current": "%s", "soak_state": "%s", "activation_deadline_epoch": %d}'
+            % (current, state, int(time.time()) + deadline_in))
+        return release
+
+    def gate_calls(self):
+        path = self.home / "gate.calls"
+        return path.read_text().count("gate") if path.exists() else 0
+
+    def test_activation_of_this_release_starts_a_missing_supervisor_without_the_gate(self):
+        root = self.activation()
+        self.guardian(gate_rc=75, companion_up=True, root=root)
+        self.assertTrue(self.running(self.script))
+        self.assertEqual(self.gate_calls(), 0)
+        self.assertIn("event=fixture-restore action=activation_start reason=tier0_activation", self.log())
+        self.assertIn("event=fixture-start result=ok", self.log())
+
+    def test_activation_replaces_the_previous_release_supervisor(self):
+        root = self.activation()
+        drift = subprocess.Popen([str(self.other)], start_new_session=True)
+        try:
+            self.guardian(gate_rc=75, companion_up=True, root=root)
+            drift.wait(timeout=15)
+            self.assertTrue(self.running(self.script))
+            self.assertIn("event=fixture-runtime_drift action=replace", self.log())
+            self.assertEqual(self.gate_calls(), 0)
+        finally:
+            if drift.poll() is None:
+                drift.kill(); drift.wait()
+
+    def test_activation_bypass_is_bounded_to_this_release_and_its_window(self):
+        for kwargs in ({"deadline_in": -1}, {"state": "running"}, {"state": "activation_failed"},
+                       {"current": "20261101T223552-d3beb769"}):
+            with self.subTest(**kwargs):
+                (self.home / ".openclaw/guardian/guardian.log").unlink(missing_ok=True)
+                (self.home / "gate.calls").unlink(missing_ok=True)
+                root = self.activation(**kwargs)
+                self.guardian(gate_rc=75, companion_up=True, root=root)
+                self.assertFalse(self.running(self.script))
+                self.assertEqual(self.gate_calls(), 1)
+                self.assertNotIn("tier0_activation", self.log())
+
+    def test_s24_capture_orchestrator_missed_the_window_behind_a_refusing_gate(self):
+        capture = json.loads(CAPTURE.read_text())
+        deploy, rollback = capture["promotions"]
+        self.assertEqual(rollback["activation_deadline_epoch"] - rollback["activation_started_epoch"],
+                         capture["activation_readiness_s"])
+        self.assertGreater(rollback["orchestrator_start_ok_epoch"], rollback["activation_deadline_epoch"])
+        self.assertGreater(deploy["orchestrator_start_ok_epoch"], deploy["activation_deadline_epoch_lower_bound"])
+        for promotion in (deploy, rollback):
+            self.assertTrue(any("incident_orchestrator-restore action=wait reason=ai_gate_refused" in row
+                                for row in promotion["guardian_rows"]))
+        self.assertEqual(rollback["health_at_failure"]["immune.incident_orchestrator"], "down (process missing)")
+        # Replayed with the fix: the same refusing gate no longer holds the orchestrator back.
+        root = self.activation(current=rollback["release"])
+        root = root.parent.parent / rollback["release"] / "termux-lite"
+        root.mkdir(parents=True, exist_ok=True)
+        self.guardian(gate_rc=75, companion_up=True, root=root)
+        self.assertTrue(self.running(self.script))
+        self.assertEqual(self.gate_calls(), 0)
+
+    def test_unreadable_tier0_state_keeps_the_gate(self):
+        root = self.activation()
+        (self.home / ".openclaw/tier0/state.json").write_text("{not json")
+        self.guardian(gate_rc=75, companion_up=True, root=root)
+        self.assertFalse(self.running(self.script))
+        self.assertEqual(self.gate_calls(), 1)
 
 
 if __name__ == "__main__":
