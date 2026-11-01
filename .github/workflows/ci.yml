@@ -119,6 +119,9 @@ jobs:
       - name: One checkout owns each compatibility patch for OpenClaw 2026.9.6 and 2026.10.9
         run: python3 ../installer/termux-lite/test-openclaw-compat-variants.py
 
+      - name: Every compatibility replacement imports a real module and export of its own OpenClaw build
+        run: python3 ../installer/termux-lite/test-openclaw-compat-imports.py
+
       - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
         run: python3 ../installer/termux-lite/test-project-room.py
       - name: Pulse room agents (fichier 52 §5)
@@ -419,6 +422,8 @@ jobs:
 
       - name: Test persistent Gateway owner transport preparation
         run: node scripts/test-persistent-gateway-transport.cjs && node scripts/test-gateway-entrypoint.cjs && node scripts/test-official-gateway-owner.cjs && node scripts/test-qa-media-stage.cjs
+      - name: OpenClaw SDK version table (2026.9.6 production rows unchanged, 2026.10.9 candidate) on npm export fixtures
+        run: node scripts/test-openclaw-sdk-versions.cjs
       - name: Test automation SQLite revision latency and cache
         run: node scripts/test-control-automations-latency.cjs
 
@@ -772,6 +777,34 @@ jobs:
         run: node ../installer/termux-lite/test-gemini-public-native.mjs "$RUNNER_TEMP/p1-sdk/node_modules/openclaw"
       - name: Test actual public Gateway admission revocation cancellation and clarification
         run: node scripts/diagnostics/p1-gateway-isolated.cjs "$RUNNER_TEMP/p1-sdk/node_modules/openclaw" "$(command -v node)" "$RUNNER_TEMP/p1-gateway-proof"
+
+  openclaw-sdk-surface:
+    # One leg per pinned OpenClaw version (CI parameter; localci runs steps in sequence, no matrix). Static: the public
+    # npm tar is checked, partly extracted and patched by model-flow-selection, never installed or run. Production
+    # stays 2026.9.6; the 2026.10.9 leg qualifies the candidate rows of the plugin's SDK version table.
+    name: OpenClaw SDK surface per pinned version (static)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: openclaw-plugin-mobile-ui
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node 26 for the plugin build
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26.11.1
+          cache: npm
+          cache-dependency-path: openclaw-plugin-mobile-ui/package-lock.json
+      - name: Install plugin dependencies
+        run: npm ci
+      - name: Build plugin version table
+        run: npm run build
+      - name: OpenClaw 2026.9.6 (production) SDK surface and model profile contract
+        run: bash scripts/openclaw-sdk-surface-ci.sh 2026.9.6 1a7355691bc0e605222ba818f1f72c1787253c78dfeb0df6be2086ec73b71e63 "$RUNNER_TEMP/openclaw-sdk-surface"
+      - name: OpenClaw 2026.10.9 (candidate) SDK surface and model profile contract
+        run: bash scripts/openclaw-sdk-surface-ci.sh 2026.10.9 43c61a00ef2c73416a072a7216cb3be80555d6740199f07194da2714283b04ab "$RUNNER_TEMP/openclaw-sdk-surface"
 
   parallel-free-transport:
     name: Parallel Free pinned native transport offline

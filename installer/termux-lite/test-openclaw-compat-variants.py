@@ -8,6 +8,7 @@ import gzip
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -70,6 +71,146 @@ class Variants(unittest.TestCase):
                 self.assertEqual(self.cli(name, root, "rollback").returncode, 0)
                 self.assertEqual(self.snapshot(name, root), original)
 
+    def test_candidate_patched_with_a_pinned_predecessor_upgrades_and_rolls_back(self):
+        """S24 rehearsal 01/11: a candidate already patched with a broken 2026.10.9 variant moves to the fixed one."""
+        upgraded = []
+        for name in SETS:
+            for index, item in enumerate(manifest(name)["packages"][VERSION]["files"]):
+                for previous in item.get("predecessors", []):
+                    with self.subTest(name=name, path=item["path"], predecessor=previous["patched"][:8]):
+                        root = self.root(name)
+                        original = self.snapshot(name, root)
+                        target = self.module(root, item)
+                        text = target.read_text()
+                        for before, after in previous["replacements"]:
+                            self.assertEqual(text.count(before), 1)
+                            text = text.replace(before, after)
+                        target.write_text(text)
+                        self.assertEqual(hashlib.sha256(target.read_bytes()).hexdigest(), previous["patched"])
+                        self.assertNotEqual(self.cli(name, root, "check").returncode, 0)
+                        result = self.cli(name, root, "apply")
+                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                        for entry in manifest(name)["packages"][VERSION]["files"]:
+                            self.assertEqual(hashlib.sha256(self.module(root, entry).read_bytes()).hexdigest(), entry["patched"])
+                        self.assertEqual(self.cli(name, root, "check").returncode, 0)
+                        # Rollback from the predecessor itself restores the published bytes too.
+                        target.write_text(text)
+                        self.assertEqual(self.cli(name, root, "rollback").returncode, 0)
+                        self.assertEqual(self.snapshot(name, root), original)
+                        upgraded.append((name, item["path"]))
+        self.assertIn(("agent-exec-auth-scope", "dist/runtime-fLuYb9ac.mjs"), upgraded)
+
+    def test_agent_exec_variant_imports_the_scoped_env_owner_of_this_build(self):
+        item = manifest("agent-exec-auth-scope")["packages"][VERSION]["files"][0]
+        root = self.root("agent-exec-auth-scope")
+        self.assertEqual(self.cli("agent-exec-auth-scope", root, "apply").returncode, 0)
+        text = self.module(root, item).read_text()
+        self.assertIn('import { s as getScopedAuthProfileEnv } from "./store-C7nkCeF3.mjs";', text)
+        self.assertNotIn("store-CGYBYVbs", text)
+        store = gzip.decompress((FIXTURE / "store-C7nkCeF3.mjs.gz").read_bytes()).decode()
+        exports = store[store.rindex("export {"):]
+        self.assertIn("getScopedAuthProfileEnv as s,", exports)
+        self.assertIn("getScopedSharedAuthStore as c,", exports, "the 2026.9.6 letter names another function here")
+        self.assertFalse((FIXTURE / "store-CGYBYVbs.mjs.gz").exists())
+
+    def test_guarded_sync_copy_copies_when_android_refuses_the_clone(self):
+        """Runs the published copyRootFileSync of @openclaw/fs-safe 0.26.0 (OpenClaw 2026.10.9), original and patched,
+        with its sibling modules replaced by plain-fs stand-ins and a native helper that refuses FICLONE with EACCES
+        as the S24 kernel does; the plugin loader calls it with clone "auto" for sources above 64 KiB."""
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node unavailable")
+        item = next(entry for entry in manifest("android-fs-compat")["packages"][VERSION]["files"]
+                    if entry["path"].endswith("/copy-root-file-sync.js"))
+        published = gzip.decompress((FIXTURE / "copy-root-file-sync.js.gz").read_bytes())
+        self.assertEqual(hashlib.sha256(published).hexdigest(), item["original"])
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        work = Path(temporary.name)
+        stubs = {
+            "byte-budget.js": "export const normalizeMaxBytes = (value) => value;",
+            "copy-path-admission.js": "import path from 'node:path';\nexport function createCopyPathAdmissionCache() { return { admit(p) {"
+                " return { path: p.absolutePath, rootCanonicalPath: p.rootPath, assertCurrent() {},"
+                " parent: { realPath: path.dirname(p.absolutePath), stat: { dev: 0, ino: 0 } } }; }, clear() {} }; }",
+            # Same policy as the published copy-policy.js of fs-safe 0.26.0.
+            "copy-policy.js": "import { FsSafeError } from './errors.js';\nexport function resolveCopyCloneMode(mode, defaultMode) {"
+                " const policy = mode === undefined ? defaultMode : mode; if (policy !== 'auto' && policy !== 'always' && policy !== 'never')"
+                " throw new FsSafeError('invalid-path', 'copy clone policy must be auto, always, or never'); return policy; }",
+            "create.js": "export function createFileWithAdmissionSync() { throw new Error('unexpected JS copy path'); }",
+            "create-owned-file.js": "import fs from 'node:fs';\nexport const ownFileDescriptorSync = (fd) => ({ fd, close() { fs.closeSync(fd); } });",
+            "creation-boundary.js": "export const creationAdmissionFromParent = () => ({});\nexport function removeRecordedCreationFileSync() {}",
+            "errors.js": "export class FsSafeError extends Error { constructor(code, message, options = {}) {"
+                " super(message, { cause: options.cause }); this.code = code; } }",
+            "exclusive-create.js": "export function assertExclusiveCreateLeaf() {}",
+            "file-handle-transfer.js": "export function copyFileDescriptorSync() { throw new Error('unexpected JS copy path'); }",
+            "native-binding.js": "export const captureNativeFdClose = () => undefined;",
+            "native.js": "import fs from 'node:fs';\nimport path from 'node:path';\nexport const calls = [];\n"
+                "export function getNativeBinding() { return {\n"
+                "  copyFileExclusiveSync(sourceFd, parentFd, name, clone) { calls.push(clone);\n"
+                "    const target = path.join(globalThis.copyTargetDir, name); const fd = fs.openSync(target, 'wx', 0o600);\n"
+                "    if (clone !== 'never') return { fd, method: 'clone', errorCode: 'EACCES', errorMessage: 'FICLONE: permission denied' };\n"
+                "    fs.writeFileSync(fd, fs.readFileSync(sourceFd)); return { fd, method: 'copy' }; },\n"
+                "  removeStagedFile(parentFd, name) { fs.unlinkSync(path.join(globalThis.copyTargetDir, name)); return 'removed'; } }; }",
+            "root-file.js": "import fs from 'node:fs';\nexport const openRootFileSync = (o) => ({ ok: true, fd: fs.openSync(o.absolutePath, 'r') });",
+            "root-read-admission.js": "import fs from 'node:fs';\nexport const inspectOpenedPathIdentitySync = (p) => fs.statSync(p, { bigint: true });",
+            "staged-directory.js": "import fs from 'node:fs';\nexport const openStagedDirectory = (dir) => ({ fd: fs.openSync(dir, 'r') });",
+            "strict-file-identity.js": "export const inspectFileIdentitySync = (inspect) => inspect();",
+        }
+        imports = sorted(set(re.findall(r'from "\./([^"]+)"', published.decode())))
+        self.assertEqual(imports, sorted(stubs), "stand-ins cover exactly the published imports")
+        script = "\n".join([
+            "import fs from 'node:fs';", "import path from 'node:path';",
+            "const [dir, source] = process.argv.slice(1);", "const { copyRootFileSync } = await import(path.join(dir, 'copy-root-file-sync.js'));",
+            "const { calls } = await import(path.join(dir, 'native.js'));",
+            "const out = {}; let n = 0;",
+            "for (const clone of ['auto', 'always', 'never', undefined]) {",
+            "  const targetDir = fs.mkdtempSync(path.join(dir, 'target-')); globalThis.copyTargetDir = targetDir; const absolutePath = path.join(targetDir, 'copy-' + n++);",
+            "  try { const copied = copyRootFileSync({ source: { rootPath: path.dirname(source), absolutePath: source },",
+            "      destination: { rootPath: targetDir, absolutePath }, clone, sourceHardlinks: 'allow' });",
+            "    copied.close(); out[String(clone)] = { method: copied.method, same: fs.readFileSync(absolutePath).equals(fs.readFileSync(source)) };",
+            "  } catch (error) { out[String(clone)] = { error: error.message, code: error.code, cause: error.cause?.code, left: fs.existsSync(absolutePath) }; }",
+            "}",
+            "out.calls = calls; console.log(JSON.stringify(out));",
+        ])
+        source = work / "plugin-source.mjs"
+        source.write_bytes(b"// synthetic plugin source above the 64 KiB small-copy limit\n" + b"x" * (70 * 1024))
+        results = {}
+        for label, data in (("original", published), ("patched", None)):
+            module_dir = work / label
+            module_dir.mkdir()
+            for stub, body in stubs.items():
+                (module_dir / stub).write_text(body + "\n")
+            (module_dir / "package.json").write_text('{"type": "module"}')
+            target = module_dir / "copy-root-file-sync.js"
+            target.write_bytes(published)
+            if data is None:
+                fs_root = work / "root"
+                fs_root.mkdir()
+                (fs_root / "package.json").write_text(json.dumps({"version": VERSION}))
+                for entry in manifest("android-fs-compat")["packages"][VERSION]["files"]:
+                    raw = gzip.decompress((FIXTURE / (Path(entry["path"]).name + ".gz")).read_bytes())
+                    (fs_root / entry["path"]).parent.mkdir(parents=True, exist_ok=True)
+                    (fs_root / entry["path"]).write_bytes(raw)
+                result = self.cli("android-fs-compat", fs_root, "apply")
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                target.write_bytes((fs_root / item["path"]).read_bytes())
+                self.assertEqual(hashlib.sha256(target.read_bytes()).hexdigest(), item["patched"])
+            run = subprocess.run([node, "--input-type=module", "-e", script, str(module_dir), str(source)], capture_output=True, text=True)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            results[label] = json.loads(run.stdout)
+        original, patched = results["original"], results["patched"]
+        # Upstream bytes reproduce the S24 load failure: a refused clone has no fallback in this copy.
+        self.assertEqual((original["auto"]["error"], original["auto"]["cause"]), ("guarded synchronous file copy failed", "EACCES"))
+        self.assertEqual(original["auto"]["code"], "helper-failed")
+        self.assertFalse(original["auto"]["left"], "the refused copy leaves no partial file")
+        self.assertEqual(original["calls"], ["auto", "always", "never", "never"])
+        # Patched: "auto" copies; an explicit "always" stays strict; "never" and the default are unchanged.
+        self.assertEqual(patched["auto"], {"method": "copy", "same": True})
+        self.assertEqual((patched["always"]["error"], patched["always"]["cause"]), ("guarded synchronous file copy failed", "EACCES"))
+        self.assertEqual(patched["never"], {"method": "copy", "same": True})
+        self.assertEqual(patched["undefined"], {"method": "copy", "same": True})
+        self.assertEqual(patched["calls"], ["never", "always", "never", "never"])
+
     def test_original_pinned_set_is_unchanged_for_2026_9_6(self):
         for name in SETS:
             with self.subTest(name):
@@ -100,11 +241,34 @@ class Variants(unittest.TestCase):
                     self.assertEqual(checked.returncode, 0, item["path"] + checked.stderr)
             if name == "model-flow-selection":
                 embedded = (root / "dist/embedded-agent-DoEPu8ye.mjs").read_text()
-                self.assertIn("export { applyHookModelProfile, compactEmbeddedAgentSession as n, resolveHookModelSelection, runEmbeddedAgent as t };", embedded)
+                # The plugin's session metadata owner reads the contract from this chunk on 2026.10.9 (openclawSdkVersions).
+                self.assertIn("export { MODEL_PROFILE_CONTRACT_VERSION, applyHookModelProfile, compactEmbeddedAgentSession as n, "
+                              "resolveHookModelSelection, runEmbeddedAgent as t };", embedded)
+                self.assertEqual(embedded.count("const MODEL_PROFILE_CONTRACT_VERSION = 1;"), 1)
                 self.assertIn('profilePluginId: "openclaw-plugin-mobile-ui", selectionStage: "before_runtime"', embedded)
                 self.assertIn('import { resolveHookModelSelection } from "./embedded-agent-DoEPu8ye.mjs";',
                               (root / "dist/run-entry-BnMGfzuI.mjs").read_text())
                 self.assertIn("runBeforeModelResolveForPlugin", (root / "dist/hooks-CgZHhfMh.mjs").read_text())
+
+    def test_model_flow_candidate_patched_before_the_contract_export_upgrades_and_rolls_back(self):
+        """A 2026.10.9 candidate patched by the previous variant (no contract export) upgrades through its original."""
+        root = self.root("model-flow-selection")
+        original = self.snapshot("model-flow-selection", root)
+        entry = next(item for item in manifest("model-flow-selection")["packages"][VERSION]["files"]
+                     if item["path"] == "dist/embedded-agent-DoEPu8ye.mjs")
+        previous = entry["predecessors"][0]
+        self.assertEqual(previous["replacements"], entry["replacements"][:-1])
+        target = self.module(root, entry)
+        text = target.read_text()
+        for before, after in previous["replacements"]:
+            text = text.replace(before, after)
+        target.write_text(text)
+        self.assertEqual(hashlib.sha256(target.read_bytes()).hexdigest(), previous["patched"])
+        self.assertEqual(self.cli("model-flow-selection", root, "apply").returncode, 0)
+        self.assertEqual(hashlib.sha256(target.read_bytes()).hexdigest(), entry["patched"])
+        self.assertEqual(self.cli("model-flow-selection", root, "check").returncode, 0)
+        self.assertEqual(self.cli("model-flow-selection", root, "rollback").returncode, 0)
+        self.assertEqual(self.snapshot("model-flow-selection", root), original)
 
     def test_whatsapp_transport_loss_keeps_slow_retries_after_the_fast_burst(self):
         """Runs the patched 2026.10.9 consumeReconnectAttempt and close path, not a copy of it."""
