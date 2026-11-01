@@ -1,0 +1,74 @@
+{
+  "version": 2,
+  "id": "sqlite-participant-native-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "memory-retrieval-warm gains one entry per pinned OpenClaw version: in runSessionCollaborationWrite (dist/session-accessor-DLYTHSBj.mjs on 2026.9.6, dist/session-accessor-C3ljJ974.mjs on 2026.10.9) the per-turn participant record of a file-backed agent database calls OpenClaw's native writer recordSessionParticipant inside the same write admission, after the database is admitted on its usual async path (withOpenClawAgentDatabaseAsync / withOpenClawAgentDatabaseRuntime), instead of opening a one-shot SQLite Worker. Incognito databases and every other collaboration command keep their unchanged branch.",
+  "reason": "S24 (OpenClaw 2026.9.6): every agent turn runs recordSessionParticipantBestEffort -> recordSessionParticipantInWorker -> runSessionCollaborationWrite, which holds the agent write admission while it spawns, opens, binds and closes a SQLite Worker. The admission stayed held ~2 s (profile 31/10: 2.02 s; fresh Gateway 01/11: ~7.7 s) and the session writes of the same turn (session.entry-replacements, session.maintenance.plan) queued behind it: Gateway log 'slow SQLite session write' with queue wait 1425-3434 ms on every turn. The same function already records incognito participants natively on the main thread; that writer publishes the participant cache update and the lifecycle event itself.",
+  "files": [
+    "installer/termux-lite/openclaw-compat/memory-retrieval-warm.json",
+    "installer/termux-lite/test-memory-retrieval-warm.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-memory-retrieval-warm/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-memory-retrieval-warm/measurements.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-memory-retrieval-warm/compat/session-accessor-DLYTHSBj.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/session-accessor-C3ljJ974.mjs.gz",
+    "docs/changes/sqlite-participant-native-20261101.json",
+    "docs/changes/sqlite-participant-native-20261101.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-memory-retrieval-warm.py",
+      "status": "passed",
+      "evidence": "11 tests. New: on both captured accessors (S24 SHA-256 = npm SHA-256) the pinned replacement gives the pinned patched hash, the participant branch sits after the incognito return and before the execution capture and the Worker store, node --check passes, and the patched runSessionCollaborationWrite itself (sliced from the module, OpenClaw owners recorded) records a participant natively inside the write admission and the admitted database without a Worker, refuses a stale turn before the native write, keeps the Worker for 'add', and leaves the incognito branch unchanged. The same harness on the unpatched modules shows the Worker spawn for the participant. Existing apply/check/rollback, refusals and wiring tests now cover the three-file set."
+    },
+    {
+      "name": "installer/termux-lite/test-openclaw-compat-variants.py, installer/termux-lite/test-whatsapp-network-recovery.py",
+      "status": "passed",
+      "evidence": "The 2026.10.9 set applies atomically, idempotently and reversibly on the captured npm modules including the new accessor, node --check on every patched module; neighbouring owner green."
+    }
+  ],
+  "documentation": [
+    "docs/changes/sqlite-participant-native-20261101.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-memory-retrieval-warm/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "One OpenClaw session write path through the existing compatibility owner; no route, action or capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same pinned patch set, owner and deploy/sync/gateway wiring as core#492; the native writer is OpenClaw's own (incognito path). No new owner, store, scheduler, queue or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Gateway session participant write path only; MCP tools and schemas unchanged."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The expected gain (session writes no longer queued ~2 s behind a Worker spawn on each turn) is not measured; a coldbench run and the 'slow SQLite session write' queue waits are to be compared after deployment.",
+    "The participant write now runs synchronously on the Gateway main thread (a few small queries in one immediate transaction, busy timeout 5 s as for every native agent write); a lock held by another connection would block the event loop instead of a Worker.",
+    "Other per-turn Workers (session transcript worker, SQLite store worker, recall worker) and the other collaboration commands (add, remove, categories, suggestions) are not changed.",
+    "The 2026.10.9 variant is verified on the npm/candidate module and with recorded owners only; its real import and run on the candidate are not done."
+  ],
+  "rollback": "companion-deploy.sh of the previous commit undoes the set when the previous manifest differs, then the previous runtime-sync re-applies its own; or --patch-set memory-retrieval-warm --rollback then a Gateway restart (the three files return to their pinned originals)."
+}
