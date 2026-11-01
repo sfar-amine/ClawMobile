@@ -71,8 +71,17 @@ EGRESS_CA_MODULE = "dist/ca-D3c9PAvv.mjs"
 EGRESS_CA_PATCHED = "5b1fd3ecdfae563cca56a9f9424f6afe72f4b7a1699699aa89c7b78f134abd2f"
 
 # Compatibility manifests of this checkout (CLAW_RUNTIME_ROOT or the script's own folder, never a hard-coded copy).
-COMPAT_DIR = os.path.join(os.environ.get("CLAW_RUNTIME_ROOT") or os.path.dirname(os.path.abspath(__file__)),
-                          "openclaw-compat")
+def _compat_dir() -> str:
+    """Manifests next to this script first: a long-lived caller may carry a CLAW_RUNTIME_ROOT pinned to an older,
+    replaced release (S24 01/11: the Claw bridge pointed at the 31/10 release and the dry run refused)."""
+    here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "openclaw-compat")
+    if os.path.isdir(here):
+        return here
+    return os.path.join(os.environ.get("CLAW_RUNTIME_ROOT") or os.path.dirname(os.path.abspath(__file__)),
+                        "openclaw-compat")
+
+
+COMPAT_DIR = _compat_dir()
 
 def redact(text: str) -> str:
     text = SECRETISH.sub(lambda m: m.group(1) + "<redacted>", text)
