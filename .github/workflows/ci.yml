@@ -102,6 +102,11 @@ jobs:
           python3 ../installer/termux-lite/test-whatsapp-network-recovery.py
           node ../installer/termux-lite/test-whatsapp-network-recovery.cjs
 
+      - name: Model flow setup and compaction on OpenClaw 2026.10.9 (candidate) public SDK functions
+        run: |
+          node ../installer/termux-lite/test-model-flow-setup.cjs 2026.10.9
+          node ../installer/termux-lite/test-model-flow-compaction.cjs 2026.10.9
+
       - name: Native agent exec resolves auth secrets in its existing scoped owner
         run: |
           python3 ../installer/termux-lite/test-agent-exec-auth-scope.py
@@ -753,6 +758,8 @@ jobs:
           cache-dependency-path: openclaw-plugin-mobile-ui/package-lock.json
       - name: L5 native SDK session CAS over real SQLite connections
         run: node ../installer/termux-lite/test-model-flow-native-session.cjs
+      - name: L5 native SDK session CAS on OpenClaw 2026.10.9 (candidate) public patchSessionEntry and writers
+        run: node ../installer/termux-lite/test-model-flow-native-session.cjs 2026.10.9
 
       - name: Install integration plugin dependencies
         run: npm ci
