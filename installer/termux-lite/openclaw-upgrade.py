@@ -95,7 +95,7 @@ def default_layout(profile: str, env: dict) -> dict:
         "source_version": SOURCE_VERSION, "target_version": TARGET_VERSION, "target_node": TARGET_NODE,
         "plugin_id": "openclaw-plugin-mobile-ui", "min_tools": 42, "consent_plugins": ["openclaw-plugin-mobile-ui"],
         "health_paths": ["/health"],
-        "turn": {"agent": "main", "timeout_s": 180,
+        "turn": {"agent": "main", "timeout_s": 300,
                  "message": "Vérification technique de montée de version : réponds seulement « prêt »."},
         "budgets": {"stop_s": 30, "health_s": 300, "doctor_s": 1200, "whatsapp_install_s": 900,
                     "whatsapp_connect_s": 180, "cli_s": 150, "companion_s": 300},
