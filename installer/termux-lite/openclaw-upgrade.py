@@ -158,6 +158,9 @@ def default_layout(profile: str, env: dict) -> dict:
                 "OPENCLAW_NO_RESPAWN": "1", "TMPDIR": r + "/tmp", "LANG": "C.UTF-8",
                 # Keeps the candidate invisible to prod `pgrep -f openclaw-gateway` watchdogs.
                 "NODE_OPTIONS": "-r $HOME/.openclaw-android/staging/patches/title-guard.js",
+                # The Samantha plugin and Companion locate the installed SDK through this binary (prod: the global
+                # $PREFIX tree, i.e. the live root); preprod points it at its own live root, never prod's 9.6.
+                "CLAWMOBILE_OPENCLAW_BIN": r + "/live/openclaw/openclaw.mjs",
                 # claude/codex stubs first on PATH: an automatic triage attempt is blocked and logged.
                 "PATH": r + "/live/bin:" + r + "/live/node/bin:$PREFIX/bin",
                 "@unset": ["OPENCLAW_GATEWAY_TOKEN", "OPENCLAW_GATEWAY_PASSWORD", "OPENCLAW_GATEWAY_URL",
