@@ -34,3 +34,8 @@ dossier neuf, archive sha256 `43c61a00ef2c73416a072a7216cb3be80555d6740199f07194
 
 Les modules importés ne sont pas modifiés : ils servent au contrôle `installer/termux-lite/test-openclaw-compat-imports.py`
 (chaque import introduit par un remplacement vise un module et une lettre d'export réels de la même version).
+
+Contrat de profil de modèle (01/11/2026) : la variante 2026.10.9 de `model-flow-selection` exporte aussi
+`MODEL_PROFILE_CONTRACT_VERSION` depuis `dist/embedded-agent-DoEPu8ye.mjs`, comme `dist/setup-B7DuERIi.mjs` en 2026.9.6 ;
+le propriétaire des métadonnées de session du plugin le lit là (`openclawSdkVersions.ts`). L'ancien résultat corrigé
+(`b8062e79…`) est déclaré en `predecessors` : un candidat déjà corrigé passe au nouveau par ses octets d'origine.
