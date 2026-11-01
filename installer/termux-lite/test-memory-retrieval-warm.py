@@ -15,6 +15,60 @@ HERE = Path(__file__).parent
 OWNER = HERE / "openclaw-compat/whatsapp-network-recovery.py"
 MANIFEST = json.loads(OWNER.with_name("memory-retrieval-warm.json").read_text())
 FIXTURE = HERE.parent.parent / "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-memory-retrieval-warm"
+VARIANT_FIXTURE = HERE.parent.parent / "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat"
+ACCESSORS = {"2026.9.6": ("dist/session-accessor-DLYTHSBj.mjs", "withOpenClawAgentDatabaseAsync"),
+             "2026.10.9": ("dist/session-accessor-C3ljJ974.mjs", "withOpenClawAgentDatabaseRuntime")}
+# Runs the patched runSessionCollaborationWrite itself (sliced from the module) with recorded OpenClaw owners.
+COLLABORATION_HARNESS = r"""
+const fs = require("node:fs");
+const [source, path] = process.argv.slice(1);
+const log = [];
+const depth = { admission: 0, database: 0 };
+const nested = (key, label) => async (options, run, ...rest) => {
+	log.push(label + ":" + JSON.stringify(rest.filter((value) => typeof value !== "function")));
+	depth[key] += 1;
+	try { return await run({ db: { isOpen: true } }); } finally { depth[key] -= 1; }
+};
+const stubs = {
+	resolveSqliteScope: (scope) => ({ agentId: scope.agentId, sessionKey: scope.sessionKey, env: scope.env }),
+	toDatabaseOptions: (resolved) => ({ agentId: resolved.agentId, env: resolved.env }),
+	cloneEnvWithPlatformSemantics: (env) => ({ ...env }),
+	resolveStateDir: () => "/state",
+	resolveOpenClawAgentSqlitePath: () => path,
+	isIncognitoOpenClawAgentSqlitePath: (pathname) => pathname.startsWith("incognito:"),
+	captureIncognitoSessionOperation: () => undefined,
+	runOpenClawAgentWriteAdmission: nested("admission", "admission"),
+	withOpenClawAgentDatabaseAsync: nested("database", "database"),
+	withOpenClawAgentDatabaseRuntime: nested("database", "database"),
+	captureOpenClawAgentDatabaseExecution: () => { log.push("execution"); return { assertCurrent() {}, release: async () => {} }; },
+	openOpenClawAgentSqliteWorkerStore: async () => { log.push("worker"); throw new Error("worker-spawned"); },
+	readOpenClawAgentDatabaseIdentity: () => ({ identity: "file:agent" }),
+	retainSessionEntryWorkerPublication: () => ({ settle() {}, beginChanges() {}, settleChanges() {} }),
+	resolveRuntimeWorkerUrl: (entry) => entry,
+	runtimeProcessEntrypoints: { sessionSharingStore: "session-sharing-store.worker.js" },
+	sessionChanges: { emit() {}, emitBatch() {} },
+};
+const write = new Function("stubs", "with (stubs) {\n" + fs.readFileSync(source, "utf8") + "\nreturn runSessionCollaborationWrite;\n}")(stubs);
+const scope = { agentId: "main", sessionKey: "agent:main:main", env: {} };
+const native = (captured) => { log.push("native:" + depth.admission + ":" + depth.database + ":" + captured.storePath); return "inserted"; };
+const publish = () => { throw new Error("worker publication used"); };
+const run = async (type, assertCurrent) => {
+	log.length = 0;
+	try {
+		return { value: await write(scope, { type, input: { params: {} } }, native, publish, assertCurrent), log: [...log] };
+	} catch (error) {
+		return { error: error.message, log: [...log] };
+	}
+};
+(async () => {
+	const refused = () => { throw new Error("stale-turn"); };
+	console.log(JSON.stringify({
+		participant: await run("participant"),
+		stale: await run("participant", refused),
+		add: await run("add"),
+	}));
+})();
+"""
 
 
 class MemoryRetrievalWarm(unittest.TestCase):
@@ -73,6 +127,60 @@ class MemoryRetrievalWarm(unittest.TestCase):
         if node:
             checked = subprocess.run([node, "--check", str(self.root / handle["path"])], capture_output=True, text=True)
             self.assertEqual(checked.returncode, 0, checked.stderr)
+
+    def collaboration(self, text, path):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node unavailable")
+        start = text.index("async function runSessionCollaborationWrite(")
+        source = self.root / "collaboration-write.js"
+        source.write_text(text[start:text.index("\nfunction ", start)])
+        run = subprocess.run([node, "-e", COLLABORATION_HARNESS, str(source), path], capture_output=True, text=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        return json.loads(run.stdout)
+
+    def test_session_participant_records_natively_on_both_versions(self):
+        """The captured 2026.9.6 (S24 production) and 2026.10.9 (S24 candidate) accessors, patched by the owner's pins."""
+        measured = json.loads((FIXTURE / "measurements.json").read_text())["session_accessor_module"]
+        variants = {"2026.9.6": (FIXTURE / "compat", MANIFEST["files"]),
+                    "2026.10.9": (VARIANT_FIXTURE, MANIFEST["packages"]["2026.10.9"]["files"])}
+        for version, (directory, files) in variants.items():
+            with self.subTest(version):
+                path, admitted = ACCESSORS[version]
+                entry = next(item for item in files if item["path"] == path)
+                raw = gzip.decompress((directory / (Path(path).name + ".gz")).read_bytes())
+                self.assertEqual(hashlib.sha256(raw).hexdigest(), entry["original"])
+                self.assertEqual(measured[version]["s24_sha256"], entry["original"])
+                self.assertEqual(measured[version]["npm_sha256"], entry["original"])
+                self.assertEqual(measured[version]["bytes"], len(raw))
+                text = raw.decode()
+                for before, after in entry["replacements"]:
+                    self.assertEqual(text.count(before), 1)
+                    text = text.replace(before, after)
+                self.assertEqual(hashlib.sha256(text.encode()).hexdigest(), entry["patched"])
+                body = text[text.index("async function runSessionCollaborationWrite("):]
+                incognito = body.index("if (isIncognitoOpenClawAgentSqlitePath(options.path, options)) return runOpenClawAgentWriteAdmission(")
+                participant = body.index('if (command.type === "participant") return runOpenClawAgentWriteAdmission(options, () => ' + admitted + "(options, () => {")
+                self.assertLess(incognito, participant, "incognito databases keep their own unchanged branch")
+                self.assertLess(participant, body.index("const execution = captureOpenClawAgentDatabaseExecution(options);"))
+                self.assertLess(participant, body.index("openOpenClawAgentSqliteWorkerStore("))
+                self.assertEqual(text.count('command.type === "participant"'), 1)
+                self.assertIn(admitted, text[:text.index("//#region")], "the admission helper is imported by this module")
+                out = self.collaboration(text, "/state/agents/main/agent/openclaw-agent.sqlite")
+                self.assertEqual(out["participant"]["value"], "inserted")
+                self.assertEqual(out["participant"]["log"], ["admission:[true]", "database:[]",
+                                                             "native:1:1:/state/agents/main/agent/openclaw-agent.sqlite"],
+                                 "native writer inside the same write admission and admitted database, no Worker")
+                self.assertEqual(out["stale"], {"error": "stale-turn", "log": ["admission:[true]", "database:[]"]})
+                self.assertEqual(out["add"]["error"], "worker-spawned", "other collaboration commands keep their Worker")
+                self.assertEqual(out["add"]["log"], ["execution", "admission:[true]", "database:[]", "worker"])
+                incognito_out = self.collaboration(text, "incognito:main")
+                self.assertEqual(incognito_out["participant"]["log"], ["admission:[true]", "native:1:0:incognito:main"])
+                node = shutil.which("node")
+                module = self.root / ("patched-" + Path(path).name)
+                module.write_text(text)
+                checked = subprocess.run([node, "--check", str(module)], capture_output=True, text=True)
+                self.assertEqual(checked.returncode, 0, checked.stderr)
 
     def test_deployed_thirty_minute_patch_upgrades_and_rolls_back(self):
         entry = MANIFEST["files"][0]

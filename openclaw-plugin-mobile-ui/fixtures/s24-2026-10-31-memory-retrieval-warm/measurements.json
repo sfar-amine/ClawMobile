@@ -129,5 +129,42 @@
    "after_turn_5": 962036
   },
   "reading": "turns 2-5 are warm; the first turn after > 30 min pays both 30 min windows: the agent database handle was closed, its reopen queued an integrity quick_check while the session write waited 2.6 s, and the recall worker respawned (catalog -> start 3.2 s)"
+ },
+ "session_accessor_module": {
+  "captured_at": "2026-11-01T13:34:00Z",
+  "2026.9.6": {
+   "path": "dist/session-accessor-DLYTHSBj.mjs",
+   "bytes": 153512,
+   "s24_sha256": "756d3a5876376b176c2be08cc3b71b9166792e77f5d862a111e88a2acf01155e",
+   "npm_sha256": "756d3a5876376b176c2be08cc3b71b9166792e77f5d862a111e88a2acf01155e",
+   "s24_location": "$PREFIX/lib/node_modules/openclaw/dist/ (production)"
+  },
+  "2026.10.9": {
+   "path": "dist/session-accessor-C3ljJ974.mjs",
+   "bytes": 139927,
+   "s24_sha256": "c000b950a69d04879e214410f348659ce7beef9042c8572bcffbcb25200caa34",
+   "npm_sha256": "c000b950a69d04879e214410f348659ce7beef9042c8572bcffbcb25200caa34",
+   "s24_location": "~/.openclaw-android/staging/oc-global/lib/node_modules/openclaw/dist/ (isolated candidate)"
+  },
+  "contract": "runSessionCollaborationWrite takes the agent write admission (runOpenClawAgentWriteAdmission, reentrant) then, for a file-backed agent database, opens a one-shot SQLite Worker (openOpenClawAgentSqliteWorkerStore: createSlot -> new Worker, retired on close) for every collaboration command, including the per-turn participant record (recordSessionParticipantBestEffort -> recordSessionParticipantInWorker). Incognito databases already call the native main-thread writer recordSessionParticipant (session-sharing-store.native), which publishes the participant cache update and the lifecycle event itself.",
+  "observed_on_s24": {
+   "admission_held_by_participant_worker_seconds": {
+    "profile_2026_10_31": 2.02,
+    "fresh_gateway_2026_11_01": 7.7
+   },
+   "slow_sqlite_session_write_queue_wait_ms_per_turn": [
+    1425,
+    3434
+   ],
+   "slow_sqlite_session_write_queue_wait_ms_example": {
+    "log_time_utc": "22:24:26.761Z",
+    "qW": 2077
+   },
+   "queued_operations": [
+    "session.entry-replacements",
+    "session.maintenance.plan"
+   ],
+   "note": "ranges from the Gateway log ('slow SQLite session write', qW = queue wait) and the main-thread CPU profile; the gain of the native path is not measured yet"
+  }
  }
 }
