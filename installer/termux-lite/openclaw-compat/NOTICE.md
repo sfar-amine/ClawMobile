@@ -46,3 +46,7 @@ The `android-fs-compat` set (OpenClaw 2026.10.9) pins the result of openclaw-and
 `platforms/openclaw/patches/openclaw-patch-hardlink.sh` (MIT, script SHA-256 c9f4cd96…7386d5) on the exact
 public modules: EACCES joins the copy fallbacks, migration artifacts move by rename when a hard link is refused,
 and `/proc/self/ns/pid` reads as unavailable. Same license as above.
+
+The same set also pins one Samantha-specific line on 2026.10.9 (not adapted from openclaw-android): the secret egress
+proxy CA module (`dist/ca-D3c9PAvv.mjs`) passes `extraDirs: ["/data/data/com.termux/files/usr/bin"]` to
+`resolveSystemBin("openssl")`, because Android has no openssl in the fixed system directories it searches.

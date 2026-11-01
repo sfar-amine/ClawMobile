@@ -211,6 +211,112 @@ class Variants(unittest.TestCase):
         self.assertEqual(patched["undefined"], {"method": "copy", "same": True})
         self.assertEqual(patched["calls"], ["never", "always", "never", "never"])
 
+    def test_secret_egress_ca_finds_termux_openssl(self):
+        """S24 rehearsal 01/11: with secrets.egressProxy the 2026.10.9 Gateway stopped at "Secret egress proxy Worker is
+        unavailable". The Worker's real error, reproduced on the S24 with the candidate's own modules, is
+        `openssl is required to generate secret egress proxy certificates` (ca-D3c9PAvv.mjs, inside withFileLock):
+        resolveSystemBin only searches /usr/bin, /bin, /usr/sbin, /sbin, /run/current-system/sw/bin and /snap/bin, and
+        Android has openssl only in the Termux prefix. Runs the published CA module, original then patched, with the
+        published resolveSystemBin, an Android view of those directories and the real openssl of this machine."""
+        node, openssl = shutil.which("node"), shutil.which("openssl")
+        if not node or not openssl:
+            self.skipTest("node or openssl unavailable")
+        item = next(entry for entry in manifest("android-fs-compat")["packages"][VERSION]["files"]
+                    if entry["path"] == "dist/ca-D3c9PAvv.mjs")
+        published = gzip.decompress((FIXTURE / "ca-D3c9PAvv.mjs.gz").read_bytes())
+        resolver = gzip.decompress((FIXTURE / "resolve-system-bin-COKBgJV4.mjs.gz").read_bytes())
+        self.assertEqual(hashlib.sha256(published).hexdigest(), item["original"])
+        self.assertEqual(hashlib.sha256(resolver).hexdigest(), "0c1f6ad98b9f2ec51f2655baa9aca880f859a462a03caa0fb7492a78af9c9a17")
+        termux = "/data/data/com.termux/files/usr/bin"
+        stubs = {
+            "exec-DdJWnONN.mjs": "import { execFileSync } from 'node:child_process';\nexport async function n(command, args) {"
+                f" globalThis.execCalls.push(command); execFileSync(command === '{termux}/openssl' ? globalThis.realOpenssl : command, args,"
+                " { stdio: 'ignore' }); return { stdout: '', stderr: '' }; }",
+            "keyed-async-queue-CTreGrmR.mjs": "export class t { enqueue(key, task) { return task(); } }",
+            "ip-Df-yvQzE.mjs": "import net from 'node:net';\nexport const v = (value) => (net.isIP(value) ? value : null);",
+            "file-lock-CkzOvhYo.mjs": "export const s = async (target, options, task) => task();",
+            "file-lock-Cl3feKST.mjs": "export {};",
+            "map-size-BlrH_CnE.mjs": "export function t(map, max) { for (const key of map.keys()) { if (map.size <= max) break; map.delete(key); } }",
+            "windows-install-roots-QtLay04M.mjs": "export const i = () => [];\nexport const n = () => ({ systemRoot: 'C:\\\\Windows' });",
+        }
+        imports = sorted(set(re.findall(r'from "\./([^"]+)"', published.decode())) | set(re.findall(r'import "\./([^"]+)"', published.decode())))
+        self.assertEqual(imports, sorted(set(stubs) - {"map-size-BlrH_CnE.mjs", "windows-install-roots-QtLay04M.mjs"} | {"resolve-system-bin-COKBgJV4.mjs"}))
+        self.assertEqual(sorted(re.findall(r'from "\./([^"]+)"', resolver.decode())), ["map-size-BlrH_CnE.mjs", "windows-install-roots-QtLay04M.mjs"])
+        script = "\n".join([
+            "import fs from 'node:fs';", "import path from 'node:path';", "import { X509Certificate } from 'node:crypto';",
+            "const [dir, openssl, certDir] = process.argv.slice(1);",
+            f"const TERMUX = '{termux}';",
+            # Android: none of the fixed system directories holds openssl; Termux does (mapped to this machine's openssl).
+            "const SYSTEM = new Set(['/usr/bin', '/bin', '/usr/sbin', '/sbin', '/run/current-system/sw/bin', '/snap/bin', '/usr/local/bin']);",
+            "const access = fs.accessSync; globalThis.probes = []; globalThis.execCalls = []; globalThis.realOpenssl = openssl;",
+            "fs.accessSync = (file, mode) => { if (path.basename(file) === 'openssl') globalThis.probes.push(path.dirname(file));",
+            "  if (file === TERMUX + '/openssl') return; if (SYSTEM.has(path.dirname(file))) { const e = new Error('ENOENT'); e.code = 'ENOENT'; throw e; }",
+            "  return access(file, mode); };",
+            "const ca = await import(path.join(dir, 'ca-D3c9PAvv.mjs'));",
+            "const out = {};",
+            "try { const pair = await ca.n(certDir); const cert = new X509Certificate(fs.readFileSync(pair.certPath));",
+            "  out.ca = { isCa: cert.ca, subject: cert.subject, key: (fs.statSync(pair.keyPath).mode & 0o777).toString(8) };",
+            "  const leaf = await ca.r({ certDir, ca: pair, hostname: 'api.example.test' }); const leafCert = new X509Certificate(leaf.cert);",
+            "  out.leaf = { host: leafCert.checkHost('api.example.test'), issuer: leafCert.checkIssued(cert), isCa: leafCert.ca };",
+            "} catch (error) { out.error = error.message; }",
+            "out.probes = globalThis.probes; out.exec = [...new Set(globalThis.execCalls)]; console.log(JSON.stringify(out));",
+        ])
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        work = Path(temporary.name)
+        results = {}
+        for label in ("original", "patched"):
+            module_dir = work / label
+            module_dir.mkdir()
+            (module_dir / "package.json").write_text('{"type": "module"}')
+            for stub, body in stubs.items():
+                (module_dir / stub).write_text(body + "\n")
+            (module_dir / "resolve-system-bin-COKBgJV4.mjs").write_bytes(resolver)
+            target = module_dir / "ca-D3c9PAvv.mjs"
+            target.write_bytes(published)
+            if label == "patched":
+                fs_root = work / "root"
+                (fs_root / "dist").mkdir(parents=True)
+                (fs_root / "package.json").write_text(json.dumps({"version": VERSION}))
+                for entry in manifest("android-fs-compat")["packages"][VERSION]["files"]:
+                    raw = gzip.decompress((FIXTURE / (Path(entry["path"]).name + ".gz")).read_bytes())
+                    (fs_root / entry["path"]).parent.mkdir(parents=True, exist_ok=True)
+                    (fs_root / entry["path"]).write_bytes(raw)
+                result = self.cli("android-fs-compat", fs_root, "apply")
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                target.write_bytes((fs_root / item["path"]).read_bytes())
+                self.assertEqual(hashlib.sha256(target.read_bytes()).hexdigest(), item["patched"])
+            cert_dir = work / (label + "-ca")
+            run = subprocess.run([node, "--input-type=module", "-e", script, str(module_dir), openssl, str(cert_dir)],
+                                 capture_output=True, text=True, timeout=120)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            results[label] = json.loads(run.stdout)
+        original, patched = results["original"], results["patched"]
+        # Upstream bytes reproduce the S24 Worker failure, before any certificate work.
+        self.assertEqual(original["error"], "openssl is required to generate secret egress proxy certificates")
+        self.assertNotIn(termux, original["probes"])
+        self.assertEqual(original["exec"], [])
+        # Patched: the fixed system directories first, then only the fixed Termux directory (never PATH).
+        self.assertNotIn("error", patched)
+        self.assertEqual(patched["probes"][-1], termux)
+        self.assertEqual(patched["exec"], [termux + "/openssl"])
+        self.assertEqual(patched["ca"], {"isCa": True, "subject": "CN=OpenClaw Secret Egress Proxy", "key": "600"})
+        self.assertEqual(patched["leaf"], {"host": "api.example.test", "issuer": True, "isCa": False})
+
+    def test_android_set_refuses_an_unknown_ca_module_before_any_write(self):
+        root = self.root("android-fs-compat")
+        before = self.snapshot("android-fs-compat", root)
+        target = root / "dist/ca-D3c9PAvv.mjs"
+        target.write_bytes(target.read_bytes().replace(b'resolveSystemBin("openssl");', b'resolveSystemBin("openssl") ;', 1))
+        changed = self.snapshot("android-fs-compat", root)
+        for mode in ("apply", "rollback", "check"):
+            result = self.cli("android-fs-compat", root, mode)
+            self.assertNotEqual(result.returncode, 0, mode)
+            self.assertIn("unsupported_module_hash:dist/ca-D3c9PAvv.mjs", result.stdout)
+            self.assertEqual(self.snapshot("android-fs-compat", root), changed, "no file of the set is written")
+        self.assertEqual({k: v for k, v in changed.items() if k != "dist/ca-D3c9PAvv.mjs"},
+                         {k: v for k, v in before.items() if k != "dist/ca-D3c9PAvv.mjs"})
+
     def test_original_pinned_set_is_unchanged_for_2026_9_6(self):
         for name in SETS:
             with self.subTest(name):

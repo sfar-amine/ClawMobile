@@ -1,0 +1,88 @@
+{
+  "version": 2,
+  "id": "openclaw-upgrade-1009-switch-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "One owner for the OpenClaw 2026.9.6 to 2026.10.9 switch on the S24 (openclaw-upgrade.sh/.py), prod or preprod root: preflight (load, memory, free disk >= 3x the databases, heavy jobs, the companion-deploy lock, compat/SDK/triage prerequisites), candidate staging with the Gateway still serving (@openclaw/whatsapp 2026.10.9 installed by npm in a copy of its project), Gateway and Companion stopped by exact PID, WAL-aware SQLite backups with integrity_check, rename switch of the OpenClaw and Node trees, offline doctor --fix, gates (HTTP health, health JSON with the Samantha plugin, plugin tools, one real agent turn, WhatsApp plugin/connection, Companion readiness, no automatic triage) and a JSON receipt; any failure after the stop restores databases, config, credentials, trees and the WhatsApp project, restarts and re-judges (rolled_back).",
+  "reason": "The production switch must be done today with a bounded outage and a proven way back. The rehearsal on full-size copies of the prod databases measured every phase and found two Android blockers handled here: OpenClaw 2026.10.9 plugins update refuses any temp workspace under /data (fs-safe, owner uid 1000), and Android denies /proc/net and netlink, so the Gateway is found by its owner lease and state dir instead of its port.",
+  "files": [
+    "installer/termux-lite/openclaw-upgrade.sh",
+    "installer/termux-lite/openclaw-upgrade.py",
+    "installer/termux-lite/test-openclaw-upgrade.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-openclaw-upgrade-1009/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-openclaw-upgrade-1009/receipts.json",
+    ".github/workflows/ci.yml",
+    "docs/changes/openclaw-upgrade-1009-switch-20261101.json",
+    "docs/changes/openclaw-upgrade-1009-switch-20261101.md"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-openclaw-upgrade.py",
+      "status": "passed",
+      "evidence": "24 tests, Python 3.12, about 145 s, registered in .github/workflows/ci.yml (job mobile-ui-plugin). The real script against a fake openclaw (CLI and Gateway writing its owner lease) and a fake npm, with real SQLite bases, config, credentials and WhatsApp project: nominal switch (watchdog frozen during the window, peer link recreated, 42 runtime tools after consent), forced gate failure, doctor failure, Gateway that never answers, startup failure with automatic triage recorded, missing consent, SIGTERM during doctor, unhealthy rollback notified, lock busy, heavy job, high load after the bounded calm wait, disk and prerequisites, WhatsApp candidate failure without outage, detached wrapper; WAL-aware backup, inventory, redaction, profiles; the 5 real S24 receipts (schema, no secret, v23 to v25, identical restored bytes, 9.6 answering on Node 24.22.2, one deployed receipt with every gate green)."
+    },
+    {
+      "name": "installer/termux-lite/test-ci-registration.py",
+      "status": "passed",
+      "evidence": "The new test is registered in the CI workflow."
+    },
+    {
+      "name": "S24 preprod rehearsal (openclaw-upgrade.py --profile staging, fresh full-size copies of the prod bases)",
+      "status": "passed",
+      "evidence": "Nominal pass 20261101T175913 deployed: doctor 395.5 s, Gateway health 75 s after start, outage stop to health 494.7 s, 42 runtime tools, first 10.9 agent turn 198.7 s, WhatsApp plugin 2026.10.9 loaded, no triage. Forced rollback 20261101T172851 and three real rollbacks: 2026.9.6 restarted on restored bases (SHA256 equal to the backups, integrity_check ok on 20 bases), health 68 to 136 s, agent turn 68 to 190 s; 9.6 also answers on Node 24.22.2."
+    }
+  ],
+  "fixtures": {
+    "path": "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-openclaw-upgrade-1009",
+    "provenance": "Receipts written by openclaw-upgrade.py on the S24 preprod root on 2026-11-01 (fresh online backups of the prod databases); home paths shortened, hashes and log paths removed."
+  },
+  "documentation": [
+    "docs/changes/openclaw-upgrade-1009-switch-20261101.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-openclaw-upgrade-1009/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Operator maintenance script; no route, action, setting or capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuses the companion-deploy lock, receipts directory, preflight thresholds, gateway-start.sh, companion-server.sh, gateway-preflight.py agent-leases and incident-notify.sh; no new store, scheduler, daemon or retry engine."
+  },
+  "app_impact": {
+    "required": false,
+    "detail": "None until the switch is run; during the switch the app sees the Companion and Gateway down for the measured outage."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "The script runs only when launched; prod is unchanged by the merge."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Not run in production. The production switch stays blocked by three external items found by the rehearsal: the 2026.10.9 secret egress proxy Worker fails at Gateway start with the prod secrets.egressProxy configuration (likely the fs-safe 0.26 /data ownership check, to be covered by the Android compatibility owner or decided as a configuration change); the automatic triage guard in gateway-start.sh (preflight refuses on triage_guard until it exists); the compatibility variants of the sibling branches (agent-exec-auth-scope, android-fs-compat, gateway-prep-stages) deployed to the checkout.",
+    "The production profile restarts the Companion (Companion gate) and waits for a live WhatsApp connection; preprod cannot exercise either (no Companion, no WhatsApp credentials).",
+    "Preprod-only adjustments: secrets.egressProxy removed from the copy to measure the rest of the path, plugin install records and npm peer links re-aimed at the preprod root, copied leases cleared. None of them is done by the production profile.",
+    "doctor dominates the outage (324 to 514 s on the full-size copies, mostly plugin peer-link checks); no faster offline mode was found.",
+    "SIGKILL of the upgrade process during the window cannot roll back; SIGTERM and SIGINT do, and the receipt names the rollback trees and backup set for a manual restore."
+  ],
+  "rollback": "Revert this commit (nothing runs by itself). After a deployed switch, the receipt names openclaw.rollback-2026.9.6-<stamp>, node.rollback-<stamp> and the backup set for a manual way back."
+}

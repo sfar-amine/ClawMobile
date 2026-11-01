@@ -1,0 +1,2940 @@
+{
+ "source": "S24 rehearsal ~/.openclaw-android/staging/upgrade-rehearsal, 2026-11-01, fresh full-size copies of the prod databases (online SQLite backup)",
+ "receipts": [
+  {
+   "version": 1,
+   "kind": "openclaw-upgrade",
+   "state": "rolled_back",
+   "profile": "staging",
+   "stamp": "20261101T162000",
+   "phases": {
+    "preflight": {
+     "ok": true,
+     "heavy_jobs": 0,
+     "load1": 3.34,
+     "available_mb": 2623,
+     "databases": 20,
+     "database_bytes": 297568208,
+     "free_bytes": 268550262784,
+     "gateway_listening": true,
+     "gateway_pids": 1,
+     "compat_candidate": {
+      "agent-exec-auth-scope": "verified",
+      "native-turn-provenance": "verified",
+      "model-flow-selection": "verified",
+      "gateway-prep-stages": "drift",
+      "memory-retrieval-warm": "verified",
+      "android-fs-compat": "verified"
+     },
+     "plugin_sdk_target": false,
+     "prerequisites_missing": [],
+     "ms": 885
+    },
+    "stage": {
+     "ok": true,
+     "openclaw.upgrade-candidate": {
+      "copied_ms": 16532
+     },
+     "node.upgrade-candidate": {
+      "copied_ms": 1993
+     },
+     "ms": 18526
+    },
+    "stop": {
+     "ok": true,
+     "pids": 1,
+     "terminated": 3,
+     "killed": 0,
+     "ms": 16853
+    },
+    "backup": {
+     "ok": true,
+     "files": 2,
+     "ms": 2502
+    },
+    "integrity": {
+     "ok": true,
+     "failed": [],
+     "ms": 1234
+    },
+    "switch": {
+     "ok": true,
+     "openclaw": "2026.10.9",
+     "node": "24.22.2",
+     "ms": 4
+    },
+    "doctor": {
+     "ok": true,
+     "rc": 0,
+     "cli_ms": 324293,
+     "attempts": 1,
+     "migrated": 14,
+     "ms": 324357
+    },
+    "whatsapp": {
+     "ok": false,
+     "rc": 1,
+     "cli_ms": 12337,
+     "ms": 12339
+    },
+    "rollback_stop": {
+     "ok": true,
+     "pids": 0,
+     "terminated": 0,
+     "killed": 0,
+     "ms": 53
+    },
+    "rollback_restore": {
+     "ok": true,
+     "openclaw": "2026.9.6",
+     "node": "24.21.0",
+     "databases_restored": 20,
+     "sha_all_equal": true,
+     "whatsapp": "2026.9.6",
+     "ms": 1804
+    },
+    "rollback_start": {
+     "ok": true,
+     "compat": {
+      "agent-exec-auth-scope": "unchanged",
+      "native-turn-provenance": "unchanged",
+      "model-flow-selection": "unchanged",
+      "gateway-prep-stages": "unchanged",
+      "memory-retrieval-warm": "unchanged",
+      "android-fs-compat": "unchanged",
+      "whatsapp-network-recovery": "unchanged"
+     },
+     "ms": 2172
+    },
+    "rollback_integrity": {
+     "ok": true,
+     "failed": [],
+     "ms": 1608
+    }
+   },
+   "gates": {},
+   "options": {
+    "force_gate_failure": null,
+    "dry_run": false
+   },
+   "from": {
+    "openclaw": "2026.9.6",
+    "node": "24.21.0"
+   },
+   "to": {
+    "openclaw": "2026.10.9",
+    "node": "24.22.2"
+   },
+   "whatsapp": {
+    "from": "2026.9.6"
+   },
+   "at": "2026-11-01T15:29:52.129894+00:00",
+   "backup": {
+    "files": 2
+   },
+   "databases": [
+    {
+     "path": "state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 18,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 1,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "state/openclaw.sqlite",
+     "bytes": 137332688,
+     "backup_ms": 516,
+     "backup_bytes": 136962048,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 541,
+     "schema_after": {
+      "user_version": 20,
+      "schema_meta": {
+       "primary": 20
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/contacts/agent/openclaw-agent.sqlite",
+     "bytes": 913408,
+     "backup_ms": 24,
+     "backup_bytes": 880640,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 12,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/contacts-projet/agent/openclaw-agent.sqlite",
+     "bytes": 1781760,
+     "backup_ms": 17,
+     "backup_bytes": 1748992,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 5,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/contacts-projet-pulse/agent/openclaw-agent.sqlite",
+     "bytes": 1449984,
+     "backup_ms": 23,
+     "backup_bytes": 1417216,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 14,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/engineering-lite/agent/openclaw-agent.sqlite",
+     "bytes": 52965376,
+     "backup_ms": 220,
+     "backup_bytes": 52932608,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 246,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/gemini/agent/openclaw-agent.sqlite",
+     "bytes": 13557760,
+     "backup_ms": 128,
+     "backup_bytes": 13524992,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 54,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite",
+     "bytes": 82944000,
+     "backup_ms": 555,
+     "backup_bytes": 82911232,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 296,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1,
+       "media-transcript-archive-verification-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite.generation-lock.sqlite",
+     "bytes": 0,
+     "backup_ms": 28,
+     "backup_bytes": 4096,
+     "schema_before": {
+      "user_version": 0
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 0
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite.generation-writer.sqlite",
+     "bytes": 4096,
+     "backup_ms": 19,
+     "backup_bytes": 4096,
+     "schema_before": {
+      "user_version": 0
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 0
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite.reindex-lock.sqlite",
+     "bytes": 4096,
+     "backup_ms": 10,
+     "backup_bytes": 4096,
+     "schema_before": {
+      "user_version": 0
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 0
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/openclaw/agent/openclaw-agent.sqlite",
+     "bytes": 696320,
+     "backup_ms": 15,
+     "backup_bytes": 663552,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 2,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 25,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 36,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 9,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state2/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 27,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 1,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state2/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 48,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 20,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state3/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 24,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state3/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 33,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 19,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state4/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 17,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state4/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 94,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 4,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    }
+   ],
+   "failure": "Failed: whatsapp_update_failed rc=1",
+   "rollback": {
+    "steps": {},
+    "gates": {
+     "health_http": {
+      "ok": true,
+      "ready_ms": 412531,
+      "ms": 68004
+     },
+     "health_json": {
+      "ok": true,
+      "plugins_loaded": 12,
+      "samantha_loaded": true,
+      "plugin_errors": 0,
+      "cli_ms": 10996,
+      "ms": 11007
+     },
+     "agent_turn": {
+      "ok": true,
+      "rc": 0,
+      "status": "ok",
+      "reply": true,
+      "turn_ms": 68431,
+      "ms": 68455
+     },
+     "whatsapp": {
+      "ok": true,
+      "skipped": "isolated_preprod_no_whatsapp_credentials",
+      "ms": 0
+     },
+     "companion": {
+      "ok": true,
+      "skipped": "no_companion_in_profile",
+      "ms": 0
+     },
+     "no_triage": {
+      "ok": true,
+      "processes": 0,
+      "log_hits": 0,
+      "stub_calls": 0,
+      "ms": 35
+     }
+    },
+    "downtime_ms": 492077,
+    "ms": 151595
+   }
+  },
+  {
+   "version": 1,
+   "kind": "openclaw-upgrade",
+   "state": "rollback_failed",
+   "profile": "staging",
+   "stamp": "20261101T163827",
+   "phases": {
+    "preflight": {
+     "ok": true,
+     "heavy_jobs": 0,
+     "load1": 4.31,
+     "available_mb": 3502,
+     "databases": 20,
+     "database_bytes": 297132032,
+     "free_bytes": 266928680960,
+     "gateway_listening": false,
+     "gateway_pids": 0,
+     "compat_candidate": {
+      "agent-exec-auth-scope": "verified",
+      "native-turn-provenance": "verified",
+      "model-flow-selection": "verified",
+      "gateway-prep-stages": "drift",
+      "memory-retrieval-warm": "verified",
+      "android-fs-compat": "verified"
+     },
+     "plugin_sdk_target": true,
+     "prerequisites_missing": [],
+     "ms": 1712
+    },
+    "stage": {
+     "ok": true,
+     "openclaw.upgrade-candidate": {
+      "copied_ms": 23204
+     },
+     "node.upgrade-candidate": {
+      "copied_ms": 2033
+     },
+     "whatsapp_candidate": {
+      "rc": 0,
+      "version": "2026.10.9",
+      "ms": 18937,
+      "peer_link_kept": false
+     },
+     "ms": 44176
+    },
+    "stop": {
+     "ok": true,
+     "pids": 0,
+     "terminated": 0,
+     "killed": 0,
+     "ms": 23
+    },
+    "backup": {
+     "ok": true,
+     "files": 2,
+     "ms": 1687
+    },
+    "integrity": {
+     "ok": true,
+     "failed": [],
+     "ms": 418
+    },
+    "switch": {
+     "ok": true,
+     "openclaw": "2026.10.9",
+     "node": "24.22.2",
+     "ms": 2
+    },
+    "doctor": {
+     "ok": true,
+     "rc": 0,
+     "cli_ms": 513998,
+     "attempts": 1,
+     "migrated": 14,
+     "ms": 514162
+    },
+    "whatsapp": {
+     "ok": true,
+     "parked": 1,
+     "ms": 5
+    },
+    "start": {
+     "ok": true,
+     "compat": {
+      "agent-exec-auth-scope": "unchanged",
+      "native-turn-provenance": "unchanged",
+      "model-flow-selection": "unchanged",
+      "gateway-prep-stages": "applied",
+      "memory-retrieval-warm": "unchanged",
+      "android-fs-compat": "unchanged",
+      "whatsapp-network-recovery": "applied"
+     },
+     "ms": 1898
+    },
+    "rollback_stop": {
+     "ok": true,
+     "pids": 0,
+     "terminated": 0,
+     "killed": 0,
+     "ms": 52
+    },
+    "rollback_restore": {
+     "ok": true,
+     "openclaw": "2026.9.6",
+     "node": "24.21.0",
+     "databases_restored": 20,
+     "sha_all_equal": true,
+     "whatsapp": "2026.9.6",
+     "ms": 1578
+    },
+    "rollback_start": {
+     "ok": true,
+     "compat": {
+      "agent-exec-auth-scope": "unchanged",
+      "native-turn-provenance": "unchanged",
+      "model-flow-selection": "unchanged",
+      "gateway-prep-stages": "unchanged",
+      "memory-retrieval-warm": "unchanged",
+      "android-fs-compat": "unchanged",
+      "whatsapp-network-recovery": "unchanged"
+     },
+     "ms": 1653
+    },
+    "rollback_integrity": {
+     "ok": true,
+     "failed": [],
+     "ms": 966
+    }
+   },
+   "gates": {
+    "health_http": {
+     "ok": false,
+     "detail": "gateway_exited rc=1",
+     "ms": 179697
+    }
+   },
+   "options": {
+    "force_gate_failure": null,
+    "dry_run": false
+   },
+   "from": {
+    "openclaw": "2026.9.6",
+    "node": "24.21.0"
+   },
+   "to": {
+    "openclaw": "2026.10.9",
+    "node": "24.22.2"
+   },
+   "whatsapp": {
+    "from": "2026.9.6",
+    "to": "2026.10.9"
+   },
+   "at": "2026-11-01T15:54:28.141514+00:00",
+   "backup": {
+    "files": 2
+   },
+   "databases": [
+    {
+     "path": "state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 31,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "state/openclaw.sqlite",
+     "bytes": 136962048,
+     "backup_ms": 350,
+     "backup_bytes": 136962048,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18,
+       "state-migrations": 3,
+       "startup-migrations": 3
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 120,
+     "schema_after": {
+      "user_version": 20,
+      "schema_meta": {
+       "primary": 20
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/contacts/agent/openclaw-agent.sqlite",
+     "bytes": 880640,
+     "backup_ms": 17,
+     "backup_bytes": 880640,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 3,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/contacts-projet/agent/openclaw-agent.sqlite",
+     "bytes": 1748992,
+     "backup_ms": 32,
+     "backup_bytes": 1748992,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 4,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/contacts-projet-pulse/agent/openclaw-agent.sqlite",
+     "bytes": 1417216,
+     "backup_ms": 24,
+     "backup_bytes": 1417216,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 3,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/engineering-lite/agent/openclaw-agent.sqlite",
+     "bytes": 52932608,
+     "backup_ms": 342,
+     "backup_bytes": 52932608,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 108,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/gemini/agent/openclaw-agent.sqlite",
+     "bytes": 13524992,
+     "backup_ms": 85,
+     "backup_bytes": 13524992,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 24,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite",
+     "bytes": 83075072,
+     "backup_ms": 258,
+     "backup_bytes": 83075072,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 132,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1,
+       "media-transcript-archive-verification-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite.generation-lock.sqlite",
+     "bytes": 0,
+     "backup_ms": 5,
+     "backup_bytes": 4096,
+     "schema_before": {
+      "user_version": 0
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 0
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite.generation-writer.sqlite",
+     "bytes": 4096,
+     "backup_ms": 6,
+     "backup_bytes": 4096,
+     "schema_before": {
+      "user_version": 0
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 0
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite.reindex-lock.sqlite",
+     "bytes": 4096,
+     "backup_ms": 6,
+     "backup_bytes": 4096,
+     "schema_before": {
+      "user_version": 0
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 0
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/openclaw/agent/openclaw-agent.sqlite",
+     "bytes": 663552,
+     "backup_ms": 13,
+     "backup_bytes": 663552,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 2,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 7,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 17,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 4,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state2/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 6,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state2/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 15,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 4,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state3/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 6,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state3/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 15,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 4,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state4/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 6,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state4/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 15,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 4,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    }
+   ],
+   "failure": "Failed: gate_failed: health_http",
+   "rollback": {
+    "steps": {},
+    "gates": {
+     "health_http": {
+      "ok": true,
+      "ready_ms": 795497,
+      "ms": 94285
+     },
+     "health_json": {
+      "ok": true,
+      "plugins_loaded": 12,
+      "samantha_loaded": true,
+      "plugin_errors": 0,
+      "cli_ms": 17268,
+      "ms": 17272
+     },
+     "agent_turn": {
+      "ok": true,
+      "rc": 0,
+      "status": "ok",
+      "reply": true,
+      "turn_ms": 70465,
+      "ms": 70474
+     },
+     "whatsapp": {
+      "ok": false,
+      "detail": "whatsapp_plugin_not_loaded",
+      "plugin_status": null,
+      "plugin_version": null,
+      "ms": 30156
+     },
+     "companion": {
+      "ok": true,
+      "skipped": "no_companion_in_profile",
+      "ms": 0
+     },
+     "no_triage": {
+      "ok": true,
+      "processes": 0,
+      "log_hits": 0,
+      "stub_calls": 0,
+      "ms": 35
+     }
+    },
+    "downtime_ms": 913476,
+    "ms": 215568
+   }
+  },
+  {
+   "version": 1,
+   "kind": "openclaw-upgrade",
+   "state": "rolled_back",
+   "profile": "staging",
+   "stamp": "20261101T172851",
+   "phases": {
+    "preflight": {
+     "ok": true,
+     "heavy_jobs": 0,
+     "calm_wait_s": 20,
+     "load1": 4.66,
+     "available_mb": 4431,
+     "databases": 20,
+     "database_bytes": 297107456,
+     "free_bytes": 260084600832,
+     "gateway_listening": false,
+     "gateway_pids": 0,
+     "compat_candidate": {
+      "agent-exec-auth-scope": "verified",
+      "native-turn-provenance": "verified",
+      "model-flow-selection": "verified",
+      "gateway-prep-stages": "drift",
+      "memory-retrieval-warm": "verified",
+      "android-fs-compat": "verified"
+     },
+     "plugin_sdk_target": true,
+     "prerequisites_missing": [],
+     "ms": 21266
+    },
+    "stage": {
+     "ok": true,
+     "openclaw.upgrade-candidate": {
+      "copied_ms": 15975
+     },
+     "node.upgrade-candidate": {
+      "copied_ms": 2439
+     },
+     "whatsapp_candidate": {
+      "rc": 0,
+      "version": "2026.10.9",
+      "ms": 11680,
+      "peer_link_kept": false
+     },
+     "ms": 30096
+    },
+    "stop": {
+     "ok": true,
+     "pids": 0,
+     "terminated": 0,
+     "killed": 0,
+     "ms": 21
+    },
+    "backup": {
+     "ok": true,
+     "files": 2,
+     "ms": 1312
+    },
+    "integrity": {
+     "ok": true,
+     "failed": [],
+     "ms": 701
+    },
+    "switch": {
+     "ok": true,
+     "openclaw": "2026.10.9",
+     "node": "24.22.2",
+     "ms": 1
+    },
+    "doctor": {
+     "ok": false,
+     "rc": 1,
+     "cli_ms": 95824,
+     "attempts": 1,
+     "migrated": 0,
+     "ms": 95916
+    },
+    "rollback_stop": {
+     "ok": true,
+     "pids": 0,
+     "terminated": 0,
+     "killed": 0,
+     "ms": 37
+    },
+    "rollback_restore": {
+     "ok": true,
+     "openclaw": "2026.9.6",
+     "node": "24.22.2",
+     "databases_restored": 20,
+     "sha_all_equal": true,
+     "whatsapp": "2026.9.6",
+     "ms": 1320
+    },
+    "rollback_start": {
+     "ok": true,
+     "compat": {
+      "agent-exec-auth-scope": "unchanged",
+      "native-turn-provenance": "unchanged",
+      "model-flow-selection": "unchanged",
+      "gateway-prep-stages": "unchanged",
+      "memory-retrieval-warm": "unchanged",
+      "android-fs-compat": "unchanged",
+      "whatsapp-network-recovery": "unchanged"
+     },
+     "ms": 1590
+    },
+    "rollback_integrity": {
+     "ok": true,
+     "failed": [],
+     "ms": 2097
+    }
+   },
+   "gates": {},
+   "options": {
+    "force_gate_failure": "agent_turn",
+    "dry_run": false
+   },
+   "from": {
+    "openclaw": "2026.9.6",
+    "node": "24.21.0"
+   },
+   "to": {
+    "openclaw": "2026.10.9",
+    "node": "24.22.2"
+   },
+   "whatsapp": {
+    "from": "2026.9.6"
+   },
+   "at": "2026-11-01T16:34:47.570841+00:00",
+   "backup": {
+    "files": 2
+   },
+   "databases": [
+    {
+     "path": "state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 40,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "state/openclaw.sqlite",
+     "bytes": 136962048,
+     "backup_ms": 354,
+     "backup_bytes": 136962048,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18,
+       "state-migrations": 3,
+       "startup-migrations": 3
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 224,
+     "schema_after": {
+      "user_version": 20,
+      "schema_meta": {
+       "primary": 20,
+       "state-migrations": 3,
+       "startup-migrations": 3
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/contacts/agent/openclaw-agent.sqlite",
+     "bytes": 880640,
+     "backup_ms": 19,
+     "backup_bytes": 880640,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 8,
+     "schema_after": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/contacts-projet/agent/openclaw-agent.sqlite",
+     "bytes": 1748992,
+     "backup_ms": 15,
+     "backup_bytes": 1748992,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 9,
+     "schema_after": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/contacts-projet-pulse/agent/openclaw-agent.sqlite",
+     "bytes": 1417216,
+     "backup_ms": 14,
+     "backup_bytes": 1417216,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 8,
+     "schema_after": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/engineering-lite/agent/openclaw-agent.sqlite",
+     "bytes": 52932608,
+     "backup_ms": 140,
+     "backup_bytes": 52932608,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 228,
+     "schema_after": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/gemini/agent/openclaw-agent.sqlite",
+     "bytes": 13524992,
+     "backup_ms": 48,
+     "backup_bytes": 13524992,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 47,
+     "schema_after": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite",
+     "bytes": 83050496,
+     "backup_ms": 244,
+     "backup_bytes": 83050496,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 148,
+     "schema_after": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite.generation-lock.sqlite",
+     "bytes": 0,
+     "backup_ms": 4,
+     "backup_bytes": 4096,
+     "schema_before": {
+      "user_version": 0
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 0
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite.generation-writer.sqlite",
+     "bytes": 4096,
+     "backup_ms": 6,
+     "backup_bytes": 4096,
+     "schema_before": {
+      "user_version": 0
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 0
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite.reindex-lock.sqlite",
+     "bytes": 4096,
+     "backup_ms": 5,
+     "backup_bytes": 4096,
+     "schema_before": {
+      "user_version": 0
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 0
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/openclaw/agent/openclaw-agent.sqlite",
+     "bytes": 663552,
+     "backup_ms": 12,
+     "backup_bytes": 663552,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 3,
+     "schema_after": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 6,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 16,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 5,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state2/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 6,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state2/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 18,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 4,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state3/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 6,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state3/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 16,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 4,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state4/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 7,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state4/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 17,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 5,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    }
+   ],
+   "failure": "Failed: doctor_failed rc=1",
+   "rollback": {
+    "steps": {},
+    "gates": {
+     "health_http": {
+      "ok": true,
+      "ready_ms": 172218,
+      "ms": 71308
+     },
+     "health_json": {
+      "ok": true,
+      "plugins_loaded": 13,
+      "samantha_loaded": true,
+      "plugin_errors": 0,
+      "cli_ms": 24767,
+      "ms": 24779
+     },
+     "agent_turn": {
+      "ok": true,
+      "rc": 0,
+      "status": "ok",
+      "reply": true,
+      "turn_ms": 78407,
+      "ms": 78415
+     },
+     "whatsapp": {
+      "ok": true,
+      "connected": "skipped_isolated_preprod_no_whatsapp_credentials",
+      "plugin_status": "loaded",
+      "plugin_version": "2026.9.6",
+      "ms": 23113
+     },
+     "companion": {
+      "ok": true,
+      "skipped": "no_companion_in_profile",
+      "ms": 0
+     },
+     "no_triage": {
+      "ok": true,
+      "processes": 0,
+      "log_hits": 0,
+      "stub_calls": 0,
+      "ms": 33
+     }
+    },
+    "downtime_ms": 298603,
+    "ms": 200653
+   }
+  },
+  {
+   "version": 1,
+   "kind": "openclaw-upgrade",
+   "state": "rolled_back",
+   "profile": "staging",
+   "stamp": "20261101T174046",
+   "phases": {
+    "preflight": {
+     "ok": true,
+     "heavy_jobs": 0,
+     "calm_wait_s": 20,
+     "load1": 3.13,
+     "available_mb": 4666,
+     "databases": 20,
+     "database_bytes": 297107456,
+     "free_bytes": 258068504576,
+     "gateway_listening": false,
+     "gateway_pids": 0,
+     "compat_candidate": {
+      "agent-exec-auth-scope": "verified",
+      "native-turn-provenance": "verified",
+      "model-flow-selection": "verified",
+      "gateway-prep-stages": "drift",
+      "memory-retrieval-warm": "verified",
+      "android-fs-compat": "verified"
+     },
+     "plugin_sdk_target": true,
+     "prerequisites_missing": [],
+     "ms": 21675
+    },
+    "stage": {
+     "ok": true,
+     "openclaw.upgrade-candidate": "reused",
+     "node.upgrade-candidate": "reused",
+     "peer_link_retargeted": false,
+     "whatsapp_candidate": {
+      "rc": 0,
+      "version": "2026.10.9",
+      "ms": 12330,
+      "peer_link_kept": true
+     },
+     "ms": 12337
+    },
+    "stop": {
+     "ok": true,
+     "pids": 0,
+     "terminated": 0,
+     "killed": 0,
+     "ms": 48
+    },
+    "backup": {
+     "ok": true,
+     "files": 2,
+     "ms": 1596
+    },
+    "integrity": {
+     "ok": true,
+     "failed": [],
+     "ms": 428
+    },
+    "switch": {
+     "ok": true,
+     "openclaw": "2026.10.9",
+     "node": "24.22.2",
+     "ms": 3
+    },
+    "whatsapp": {
+     "ok": true,
+     "parked": 1,
+     "ms": 1
+    },
+    "doctor": {
+     "ok": true,
+     "rc": 0,
+     "cli_ms": 457762,
+     "attempts": 1,
+     "migrated": 14,
+     "ms": 457899
+    },
+    "consent": {
+     "ok": true,
+     "openclaw-plugin-mobile-ui": {
+      "rc": 0,
+      "cli_ms": 25318
+     },
+     "ms": 25320
+    },
+    "start": {
+     "ok": true,
+     "compat": {
+      "agent-exec-auth-scope": "unchanged",
+      "native-turn-provenance": "unchanged",
+      "model-flow-selection": "unchanged",
+      "gateway-prep-stages": "applied",
+      "memory-retrieval-warm": "unchanged",
+      "android-fs-compat": "unchanged",
+      "whatsapp-network-recovery": "applied"
+     },
+     "ms": 2097
+    },
+    "rollback_stop": {
+     "ok": true,
+     "pids": 1,
+     "terminated": 5,
+     "killed": 1,
+     "ms": 30648
+    },
+    "rollback_restore": {
+     "ok": true,
+     "openclaw": "2026.9.6",
+     "node": "24.21.0",
+     "databases_restored": 20,
+     "sha_all_equal": true,
+     "whatsapp": "2026.9.6",
+     "ms": 1827
+    },
+    "rollback_start": {
+     "ok": true,
+     "compat": {
+      "agent-exec-auth-scope": "unchanged",
+      "native-turn-provenance": "unchanged",
+      "model-flow-selection": "unchanged",
+      "gateway-prep-stages": "unchanged",
+      "memory-retrieval-warm": "unchanged",
+      "android-fs-compat": "unchanged",
+      "whatsapp-network-recovery": "unchanged"
+     },
+     "ms": 1862
+    },
+    "rollback_integrity": {
+     "ok": true,
+     "failed": [],
+     "ms": 2925
+    }
+   },
+   "gates": {
+    "health_http": {
+     "ok": true,
+     "ready_ms": 547822,
+     "ms": 60432
+    },
+    "health_json": {
+     "ok": true,
+     "plugins_loaded": 13,
+     "samantha_loaded": true,
+     "plugin_errors": 0,
+     "cli_ms": 28364,
+     "ms": 28371
+    },
+    "plugin_tools": {
+     "ok": false,
+     "status": "loaded",
+     "tools": 0,
+     "declared": 56,
+     "min_tools": 42,
+     "cli_ms": 14878,
+     "ms": 14882
+    },
+    "agent_turn": {
+     "ok": true,
+     "rc": 0,
+     "status": "ok",
+     "reply": true,
+     "turn_ms": 185880,
+     "ms": 185914
+    },
+    "whatsapp": {
+     "ok": true,
+     "connected": "skipped_isolated_preprod_no_whatsapp_credentials",
+     "plugin_status": "loaded",
+     "plugin_version": "2026.10.9",
+     "ms": 13561
+    },
+    "companion": {
+     "ok": true,
+     "skipped": "no_companion_in_profile",
+     "ms": 0
+    },
+    "no_triage": {
+     "ok": true,
+     "processes": 0,
+     "log_hits": 0,
+     "stub_calls": 0,
+     "ms": 56
+    }
+   },
+   "options": {
+    "force_gate_failure": null,
+    "dry_run": false
+   },
+   "from": {
+    "openclaw": "2026.9.6",
+    "node": "24.21.0"
+   },
+   "to": {
+    "openclaw": "2026.10.9",
+    "node": "24.22.2"
+   },
+   "whatsapp": {
+    "from": "2026.9.6",
+    "to": "2026.10.9"
+   },
+   "at": "2026-11-01T16:58:40.440893+00:00",
+   "backup": {
+    "files": 2
+   },
+   "databases": [
+    {
+     "path": "state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 24,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "state/openclaw.sqlite",
+     "bytes": 136962048,
+     "backup_ms": 443,
+     "backup_bytes": 136962048,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18,
+       "state-migrations": 3,
+       "startup-migrations": 3
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 127,
+     "schema_after": {
+      "user_version": 20,
+      "schema_meta": {
+       "primary": 20,
+       "state-migrations": 3,
+       "startup-migrations": 3
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/contacts/agent/openclaw-agent.sqlite",
+     "bytes": 880640,
+     "backup_ms": 21,
+     "backup_bytes": 880640,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 3,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/contacts-projet/agent/openclaw-agent.sqlite",
+     "bytes": 1748992,
+     "backup_ms": 15,
+     "backup_bytes": 1748992,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 4,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/contacts-projet-pulse/agent/openclaw-agent.sqlite",
+     "bytes": 1417216,
+     "backup_ms": 30,
+     "backup_bytes": 1417216,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 3,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/engineering-lite/agent/openclaw-agent.sqlite",
+     "bytes": 52932608,
+     "backup_ms": 138,
+     "backup_bytes": 52932608,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 105,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/gemini/agent/openclaw-agent.sqlite",
+     "bytes": 13524992,
+     "backup_ms": 89,
+     "backup_bytes": 13524992,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 24,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite",
+     "bytes": 83050496,
+     "backup_ms": 297,
+     "backup_bytes": 83050496,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 135,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1,
+       "media-transcript-archive-verification-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite.generation-lock.sqlite",
+     "bytes": 0,
+     "backup_ms": 17,
+     "backup_bytes": 4096,
+     "schema_before": {
+      "user_version": 0
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 0
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite.generation-writer.sqlite",
+     "bytes": 4096,
+     "backup_ms": 20,
+     "backup_bytes": 4096,
+     "schema_before": {
+      "user_version": 0
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 0
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite.reindex-lock.sqlite",
+     "bytes": 4096,
+     "backup_ms": 51,
+     "backup_bytes": 4096,
+     "schema_before": {
+      "user_version": 0
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 0
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "agents/openclaw/agent/openclaw-agent.sqlite",
+     "bytes": 663552,
+     "backup_ms": 42,
+     "backup_bytes": 663552,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 2,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 7,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 16,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 4,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state2/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 6,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state2/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 15,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 4,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state3/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 5,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state3/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 16,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 4,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state4/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 8,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     },
+     "restored_sha_ok": true
+    },
+    {
+     "path": "headless-state4/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 18,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 4,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "restored_sha_ok": true
+    }
+   ],
+   "failure": "Failed: gate_failed: plugin_tools",
+   "rollback": {
+    "steps": {},
+    "gates": {
+     "health_http": {
+      "ok": true,
+      "ready_ms": 897318,
+      "ms": 72295
+     },
+     "health_json": {
+      "ok": true,
+      "plugins_loaded": 13,
+      "samantha_loaded": true,
+      "plugin_errors": 0,
+      "cli_ms": 31635,
+      "ms": 31645
+     },
+     "agent_turn": {
+      "ok": true,
+      "rc": 0,
+      "status": "ok",
+      "reply": true,
+      "turn_ms": 83479,
+      "ms": 83494
+     },
+     "whatsapp": {
+      "ok": true,
+      "connected": "skipped_isolated_preprod_no_whatsapp_credentials",
+      "plugin_status": "loaded",
+      "plugin_version": "2026.9.6",
+      "ms": 23502
+     },
+     "companion": {
+      "ok": true,
+      "skipped": "no_companion_in_profile",
+      "ms": 0
+     },
+     "no_triage": {
+      "ok": true,
+      "processes": 0,
+      "log_hits": 0,
+      "stub_calls": 0,
+      "ms": 26
+     }
+    },
+    "downtime_ms": 1036037,
+    "ms": 245377
+   }
+  },
+  {
+   "version": 1,
+   "kind": "openclaw-upgrade",
+   "state": "deployed",
+   "profile": "staging",
+   "stamp": "20261101T175913",
+   "phases": {
+    "preflight": {
+     "ok": true,
+     "heavy_jobs": 0,
+     "calm_wait_s": 20,
+     "load1": 6.08,
+     "available_mb": 4091,
+     "databases": 20,
+     "database_bytes": 297107456,
+     "free_bytes": 256627675136,
+     "gateway_listening": false,
+     "gateway_pids": 0,
+     "compat_candidate": {
+      "agent-exec-auth-scope": "verified",
+      "native-turn-provenance": "verified",
+      "model-flow-selection": "verified",
+      "gateway-prep-stages": "drift",
+      "memory-retrieval-warm": "verified",
+      "android-fs-compat": "verified"
+     },
+     "plugin_sdk_target": true,
+     "prerequisites_missing": [],
+     "ms": 21276
+    },
+    "stage": {
+     "ok": true,
+     "openclaw.upgrade-candidate": {
+      "copied_ms": 28700
+     },
+     "node.upgrade-candidate": {
+      "copied_ms": 3362
+     },
+     "peer_link_retargeted": false,
+     "whatsapp_candidate": {
+      "rc": 0,
+      "version": "2026.10.9",
+      "ms": 15232,
+      "peer_link_kept": true
+     },
+     "ms": 47298
+    },
+    "stop": {
+     "ok": true,
+     "pids": 0,
+     "terminated": 0,
+     "killed": 0,
+     "ms": 30
+    },
+    "backup": {
+     "ok": true,
+     "files": 2,
+     "ms": 3880
+    },
+    "integrity": {
+     "ok": true,
+     "failed": [],
+     "ms": 592
+    },
+    "switch": {
+     "ok": true,
+     "openclaw": "2026.10.9",
+     "node": "24.22.2",
+     "ms": 5
+    },
+    "whatsapp": {
+     "ok": true,
+     "parked": 1,
+     "ms": 2
+    },
+    "doctor": {
+     "ok": true,
+     "rc": 0,
+     "cli_ms": 395304,
+     "attempts": 1,
+     "migrated": 14,
+     "ms": 395478
+    },
+    "consent": {
+     "ok": true,
+     "openclaw-plugin-mobile-ui": {
+      "rc": 0,
+      "cli_ms": 18691
+     },
+     "ms": 18693
+    },
+    "start": {
+     "ok": true,
+     "compat": {
+      "agent-exec-auth-scope": "unchanged",
+      "native-turn-provenance": "unchanged",
+      "model-flow-selection": "unchanged",
+      "gateway-prep-stages": "applied",
+      "memory-retrieval-warm": "unchanged",
+      "android-fs-compat": "unchanged",
+      "whatsapp-network-recovery": "applied"
+     },
+     "ms": 887
+    }
+   },
+   "gates": {
+    "health_http": {
+     "ok": true,
+     "ready_ms": 494662,
+     "ms": 75046
+    },
+    "health_json": {
+     "ok": true,
+     "plugins_loaded": 13,
+     "samantha_loaded": true,
+     "plugin_errors": 0,
+     "cli_ms": 20102,
+     "ms": 20112
+    },
+    "plugin_tools": {
+     "ok": true,
+     "status": "loaded",
+     "tools": 42,
+     "declared": 56,
+     "min_tools": 42,
+     "cli_ms": 19558,
+     "ms": 19579
+    },
+    "agent_turn": {
+     "ok": true,
+     "rc": 0,
+     "status": "ok",
+     "reply": true,
+     "turn_ms": 198721,
+     "ms": 198740
+    },
+    "whatsapp": {
+     "ok": true,
+     "connected": "skipped_isolated_preprod_no_whatsapp_credentials",
+     "plugin_status": "loaded",
+     "plugin_version": "2026.10.9",
+     "ms": 13740
+    },
+    "companion": {
+     "ok": true,
+     "skipped": "no_companion_in_profile",
+     "ms": 0
+    },
+    "no_triage": {
+     "ok": true,
+     "processes": 0,
+     "log_hits": 0,
+     "stub_calls": 0,
+     "ms": 35
+    }
+   },
+   "options": {
+    "force_gate_failure": null,
+    "dry_run": false
+   },
+   "from": {
+    "openclaw": "2026.9.6",
+    "node": "24.21.0"
+   },
+   "to": {
+    "openclaw": "2026.10.9",
+    "node": "24.22.2"
+   },
+   "whatsapp": {
+    "from": "2026.9.6",
+    "to": "2026.10.9"
+   },
+   "at": "2026-11-01T17:12:57.274410+00:00",
+   "backup": {
+    "files": 2
+   },
+   "databases": [
+    {
+     "path": "state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 72,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     }
+    },
+    {
+     "path": "state/openclaw.sqlite",
+     "bytes": 136962048,
+     "backup_ms": 1282,
+     "backup_bytes": 136962048,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18,
+       "state-migrations": 3,
+       "startup-migrations": 3
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 175,
+     "schema_after": {
+      "user_version": 20,
+      "schema_meta": {
+       "primary": 20,
+       "state-migrations": 3,
+       "startup-migrations": 3
+      }
+     }
+    },
+    {
+     "path": "agents/contacts/agent/openclaw-agent.sqlite",
+     "bytes": 880640,
+     "backup_ms": 47,
+     "backup_bytes": 880640,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 4,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     }
+    },
+    {
+     "path": "agents/contacts-projet/agent/openclaw-agent.sqlite",
+     "bytes": 1748992,
+     "backup_ms": 54,
+     "backup_bytes": 1748992,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 6,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     }
+    },
+    {
+     "path": "agents/contacts-projet-pulse/agent/openclaw-agent.sqlite",
+     "bytes": 1417216,
+     "backup_ms": 30,
+     "backup_bytes": 1417216,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 5,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     }
+    },
+    {
+     "path": "agents/engineering-lite/agent/openclaw-agent.sqlite",
+     "bytes": 52932608,
+     "backup_ms": 459,
+     "backup_bytes": 52932608,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 149,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     }
+    },
+    {
+     "path": "agents/gemini/agent/openclaw-agent.sqlite",
+     "bytes": 13524992,
+     "backup_ms": 177,
+     "backup_bytes": 13524992,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 33,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     }
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite",
+     "bytes": 83050496,
+     "backup_ms": 760,
+     "backup_bytes": 83050496,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 184,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1,
+       "media-transcript-archive-verification-v1": 1
+      }
+     }
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite.generation-lock.sqlite",
+     "bytes": 0,
+     "backup_ms": 12,
+     "backup_bytes": 4096,
+     "schema_before": {
+      "user_version": 0
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 0
+     }
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite.generation-writer.sqlite",
+     "bytes": 4096,
+     "backup_ms": 15,
+     "backup_bytes": 4096,
+     "schema_before": {
+      "user_version": 0
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 0
+     }
+    },
+    {
+     "path": "agents/main/agent/openclaw-agent.sqlite.reindex-lock.sqlite",
+     "bytes": 4096,
+     "backup_ms": 14,
+     "backup_bytes": 4096,
+     "schema_before": {
+      "user_version": 0
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 0
+     }
+    },
+    {
+     "path": "agents/openclaw/agent/openclaw-agent.sqlite",
+     "bytes": 663552,
+     "backup_ms": 37,
+     "backup_bytes": 663552,
+     "schema_before": {
+      "user_version": 23,
+      "schema_meta": {
+       "primary": 23,
+       "historical-transcript-directives-v1": 1
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 4,
+     "schema_after": {
+      "user_version": 25,
+      "schema_meta": {
+       "primary": 25,
+       "historical-transcript-directives-v1": 1
+      }
+     }
+    },
+    {
+     "path": "headless-state/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 12,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     }
+    },
+    {
+     "path": "headless-state/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 36,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 6,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     }
+    },
+    {
+     "path": "headless-state2/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 11,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     }
+    },
+    {
+     "path": "headless-state2/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 39,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 6,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     }
+    },
+    {
+     "path": "headless-state3/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 10,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     }
+    },
+    {
+     "path": "headless-state3/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 40,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 6,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     }
+    },
+    {
+     "path": "headless-state4/state/openclaw-quarantine.sqlite",
+     "bytes": 20480,
+     "backup_ms": 14,
+     "backup_bytes": 20480,
+     "schema_before": {
+      "user_version": 2
+     },
+     "backup_integrity": true,
+     "integrity_ms": 0,
+     "schema_after": {
+      "user_version": 2
+     }
+    },
+    {
+     "path": "headless-state4/state/openclaw.sqlite",
+     "bytes": 1454080,
+     "backup_ms": 44,
+     "backup_bytes": 1454080,
+     "schema_before": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     },
+     "backup_integrity": true,
+     "integrity_ms": 6,
+     "schema_after": {
+      "user_version": 18,
+      "schema_meta": {
+       "primary": 18
+      }
+     }
+    }
+   ],
+   "downtime_ms": 494662
+  }
+ ]
+}
