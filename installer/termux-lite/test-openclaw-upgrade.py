@@ -91,8 +91,13 @@ elif args[:3] == ["plugins", "inspect", "whatsapp"]:
     wa = sorted(state.glob("npm/projects/openclaw-whatsapp-*/node_modules/@openclaw/whatsapp/package.json"))
     ver = json.loads(wa[0].read_text())["version"] if len(wa) == 1 else None
     out({"plugin": {"status": "loaded" if ver else "error", "packageVersion": ver}})
+elif args[:2] == ["plugins", "enable"]:
+    assert "--accept-capabilities" in args
+    (state / ("consent-" + args[2])).write_text(v)
 elif args[:2] == ["plugins", "inspect"]:
     n = int(os.environ.get("FAKE_TOOLS", "42"))
+    if v == "2026.10.9" and not (state / ("consent-" + args[2])).exists():
+        n = 0  # 2026.10.9: no tool before the capability consent (S24 rehearsal)
     out({"plugin": {"status": "loaded", "toolNames": ["t%d" % i for i in range(n)], "contracts": {"tools": ["t"] * 56}}})
 elif args[:1] == ["agent"]:
     if os.environ.get("FAKE_TURN_FAIL_ON") in (v, "all"):
@@ -282,7 +287,7 @@ class OpenClawUpgrade(unittest.TestCase):
         main = agents["agents/main/agent/openclaw-agent.sqlite"]
         self.assertEqual((main["schema_before"]["user_version"], main["schema_after"]["user_version"]), (23, 25))
         self.assertIsInstance(doc["downtime_ms"], int)
-        for phase in ("preflight", "stage", "stop", "backup", "integrity", "switch", "doctor", "whatsapp", "start"):
+        for phase in ("preflight", "stage", "stop", "backup", "integrity", "switch", "doctor", "whatsapp", "consent", "start"):
             self.assertTrue(doc["phases"][phase]["ok"], phase)
         text = r.all_text()
         self.assertNotIn(SECRET, text)
@@ -316,6 +321,14 @@ class OpenClawUpgrade(unittest.TestCase):
         self.assertEqual(len(list((r.state / "npm/projects").iterdir())), 1)
         self.assertNotIn(SECRET, r.all_text())
         self.assertFalse((r.td / "notified").exists())
+
+    def test_missing_consent_fails_the_tool_gate_and_rolls_back(self):
+        r = self.make(consent_plugins=[])
+        r.start_current_gateway()
+        doc = r.receipt(r.run())
+        self.assertEqual(doc["state"], "rolled_back")
+        self.assertEqual(doc["gates"]["plugin_tools"]["tools"], 0)
+        self.assertIn("plugin_tools", doc["failure"])
 
     def test_whatsapp_candidate_failure_stops_nothing(self):
         r = self.make()
@@ -418,6 +431,60 @@ class OpenClawUpgrade(unittest.TestCase):
         run = subprocess.run([sys.executable, str(SCRIPT), "--profile", "prod", "--force-gate-failure", "agent_turn"],
                              capture_output=True, text=True)
         self.assertEqual(run.returncode, 2)
+
+
+FIXTURE = HERE.parents[1] / "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-openclaw-upgrade-1009/receipts.json"
+KNOWN_PHASES = {"preflight", "stage", "stop", "backup", "integrity", "switch", "doctor", "whatsapp", "consent", "companion_restart",
+                "start", "rollback_stop", "rollback_restore", "rollback_start", "rollback_integrity"}
+
+
+class RealReceipts(unittest.TestCase):
+    """Receipts written by this script on the S24 preprod rehearsal (fresh full-size copies of the prod bases)."""
+
+    def setUp(self):
+        self.doc = json.loads(FIXTURE.read_text())
+        self.receipts = self.doc["receipts"]
+
+    def test_schema_and_no_secret(self):
+        text = FIXTURE.read_text()
+        self.assertEqual(upgrade.redact(text), text)  # nothing token-like, no phone number
+        for receipt in self.receipts:
+            self.assertEqual((receipt["kind"], receipt["version"]), ("openclaw-upgrade", upgrade.RECEIPT_VERSION))
+            self.assertLessEqual(set(receipt["phases"]), KNOWN_PHASES)
+            self.assertLessEqual(set(receipt["gates"]), set(upgrade.GATES))
+            self.assertEqual(receipt["from"], {"openclaw": "2026.9.6", "node": "24.21.0"})
+            self.assertEqual(receipt["to"], {"openclaw": "2026.10.9", "node": "24.22.2"})
+            self.assertEqual(len(receipt["databases"]), 20)
+            self.assertTrue(all(d["backup_integrity"] for d in receipt["databases"]))
+
+    def test_doctor_migrates_every_agent_database(self):
+        for receipt in self.receipts:
+            agents = [d for d in receipt["databases"] if d["path"].endswith("agent/openclaw-agent.sqlite")]
+            self.assertEqual(len(agents), 7)
+            for d in agents:
+                self.assertEqual((d["schema_before"]["user_version"], d["schema_after"]["user_version"]), (23, 25))
+            state = next(d for d in receipt["databases"] if d["path"] == "state/openclaw.sqlite")
+            self.assertGreater(state["bytes"], 100_000_000)
+
+    def test_every_rollback_restored_identical_bytes_and_answered(self):
+        rolled = [r for r in self.receipts if r["state"] == "rolled_back"]
+        self.assertGreaterEqual(len(rolled), 2)
+        for receipt in rolled:
+            self.assertTrue(all(d["restored_sha_ok"] for d in receipt["databases"]))
+            gates = receipt["rollback"]["gates"]
+            for name in ("health_http", "health_json", "agent_turn", "no_triage"):
+                self.assertTrue(gates[name]["ok"], name)
+            self.assertEqual(receipt["phases"]["rollback_integrity"]["failed"], [])
+            self.assertEqual(receipt["phases"]["rollback_restore"]["openclaw"], "2026.9.6")
+
+    def test_nominal_receipt_passed_every_gate(self):
+        deployed = [r for r in self.receipts if r["state"] == "deployed"]
+        self.assertEqual(len(deployed), 1)
+        receipt = deployed[0]
+        for name in upgrade.GATES:
+            self.assertTrue(receipt["gates"][name]["ok"], name)
+        self.assertEqual(receipt["whatsapp"], {"from": "2026.9.6", "to": "2026.10.9"})
+        self.assertIsInstance(receipt["downtime_ms"], int)
 
 
 class Units(unittest.TestCase):

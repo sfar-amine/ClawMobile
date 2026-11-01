@@ -12,6 +12,7 @@ refuses `/v1/runtime/restart`, so nothing restarts the Gateway behind this scrip
              agent JSON files; PRAGMA integrity_check on every copy
   switch     live trees renamed aside (rollback copies, same filesystem), candidates renamed in
   doctor     `openclaw doctor --fix --non-interactive` with the Gateway stopped
+  consent    `plugins enable <Samantha plugin> --accept-capabilities` (2026.10.9 registers no tool before it)
   whatsapp   @openclaw/whatsapp at the target version: prepared with npm in a copy of its project during
              `stage` (OpenClaw's own installer refuses on Android), renamed in; the old tree parked
   start      Gateway (and the Companion in prod) started; gates: HTTP health, health JSON, Samantha plugin
@@ -92,7 +93,7 @@ def default_layout(profile: str, env: dict) -> dict:
     """Prod and preprod differ only by paths, port, env and the WhatsApp gate."""
     common = {
         "source_version": SOURCE_VERSION, "target_version": TARGET_VERSION, "target_node": TARGET_NODE,
-        "plugin_id": "openclaw-plugin-mobile-ui", "min_tools": 42,
+        "plugin_id": "openclaw-plugin-mobile-ui", "min_tools": 42, "consent_plugins": ["openclaw-plugin-mobile-ui"],
         "health_paths": ["/health"],
         "turn": {"agent": "main", "timeout_s": 180,
                  "message": "Vérification technique de montée de version : réponds seulement « prêt »."},
@@ -969,6 +970,21 @@ class Upgrade:
             if self.doc["whatsapp"]["to"] != target:
                 raise Failed("whatsapp_version_mismatch")
 
+    def consent(self) -> None:
+        """2026.10.9 loads a plugin that declares capabilities with zero tools until its capabilities are accepted
+        (S24 rehearsal: `requires capability consent`, Samantha 0/56 tools). Recorded offline, like doctor."""
+        ids = self.l.get("consent_plugins") or []
+        if not ids:
+            return
+        with self.phase("consent") as p:
+            for plugin in ids:
+                rc, out, err, ms = self.cli(["plugins", "enable", plugin, "--accept-capabilities"],
+                                            float(self.l["budgets"]["cli_s"]), {"OPENCLAW_SHELL": "exec"},
+                                            log_name=f"consent-{plugin}")
+                p[plugin] = {"rc": rc, "cli_ms": ms}
+                if rc != 0:
+                    raise Failed(f"consent_failed {plugin} rc={rc}")
+
     # ----------------------------------------------------------------- start + gates
     def compat_apply(self) -> dict:
         """Preprod only: what gateway-start.sh does in prod before exec, on the live tree of this layout."""
@@ -1281,6 +1297,7 @@ class Upgrade:
             self.switch()
             self.doctor()
             self.whatsapp()
+            self.consent()
             if self.l.get("companion"):
                 with self.phase("companion_restart") as p:
                     p.update(self.companion_restart())
