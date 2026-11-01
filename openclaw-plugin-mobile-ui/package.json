@@ -42,11 +42,11 @@
     "test:native-provider-fallback": "node scripts/test-native-provider-fallback.cjs"
   },
   "dependencies": {
-    "nostr-tools": "^2.23.5",
     "ws": "^8.22.0"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "nostr-tools": "^2.23.5"
   }
 }
