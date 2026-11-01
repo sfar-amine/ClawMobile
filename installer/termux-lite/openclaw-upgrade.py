@@ -147,7 +147,8 @@ def default_layout(profile: str, env: dict) -> dict:
             "env": {
                 "HOME": r + "/home", "OPENCLAW_HOME": r + "/home", "OPENCLAW_STATE_DIR": r + "/state",
                 "OPENCLAW_CONFIG_PATH": r + "/state/openclaw.json", "OPENCLAW_GATEWAY_PORT": "19789",
-                "OPENCLAW_SKIP_CHANNELS": "1", "OPENCLAW_DISABLE_BONJOUR": "1", "OPENCLAW_NO_AUTO_UPDATE": "1",
+                "OPENCLAW_SKIP_CHANNELS": "1", "OPENCLAW_SKIP_CRON": "1", "OPENCLAW_SKIP_GMAIL_WATCHER": "1",
+                "OPENCLAW_DISABLE_BONJOUR": "1", "OPENCLAW_NO_AUTO_UPDATE": "1",
                 "OPENCLAW_NO_RESPAWN": "1", "TMPDIR": r + "/tmp", "LANG": "C.UTF-8",
                 # Keeps the candidate invisible to prod `pgrep -f openclaw-gateway` watchdogs.
                 "NODE_OPTIONS": "-r $HOME/.openclaw-android/staging/patches/title-guard.js",
@@ -507,6 +508,7 @@ class Upgrade:
             env.pop(key, None)
         env.update({k: str(v) for k, v in spec.items()})
         env.pop("SAMANTHA_DEPLOY_LOCK_FD", None)
+        env["OPENCLAW_UPGRADE_STAMP"] = self.stamp
         env.update(extra or {})
         return env
 
@@ -641,12 +643,25 @@ class Upgrade:
                 p["triage_guard"] = bool(re.search(r"OPENCLAW_SUPERVISOR_MODE|OPENCLAW_SHELL|triage", text))
                 if not p["triage_guard"]:
                     missing.append("triage_guard")
+            # The Samantha plugin (Gateway and Companion) must carry the 2026.10.9 SDK row (#500) before the switch.
+            dist = self.state / "extensions" / self.l["plugin_id"] / "dist"
+            p["plugin_sdk_target"] = self.plugin_supports_target(dist)
+            if not p["plugin_sdk_target"]:
+                missing.append("plugin_sdk_target")
             missing = [m for m in missing if m not in (self.o.skip_prerequisite or [])]
             p["prerequisites_missing"] = missing
             if missing:
                 raise Refused("prerequisites_missing: " + ",".join(missing))
             # Plugin baseline for the tool gate: the Samantha plugin must load on the current runtime too.
             self.doc["whatsapp"] = {"from": self.whatsapp_version()}
+
+    def plugin_supports_target(self, dist: Path) -> bool:
+        needle = '"' + self.l["target_version"] + '"'
+        for path in dist.rglob("openclawSdkVersions*.js") if dist.is_dir() else []:
+            with contextlib.suppress(OSError):
+                if needle in path.read_text(errors="replace"):
+                    return True
+        return False
 
     # ----------------------------------------------------------------- stage
     def copy_tree(self, source: Path, target: Path) -> None:
