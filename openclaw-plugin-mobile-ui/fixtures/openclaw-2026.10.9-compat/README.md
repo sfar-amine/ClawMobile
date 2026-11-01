@@ -17,3 +17,8 @@ WhatsApp : `connection-controller-CejM7bhn.mjs.gz` et `monitor-DVzumwCI.mjs.gz` 
 `server-runtime-startup-services-CSJSnUKS.mjs.gz` vient de `openclaw@2026.10.9`. Ils portent la variante 2026.10.9 du jeu
 `whatsapp-network-recovery` : même correctif, ancres suivies là où l'amont a déplacé `heartbeatSeconds`,
 `reconnectPolicy` et `keepAlive` sous `this.params` et fusionné la décision de reprise.
+
+Participant de session (01/11) : `session-accessor-C3ljJ974.mjs.gz` vient de `openclaw@2026.10.9` (flux du tarball npm
+`openclaw-2026.10.9.tgz`, conteneur Claude Code), identique à l'octet au fichier du candidat S24 (SHA-256 `c000b950…caa34`).
+Il porte la variante 2026.10.9 de l'entrée « participant natif » du jeu `memory-retrieval-warm` : même ancre qu'en
+2026.9.6, mais avec `withOpenClawAgentDatabaseRuntime`, seule fonction d'admission de base importée par ce module.
