@@ -31,6 +31,7 @@ COMPANION="${RUNTIME_SYNC_COMPANION_URL:-http://127.0.0.1:8765}"
 # Same readiness evidence as the health manager's `gateway` capability (health/current.json).
 GATEWAY_HEALTHZ="${RUNTIME_SYNC_GATEWAY_HEALTHZ_URL:-http://127.0.0.1:18789/healthz}"
 KEEP_RELEASES="${RUNTIME_SYNC_KEEP_RELEASES:-5}"
+RESTART_TIMEOUT_S="${RUNTIME_SYNC_RESTART_TIMEOUT_S:-360}"
 head="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)"
 commit="${1:-$head}"; [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || { echo "usage: $0 [--check] <full commit>" >&2; exit 2; }
 [ "$head" = "$commit" ] || { echo '{"ok":false,"reason":"checkout_not_at_commit"}'; exit 3; }
@@ -110,9 +111,13 @@ if [ "$plugin" = synced ] || [[ "$wa_patch" == *'"applied"'* ]] || [[ "$auth_pat
     # Companion cannot inherit our flock over HTTP. Run its SAME stop/start
     # owner in this process tree, with the verified inherited EX description.
     # The in-checkout Python owner is required before the Tier0 promotion.
-    timeout 240 node "$PLUGIN/dist/companion/openclawGatewayClient.js" --deploy-restart "$SRC/runtime_mode.py" >/dev/null 2>&1 || fail gateway_restart_failed
+    # Its one-line verdict and reason go to stderr, i.e. the deploy log (S24 01/11: the receipt alone said
+    # gateway_restart_failed). Budget: lease 3 s + graceful stop 15 s + stop wait 10 s + start 180 s + catalogue
+    # 20 s, plus the 30 s grace for a Gateway still listed after the stop; OpenClaw 2026.10.9 answered health
+    # 70 s and declared itself ready 92 s after its start on the S24 (switch of 01/11).
+    timeout "$RESTART_TIMEOUT_S" node "$PLUGIN/dist/companion/openclawGatewayClient.js" --deploy-restart "$SRC/runtime_mode.py" >&2 || fail gateway_restart_failed
   else
-    curl -fsS -m 240 -X POST "$COMPANION/v1/runtime/restart" >/dev/null 2>&1 || fail gateway_restart_failed
+    curl -fsS -m "$RESTART_TIMEOUT_S" -X POST "$COMPANION/v1/runtime/restart" >/dev/null 2>&1 || fail gateway_restart_failed
   fi
   gateway=restarted
 fi
