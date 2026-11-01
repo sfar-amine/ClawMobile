@@ -66,6 +66,10 @@ class Failed(Exception):
     """A phase or gate failed after the Gateway was stopped: rollback follows."""
 
 
+# Compatibility manifests of this checkout (CLAW_RUNTIME_ROOT or the script's own folder, never a hard-coded copy).
+COMPAT_DIR = os.path.join(os.environ.get("CLAW_RUNTIME_ROOT") or os.path.dirname(os.path.abspath(__file__)),
+                          "openclaw-compat")
+
 def redact(text: str) -> str:
     text = SECRETISH.sub(lambda m: m.group(1) + "<redacted>", text)
     text = LONG_OPAQUE.sub("<redacted>", text)
@@ -116,7 +120,7 @@ def default_layout(profile: str, env: dict) -> dict:
             "start": [release + "/gateway-start.sh"],
             "gateway_start_script": release + "/gateway-start.sh",
             "gateway_log": "$HOME/.openclaw/logs/companion-openclaw-gateway.log",
-            "compat_dir": "$HOME/ClawMobile/installer/termux-lite/openclaw-compat",
+            "compat_dir": COMPAT_DIR,
             "receipts": "$HOME/.openclaw/deploys", "backups": "$HOME/.openclaw/backups/openclaw-upgrade",
             "lock": "$HOME/.openclaw/deploys/companion-deploy.lock", "foreign_locks": [],
             "pause_patterns": [r"core-services-watchdog\.sh"],
@@ -141,7 +145,7 @@ def default_layout(profile: str, env: dict) -> dict:
             "start": [r + "/live/bin/openclaw", "gateway", "--bind", "loopback", "--port", "19789", "--verbose"],
             "gateway_start_script": None,
             "gateway_log": r + "/logs/gateway.log",
-            "compat_dir": "$HOME/ClawMobile/installer/termux-lite/openclaw-compat",
+            "compat_dir": COMPAT_DIR,
             "receipts": r + "/deploys", "backups": r + "/backups",
             "lock": r + "/deploys/companion-deploy.lock",
             "foreign_locks": ["$HOME/.openclaw/deploys/companion-deploy.lock"],
