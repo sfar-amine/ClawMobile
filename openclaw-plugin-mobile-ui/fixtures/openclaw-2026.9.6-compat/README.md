@@ -16,3 +16,12 @@ de la même archive déjà capturés depuis le S24 sont identiques à l'octet (`
 celui installé en production. Les autres cibles 2026.9.6 sont lues dans `s24-2026-10-25-model-flow-sdk/`.
 
 Aucun transcript, aucune configuration, aucun identifiant : seulement du code public, sous licence OpenClaw.
+
+Jeu `startup-triage-optout` (01/11/2026, même archive npm) — modules corrigés ou lus par le test, et non plus seulement
+importés :
+- `triage-failure-BI1ymYSt.mjs.gz` (sha256 `79f50449…9afac1`, identique en production sur le S24, relevé en lecture
+  seule le 01/11) : `triageAfterFailure`, que vise le jeu ;
+- `triage-failure-B_xmAewo.mjs.gz` (`b53f9ca5…`, identique en production) : sa réexportation ;
+- `run-S_R0Bn7l.mjs.gz` (`aa7e2bb3…`) : le module npm. En production, ce fichier ne diffère que par la réécriture
+  Termux de `/bin/sh` (`885f8d58…`) ; ses lignes de triage sont identiques, aux mêmes numéros (1973-1982, 2527-2532,
+  2574, 2628).
