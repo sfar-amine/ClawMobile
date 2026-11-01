@@ -1,0 +1,89 @@
+{
+  "version": 2,
+  "id": "openclaw-sdk-pin-1009-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "The plugin's OpenClaw SDK loaders read one version table (openclawSdkVersions.ts): 2026.9.6 keeps its exact subpaths, chunk and order; 2026.10.9 is added from the public npm tar (config-runtime removed: getRuntimeConfig from runtime-config-snapshot, resolveConfiguredSecretInputWithFallback from secret-input-runtime, coerceSecretRef from secret-ref-runtime, model profile contract in dist/embedded-agent-DoEPu8ye.mjs). Any other version is still refused. CI gains a per-version static SDK surface job (2026.9.6 and 2026.10.9).",
+  "reason": "Step 1 of the OpenClaw 2026.9.6 to 2026.10.9 upgrade. The owner turn transport, the session metadata owner and the official Gateway owner accepted only 2026.9.6 and imported plugin-sdk/config-runtime and the hashed chunk dist/setup-B7DuERIi.mjs, both absent in 2026.10.9: on the candidate every owner turn would fail with owner_transport_version_unsupported. The 2026.10.9 model-flow-selection variant declared MODEL_PROFILE_CONTRACT_VERSION without exporting it, so the contract would read 0 and model flows would be refused; it now exports it, with the previous patched bytes as a predecessor.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/openclawSdkVersions.ts",
+    "openclaw-plugin-mobile-ui/src/companion/ownerTurnGateway.ts",
+    "openclaw-plugin-mobile-ui/src/companion/officialGatewayOwner.ts",
+    "openclaw-plugin-mobile-ui/scripts/qualify-openclaw-sdk.cjs",
+    "openclaw-plugin-mobile-ui/scripts/openclaw-sdk-surface-ci.sh",
+    "openclaw-plugin-mobile-ui/scripts/test-openclaw-sdk-versions.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-sdk-surface/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-sdk-surface/openclaw-2026.9.6.json",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-sdk-surface/openclaw-2026.10.9.json",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md",
+    "installer/termux-lite/openclaw-compat/model-flow-selection.json",
+    "installer/termux-lite/test-openclaw-compat-variants.py",
+    ".github/workflows/ci.yml",
+    "docs/changes/openclaw-sdk-pin-1009-20261101.json",
+    "docs/changes/openclaw-sdk-pin-1009-20261101.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-openclaw-sdk-versions.cjs",
+      "status": "passed",
+      "evidence": "Node 20 and 22: npm facts of both tars (config-runtime and loadConfig absent in 2026.10.9, setup-B7DuERIi gone, chunk hashes equal the model-flow-selection originals); the table qualifies on each real export list and only on its own version; production rows equal the previous subpaths and order; the three loaders run on packages rebuilt from the real export maps and pick the expected subpath per version; media-store stays refused on 2026.10.9; unpatched contract reads 0; 2026.10.8 and a mislabelled package are refused before use."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/openclaw-sdk-surface-ci.sh (both legs, on the npm tars fetched the same day)",
+      "status": "passed",
+      "evidence": "2026.9.6: SHA256 OK, model-flow-selection applied (12 files), 18 rows qualified with contract export. 2026.10.9: SHA256 OK, applied (6 files), 16 rows qualified with contract export. Text reads only."
+    },
+    {
+      "name": "installer/termux-lite/test-openclaw-compat-variants.py",
+      "status": "passed",
+      "evidence": "7 tests: the variant exports the contract once, applies atomically, reverses, and a candidate patched by the previous variant upgrades through its original then rolls back."
+    },
+    {
+      "name": "test-official-gateway-owner, test-owner-turn-admission, test-gateway-run-observation, test-conversation-model-profile, test-qa-media-stage, test-gateway-entrypoint, test-persistent-gateway-transport, test-model-flows, test-agent-config (Node 20); test-model-flow-selection.py, test-runtime-sync.py, test-ci-registration.py, tools/test_localci.py; test-model-flow-compaction/setup/native-session.cjs (Node 26)",
+      "status": "passed",
+      "evidence": "Neighbouring owners green on this head. Full tools/localci.py not run by the author (one heavy CI at a time in the container)."
+    }
+  ],
+  "documentation": [
+    "docs/changes/openclaw-sdk-pin-1009-20261101.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-sdk-surface/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "SDK loading only; no route, action, setting or capability changes."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same loaders and compatibility owner; the version table replaces three version constants. No new store, router, scheduler, daemon or retry engine."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "On 2026.9.6 the loaders import the same subpaths and chunk in the same order; the 2026.9.6 compatibility sets are byte-identical."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Static qualification only: no OpenClaw 2026.10.9 code is imported or run in CI. Real imports and a Gateway start need Node 24.22.1+ or 26.12.1+ (engines), not the CI Node 26.11.1: steps 3 and 4 of the upgrade.",
+    "Still pinned to 2026.9.6 and refused on 2026.10.9 until qualified: memo transcription (MEMO_SDK_VERSION and loadConfig, needs a new qualification receipt), Gemini public synthesis, Parallel Free provider (pin.json hostVersion and its own patch), QA media staging, gateway-secretref-exec.sh (hashed gateway-auth-token chunk), gateway-prep-stages set (no 2026.10.9 variant).",
+    "Model flow behaviour on 2026.10.9 (patchSessionEntry commit guard, pluginExtensions persistence) is not yet exercised: step 2."
+  ],
+  "rollback": "Revert this commit; production 2026.9.6 loads the same subpaths and chunk as before. A 2026.10.9 candidate patched with this variant rolls back with the owner (--rollback) before reverting."
+}
