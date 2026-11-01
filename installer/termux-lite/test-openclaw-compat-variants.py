@@ -100,11 +100,34 @@ class Variants(unittest.TestCase):
                     self.assertEqual(checked.returncode, 0, item["path"] + checked.stderr)
             if name == "model-flow-selection":
                 embedded = (root / "dist/embedded-agent-DoEPu8ye.mjs").read_text()
-                self.assertIn("export { applyHookModelProfile, compactEmbeddedAgentSession as n, resolveHookModelSelection, runEmbeddedAgent as t };", embedded)
+                # The plugin's session metadata owner reads the contract from this chunk on 2026.10.9 (openclawSdkVersions).
+                self.assertIn("export { MODEL_PROFILE_CONTRACT_VERSION, applyHookModelProfile, compactEmbeddedAgentSession as n, "
+                              "resolveHookModelSelection, runEmbeddedAgent as t };", embedded)
+                self.assertEqual(embedded.count("const MODEL_PROFILE_CONTRACT_VERSION = 1;"), 1)
                 self.assertIn('profilePluginId: "openclaw-plugin-mobile-ui", selectionStage: "before_runtime"', embedded)
                 self.assertIn('import { resolveHookModelSelection } from "./embedded-agent-DoEPu8ye.mjs";',
                               (root / "dist/run-entry-BnMGfzuI.mjs").read_text())
                 self.assertIn("runBeforeModelResolveForPlugin", (root / "dist/hooks-CgZHhfMh.mjs").read_text())
+
+    def test_model_flow_candidate_patched_before_the_contract_export_upgrades_and_rolls_back(self):
+        """A 2026.10.9 candidate patched by the previous variant (no contract export) upgrades through its original."""
+        root = self.root("model-flow-selection")
+        original = self.snapshot("model-flow-selection", root)
+        entry = next(item for item in manifest("model-flow-selection")["packages"][VERSION]["files"]
+                     if item["path"] == "dist/embedded-agent-DoEPu8ye.mjs")
+        previous = entry["predecessors"][0]
+        self.assertEqual(previous["replacements"], entry["replacements"][:-1])
+        target = self.module(root, entry)
+        text = target.read_text()
+        for before, after in previous["replacements"]:
+            text = text.replace(before, after)
+        target.write_text(text)
+        self.assertEqual(hashlib.sha256(target.read_bytes()).hexdigest(), previous["patched"])
+        self.assertEqual(self.cli("model-flow-selection", root, "apply").returncode, 0)
+        self.assertEqual(hashlib.sha256(target.read_bytes()).hexdigest(), entry["patched"])
+        self.assertEqual(self.cli("model-flow-selection", root, "check").returncode, 0)
+        self.assertEqual(self.cli("model-flow-selection", root, "rollback").returncode, 0)
+        self.assertEqual(self.snapshot("model-flow-selection", root), original)
 
     def test_whatsapp_transport_loss_keeps_slow_retries_after_the_fast_burst(self):
         """Runs the patched 2026.10.9 consumeReconnectAttempt and close path, not a copy of it."""

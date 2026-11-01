@@ -287,7 +287,7 @@
           "root": "openclaw",
           "path": "dist/embedded-agent-DoEPu8ye.mjs",
           "original": "21a06d87da38b464c600a7447fd79d03be1f376e9e275cf1f1ece297a029cdbb",
-          "patched": "b8062e79b7b7688e7d42214638bb436f4fa91537ab9da6dc5d64a9da8ec2bc39",
+          "patched": "a4ba64cd643668796c345e5c0b9ec9261d37f0b3201bac193266470b5f3181dc",
           "replacements": [
             [
               "async function resolveHookModelSelection(params) {\n\tconst selection = {\n\t\tprovider: params.provider,\n\t\tmodelId: params.modelId\n\t};\n\tif (params.modelSelectionLocked === true) return selection;",
@@ -328,7 +328,58 @@
             [
               "export { compactEmbeddedAgentSession as n, runEmbeddedAgent as t };",
               "/** Applies only settings already validated by readHookModelProfile, before the native consumers. */\nfunction applyHookModelProfile(runParams, selected) {\n\tfor (const key of [\"authProfileId\", \"authProfileIdSource\", \"thinkLevel\", \"fastMode\", \"modelFallbacksOverride\"]) {\n\t\tif (Object.hasOwn(selected, key)) runParams[key] = selected[key] ?? void 0;\n\t}\n\tconst clearThink = selected.thinkLevel === null;\n\tconst clearFast = selected.fastMode === null;\n\tif (clearThink || clearFast || Object.hasOwn(selected, \"summaryModelOverride\")) {\n\t\tconst prior = runParams.config ?? {}, agents = {...prior.agents}, defaults = {...agents.defaults};\n\t\tif (clearThink) delete defaults.thinkingDefault;\n\t\tif (clearFast) delete defaults.fastModeDefault;\n\t\tif (Object.hasOwn(selected, \"summaryModelOverride\")) {\n\t\t\tconst compaction = {...defaults.compaction};\n\t\t\tif (selected.summaryModelOverride === null) delete compaction.model;\n\t\t\telse compaction.model = selected.summaryModelOverride;\n\t\t\tdefaults.compaction = compaction;\n\t\t}\n\t\tconst clear = (entry) => {const next = {...entry}; if (clearThink) delete next.thinkingDefault; if (clearFast) delete next.fastModeDefault; return next;};\n\t\tif ((clearThink || clearFast) && agents.entries?.[runParams.agentId]) agents.entries = {...agents.entries, [runParams.agentId]: clear(agents.entries[runParams.agentId])};\n\t\tif ((clearThink || clearFast) && Array.isArray(agents.list)) agents.list = agents.list.map((row) => row.id === runParams.agentId ? clear(row) : row);\n\t\trunParams.config = {...prior, agents: {...agents, defaults}};\n\t}\n}\nexport { applyHookModelProfile, compactEmbeddedAgentSession as n, resolveHookModelSelection, runEmbeddedAgent as t };"
+            ],
+            [
+              "export { applyHookModelProfile, compactEmbeddedAgentSession as n, resolveHookModelSelection, runEmbeddedAgent as t };",
+              "export { MODEL_PROFILE_CONTRACT_VERSION, applyHookModelProfile, compactEmbeddedAgentSession as n, resolveHookModelSelection, runEmbeddedAgent as t };"
             ]
+          ],
+          "predecessors": [
+            {
+              "patched": "b8062e79b7b7688e7d42214638bb436f4fa91537ab9da6dc5d64a9da8ec2bc39",
+              "replacements": [
+                [
+                  "async function resolveHookModelSelection(params) {\n\tconst selection = {\n\t\tprovider: params.provider,\n\t\tmodelId: params.modelId\n\t};\n\tif (params.modelSelectionLocked === true) return selection;",
+                  "const MODEL_PROFILE_CONTRACT_VERSION = 1;\n/** Closed settings consumed before auth, thinking, speed, and fallback preparation. No credential values. */\nfunction readHookModelProfile(value) {\n\tif (!value) return {};\n\tif (value.modelSelectionRefused !== void 0) throw new Error(\"Model profile selection unavailable\");\n\tconst out = {};\n\tif (value.authProfileId !== void 0) {\n\t\tif (value.authProfileId !== null && (typeof value.authProfileId !== \"string\" || value.authProfileId.length < 1 || value.authProfileId.length > 512 || /[\\u0000-\\u001f\\u007f]/.test(value.authProfileId))) throw new Error(\"Invalid model profile account selection\");\n\t\tout.authProfileId = value.authProfileId;\n\t}\n\tif (value.authProfileIdSource !== void 0) {\n\t\tif (value.authProfileIdSource !== null && ![\"auto\", \"user\"].includes(value.authProfileIdSource)) throw new Error(\"Invalid model profile account source\");\n\t\tout.authProfileIdSource = value.authProfileIdSource;\n\t}\n\tif (value.thinkLevel !== void 0) {\n\t\tif (value.thinkLevel !== null && ![\"off\", \"minimal\", \"low\", \"medium\", \"high\", \"xhigh\", \"adaptive\", \"max\", \"ultra\"].includes(value.thinkLevel)) throw new Error(\"Invalid model profile effort\");\n\t\tout.thinkLevel = value.thinkLevel;\n\t}\n\tif (value.fastMode !== void 0) {\n\t\tif (value.fastMode !== null && typeof value.fastMode !== \"boolean\" && value.fastMode !== \"auto\") throw new Error(\"Invalid model profile speed\");\n\t\tout.fastMode = value.fastMode;\n\t}\n\tif (value.modelFallbacksOverride !== void 0) {\n\t\tif (!Array.isArray(value.modelFallbacksOverride) || value.modelFallbacksOverride.length > 20 || value.modelFallbacksOverride.some((ref) => typeof ref !== \"string\" || ref.length < 3 || ref.length > 512 || !ref.includes(\"/\") || /[\\u0000-\\u001f\\u007f]/.test(ref))) throw new Error(\"Invalid model profile fallback ladder\");\n\t\tout.modelFallbacksOverride = [...value.modelFallbacksOverride];\n\t}\n\tif (value.summaryModelOverride !== void 0) {\n\t\tif (value.summaryModelOverride !== null && (typeof value.summaryModelOverride !== \"string\" || value.summaryModelOverride.length > 512 || !value.summaryModelOverride.includes(\"/\") || /[\\u0000-\\u001f\\u007f]/.test(value.summaryModelOverride))) throw new Error(\"Invalid session summary model\");\n\t\tout.summaryModelOverride = value.summaryModelOverride;\n\t}\n\treturn out;\n}\nasync function resolveHookModelSelection(params) {\n\tconst selection = {\n\t\tprovider: params.provider,\n\t\tmodelId: params.modelId\n\t};\n\tconst locked = params.modelSelectionLocked === true;\n\tif (locked && !params.profilePluginId) return selection;"
+                ],
+                [
+                  "\t\t\tconst event = params.attachments ? {\n\t\t\t\tprompt: params.prompt,\n\t\t\t\tattachments: params.attachments\n\t\t\t} : { prompt: params.prompt };\n\t\t\tconst run = () => hookRunner.runBeforeModelResolve(event, params.hookContext);",
+                  "\t\t\tconst event = {\n\t\t\t\tprompt: params.prompt,\n\t\t\t\t...params.attachments ? {attachments: params.attachments} : {},\n\t\t\t\tmodelProfileVersion: 1,\n\t\t\t\tmodelProfileStage: params.selectionStage ?? \"candidate\"\n\t\t\t};\n\t\t\tconst run = () => params.profilePluginId ? hookRunner.runBeforeModelResolveForPlugin(params.profilePluginId, event, params.hookContext) : hookRunner.runBeforeModelResolve(event, params.hookContext);"
+                ],
+                [
+                  "\t\t} catch (hookErr) {\n\t\t\tlog$3.warn(`before_model_resolve hook failed: ${String(hookErr)}`);\n\t\t}",
+                  "\t\t} catch (hookErr) {\n\t\t\tif (params.profilePluginId) throw new Error(\"Model profile selection failed before candidate preparation\");\n\t\t\tlog$3.warn(`before_model_resolve hook failed: ${String(hookErr)}`);\n\t\t}"
+                ],
+                [
+                  "\tif (modelResolveOverride?.providerOverride) {\n\t\tselection.provider",
+                  "\tconst profile = readHookModelProfile(modelResolveOverride);\n\tif (!locked && modelResolveOverride?.providerOverride) {\n\t\tselection.provider"
+                ],
+                [
+                  "\tif (modelResolveOverride?.modelOverride) {\n\t\tselection.modelId",
+                  "\tif (!locked && modelResolveOverride?.modelOverride) {\n\t\tselection.modelId"
+                ],
+                [
+                  "\treturn selection;\n}\n/**\n* Converts prompt image refs",
+                  "\treturn {\n\t\t...selection,\n\t\t...profile\n\t};\n}\n/**\n* Converts prompt image refs"
+                ],
+                [
+                  "\t\tmodelSelectionLocked: runParams.modelSelectionLocked,\n\t\thookRunner: params.hookRunner,",
+                  "\t\tmodelSelectionLocked: runParams.modelSelectionLocked,\n\t\t...runParams.modelSelectionLocked === true ? {profilePluginId: \"openclaw-plugin-mobile-ui\"} : {},\n\t\thookRunner: params.hookRunner,"
+                ],
+                [
+                  "\tconst modelSelectionChangedByHook = hookSelection.provider !== params.provider",
+                  "\tapplyHookModelProfile(runParams, hookSelection);\n\tconst modelSelectionChangedByHook = hookSelection.provider !== params.provider"
+                ],
+                [
+                  "\t\t\t\t\tthrowIfAborted();\n\t\t\t\t\tassertInitialOperatorModelPolicy(params, sessionAdmission?.entry);",
+                  "\t\t\t\t\tthrowIfAborted();\n\t\t\t\t\tconst modelProfileRunner = getGlobalHookRunner();\n\t\t\t\t\tif (modelProfileRunner?.runBeforeModelResolveForPlugin && modelProfileRunner.hasHooks(\"before_model_resolve\")) {\n\t\t\t\t\t\tconst initial = resolveInitialEmbeddedRunModel({config: params.config ?? EMPTY_EMBEDDED_AGENT_CONFIG, agentId: params.agentId, provider: params.provider, model: params.model});\n\t\t\t\t\t\tconst selected = await resolveHookModelSelection({prompt: \"\", provider: initial.provider, modelId: initial.modelId,\n\t\t\t\t\t\t\tmodelSelectionLocked: params.modelSelectionLocked, profilePluginId: \"openclaw-plugin-mobile-ui\", selectionStage: \"before_runtime\", hookRunner: modelProfileRunner,\n\t\t\t\t\t\t\thookContext: {runId: params.runId, agentId: params.agentId, sessionKey: params.sessionKey, sessionId: params.sessionId, workspaceDir: params.workspaceDir, modelProviderId: initial.provider, modelId: initial.modelId}});\n\t\t\t\t\t\tthrowIfAborted();\n\t\t\t\t\t\tparams.provider = selected.provider; params.model = selected.modelId;\n\t\t\t\t\t\tapplyHookModelProfile(params, selected);\n\t\t\t\t\t}\n\t\t\t\t\tassertInitialOperatorModelPolicy(params, sessionAdmission?.entry);"
+                ],
+                [
+                  "export { compactEmbeddedAgentSession as n, runEmbeddedAgent as t };",
+                  "/** Applies only settings already validated by readHookModelProfile, before the native consumers. */\nfunction applyHookModelProfile(runParams, selected) {\n\tfor (const key of [\"authProfileId\", \"authProfileIdSource\", \"thinkLevel\", \"fastMode\", \"modelFallbacksOverride\"]) {\n\t\tif (Object.hasOwn(selected, key)) runParams[key] = selected[key] ?? void 0;\n\t}\n\tconst clearThink = selected.thinkLevel === null;\n\tconst clearFast = selected.fastMode === null;\n\tif (clearThink || clearFast || Object.hasOwn(selected, \"summaryModelOverride\")) {\n\t\tconst prior = runParams.config ?? {}, agents = {...prior.agents}, defaults = {...agents.defaults};\n\t\tif (clearThink) delete defaults.thinkingDefault;\n\t\tif (clearFast) delete defaults.fastModeDefault;\n\t\tif (Object.hasOwn(selected, \"summaryModelOverride\")) {\n\t\t\tconst compaction = {...defaults.compaction};\n\t\t\tif (selected.summaryModelOverride === null) delete compaction.model;\n\t\t\telse compaction.model = selected.summaryModelOverride;\n\t\t\tdefaults.compaction = compaction;\n\t\t}\n\t\tconst clear = (entry) => {const next = {...entry}; if (clearThink) delete next.thinkingDefault; if (clearFast) delete next.fastModeDefault; return next;};\n\t\tif ((clearThink || clearFast) && agents.entries?.[runParams.agentId]) agents.entries = {...agents.entries, [runParams.agentId]: clear(agents.entries[runParams.agentId])};\n\t\tif ((clearThink || clearFast) && Array.isArray(agents.list)) agents.list = agents.list.map((row) => row.id === runParams.agentId ? clear(row) : row);\n\t\trunParams.config = {...prior, agents: {...agents, defaults}};\n\t}\n}\nexport { applyHookModelProfile, compactEmbeddedAgentSession as n, resolveHookModelSelection, runEmbeddedAgent as t };"
+                ]
+              ]
+            }
           ]
         },
         {

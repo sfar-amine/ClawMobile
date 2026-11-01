@@ -17,3 +17,8 @@ WhatsApp : `connection-controller-CejM7bhn.mjs.gz` et `monitor-DVzumwCI.mjs.gz` 
 `server-runtime-startup-services-CSJSnUKS.mjs.gz` vient de `openclaw@2026.10.9`. Ils portent la variante 2026.10.9 du jeu
 `whatsapp-network-recovery` : même correctif, ancres suivies là où l'amont a déplacé `heartbeatSeconds`,
 `reconnectPolicy` et `keepAlive` sous `this.params` et fusionné la décision de reprise.
+
+Contrat de profil de modèle (01/11/2026) : la variante 2026.10.9 de `model-flow-selection` exporte aussi
+`MODEL_PROFILE_CONTRACT_VERSION` depuis `dist/embedded-agent-DoEPu8ye.mjs`, comme `dist/setup-B7DuERIi.mjs` en 2026.9.6 ;
+le propriétaire des métadonnées de session du plugin le lit là (`openclawSdkVersions.ts`). L'ancien résultat corrigé
+(`b8062e79…`) est déclaré en `predecessors` : un candidat déjà corrigé passe au nouveau par ses octets d'origine.
