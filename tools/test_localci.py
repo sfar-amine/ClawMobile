@@ -247,13 +247,19 @@ class LocalCiSyntheticReplayTests(unittest.TestCase):
 
     def test_versioned_python_gets_a_setup_python_environment(self):
         # Stock images often ship python3 = another minor version and python3.12 beside it.
-        folder = localci.bin_for("python", "3.12") if shutil.which("python3.12") else None
-        if folder is None:
+        if not shutil.which("python3.12"):
             self.skipTest("python3.12 absent")
-        for name in ("python", "python3"):
-            out = subprocess.run([str(Path(folder) / name), "-c", "import sys;print(sys.version_info[:2])"],
-                                 capture_output=True, text=True).stdout.strip()
-            self.assertEqual(out, "(3, 12)")
+        # The venv lives in the caller's marked scratch and disappears with it (no /tmp/localci-python-*).
+        with localci.scratch("localci-test-python-", self.temp.name) as holder:
+            folder = localci.bin_for("python", "3.12", holder)
+            self.assertIn(holder, Path(folder).parents)
+            for name in ("python", "python3"):
+                out = subprocess.run([str(Path(folder) / name), "-c", "import sys;print(sys.version_info[:2])"],
+                                     capture_output=True, text=True).stdout.strip()
+                self.assertEqual(out, "(3, 12)")
+        self.assertFalse(holder.exists())
+        with self.assertRaisesRegex(localci.LocalCIError, "job scratch"):
+            localci.bin_for("python", "3.12")
 
     def test_exit_failure_aborts_remaining_commands(self):
         head = self.commit("jobs:\n  contract:\n    steps:\n"
@@ -263,6 +269,139 @@ class LocalCiSyntheticReplayTests(unittest.TestCase):
             self.assertEqual(localci.run_ci(str(self.repo), head, "5", str(self.log)), 17)
         self.assertNotIn("FORBIDDEN_NEXT", self.log.read_text(encoding="utf-8"))
         self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
+
+
+
+class LocalCiScratchHygieneTests(unittest.TestCase):
+    """Success, failure and SIGTERM/SIGINT leave no localci directory; the purge only takes marked orphans."""
+    fake_gh = LocalCiSyntheticReplayTests.fake_gh
+    commit = LocalCiSyntheticReplayTests.commit
+
+    def setUp(self):
+        LocalCiSyntheticReplayTests.setUp(self)
+        self.scratch_root = Path(self.temp.name) / "tmp-root"
+        self.scratch_root.mkdir()
+        self.env = patch.dict(os.environ, {"LOCALCI_TMP_ROOT": str(self.scratch_root)})
+
+    def assertNothingLeft(self):
+        self.assertEqual(sorted(p.name for p in self.scratch_root.iterdir()), [])
+        self.assertEqual(localci._LIVE_SCRATCH, {})
+        self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
+
+    def python_step(self):
+        return ("      - uses: actions/setup-python@v5\n        with:\n          python-version: '3.12'\n"
+                if shutil.which("python3.12") else "")
+
+    def test_successful_job_removes_worktree_and_python_environment(self):
+        head = self.commit("jobs:\n  first:\n    steps:\n" + self.python_step()
+                           + "      - run: test -f \"$GITHUB_WORKSPACE/../.localci-owner.json\"\n"
+                           + ("      - run: python3 -c 'import sys,os; r=os.path.realpath; "
+                              "assert r(sys.prefix).startswith(r(os.environ[\"GITHUB_WORKSPACE\"]+\"/..\"))'\n"
+                              if self.python_step() else "")
+                           + "  second:\n    steps:\n" + self.python_step()
+                           + "      - run: echo second\n")
+        with self.env, self.fake_gh(head):
+            self.assertEqual(localci.run_ci(str(self.repo), head, "5", str(self.log)), 0)
+        self.assertIn("JOB_OK second", self.log.read_text(encoding="utf-8"))
+        self.assertNothingLeft()
+
+    def test_failed_step_and_runner_error_remove_everything(self):
+        head = self.commit("jobs:\n  contract:\n    steps:\n" + self.python_step() + "      - run: exit 17\n")
+        with self.env, self.fake_gh(head):
+            self.assertEqual(localci.run_ci(str(self.repo), head, "5", str(self.log)), 17)
+        self.assertNothingLeft()
+        head = self.commit("jobs:\n  contract:\n    steps:\n      - run: echo ok\n      - uses: foreign/action@v1\n")
+        with self.env, self.fake_gh(head), self.assertRaisesRegex(localci.LocalCIError, "Unsupported uses"):
+            localci.run_ci(str(self.repo), head, "5", str(self.log))
+        self.assertNothingLeft()
+
+    def test_termination_signal_unwinds_job_and_stops_the_step(self):
+        import signal as signals
+        import time
+        for signum in (signals.SIGTERM, signals.SIGINT):
+            with self.subTest(signal=signum):
+                started = Path(self.temp.name) / f"started-{signum}"
+                head = self.commit("jobs:\n  contract:\n    steps:\n" + self.python_step()
+                                   + f"      - run: echo $$ > '{started}.tmp' && mv '{started}.tmp' '{started}' && sleep 60\n"
+                                   "      - run: echo FORBIDDEN_NEXT\n")
+                log = Path(self.temp.name) / f"signal-{signum}.log"
+                env = dict(os.environ, LOCALCI_TMP_ROOT=str(self.scratch_root))
+                proc = subprocess.Popen([sys.executable, str(Path(localci.__file__).resolve()), str(self.repo), head,
+                                         "-", str(log)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                        text=True)
+                deadline = time.monotonic() + 60
+                while not started.exists() and proc.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.assertTrue(started.exists(), proc.stderr.read() if proc.poll() is not None else "step not started")
+                self.assertTrue(any(self.scratch_root.iterdir()))
+                step_pid = int(started.read_text())
+                proc.send_signal(signum)  # Exactly this localci process, by PID.
+                self.assertEqual(proc.wait(timeout=30), 128 + signum)
+                proc.stderr.close()
+                output = log.read_text(encoding="utf-8")
+                self.assertIn("terminated_by_signal", output)
+                self.assertNotIn("FORBIDDEN_NEXT", output)
+                with self.assertRaises(ProcessLookupError):
+                    os.kill(step_pid, 0)
+                self.assertEqual(sorted(p.name for p in self.scratch_root.iterdir()), [])
+                self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
+
+    # ---- Startup purge: only localci's own marked, dead and old directories. ----
+    def forge(self, name, pid, *, path=None, root=None, age_offset_hours=0):
+        import time
+        root = root or self.scratch_root
+        folder = (root / name).resolve()
+        folder.mkdir()
+        (folder / "payload").write_text("x")
+        (folder / localci.SCRATCH_MARKER).write_text(json.dumps({
+            "owner": "localci", "version": 1, "path": str(path or folder), "pid": pid,
+            "pid_start": localci._proc_start_time(pid), "pid_ns": localci._pid_namespace(),
+            "boot_id": localci._read_small("/proc/sys/kernel/random/boot_id"),
+            "created": time.time() + age_offset_hours * 3600}))
+        return folder
+
+    def dead_pid(self):
+        child = subprocess.Popen(["true"]); child.wait()
+        return child.pid
+
+    def purge(self, hours_later=48):
+        import time
+        return localci.purge_stale_scratch([self.scratch_root], max_age_hours=6, now=time.time() + hours_later * 3600)
+
+    def test_purge_removes_only_marked_dead_old_directories(self):
+        orphan = self.forge("localci-samantha-core-test-orphan", self.dead_pid())
+        unmarked = self.scratch_root / "localci-python-unmarked"; unmarked.mkdir()
+        (unmarked / "bin").mkdir()
+        alive = self.forge("localci-samantha-core-test-alive", os.getpid())
+        foreign = self.forge("other-tool-dead", self.dead_pid())
+        elsewhere = Path(self.temp.name) / "elsewhere"; elsewhere.mkdir()
+        target = self.forge("localci-linked-target", self.dead_pid(), root=elsewhere)
+        (self.scratch_root / "localci-symlink").symlink_to(target)
+        copied = self.forge("localci-copied-marker", self.dead_pid(), path=self.scratch_root / "localci-somewhere-else")
+        young = self.forge("localci-young", self.dead_pid(), age_offset_hours=47)  # 1 h old when purged
+        self.assertEqual(self.purge(hours_later=1), [])  # Nothing is 6 h old yet: even the orphan stays.
+        self.assertTrue(orphan.exists())
+        self.assertEqual(self.purge(), [str(orphan)])
+        self.assertFalse(orphan.exists())
+        for kept in (unmarked, alive, foreign, target, copied, young.parent / "localci-symlink"):
+            self.assertTrue(kept.exists() or kept.is_symlink(), kept)
+        self.assertTrue((unmarked / "bin").is_dir())
+        self.assertTrue((alive / "payload").exists())
+
+    def test_purge_never_takes_a_live_locked_scratch_even_with_a_dead_or_foreign_pid(self):
+        holder = localci.make_scratch("localci-live-", str(self.scratch_root))
+        try:
+            marker = holder / localci.SCRATCH_MARKER
+            # A run in another PID namespace (bwrap) records a PID meaningless here: its held lock is the proof.
+            data = json.loads(marker.read_text()); data.update(pid=self.dead_pid(), pid_ns="pid:[0]")
+            marker.write_text(json.dumps(data))
+            self.assertEqual(self.purge(), [])
+            self.assertTrue(holder.exists())
+        finally:
+            localci.drop_scratch(holder)
+        self.assertFalse(holder.exists())
+        with self.assertRaisesRegex(localci.LocalCIError, "scratch_prefix"):
+            localci.make_scratch("shared-", str(self.scratch_root))
 
 
 class LocalCiAndroidReplayTests(unittest.TestCase):
