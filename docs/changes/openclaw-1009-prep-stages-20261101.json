@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "id": "openclaw-1009-prep-stages-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "gateway-prep-stages gains its OpenClaw 2026.10.9 variant (packages map of the same manifest, same owner): the 2026.9.6 plugin-tools checkpoints unchanged on openclaw-tools-CSSYZDKR and tools-DQdRObqo, the eight system-prompt sub-spans moved to attempt-system-prompt-prepare-ChKsbjSh where setup.prepStages is optional. The 2026.10.9 Gateway startup triage is documented; no setting is applied.",
+  "reason": "S24 isolated upgrade rehearsal (01/11): gateway-prep-stages refused 2026.10.9 (unsupported_package_version). The diagnostic gap it fills still exists in npm openclaw@2026.10.9 (no plugin-tools or system-prompt sub-stages upstream). The rehearsal also showed an automatic startup triage that can start a model turn; it is described with its guards, and the same mechanism is already present in 2026.9.6.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/openclaw-1009-prep-stages-20261101.json",
+    "docs/changes/openclaw-1009-prep-stages-20261101.md",
+    "installer/termux-lite/openclaw-compat/gateway-prep-stages.json",
+    "installer/termux-lite/test-gateway-prep-stages-1009.py",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/attempt-system-prompt-prepare-ChKsbjSh.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/gateway-prep-stages-harness.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/openclaw-tools-CSSYZDKR.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/tools-DQdRObqo.mjs.gz"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-gateway-prep-stages-1009.py",
+      "status": "passed",
+      "evidence": "5 tests, Node 26.11.1: the 2026.10.9 variant applies atomically, idempotently and reverses exactly; unknown module or version refused before any write; 2026.9.6 set unchanged; original and patched public bodies keep returns, effects, errors, worker turn without tracker and the 73 ms parent aggregate in the VM harness; node --check of the patched modules; no implicit activation, no overlap with other 2026.10.9 variants. Registered in ci.yml."
+    },
+    {
+      "name": "installer/termux-lite/test-gateway-prep-stages.py, test-openclaw-compat-variants.py, test-runtime-sync.py, test-ci-registration.py",
+      "status": "passed",
+      "evidence": "Existing 2026.9.6 owner, other 2026.10.9 variants, runtime-sync and CI registration guards green on this head."
+    }
+  ],
+  "documentation": [
+    "docs/changes/openclaw-1009-prep-stages-20261101.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Compatibility manifest, fixtures and tests only; no route, action or capability (NO_CAPABILITY)."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same owner and manifest, existing optional per-version map; no new store, scheduler, logger or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Diagnostic compatibility set applied only explicitly by root; no startup, sync or deploy hook."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Module hashes are those of npm openclaw@2026.10.9; confirmation on the S24 isolated candidate remains before any application.",
+    "Startup triage: no dedicated setting exists in 2026.10.9; OPENCLAW_SUPERVISOR_MODE=external, OPENCLAW_SHELL=exec and CODEX_THREAD_ID all have other meanings, and 2026.9.6 honours the same guard, so nothing is set in gateway-start.sh; decision and S24 acceptance are pending."
+  ],
+  "rollback": "Revert this commit: the 2026.9.6 set is byte-identical and nothing applies this set automatically; a manual 2026.10.9 application is undone with --patch-set gateway-prep-stages --rollback."
+}

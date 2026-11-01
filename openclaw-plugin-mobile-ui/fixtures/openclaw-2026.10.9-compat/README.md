@@ -17,3 +17,15 @@ WhatsApp : `connection-controller-CejM7bhn.mjs.gz` et `monitor-DVzumwCI.mjs.gz` 
 `server-runtime-startup-services-CSJSnUKS.mjs.gz` vient de `openclaw@2026.10.9`. Ils portent la variante 2026.10.9 du jeu
 `whatsapp-network-recovery` : même correctif, ancres suivies là où l'amont a déplacé `heartbeatSeconds`,
 `reconnectPolicy` et `keepAlive` sous `this.params` et fusionné la décision de reprise.
+
+Jeu `gateway-prep-stages` (préparation du 01/11/2026, `npm pack openclaw@2026.10.9` dans le conteneur Claude Code,
+archive sha256 `43c61a00ef2c73416a072a7216cb3be80555d6740199f07194da2714283b04ab`, extraction ciblée de `dist/`) :
+`openclaw-tools-CSSYZDKR.mjs.gz`, `tools-DQdRObqo.mjs.gz` et `attempt-system-prompt-prepare-ChKsbjSh.mjs.gz` sont les
+modules publics, à l'octet près, que vise la variante `2026.10.9` de ce jeu. En 2026.10.9 la préparation du system
+prompt a quitté `builtin-openclaw` pour `attempt-system-prompt-prepare` et `setup.prepStages` y devient optionnel (le
+tour worker n'en passe pas). Le tracker `dist/stage-timing-BUG4Fnsv.mjs` de 2026.10.9 a les mêmes octets (sha256
+`1d8cfb8d…`) que la capture S24 2026.9.6 de `../s24-2026-10-26-gateway-prep-stages/`, réutilisée telle quelle.
+`gateway-prep-stages-harness.cjs` n'est **pas** une capture : c'est le harness écrit pour
+`installer/termux-lite/test-gateway-prep-stages-1009.py` ; il exécute dans une VM les corps publics originaux puis
+patchés avec des dépendances inertes (aucun import du SDK, aucun réseau, aucun modèle). Les empreintes de ces trois
+modules sur le candidat isolé du S24 restent à confirmer avant toute application.
