@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "id": "openclaw-1009-egress-proxy-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The 2026.10.9 variant of the pinned android-fs-compat set also covers dist/ca-D3c9PAvv.mjs: both resolveSystemBin(\"openssl\") calls of the secret egress proxy CA module search the fixed Termux bin directory after the system directories (63687cc6 -> 5b1fd3ec), the same line the 2026.9.6 production install received by hand on 25/09. With secrets.egressProxy configured as in production, the 2026.10.9 Gateway now starts and its proxy carries traffic.",
+  "reason": "S24 preproduction rehearsal (01/11): with secrets.egressProxy the 2026.10.9 Gateway stopped with 'Secret egress proxy Worker is unavailable' and started automatic triage. The Worker hides its error; the candidate's own startSecretEgressProxyServer, run on the S24, throws 'openssl is required to generate secret egress proxy certificates' from ca-D3c9PAvv.mjs inside withFileLock: resolveSystemBin only searches /usr/bin, /bin, /usr/sbin, /sbin, /run/current-system/sw/bin and /snap/bin, and Android has openssl only in /data/data/com.termux/files/usr/bin. Not @openclaw/fs-safe: the file lock passes and no path is refused. Production 2026.9.6 works only through an out-of-tree hand patch of ca-eRx2gloh.mjs (backup .bak-termux-egress-20260925), lost when the OpenClaw tree is replaced.",
+  "files": [
+    "docs/changes/openclaw-1009-egress-proxy-20261101.json",
+    "docs/changes/openclaw-1009-egress-proxy-20261101.md",
+    "installer/termux-lite/openclaw-compat/NOTICE.md",
+    "installer/termux-lite/openclaw-compat/android-fs-compat.json",
+    "installer/termux-lite/test-openclaw-compat-variants.py",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/ca-D3c9PAvv.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/resolve-system-bin-COKBgJV4.mjs.gz"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-openclaw-compat-variants.py",
+      "status": "passed",
+      "evidence": "12 tests (Node 22, openssl of the container): every 2026.10.9 variant applies, checks, stays unchanged and rolls back exactly on the captured npm modules, now including ca-D3c9PAvv.mjs; test_secret_egress_ca_finds_termux_openssl runs the published CA module with the published resolveSystemBin, original then patched by the real owner, with an Android view of the system directories: the original throws the exact S24 error without calling openssl, the patched module probes the Termux directory last, creates a CA (CN=OpenClaw Secret Egress Proxy, key 600) and a leaf valid for its host; test_android_set_refuses_an_unknown_ca_module_before_any_write: apply, rollback and check refuse unsupported_module_hash:dist/ca-D3c9PAvv.mjs and write nothing. Already registered in ci.yml."
+    },
+    {
+      "name": "installer/termux-lite/test-openclaw-compat-imports.py",
+      "status": "passed",
+      "evidence": "4 tests, also with OPENCLAW_COMPAT_ARCHIVE_DIR holding openclaw-2026.10.9.tgz (sha256 43c61a00...04ab): the new replacements add no import. Already registered in ci.yml."
+    },
+    {
+      "name": "installer/termux-lite/test-startup-triage-optout.py",
+      "status": "passed",
+      "evidence": "10 tests: neighbouring set of the same owner green on this head."
+    }
+  ],
+  "documentation": [
+    "docs/changes/openclaw-1009-egress-proxy-20261101.md",
+    "installer/termux-lite/openclaw-compat/NOTICE.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "OpenClaw compatibility patch; no route, action or capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "One more file in an existing pinned set of the existing owner; no new store, scheduler, daemon or set."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "OpenClaw compatibility only; no MCP tool or schema touched."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Preproduction proof only (S24 upgrade-rehearsal, 01/11, port 19789, isolated state, channels and WhatsApp skipped): the set applied by the real owner (applied, changed 1, then verified; S24 hash 5b1fd3ec equals the container); Gateway 2026.10.9 with secrets.egressProxy {enabled: true, allowedHosts: []} listening in 51.5 s, /health 200 in 65 s, health --json ok with the Samantha plugin, status secretEgressProxy ready with 0 failed certificates, no triage; through the Gateway exec tool and a dummy store entry bound to example.com, curl got 200 from example.com and a proxy 403 for www.iana.org. Gateway stopped, dummy entry removed, preprod config restored byte for byte. Production not touched.",
+    "No effect on the installed 2026.9.6: its hand patch is neither adopted nor removed.",
+    "PR #507 still refuses egress_proxy in its preflight; it must depend on this entry (see the PR description)."
+  ],
+  "rollback": "Revert. On a 2026.10.9 candidate the deploy rollback restores the original modules of the set, the CA module included."
+}
