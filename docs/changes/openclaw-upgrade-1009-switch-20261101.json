@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "id": "openclaw-upgrade-1009-switch-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "One owner for the OpenClaw 2026.9.6 to 2026.10.9 switch on the S24 (openclaw-upgrade.sh/.py), prod or preprod root: preflight (load, memory, free disk >= 3x the databases, heavy jobs, the companion-deploy lock, compat/SDK/triage prerequisites), candidate staging with the Gateway still serving (@openclaw/whatsapp 2026.10.9 installed by npm in a copy of its project), Gateway and Companion stopped by exact PID, WAL-aware SQLite backups with integrity_check, rename switch of the OpenClaw and Node trees, offline doctor --fix, gates (HTTP health, health JSON with the Samantha plugin, plugin tools, one real agent turn, WhatsApp plugin/connection, Companion readiness, no automatic triage) and a JSON receipt; any failure after the stop restores databases, config, credentials, trees and the WhatsApp project, restarts and re-judges (rolled_back).",
+  "reason": "The production switch must be done today with a bounded outage and a proven way back. The rehearsal on full-size copies of the prod databases measured every phase and found two Android blockers handled here: OpenClaw 2026.10.9 plugins update refuses any temp workspace under /data (fs-safe, owner uid 1000), and Android denies /proc/net and netlink, so the Gateway is found by its owner lease and state dir instead of its port.",
+  "files": [
+    "installer/termux-lite/openclaw-upgrade.sh",
+    "installer/termux-lite/openclaw-upgrade.py",
+    "installer/termux-lite/test-openclaw-upgrade.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-openclaw-upgrade-1009/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-openclaw-upgrade-1009/receipts.json",
+    ".github/workflows/ci.yml",
+    "docs/changes/openclaw-upgrade-1009-switch-20261101.json",
+    "docs/changes/openclaw-upgrade-1009-switch-20261101.md"
+  ],
+  "routes": [],
+  "tests": [],
+  "fixtures": {
+    "path": "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-openclaw-upgrade-1009",
+    "provenance": "Receipts written by openclaw-upgrade.py on the S24 preprod root on 2026-11-01 (fresh online backups of the prod databases); home paths shortened, hashes and log paths removed."
+  },
+  "documentation": [
+    "docs/changes/openclaw-upgrade-1009-switch-20261101.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-openclaw-upgrade-1009/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Operator maintenance script; no route, action, setting or capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuses the companion-deploy lock, receipts directory, preflight thresholds, gateway-start.sh, companion-server.sh, gateway-preflight.py agent-leases and incident-notify.sh; no new store, scheduler, daemon or retry engine."
+  },
+  "app_impact": {
+    "required": false,
+    "detail": "None until the switch is run; during the switch the app sees the Companion and Gateway down for the measured outage."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "The script runs only when launched; prod is unchanged by the merge."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [],
+  "rollback": "Revert this commit (nothing runs by itself). After a deployed switch, the receipt names openclaw.rollback-2026.9.6-<stamp>, node.rollback-<stamp> and the backup set for a manual way back."
+}

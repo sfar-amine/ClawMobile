@@ -50,7 +50,11 @@ v = version()
 def out(doc): print("[plugins] noise before json"); print(json.dumps(doc))
 if args[:1] == ["gateway"]:
     port = int(args[args.index("--port") + 1])
-    if os.environ.get("FAKE_GATEWAY_DOWN_ON") == v: sys.exit(3)
+    if os.environ.get("FAKE_GATEWAY_DOWN_ON") == v:
+        if os.environ.get("FAKE_TRIAGE"):
+            print("Gateway failed to start: Secret egress proxy Worker is unavailable")
+            print("Automatic triage is preparing the installed CLI; diagnostics will follow.", flush=True)
+        sys.exit(3)
     class H(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200); self.end_headers(); self.wfile.write(v.encode())
@@ -338,6 +342,18 @@ class OpenClawUpgrade(unittest.TestCase):
         self.assertEqual(doc["state"], "rolled_back")
         self.assertFalse(doc["gates"]["health_http"]["ok"])
         self.assertNotIn("agent_turn", doc["gates"])
+        self.assertIn("gateway_exited", doc["gates"]["health_http"]["detail"])
+        self.assertTrue(doc["gates"]["no_triage"]["ok"])
+        self.assertEqual(r.served_version(), "2026.9.6")
+
+    def test_startup_failure_with_automatic_triage_is_recorded(self):
+        r = self.make()
+        r.start_current_gateway()
+        doc = r.receipt(r.run(FAKE_GATEWAY_DOWN_ON="2026.10.9", FAKE_TRIAGE="1"))
+        self.assertEqual(doc["state"], "rolled_back")
+        self.assertFalse(doc["gates"]["no_triage"]["ok"])
+        self.assertGreaterEqual(doc["gates"]["no_triage"]["log_hits"], 1)
+        self.assertTrue(doc["rollback"]["gates"]["no_triage"]["ok"])
         self.assertEqual(r.served_version(), "2026.9.6")
 
     def test_unhealthy_rollback_is_reported_and_notified(self):

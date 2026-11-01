@@ -1176,7 +1176,10 @@ class Upgrade:
             if not record[name].get("ok"):
                 ok = False
                 if name == "health_http":
-                    break  # nothing else can answer
+                    # Nothing else can answer; the triage evidence (log, processes) is still recorded and killed.
+                    if "no_triage" in names:
+                        record["no_triage"] = self.gate("no_triage", self.gate_no_triage)
+                    break
         return ok
 
     # ----------------------------------------------------------------- rollback
