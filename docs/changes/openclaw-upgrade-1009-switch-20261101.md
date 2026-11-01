@@ -153,3 +153,15 @@ Dans le pire cas mesuré, l'échec arrive à la toute dernière gate. La coupure
 Revenir sur le commit. Le script ne tourne que si on le lance. Après une bascule `deployed`, le reçu nomme les arbres `openclaw.rollback-2026.9.6-<stamp>` et `node.rollback-<stamp>`, ainsi que le jeu de sauvegarde, pour un retour manuel.
 
 **NO_CAPABILITY** : aucune route, action ni capability. Le paiement n'est pas touché.
+
+## Commande de bascule de production
+
+Elle se lance une fois cette PR déployée par `companion-deploy.sh` et les bloquants levés. Préflight seul d'abord, puis la bascule détachée :
+
+```
+~/.openclaw/releases/current/termux-lite/openclaw-upgrade.sh --profile prod --dry-run
+~/.openclaw/releases/current/termux-lite/openclaw-upgrade.sh --profile prod --wait-calm 900 --detach
+~/.openclaw/releases/current/termux-lite/openclaw-upgrade.sh --profile prod --status
+```
+
+La dernière commande lit le reçu `~/.openclaw/deploys/openclaw-upgrade-<stamp>.json`.
