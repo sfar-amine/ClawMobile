@@ -37,4 +37,4 @@ const identity = nostr.setupNostrIdentity({relays: ["wss://relay.example.com"]})
 assert.match(identity.npub, /^npub1/);
 assert.strictEqual(loaded(), true);
 fs.rmSync(tmp, {recursive: true, force: true});
-console.log("plugin capture footprint test passed: captured", captured.join(","), "(19 of 635 files)");
+console.log("plugin capture size test passed: captured", captured.join(","), "(19 of 635 files)");

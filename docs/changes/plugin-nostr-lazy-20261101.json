@@ -10,7 +10,7 @@
     "openclaw-plugin-mobile-ui/package.json",
     "openclaw-plugin-mobile-ui/package-lock.json",
     "openclaw-plugin-mobile-ui/src/companion/nostr.ts",
-    "openclaw-plugin-mobile-ui/scripts/test-plugin-capture-footprint.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-plugin-capture-size.cjs",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-plugin-capture/measurements.json",
     ".github/workflows/ci.yml",
     "docs/changes/plugin-nostr-lazy-20261101.json",
@@ -19,7 +19,7 @@
   "routes": [],
   "tests": [
     {
-      "name": "openclaw-plugin-mobile-ui/scripts/test-plugin-capture-footprint.cjs",
+      "name": "openclaw-plugin-mobile-ui/scripts/test-plugin-capture-size.cjs",
       "status": "passed",
       "evidence": "New, registered in .github/workflows/ci.yml (Qualify Companion M1 contracts): declared dependencies are exactly [ws] (19 of the 635 files measured on the S24), no built module requires nostr-tools literally, loading companion/nostr.js does not load nostr-tools and the first Nostr call does and works."
     },
