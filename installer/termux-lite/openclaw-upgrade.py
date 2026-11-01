@@ -12,7 +12,8 @@ refuses `/v1/runtime/restart`, so nothing restarts the Gateway behind this scrip
              agent JSON files; PRAGMA integrity_check on every copy
   switch     live trees renamed aside (rollback copies, same filesystem), candidates renamed in
   doctor     `openclaw doctor --fix --non-interactive` with the Gateway stopped
-  whatsapp   @openclaw/whatsapp brought to the target version, older generation parked
+  whatsapp   @openclaw/whatsapp at the target version: prepared with npm in a copy of its project during
+             `stage` (OpenClaw's own installer refuses on Android), renamed in; the old tree parked
   start      Gateway (and the Companion in prod) started; gates: HTTP health, health JSON, Samantha plugin
              loaded with its tools, one real agent turn, WhatsApp connected, no automatic triage process
   receipt    `deployed`, or on any failure after `stop`: automatic restore of databases, config,
@@ -763,8 +764,13 @@ class Upgrade:
         with os.fdopen(fd, "w") as handle:
             handle.write(redact(text[-100000:]))
         self.doc.setdefault("logs", {})["whatsapp-npm"] = str(log)
-        if peer_link and not peer.exists() and not peer.is_symlink():
-            os.symlink(peer_link, peer)
+        if peer_link:
+            # The peer link names the live OpenClaw path (the global install in prod: unchanged by the rename
+            # switch, it serves 2026.10.9 afterwards). A preprod copy pointed at prod's tree is re-aimed.
+            p["peer_link_retargeted"] = os.path.realpath(peer_link) != os.path.realpath(self.oc_live)
+            if peer.is_symlink() or peer.exists():
+                peer.unlink()
+            os.symlink(str(self.oc_live), peer)
         version = package_version(target / "node_modules/@openclaw/whatsapp/package.json")
         p["whatsapp_candidate"] = {"rc": rc, "version": version, "ms": int((time.monotonic() - started) * 1000),
                                    "peer_link_kept": bool(peer_link) and peer.is_symlink()}
