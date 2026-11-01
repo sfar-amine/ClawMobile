@@ -1,0 +1,98 @@
+{
+  "version": 2,
+  "id": "plugin-host-capture-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "#126 (after #498): the plugin no longer makes the Gateway copy OpenClaw into its plugin capture. Host SDK modules are imported by bare openclaw/plugin-sdk/... specifier when the module itself resolves the same file (Gateway capture link to the live host), the model profile contract is read from its hashed chunk as text instead of imported, and the extension directory holds the runtime set only (dist and the two manifests).",
+  "reason": "S24 01/11 18:25 (e0093963, #498 deployed): the first owner turn still spent 72.4 s under plugin-generation-artifact. The process capture directory showed 21 045 host files (openclaw dist 1 057 files and 192 whole packages, 190 MB) copied because loadInstalledSessionStoreSdk imported the session store surface and the contract chunk by file URL: 41.9 s of the profile (36.8 s before #498). The plugin directory itself (983 files, 826 of them fixtures, scripts and sources) was copied twice (about 4 s). The capture is a per-process snapshot removed at exit, never a reusable cache.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/openclawSdkVersions.ts",
+    "openclaw-plugin-mobile-ui/src/companion/ownerTurnGateway.ts",
+    "openclaw-plugin-mobile-ui/src/companion/officialGatewayOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/memoSttOwner.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-plugin-capture-size.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-plugin-capture/capture-after-498.json",
+    "installer/termux-lite/lib.sh",
+    "installer/termux-lite/runtime-sync.sh",
+    "installer/termux-lite/test-plugin-install-noninteractive.sh",
+    "installer/termux-lite/test-runtime-sync.py",
+    "docs/changes/plugin-host-capture-20261101.json",
+    "docs/changes/plugin-host-capture-20261101.md"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-plugin-capture-size.cjs",
+      "status": "passed",
+      "evidence": "Already in .github/workflows/ci.yml, extended (Node 20 and 22): contract read from the real 2026.9.6 and 2026.10.9 chunks (patched 1, npm original 0, aliased or duplicated 0); built plugin laid out as an OpenClaw capture with the host link: the session store, owner turn, official Gateway and media-store loaders issue 10 host imports, all bare openclaw/plugin-sdk/..., none file: or absolute, the real patched contract chunk is never imported and the session module is the host's own instance; Companion layout without the link still loads through the CLI binary. Fails when importHostModule is reverted to file URLs."
+    },
+    {
+      "name": "installer/termux-lite/test-plugin-install-noninteractive.sh",
+      "status": "passed",
+      "evidence": "Real rsync: the extension ends with dist, package.json, openclaw.plugin.json, its node_modules and stamp; earlier fixtures, scripts, sources, tsconfig and lockfile are removed; the checkout is untouched."
+    },
+    {
+      "name": "installer/termux-lite/test-runtime-sync.py",
+      "status": "passed",
+      "evidence": "26 existing cases plus one: an extension holding an earlier full copy is gateway_plugin drift and the sync brings it back to the runtime set."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-openclaw-sdk-versions.cjs",
+      "status": "passed",
+      "evidence": "Version table and loaders on both versions unchanged, unpatched chunk still gives contract 0."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-conversation-model-profile.cjs, test-official-gateway-owner.cjs, test-qa-media-stage.cjs, test-memo-sdk-resolution.cjs, test-owner-turn-admission.cjs; installer/termux-lite/test-model-flow-setup.cjs, test-model-flow-native-session.cjs, test-qa-room-access.py",
+      "status": "passed",
+      "evidence": "Unchanged consumers of the changed loaders pass on the rebuilt dist."
+    }
+  ],
+  "fixtures": {
+    "path": "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-plugin-capture/capture-after-498.json",
+    "provenance": "S24 01/11 after the 18:25 restart, read only: capture directory inventory (per build: packages, files, kB, write window), extension directory composition, profile attribution by caller and time window; capture rule lines with SHA256 from the npm tarballs openclaw@2026.9.6 (1a735569...1e63, same as production) and openclaw@2026.10.9 (43c61a00...04ab)."
+  },
+  "documentation": [
+    "docs/changes/plugin-host-capture-20261101.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No capability, route or tool change; the same SDK functions are loaded from the same installed package."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing loaders and installer only; OpenClaw's own host link and native resolution are used. No new store, router, scheduler, daemon or retry."
+  },
+  "app_impact": {
+    "required": false,
+    "detail": "Server side only."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Plugin module loading and extension file set only; no MCP tool, schema or adapter change."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Expected gain from the 18:25 profile: about 45 s of the 72.4 s under capture (session store surface 41.9 s, plugin directory about 4 s down to about 0.6 s); to be measured on the S24 after deployment with the same restart profile.",
+    "About 22 s remain for the three @openclaw/whatsapp captures (3 x 3 360 files), owned by OpenClaw, outside this plugin.",
+    "The first deployment removes the old sources, scripts and fixtures from the extension; runtime-sync reports a remaining full copy as gateway_plugin drift."
+  ],
+  "rollback": "Revert this commit and redeploy with companion-deploy.sh; the previous lib.sh copies the whole plugin directory again."
+}
