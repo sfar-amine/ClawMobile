@@ -1,0 +1,78 @@
+{
+  "version": 2,
+  "id": "plugin-nostr-lazy-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "#126: nostr-tools leaves the plugin's declared dependencies (now a devDependency, still installed by npm install --include=dev) and is loaded only when a Nostr route runs, through a computed require. OpenClaw copies every declared plugin dependency file by file on the Gateway main thread at the first owner turn after each restart; the declared set drops from 635 files (nostr-tools and its @noble/@scure tree: 616) to ws alone (19).",
+  "reason": "S24 CPU profile of 01/11 12:56 (Gateway restarted on purpose): the first owner turn held the main thread ~90 s (eventLoopDelayMax 46.6 s, WhatsApp closed in 408, run start 91 s after the request). 44.2 s sat under loadInstalledSessionStoreSdk's first import, of which capturePluginDependencies 27.4 s and verifyPluginSourceInputs 13.9 s, dominated by lstat/read/open on those dependency files. 16 of the 17 Gateway stalls of 31/10 were this first turn. Nostr had no activity in the day's logs.",
+  "files": [
+    "openclaw-plugin-mobile-ui/package.json",
+    "openclaw-plugin-mobile-ui/package-lock.json",
+    "openclaw-plugin-mobile-ui/src/companion/nostr.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-plugin-capture-footprint.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-plugin-capture/measurements.json",
+    ".github/workflows/ci.yml",
+    "docs/changes/plugin-nostr-lazy-20261101.json",
+    "docs/changes/plugin-nostr-lazy-20261101.md"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-plugin-capture-footprint.cjs",
+      "status": "passed",
+      "evidence": "New, registered in .github/workflows/ci.yml (Qualify Companion M1 contracts): declared dependencies are exactly [ws] (19 of the 635 files measured on the S24), no built module requires nostr-tools literally, loading companion/nostr.js does not load nostr-tools and the first Nostr call does and works."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-companion-sharing.cjs",
+      "status": "passed",
+      "evidence": "Unchanged Nostr identity, contacts and agent messages flow on the lazy module."
+    }
+  ],
+  "fixtures": {
+    "path": "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-plugin-capture/measurements.json",
+    "provenance": "S24 01/11 12:55-12:58 Tunis: Gateway restart, local inspector CPU profile of the first owner turn, Gateway log lines, file counts of the installed plugin's node_modules, nostr log count."
+  },
+  "documentation": [
+    "docs/changes/plugin-nostr-lazy-20261101.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No capability, route or tool changes; the Nostr routes keep their behaviour and load their library on first use."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Package metadata and one lazy require in the existing Nostr owner. No new store, router, scheduler, daemon or retry."
+  },
+  "app_impact": {
+    "required": false,
+    "detail": "Server side only."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Plugin dependency metadata and a lazy require; no MCP tool, schema or adapter change."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Measured cost left after this change: the lazy agent-runtime plugin registry (loadOpenClawPlugins, ~15 s, OpenClaw) and the verification of the remaining captured files; to be measured on the S24 after deployment with the same restart profile.",
+    "The first Nostr call after a restart now pays that library's capture once (only when Nostr is used)."
+  ],
+  "rollback": "Revert this commit and redeploy the Companion with companion-deploy.sh."
+}
