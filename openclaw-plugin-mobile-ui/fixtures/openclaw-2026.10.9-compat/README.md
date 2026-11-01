@@ -18,6 +18,18 @@ WhatsApp : `connection-controller-CejM7bhn.mjs.gz` et `monitor-DVzumwCI.mjs.gz` 
 `whatsapp-network-recovery` : même correctif, ancres suivies là où l'amont a déplacé `heartbeatSeconds`,
 `reconnectPolicy` et `keepAlive` sous `this.params` et fusionné la décision de reprise.
 
+Jeu `gateway-prep-stages` (préparation du 01/11/2026, `npm pack openclaw@2026.10.9` dans le conteneur Claude Code,
+archive sha256 `43c61a00ef2c73416a072a7216cb3be80555d6740199f07194da2714283b04ab`, extraction ciblée de `dist/`) :
+`openclaw-tools-CSSYZDKR.mjs.gz`, `tools-DQdRObqo.mjs.gz` et `attempt-system-prompt-prepare-ChKsbjSh.mjs.gz` sont les
+modules publics, à l'octet près, que vise la variante `2026.10.9` de ce jeu. En 2026.10.9 la préparation du system
+prompt a quitté `builtin-openclaw` pour `attempt-system-prompt-prepare` et `setup.prepStages` y devient optionnel (le
+tour worker n'en passe pas). Le tracker `dist/stage-timing-BUG4Fnsv.mjs` de 2026.10.9 a les mêmes octets (sha256
+`1d8cfb8d…`) que la capture S24 2026.9.6 de `../s24-2026-10-26-gateway-prep-stages/`, réutilisée telle quelle.
+`gateway-prep-stages-harness.cjs` n'est **pas** une capture : c'est le harness écrit pour
+`installer/termux-lite/test-gateway-prep-stages-1009.py` ; il exécute dans une VM les corps publics originaux puis
+patchés avec des dépendances inertes (aucun import du SDK, aucun réseau, aucun modèle). Les empreintes de ces trois
+modules sur le candidat isolé du S24 restent à confirmer avant toute application.
+
 `@openclaw/fs-safe` : `copy-file-input.js.gz`, `publish-file.js.gz` et `copy-root-file-sync.js.gz` viennent du paquet npm
 `@openclaw/fs-safe@0.26.0` (`npm pack`, archive sha256 `78da1512…3591`), dépendance exacte que `openclaw@2026.10.9` épingle
 et qu'il installe sous `node_modules/@openclaw/fs-safe` ; le jeu `android-fs-compat` les vise à ce chemin.
