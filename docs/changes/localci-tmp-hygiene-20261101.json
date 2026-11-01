@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "id": "localci-tmp-hygiene-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "tools/localci.py leaves nothing behind: every directory it creates (job worktree, per-job Python venv, S24 private HOME, delivery-owner and Android checkouts) is a marked, locked scratch removed on success, failure, runner error and SIGTERM/SIGINT/SIGHUP; a startup purge removes only localci's own marked orphans whose owner is dead and that are older than LOCALCI_STALE_HOURS.",
+  "reason": "The cloud container held about 400 /tmp/localci-python-* venvs (43 MB each, about 17 GB) plus job worktrees from terminated runs; free space fell under the CI floor and later runs stopped with disk_space_insufficient. Causes: bin_for() created a venv per setup-python step and never removed it (also leaked by test_versioned_python_gets_a_setup_python_environment on every samantha-core run), and SIGTERM killed localci without running the job finally block.",
+  "files": [
+    "tools/localci.py",
+    "tools/test_localci.py",
+    "docs/changes/localci-tmp-hygiene-20261101.json",
+    "docs/changes/localci-tmp-hygiene-20261101.md"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "tools/test_localci.py LocalCiScratchHygieneTests",
+      "status": "passed",
+      "evidence": "5 new cases run alone: successful two-job run with setup-python, failed step and runner error, SIGTERM and SIGINT to the CLI process during a running step (exit 128+signal, step stopped, no directory, one worktree), purge keeps unmarked, live-PID, locked, foreign-prefix, symlinked, copied-marker and young directories and removes only the marked dead old one. Already registered in .github/workflows/ci.yml job mobile-ui-plugin (python3 ../tools/test_localci.py)."
+    },
+    {
+      "name": "tools/test_localci.py (whole file)",
+      "status": "passed",
+      "evidence": "61 tests OK, run alone (no full localci run); the count of /tmp/localci-* entries was identical before and after, where the previous version left one venv per file run."
+    }
+  ],
+  "documentation": [
+    "docs/changes/localci-tmp-hygiene-20261101.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Off-phone CI tool only; no app action, setting, route or capability changed."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same single CI owner and same job sequence; only the lifetime of its temporary directories changes. No new store, daemon or scheduler."
+  },
+  "app_impact": {
+    "required": false,
+    "detail": "None: CI tool only."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "CI tool only; MCP execution contracts unchanged."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applicable",
+  "limitations": [
+    "SIGKILL cannot be intercepted: such a directory stays marked and is purged by a later run once its lock is free and it is older than LOCALCI_STALE_HOURS (default 6).",
+    "Directories left by earlier localci versions carry no marker and are never purged by design; removing them is a human decision.",
+    "One venv per job is kept on purpose: a run-wide venv would carry pip installs from one job to the next, unlike fresh GitHub runners."
+  ],
+  "rollback": "Revert this commit; off-phone CI tool only, nothing to redeploy."
+}
