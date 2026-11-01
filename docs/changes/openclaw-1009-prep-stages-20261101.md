@@ -109,3 +109,5 @@ la variante a été appliquée à la main sur une 2026.10.9 :
 3. vérifier les empreintes originales.
 
 **NO_CAPABILITY** : aucune route, action ou capability ajoutée. Le paiement n'est pas touché.
+
+Ajout pendant la qualification : `installer/termux-lite/test-qa-room-access.py` écrit maintenant le fichier de PID du SDK factice de façon atomique (fichier temporaire puis `os.replace`). La CI locale du 01/11 a lu une fois ce fichier encore vide sous charge (JSONDecodeError), sans lien avec la variante 10.9.
