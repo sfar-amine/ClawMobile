@@ -759,7 +759,9 @@ class Upgrade:
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         started = time.monotonic()
         shutil.copytree(source, target, symlinks=True)
-        peer = target / "node_modules/openclaw"
+        # OpenClaw's peer link lives inside the package (node_modules/@openclaw/whatsapp/node_modules/openclaw,
+        # S24); npm replaces the package directory and drops it, so it is recreated on the live OpenClaw path.
+        peer = target / "node_modules/@openclaw/whatsapp/node_modules/openclaw"
         peer_link = os.readlink(peer) if peer.is_symlink() else None
         cmd = list(self.l["npm"]) + ["install", spec["spec"], "--save-exact", "--legacy-peer-deps", "--no-audit",
                                      "--no-fund", "--omit=dev"]
@@ -782,6 +784,7 @@ class Upgrade:
             p["peer_link_retargeted"] = os.path.realpath(peer_link) != os.path.realpath(self.oc_live)
             if peer.is_symlink() or peer.exists():
                 peer.unlink()
+            peer.parent.mkdir(parents=True, exist_ok=True)
             os.symlink(str(self.oc_live), peer)
         version = package_version(target / "node_modules/@openclaw/whatsapp/package.json")
         p["whatsapp_candidate"] = {"rc": rc, "version": version, "ms": int((time.monotonic() - started) * 1000),
@@ -1295,6 +1298,11 @@ class Upgrade:
 
     def run(self) -> int:
         code = 0
+
+        def interrupted(signum, frame):  # SIGTERM/SIGINT in the window still rolls back (SIGKILL cannot)
+            raise Failed(f"interrupted signal={signum}")
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            signal.signal(sig, interrupted)
         try:
             self.preflight()
             if self.o.dry_run:
@@ -1325,6 +1333,8 @@ class Upgrade:
         except Exception as error:
             reason = redact(f"{type(error).__name__}: {error}")[:300]
             if self.done["stopped"]:
+                for sig in (signal.SIGTERM, signal.SIGINT):
+                    signal.signal(sig, signal.SIG_IGN)  # the rollback itself is not interruptible
                 self.rollback(reason)
                 code = 6
             else:

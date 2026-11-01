@@ -32,7 +32,9 @@ from pathlib import Path
 assert sys.argv[1] == "install" and "--legacy-peer-deps" in sys.argv
 if os.environ.get("FAKE_NPM_FAIL"): sys.exit(1)
 spec = sys.argv[2]; version = spec.rsplit("@", 1)[1]
-(Path("node_modules/openclaw")).unlink()  # npm prunes the extraneous peer link
+import shutil
+shutil.rmtree("node_modules/@openclaw/whatsapp")  # npm replaces the package directory: the peer link goes
+Path("node_modules/@openclaw/whatsapp").mkdir()
 pkg = Path("node_modules/@openclaw/whatsapp/package.json")
 pkg.write_text(json.dumps({"name": "@openclaw/whatsapp", "version": version}))
 print("added 3 packages token=" + os.environ.get("FAKE_SECRET", ""))
@@ -72,6 +74,7 @@ elif args[:1] == ["doctor"]:
         st = Path(f"/proc/{watch}/stat").read_text()
         (root / "watch-state-during-doctor").write_text(st[st.rindex(")") + 2])
     rc = int(os.environ.get("FAKE_DOCTOR_RC", "0"))
+    time.sleep(float(os.environ.get("FAKE_DOCTOR_SLEEP", "0")))
     if v == "2026.10.9":
         for db in sorted(state.glob("agents/*/agent/openclaw-agent.sqlite")):
             con = sqlite3.connect(db); con.execute("PRAGMA user_version=25"); con.execute("create table migrated(x)"); con.commit(); con.close()
@@ -140,7 +143,8 @@ class Root:
         wa = self.state / "npm/projects" / WA_GEN / "node_modules/@openclaw/whatsapp"
         wa.mkdir(parents=True)
         (wa / "package.json").write_text(json.dumps({"name": "@openclaw/whatsapp", "version": "2026.9.6"}))
-        os.symlink(str(live / "openclaw"), self.state / "npm/projects" / WA_GEN / "node_modules/openclaw")
+        (wa / "node_modules").mkdir()
+        os.symlink(str(live / "openclaw"), wa / "node_modules/openclaw")  # OpenClaw's peer link, as on the S24
         (td / "fake-npm.py").write_text(FAKE_NPM)
         dist = self.state / "extensions/openclaw-plugin-mobile-ui/dist/companion"
         dist.mkdir(parents=True)
@@ -277,7 +281,9 @@ class OpenClawUpgrade(unittest.TestCase):
         self.assertEqual(doc["gates"]["plugin_tools"]["tools"], 42)
         self.assertEqual(doc["whatsapp"], {"from": "2026.9.6", "to": "2026.10.9"})
         self.assertEqual(len(list((r.state / "npm/projects").iterdir())), 1)
-        self.assertTrue((r.state / "npm/projects" / WA_GEN / "node_modules/openclaw").is_symlink())
+        peer = r.state / "npm/projects" / WA_GEN / "node_modules/@openclaw/whatsapp/node_modules/openclaw"
+        self.assertTrue(peer.is_symlink())
+        self.assertEqual(os.readlink(peer), r.layout["openclaw_root"])
         self.assertTrue(doc["phases"]["stage"]["whatsapp_candidate"]["peer_link_kept"])
         self.assertEqual(doc["gates"]["whatsapp"]["plugin_version"], "2026.10.9")
         self.assertEqual(doc["phases"]["doctor"]["migrated"], 2)
@@ -338,6 +344,26 @@ class OpenClawUpgrade(unittest.TestCase):
         self.assertEqual((doc["state"], run.returncode), ("failed", 5))
         self.assertIn("whatsapp_candidate_failed", doc["detail"])
         self.assertNotIn("stop", doc["phases"])
+        self.assertEqual(r.served_version(), "2026.9.6")
+
+    def test_sigterm_during_doctor_still_rolls_back(self):
+        r = self.make()
+        r.start_current_gateway()
+        proc = subprocess.Popen([sys.executable, str(SCRIPT), "--profile", "staging", "--layout", str(r.layout_path)],
+                                env=r.env(FAKE_DOCTOR_SLEEP="30"), stdout=subprocess.PIPE, text=True)
+        log = None
+        for _ in range(300):
+            logs = list((r.td / "deploys").glob("openclaw-upgrade-*[0-9].log")) if (r.td / "deploys").exists() else []
+            if logs and '"phase": "doctor"' in logs[0].read_text():
+                log = logs[0]
+                break
+            time.sleep(0.1)
+        self.assertIsNotNone(log)
+        proc.send_signal(15)
+        out, _ = proc.communicate(timeout=120)
+        doc = json.loads(Path(out.strip().splitlines()[-1]).read_text())
+        self.assertEqual(doc["state"], "rolled_back")
+        self.assertIn("interrupted", doc["failure"])
         self.assertEqual(r.served_version(), "2026.9.6")
 
     def test_doctor_failure_rolls_back(self):
