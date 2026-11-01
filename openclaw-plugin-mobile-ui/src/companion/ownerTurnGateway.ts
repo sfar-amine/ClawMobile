@@ -7,11 +7,13 @@
 import fs from "fs/promises";
 import path from "path";
 import {createRequire} from "module";
+import {pathToFileURL} from "url";
 import {turnAdmission, type AdmissionTicket} from "./ownerTurnAdmission";
-import {importSurface, openclawSdkVersion, readChunkConstExport} from "./openclawSdkVersions";
+import {importSurface, openclawSdkVersion} from "./openclawSdkVersions";
 
 export const OWNER_TURN_SCOPES = Object.freeze(["operator.admin", "operator.write"]);
 export const OWNER_TURN_METHOD = "agent";
+const nativeImport = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<any>;
 const unavailable = (code: string) => Object.assign(new Error(code), {code, requestSent: false});
 
 type GatewaySdk = {
@@ -83,7 +85,7 @@ export async function loadInstalledGatewaySdk(binary = process.env.CLAWMOBILE_OP
   if (!pinned) throw unavailable("owner_transport_version_unsupported");
   const packageRequire = createRequire(path.join(pkg.root, "package.json"));
   let surface: Awaited<ReturnType<typeof importSurface>>;
-  try { surface = await importSurface(pinned.ownerTurn, specifier => packageRequire.resolve(specifier)); }
+  try { surface = await importSurface(pinned.ownerTurn, specifier => packageRequire.resolve(specifier), file => nativeImport(pathToFileURL(file).href)); }
   catch { throw unavailable("owner_transport_unavailable"); }
   const sdk = {...Object.assign({}, ...surface.modules.values()), ...surface.picked};
   for (const name of Object.keys(pinned.ownerTurn))
@@ -107,14 +109,13 @@ export async function loadInstalledSessionStoreSdk(binary = process.env.CLAWMOBI
   if (!pinned) throw unavailable("owner_transport_version_unsupported");
   const resolve = createRequire(path.join(pkg.root, "package.json"));
   // The contract chunk is hashed per version and only exports the symbol once model-flow-selection is applied.
-  // Read as text (#126): importing it from the plugin made the Gateway capture the whole agent runtime.
   const [surface, contract] = await Promise.all([
-    importSurface(pinned.sessionStore, specifier => resolve.resolve(specifier)),
-    fs.readFile(path.join(pkg.root, pinned.modelProfileContract.module), "utf8")]);
+    importSurface(pinned.sessionStore, specifier => resolve.resolve(specifier), file => nativeImport(pathToFileURL(file).href)),
+    nativeImport(pathToFileURL(path.join(pkg.root, pinned.modelProfileContract.module)).href)]);
   for (const key of Object.keys(pinned.sessionStore))
     if (typeof surface.picked[key] !== "function") throw unavailable("owner_session_metadata_unavailable");
   return {...surface.modules.get(pinned.sessionStore.getSessionEntry[0]), ...surface.picked,
-    modelProfileContractVersion: readChunkConstExport(contract, pinned.modelProfileContract.symbol)};
+    modelProfileContractVersion: contract[pinned.modelProfileContract.symbol]??0};
 }
 let loading: Promise<GatewaySdk> | undefined;
 /** Tests uniquement. */

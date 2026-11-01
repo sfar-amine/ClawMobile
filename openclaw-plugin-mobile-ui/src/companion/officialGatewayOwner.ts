@@ -2,12 +2,14 @@
 import fs from "fs/promises";
 import {constants as fsConstants} from "fs";
 import path from "path";
+import {pathToFileURL} from "url";
 import {createRequire} from "module";
 import {createHash} from "crypto";
 import type {Readable} from "stream";
 import type {GatewayClientOwner,GatewayCallbacks} from "./persistentGatewayTransport";
 import {importSurface,openclawSdkVersion,type OpenClawSdkVersion} from "./openclawSdkVersions";
 
+const nativeImport=new Function("specifier","return import(specifier)") as (specifier:string)=>Promise<any>;
 const fixedError=(code:string)=>Object.assign(new Error(code),{code,requestSent:false});
 const plain=(v:any)=>v!==null&&typeof v==="object"&&!Array.isArray(v);
 // Reduced union needed by current Companion callers; not a reproduction of per-method CLI scopes.
@@ -61,7 +63,7 @@ export async function loadOfficialGatewaySdk(binary:string):Promise<any>{
  const {root,pinned}=await officialSdkPackageRoot(binary);
  try{
   const resolve=createRequire(path.join(root,"package.json"));
-  const {picked}=await importSurface(pinned.officialGateway,specifier=>resolve.resolve(specifier));
+  const {picked}=await importSurface(pinned.officialGateway,specifier=>resolve.resolve(specifier),file=>nativeImport(pathToFileURL(file).href));
   for(const name of ["GatewayClient","resolveGatewayAuth","loadConfig","coerceSecretRef","resolveSecretRefValues","resolveGatewayPort"])if(typeof picked[name]!=="function")throw Error();
   return {GatewayClient:picked.GatewayClient,resolveGatewayAuth:picked.resolveGatewayAuth,loadConfig:picked.loadConfig,coerceSecretRef:picked.coerceSecretRef,resolveSecretRefValues:picked.resolveSecretRefValues,resolveGatewayPort:picked.resolveGatewayPort};
  }catch{throw fixedError("gateway_sdk_unavailable");}
@@ -162,7 +164,7 @@ export async function loadOfficialMediaStore(binary:string):Promise<any>{
  if(!pinned.mediaStore)throw fixedError("qa_document_sdk_unavailable");
  try{
   const resolve=createRequire(path.join(root,"package.json"));
-  const {modules,picked}=await importSurface(pinned.mediaStore,specifier=>resolve.resolve(specifier));
+  const {modules,picked}=await importSurface(pinned.mediaStore,specifier=>resolve.resolve(specifier),file=>nativeImport(pathToFileURL(file).href));
   if(typeof picked.saveMediaBuffer!=="function"||typeof picked.resolveMediaBufferPath!=="function")throw Error();
   return modules.get(pinned.mediaStore.saveMediaBuffer[0]);
  }catch{throw fixedError("qa_document_sdk_unavailable");}

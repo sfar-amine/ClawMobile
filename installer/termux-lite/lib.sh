@@ -788,25 +788,6 @@ clawmobile_plugin_needs_install() {
   return 1
 }
 
-# #126: at each restart the Gateway copies the whole extension directory (minus node_modules and .git) into its
-# plugin source capture, on its main thread, once per plugin instance. The extension holds the runtime set only:
-# dist and the two manifests, plus its own node_modules and install stamp. Sources, scripts and fixtures (826 of
-# the 983 files copied on the S24 on 01/11) stay in the checkout.
-CLAWMOBILE_PLUGIN_RUNTIME_ENTRIES="dist package.json openclaw.plugin.json"
-
-# Same runtime set and nothing else at the top level (runtime-sync.sh compares with this, the installer writes it).
-clawmobile_plugin_runtime_current() {
-  local plugin_dir="$1" extension_dir="$2" entry
-  [ -d "$extension_dir" ] || return 1
-  for entry in $CLAWMOBILE_PLUGIN_RUNTIME_ENTRIES; do
-    diff -rq "$plugin_dir/$entry" "$extension_dir/$entry" >/dev/null 2>&1 || return 1
-  done
-  local extra
-  extra="$(find "$extension_dir" -mindepth 1 -maxdepth 1 ! -name node_modules ! -name .openclaw-plugin-installed-lite.stamp \
-    ! -name dist ! -name package.json ! -name openclaw.plugin.json -print -quit 2>/dev/null)"
-  [ -z "$extra" ]
-}
-
 clawmobile_install_plugin() {
   local plugin_dir="$1"
   local plugin_id="openclaw-plugin-mobile-ui"
@@ -823,12 +804,11 @@ clawmobile_install_plugin() {
 
   if [ -d "$extension_dir" ] && command -v rsync >/dev/null 2>&1; then
     echo "[lite] Updating existing OpenClaw plugin files in place: $extension_dir"
-    # Runtime set only (#126); earlier copies of sources, scripts and fixtures are removed, node_modules is kept.
-    local filters=(--filter 'P /node_modules/' --filter 'P /.openclaw-plugin-installed-lite.stamp') entry
-    for entry in $CLAWMOBILE_PLUGIN_RUNTIME_ENTRIES; do
-      if [ -d "$plugin_dir/$entry" ]; then filters+=(--include "/$entry/***"); else filters+=(--include "/$entry"); fi
-    done
-    rsync -a --delete --delete-excluded --checksum "${filters[@]}" --exclude '*' "$plugin_dir/" "$extension_dir/"
+    rsync -a --delete --checksum \
+      --exclude 'node_modules/' \
+      --exclude '.git/' \
+      --exclude '.openclaw-plugin-installed-lite.stamp' \
+      "$plugin_dir/" "$extension_dir/"
     openclaw config set "plugins.entries[\"$plugin_id\"].enabled" true </dev/null >/dev/null 2>&1 || true
     clawmobile_grant_plugin_conversation_hooks "$plugin_id"
     touch "$install_stamp"

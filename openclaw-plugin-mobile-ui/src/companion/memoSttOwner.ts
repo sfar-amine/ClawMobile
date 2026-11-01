@@ -2,9 +2,9 @@ import fs from "fs";
 import path from "path";
 import { createRequire } from "module";
 import { execFile } from "child_process";
+import { pathToFileURL } from "url";
 import { attachmentContent, MAX_ATTACHMENT_BYTES, memoAudioDurationWithinLimit } from "./attachmentStorage";
 import * as boundary from "./memoSttBoundary";
-import { importHostModule } from "./openclawSdkVersions";
 import { MEMO_SDK_VERSION, MEMO_STT_MODEL, MEMO_STT_PROFILE, MEMO_STT_PROVIDER, MEMO_TRANSCRIPTION_PROMPT, memoSttOwnerFailure, projectMemoTranscript } from "./memoSttBoundary";
 // The S24 receipt binds these exact values (memoSttBoundary.qualifyMemoStt).
 export { MEMO_TRANSCRIPTION_PROMPT };
@@ -18,6 +18,7 @@ export type MemoMediaOwner = {
 
 // Preserve native ESM import in this CommonJS build. Resolve only public exports;
 // no guessed installation path, credential reader or provider implementation.
+const nativeImport = new Function("url", "return import(url)") as (url: string) => Promise<any>;
 const MEMO_SDK_EXPORTS = ["media-understanding-runtime", "config-runtime", "agent-runtime"] as const;
 export const MEMO_SDK_ROOT_TIMEOUT_MS = 3000;
 /** Existing npm installation metadata only, never config/credentials or a shell. */
@@ -82,9 +83,7 @@ export async function resolveMemoSdkEntries(localResolve: (id: string) => string
 }
 export async function loadMemoMediaOwner(entriesForOwner: () => Promise<string[]> = resolveMemoSdkEntries): Promise<MemoMediaOwner> {
   const entries = await entriesForOwner();
-  // Bare specifier when this module resolves the same file (Gateway capture link, #126), else the file URL.
-  const [media, config, auth] = await Promise.all(entries.map((entry, index) =>
-    importHostModule(entry, "openclaw/plugin-sdk/" + MEMO_SDK_EXPORTS[index])));
+  const [media, config, auth] = await Promise.all(entries.map(entry => nativeImport(pathToFileURL(entry).href)));
   if (typeof media.runMediaUnderstandingFile !== "function" || typeof config.loadConfig !== "function" ||
       typeof auth.resolveApiKeyForProvider !== "function") {
     throw new Error("memo_transcript_unavailable");

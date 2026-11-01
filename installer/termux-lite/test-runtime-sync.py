@@ -17,19 +17,15 @@ with open(home/"tier0.log","a") as f: f.write(" ".join(sys.argv[1:])+"\n")
 '''
 PRUNE_STUB = '#!/usr/bin/env python3\nimport pathlib,sys\nopen(pathlib.Path.home()/"tier0.log","a").write(" ".join(sys.argv[1:])+"\\n")\n'
 OPENCLAW_STUB = f'#!/bin/sh\necho "$@" >> "$HOME/openclaw.log"\n[ "$1 $2" = "plugins list" ] && echo {PLUGIN_ID}\nexit 0\n'
-# Top-level --include entries only, as lib.sh passes them (#126: runtime set; node_modules and stamp protected).
 RSYNC_STUB = r'''#!/usr/bin/env python3
 import pathlib, shutil, sys
 src, dst = map(pathlib.Path, sys.argv[-2:])
-args = sys.argv[1:-2]
-included = {args[i + 1].strip("/").split("/")[0] for i, a in enumerate(args[:-1]) if a == "--include"}
-assert included == {"dist", "package.json", "openclaw.plugin.json"}, included
 dst.mkdir(parents=True, exist_ok=True)
 for path in dst.iterdir():
-    if path.name in ("node_modules", ".openclaw-plugin-installed-lite.stamp"): continue
+    if path.name == "node_modules": continue
     shutil.rmtree(path) if path.is_dir() else path.unlink()
 for path in src.iterdir():
-    if path.name not in included: continue
+    if path.name == "node_modules": continue
     target = dst / path.name
     shutil.copytree(path, target) if path.is_dir() else shutil.copy2(path, target)
 '''
@@ -77,7 +73,7 @@ class RuntimeSync(unittest.TestCase):
         compat = self.root / "openclaw-compat"; compat.mkdir()
         (compat / "whatsapp-network-recovery.py").write_text('import json,os,sys\nstate=os.environ.get("STUB_MODEL_PATCH" if "model-flow-selection" in sys.argv else "STUB_NATIVE_PATCH" if "native-turn-provenance" in sys.argv else "STUB_WA_PATCH","unchanged")\nprint(json.dumps({"ok":state!="refused","state":state}))\nsys.exit(1 if state=="refused" else 0)\n')
         (self.root / "install-tier0-control.py").write_text(TIER0_STUB)
-        plugin = self.repo_plugin = repo / PLUGIN_ID; (plugin / "dist").mkdir(parents=True)
+        plugin = repo / PLUGIN_ID; (plugin / "dist").mkdir(parents=True)
         (plugin / "package.json").write_text('{"name":"openclaw-plugin-mobile-ui"}')
         (plugin / "openclaw.plugin.json").write_text('{"id":"openclaw-plugin-mobile-ui"}')
         (plugin / "dist/index.js").write_text("require('./pulseRoomFastPath')\n")
@@ -294,16 +290,6 @@ class RuntimeSync(unittest.TestCase):
         self.assertEqual(0, rc, err)
         self.assertEqual({"ok": True, "commit": self.commit, "plugin": "unchanged", "release": "unchanged", "gateway": "unchanged", "tools": "unchanged", "rules": "unchanged"}, out)
         self.assertEqual([], Companion.calls); self.assertEqual(before, self.tier0_log())
-
-    def test_extension_holds_the_runtime_set_and_an_earlier_full_copy_is_drift(self):
-        # #126: the Gateway copies the extension into its plugin source capture at each restart.
-        self.sync(); self.assertEqual({"dist", "node_modules", "openclaw.plugin.json", "package.json"}, {p.name for p in self.ext.iterdir()})
-        self.assertTrue((self.repo_plugin / "src/companion/runWeb.ts").is_file(), "the checkout keeps its sources")
-        rc, out, _ = self.sync(check=True); self.assertEqual(0, rc, out)
-        (self.ext / "fixtures/protocol").mkdir(parents=True); (self.ext / "fixtures/protocol/old.json").write_text("{}")
-        rc, out, _ = self.sync(check=True); self.assertEqual(1, rc); self.assertIn("gateway_plugin", out["drift"])
-        Companion.calls.clear(); rc, out, err = self.sync()
-        self.assertEqual(0, rc, err); self.assertEqual("synced", out["plugin"]); self.assertFalse((self.ext / "fixtures").exists())
 
     def test_new_whatsapp_patch_restarts_even_when_plugin_already_matches(self):
         self.sync(); Companion.calls.clear()
