@@ -130,6 +130,9 @@ jobs:
       - name: Every compatibility replacement imports a real module and export of its own OpenClaw build
         run: python3 ../installer/termux-lite/test-openclaw-compat-imports.py
 
+      - name: OpenClaw 2026.10.9 upgrade switch gates and rolls back automatically (openclaw-upgrade.py)
+        run: python3 ../installer/termux-lite/test-openclaw-upgrade.py
+
       - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
         run: python3 ../installer/termux-lite/test-project-room.py
       - name: Pulse room agents (fichier 52 §5)
