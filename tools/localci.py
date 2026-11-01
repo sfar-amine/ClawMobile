@@ -10,6 +10,7 @@ Debian toolchains, the deploy lock held exclusively (one heavy job at a time), l
 steps with a private HOME and no Samantha credentials in their environment.
 """
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -23,6 +24,10 @@ import sys
 import tempfile
 import time
 import yaml
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - POSIX only; scratch liveness then relies on the PID
+    fcntl = None
 
 def _proof_regular_bytes(path, limit=128*1024):
     fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | getattr(os, 'O_NOFOLLOW', 0))
@@ -49,6 +54,207 @@ EXPR = re.compile(r"\$\{\{\s*(.*?)\s*\}\}")
 
 class LocalCIError(Exception):
     pass
+
+
+# ---- Scratch hygiene: every directory localci creates is marked, locked while alive, and removed. ----
+# A marker written at creation identifies localci's own directories; its flock is held for the owner's
+# lifetime (released by the kernel even on SIGKILL), so a later run can tell an orphan from a live run
+# without trusting a PID alone (PID reuse, bwrap PID namespaces). Nothing unmarked is ever touched.
+SCRATCH_MARKER = ".localci-owner.json"
+SCRATCH_PREFIX = "localci-"
+STALE_HOURS_DEFAULT = 6
+_LIVE_SCRATCH = {}  # resolved path -> marker fd holding the liveness lock
+
+
+class LocalCITerminated(BaseException):
+    """SIGTERM/SIGINT/SIGHUP turned into unwinding so every finally/with removes its scratch."""
+
+    def __init__(self, signum):
+        super().__init__(signum)
+        self.signum = signum
+
+
+_SIGNALS = {"pending": None, "raised": False, "defer": 0}
+
+
+def _on_termination_signal(signum, _frame):
+    if _SIGNALS["pending"] is None:
+        _SIGNALS["pending"] = signum
+    # One unwinding only; a signal during cleanup is recorded, never allowed to cut a removal short.
+    if _SIGNALS["raised"] or _SIGNALS["defer"]:
+        return
+    _SIGNALS["raised"] = True
+    raise LocalCITerminated(signum)
+
+
+def install_termination_cleanup():
+    """CLI only (never at import): termination signals unwind the run instead of killing it mid-job."""
+    for name in ("SIGTERM", "SIGINT", "SIGHUP"):
+        if hasattr(signal, name):
+            signal.signal(getattr(signal, name), _on_termination_signal)
+
+
+@contextlib.contextmanager
+def _signals_deferred():
+    _SIGNALS["defer"] += 1
+    try:
+        yield
+    finally:
+        _SIGNALS["defer"] -= 1
+    if not _SIGNALS["defer"] and _SIGNALS["pending"] is not None and not _SIGNALS["raised"]:
+        _SIGNALS["raised"] = True
+        raise LocalCITerminated(_SIGNALS["pending"])
+
+
+def _tmp_root():
+    return os.getenv("LOCALCI_TMP_ROOT") or None
+
+
+def _proc_start_time(pid):
+    try:
+        text = Path(f"/proc/{pid}/stat").read_text()
+        return text[text.rindex(")") + 2:].split()[19]
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _read_small(path):
+    try:
+        return Path(path).read_text().strip()
+    except OSError:
+        return ""
+
+
+def _pid_namespace():
+    try:
+        return os.readlink("/proc/self/ns/pid")
+    except OSError:
+        return ""
+
+
+def make_scratch(prefix, root=None):
+    """mkdtemp + marker (owner PID, start time, PID namespace, boot) + a lock held until drop_scratch."""
+    if not prefix.startswith(SCRATCH_PREFIX):
+        raise LocalCIError("scratch_prefix_must_be_localci")
+    folder = Path(tempfile.mkdtemp(prefix=prefix, dir=root)).resolve()
+    fd = None
+    try:
+        fd = os.open(folder / SCRATCH_MARKER, os.O_RDWR | os.O_CREAT | os.O_EXCL
+                     | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), 0o600)
+        if fcntl is not None:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        pid = os.getpid()
+        os.write(fd, json.dumps({"owner": "localci", "version": 1, "path": str(folder), "pid": pid,
+                                 "pid_start": _proc_start_time(pid), "pid_ns": _pid_namespace(),
+                                 "boot_id": _read_small("/proc/sys/kernel/random/boot_id"),
+                                 "created": time.time()}, sort_keys=True).encode())
+    except BaseException:
+        if fd is not None:
+            os.close(fd)
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
+    _LIVE_SCRATCH[str(folder)] = fd
+    return folder
+
+
+def drop_scratch(folder):
+    """Remove the tree while still holding the lock, then release it: no window where it looks orphaned."""
+    with _signals_deferred():
+        fd = _LIVE_SCRATCH.pop(str(folder), None)
+        shutil.rmtree(folder, ignore_errors=True)
+        if fd is not None:
+            os.close(fd)
+
+
+@contextlib.contextmanager
+def scratch(prefix, root=None):
+    folder = make_scratch(prefix, root)
+    try:
+        yield folder
+    finally:
+        drop_scratch(folder)
+
+
+def drop_all_scratch():
+    for folder in list(_LIVE_SCRATCH):
+        drop_scratch(folder)
+
+
+def _scratch_owner_alive(marker_fd, info):
+    """Conservative: anything uncertain counts as alive."""
+    if fcntl is not None:
+        try:
+            fcntl.flock(marker_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True  # The owner (in any PID namespace) still holds its lock.
+        except OSError:
+            return True
+    pid = info.get("pid")
+    if type(pid) is not int or pid <= 0:
+        return True
+    if info.get("boot_id") and info["boot_id"] != _read_small("/proc/sys/kernel/random/boot_id"):
+        return False
+    if info.get("pid_ns") != _pid_namespace():
+        return fcntl is None  # Foreign PID numbers mean nothing here; the free lock above is the proof.
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True  # Exists, owned by someone else.
+    started = _proc_start_time(pid)
+    return not (started and info.get("pid_start") and started != info["pid_start"])  # Reused PID = dead.
+
+
+def purge_stale_scratch(roots=None, max_age_hours=None, now=None):
+    """Remove only localci's own marked directories whose owner is dead and that are older than N hours."""
+    if max_age_hours is None:
+        try:
+            max_age_hours = float(os.getenv("LOCALCI_STALE_HOURS") or STALE_HOURS_DEFAULT)
+        except ValueError:
+            max_age_hours = STALE_HOURS_DEFAULT
+    max_age_hours = max(1.0, max_age_hours)
+    now = time.time() if now is None else now
+    if roots is None:
+        roots = [_tmp_root() or tempfile.gettempdir(), tempfile.gettempdir()]
+    removed = []
+    for root in dict.fromkeys(str(Path(r).resolve()) for r in roots):
+        try:
+            entries = list(os.scandir(root))
+        except OSError:
+            continue
+        for entry in entries:
+            if not entry.name.startswith(SCRATCH_PREFIX) or entry.path in _LIVE_SCRATCH:
+                continue
+            try:
+                if not entry.is_dir(follow_symlinks=False) or entry.stat(follow_symlinks=False).st_uid != os.getuid():
+                    continue
+                fd = os.open(os.path.join(entry.path, SCRATCH_MARKER),
+                             os.O_RDWR | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0))
+            except OSError:
+                continue  # Unmarked (or unreadable): never ours to judge.
+            try:
+                meta = os.fstat(fd)
+                if not stat.S_ISREG(meta.st_mode) or meta.st_uid != os.getuid() or meta.st_size > 4096:
+                    continue
+                info = json.loads(os.read(fd, 4097).decode())
+                if (not isinstance(info, dict) or info.get("owner") != "localci" or info.get("version") != 1
+                        or info.get("path") != entry.path):
+                    continue
+                created = info.get("created")
+                if not isinstance(created, (int, float)):
+                    continue
+                if now - max(created, meta.st_mtime) < max_age_hours * 3600:
+                    continue
+                if _scratch_owner_alive(fd, info):
+                    continue
+                shutil.rmtree(entry.path, ignore_errors=True)
+                removed.append(entry.path)
+            except (OSError, ValueError, UnicodeDecodeError):
+                continue
+            finally:
+                os.close(fd)
+    return removed
 
 
 # Runtime credentials and live-service switches never reach a CI step on the S24.
@@ -131,7 +337,8 @@ def conditional(value, pr):
     raise LocalCIError(f"Unsupported if expression: {value}")
 
 
-def bin_for(kind, version):
+def bin_for(kind, version, scratch_dir=None):
+    """Python gets a private venv inside `scratch_dir` (the job's scratch, removed with the job)."""
     label = str(version).replace(".", "")
     var = f"LOCALCI_{kind.upper()}{label}_BIN"
     configured = os.getenv(var)
@@ -158,7 +365,9 @@ def bin_for(kind, version):
                 return str(folder)
             # Like actions/setup-python: a private interpreter where `python`, `python3` and `pip install` work
             # (a distribution's system Python refuses pip installs, PEP 668).
-            venv = Path(tempfile.mkdtemp(prefix="localci-python-", dir=os.getenv("LOCALCI_TMP_ROOT") or None))
+            if scratch_dir is None:
+                raise LocalCIError("setup-python requires the job scratch directory (no unowned venv)")
+            venv = Path(tempfile.mkdtemp(prefix=f"python{version}-", dir=scratch_dir))
             created = subprocess.run([str(executable), "-m", "venv", str(venv)], capture_output=True, text=True)
             if created.returncode or not (venv / "bin" / "python").is_file():
                 raise LocalCIError(f"Cannot create a Python {version} environment: {created.stderr[:200]}")
@@ -262,12 +471,25 @@ def preserve_app_test_reports(space, artifacts):
     return count, size, truncated
 
 
+def _stop_child(proc):
+    """An aborted run never leaves its step writing into a directory being removed."""
+    if proc.poll() is None:
+        try:
+            proc.terminate()
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        except ProcessLookupError:
+            pass
+
+
 def run_app_ci(repo, sha, pr, base, logpath, delivery=None):
     artifacts = logpath.with_name(logpath.stem + "-android")
     if artifacts.exists():
         raise LocalCIError("Android artifact directory already exists; use a new output log to avoid stale evidence")
-    space = Path(tempfile.mkdtemp(prefix="localci-samantha-android-",
-                                 dir=os.getenv("LOCALCI_TMP_ROOT") or None)).resolve()
+    holder = make_scratch("localci-samantha-android-", _tmp_root())
+    space = holder / "workspace"
     attached = False
     try:
         command(["git", "worktree", "add", "--detach", str(space), sha], repo)
@@ -301,10 +523,15 @@ def run_app_ci(repo, sha, pr, base, logpath, delivery=None):
             note(f"ANDROID_TESTS suites={tests['suites']} tests={tests['tests']} failures=0 errors=0 skipped=0")
             note(f"LOCALCI_RESULT exit=0 sha={sha} jobs=1 steps=1 tests={tests['tests']} delivery=android")
         return 0
+    except BaseException:
+        if "proc" in locals():
+            _stop_child(proc)
+        raise
     finally:
-        if attached:
-            subprocess.run(["git", "worktree", "remove", "--force", str(space)], cwd=repo, capture_output=True)
-        shutil.rmtree(space, ignore_errors=True)
+        with _signals_deferred():
+            if attached:
+                subprocess.run(["git", "worktree", "remove", "--force", str(space)], cwd=repo, capture_output=True)
+            drop_scratch(holder)
 
 
 def run_ci(repo_arg, sha, pr, output):
@@ -371,8 +598,8 @@ except Exception as error:
 
 
 def validate_core_delivery(repo, base, head):
-    with tempfile.TemporaryDirectory(prefix="localci-delivery-", dir=os.getenv("LOCALCI_TMP_ROOT") or None) as root:
-        owner = Path(root) / "samantha-ui-playbooks"
+    with scratch("localci-delivery-", _tmp_root()) as root:
+        owner = root / "samantha-ui-playbooks"
         _checkout_delivery_owner(owner)
         return _validate_at_delivery_owner(owner, repo, base, head)
 
@@ -409,6 +636,9 @@ def _run_ci(repo_arg, sha, pr, output, s24=False):
             raise LocalCIError("Missing versioned Android build owner")
         path = APP_WORKFLOW
     logpath = Path(output).expanduser().resolve()
+    purged = purge_stale_scratch()  # Only our own marked orphans: frees space before the floor is judged.
+    if purged:
+        print(f"LOCALCI_PURGE removed={len(purged)} stale_marked_scratch", flush=True)
     disk_preflight([os.getenv("LOCALCI_TMP_ROOT") or tempfile.gettempdir(), logpath.parent], app=app)
     logpath.parent.mkdir(parents=True, exist_ok=True)
     workflow = yaml.safe_load(command(["git", "show", f"{sha}:{path}"], repo))
@@ -440,10 +670,13 @@ def _run_ci(repo_arg, sha, pr, output, s24=False):
                 raise LocalCIError(f"Invalid job definition: {job_name}")
             if not conditional(job.get("if"), pr):
                 raise LocalCIError(f"Cannot attest a skipped job: {job_name}")
-            space = Path(tempfile.mkdtemp(prefix="localci-" + repo.name + "-" + job_name + "-",
-                                          dir=os.getenv("LOCALCI_TMP_ROOT") or None)).resolve()
+            # One marked scratch per job: its detached worktree, its private Python venv (as a fresh
+            # GitHub runner gets), and nothing else; removed in finally, on failure and on termination.
+            holder = make_scratch("localci-" + repo.name + "-" + job_name + "-", _tmp_root())
+            space = holder / "workspace"
             attached = False
             step_home = None
+            proc = None
             try:
                 command(["git", "worktree", "add", "--detach", str(space), sha], repo)
                 attached = True
@@ -459,8 +692,9 @@ def _run_ci(repo_arg, sha, pr, output, s24=False):
                     env = {k: v for k, v in env.items() if not S24_STEP_ENV_DROP.match(k)}
                     # In Debian's own /tmp: a HOME under the Termux tree would make a nested localci
                     # (its own tests) take the step for raw Termux.
-                    step_home = Path(tempfile.mkdtemp(prefix="localci-home-"))
-                    env["HOME"] = str(step_home)
+                    step_home = make_scratch("localci-home-")
+                    (step_home / "home").mkdir()
+                    env["HOME"] = str(step_home / "home")
                     step_bin = os.getenv("LOCALCI_S24_STEP_BIN")  # the mirror-backed `gh` of the wrapper
                     if step_bin:
                         env["PATH"] = step_bin + os.pathsep + env.get("PATH", "")
@@ -497,7 +731,7 @@ def _run_ci(repo_arg, sha, pr, output, s24=False):
                             if py and ver != "3.12":
                                 raise LocalCIError("Only workflow Python 3.12 supported")
                             env["PATH"] = bin_for("python" if py else "node",
-                                ver if py else int(ver.split(".")[0])) + os.pathsep + env["PATH"]
+                                ver if py else int(ver.split(".")[0]), holder) + os.pathsep + env["PATH"]
                         elif action != "actions/checkout":
                             raise LocalCIError(f"Unsupported uses step: {action}")
                         result = 0
@@ -516,6 +750,8 @@ def _run_ci(repo_arg, sha, pr, output, s24=False):
                         for line in proc.stdout:
                             log.write(line)
                         result = proc.wait()
+                        proc.stdout.close()
+                        proc = None
                         apply_github_env(Path(env["GITHUB_ENV"]), env)
                     else:
                         raise LocalCIError(f"Unsupported blank step: {job_name}:{idx}")
@@ -525,13 +761,18 @@ def _run_ci(repo_arg, sha, pr, output, s24=False):
                         return result
                     passed += 1
                 note(f"JOB_OK {job_name}")
+            except BaseException:
+                if proc is not None:
+                    _stop_child(proc)
+                raise
             finally:
-                if attached:
-                    subprocess.run(["git", "worktree", "remove", "--force", str(space)], cwd=repo,
-                                   capture_output=True)
-                shutil.rmtree(space, ignore_errors=True)
-                if step_home:
-                    shutil.rmtree(step_home, ignore_errors=True)
+                with _signals_deferred():
+                    if attached:
+                        subprocess.run(["git", "worktree", "remove", "--force", str(space)], cwd=repo,
+                                       capture_output=True)
+                    drop_scratch(holder)
+                    if step_home:
+                        drop_scratch(step_home)
         note(f"LOCALCI_RESULT exit=0 sha={sha} jobs={len(jobs)} steps={passed}")
     return 0
 
@@ -681,10 +922,20 @@ def _subreaper_main(argv):
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     code = 143
+    child = None
     try:
-        code = subprocess.Popen(argv, start_new_session=True).wait()
+        child = subprocess.Popen(argv, start_new_session=True)
+        code = child.wait()
     except _Stop:
-        pass
+        # Let the owner run unwind and remove its scratch before the forced teardown.
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        if child is not None:
+            try:
+                child.send_signal(signal.SIGTERM)
+                child.wait(timeout=10)
+            except (subprocess.TimeoutExpired, ProcessLookupError):
+                pass
     finally:
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -811,8 +1062,19 @@ def main():
     for arg in ("repository", "sha", "pr", "output"):
         parser.add_argument(arg)
     args = parser.parse_args()
+    install_termination_cleanup()
     try:
         return run_ci(args.repository, args.sha, args.pr, args.output)
+    except LocalCITerminated as stop:
+        code = 128 + stop.signum
+        message = f"LOCALCI_RESULT exit={code} error=terminated_by_signal signal={stop.signum}"
+        print(message, file=sys.stderr)
+        try:
+            with Path(args.output).expanduser().resolve().open("a", encoding="utf-8") as output:
+                output.write(message + "\n")
+        except OSError:
+            pass
+        return code
     except Exception as exc:
         message = f"LOCALCI_RESULT exit=1 error={str(exc)[:450]}"
         print(message, file=sys.stderr)
@@ -824,6 +1086,9 @@ def main():
         except OSError:
             pass
         return 1
+    finally:
+        _SIGNALS["raised"] = True  # Exiting: a late signal can no longer cut the backstop removal short.
+        drop_all_scratch()
 
 
 if __name__ == "__main__":
