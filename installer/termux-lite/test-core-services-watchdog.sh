@@ -131,4 +131,100 @@ run_wd 2
 nothing_done estop; LOGF | grep -q "reason=emergency_stop" || fail "emergency stop: deferral not logged"
 echo "ok 9 Tier0 emergency stop: deferred, nothing stopped"
 
+# --gateway-only: the mode samantha-health-manager.sh supervises. The Companion belongs to the health manager
+# and, while it lives, the Gateway to the Companion's own watchdog: this watchdog acts only without a Companion.
+# Every earlier case's processes are reaped first: pgrep sees the whole host.
+reap(){ local p; for p in "${PIDS[@]}"; do kill -KILL "$p" 2>/dev/null || true; done; PIDS=(); for p in "$T"/*/new-gw.pid; do [ -f "$p" ] && kill -KILL "$(cat "$p")" 2>/dev/null; rm -f "$p"; done; sleep 0.3; }
+gw_only(){ local t="$1"; shift; TICKS_ARG="$t" run_wd_args --gateway-only "$@"; }
+run_wd_args(){
+  env -u OPENCLAW_HOME -u SAMANTHA_DEPLOY_LOCK_FD HOME="$C/home" PATH="$C/bin:$PATH" CLAW_RUNTIME_ROOT="$C/root" \
+    GATEWAY_PORT="$PORT" CORE_SERVICES_WATCHDOG_TICKS="$TICKS_ARG" CORE_SERVICES_WATCHDOG_INTERVAL_S=0 \
+    CORE_SERVICES_GATEWAY_STOP_WAIT_S="${STOP_WAIT:-10}" timeout 60 "$BASH_BIN" "$C/root/core-services-watchdog.sh" "$@" </dev/null
+}
+singleton_free(){ "$BASH_BIN" -c 'exec 8>"$1"; flock -n 8' _ "$C/home/.openclaw/watchdogs/core-services.lock"; }
+no_companion_start(){ [ ! -e "$C/companion-starts" ] || fail "$1: --gateway-only must never start the Companion"; }
+# Wait until no Companion-like process remains on the host (killed doubles are reaped asynchronously).
+no_companion_left(){ local i; for i in $(seq 50); do pgrep -f 'dist/companion/[s]erver.js' >/dev/null || return 0; sleep 0.1; done
+  fail "a process matching the Companion pattern is still running on this host: $(pgrep -af 'dist/companion/[s]erver.js' | cut -c1-120 | head -3)"; }
+ps_no_gw(){ printf '  PID ELAPSED COMMAND\n%s 900 bash -c sleep 600; : openclaw-gateway\n' "$DECOY" >"$C/ps.out"; }
+
+# 10. Companion alive, Gateway mute beyond grace: the Companion's watchdog owns it, nothing here.
+reap; setup gw_companion; ps_ages 300; gw_only 3
+nothing_done gw_companion; no_companion_start gw_companion
+! LOGF | grep -q gateway_port_closed || fail "gw_companion: no observation while the Companion owns the Gateway"
+LOGF | grep -q 'event=gateway_owner owner=companion scope=gateway' || fail "gw_companion: owner hand-off not logged"
+[ "$(LOGF | grep -c 'event=gateway_owner')" = 1 ] || fail "gw_companion: owner must be logged on transitions only"
+lock_free || fail "gw_companion: the runtime lease must never be taken"
+echo "ok 10 --gateway-only, Companion alive: Gateway left to the Companion, nothing done"
+
+# 11. Companion absent, Gateway mute beyond grace: exact PID stopped and restarted, Companion untouched.
+reap; setup gw_orphan; kill -KILL "$CP"; no_companion_left; ps_ages 120; gw_only 2
+! alive "$GW" || fail "gw_orphan: mute Gateway must be stopped"
+[ "$(cat "$C/starts" 2>/dev/null)" = start ] || fail "gw_orphan: gateway-start.sh must run exactly once"
+LOGF | grep -q "event=gateway_restarted cause=gateway_alive_port_closed stopped=$GW" || fail "gw_orphan: restart not logged"
+LOGF | grep -q 'event=gateway_owner owner=core-services scope=gateway' || fail "gw_orphan: owner not logged"
+no_companion_start gw_orphan; lock_free || fail "gw_orphan: lease not released"
+NEW="$(cat "$C/new-gw.pid")"; alive "$NEW" || fail "gw_orphan: relaunched Gateway should run"
+singleton_free || fail "gw_orphan: the relaunched Gateway must not hold the watchdog singleton lock"
+[ "$(awk '{print $4}' "/proc/$NEW/stat")" != "$$" ] || fail "gw_orphan: relaunched Gateway must be detached"
+echo "ok 11 --gateway-only, Companion absent, mute Gateway: restarted under the lease, Companion never started"
+
+# 12. Companion absent and no Gateway at all: one start under the lease.
+reap; setup gw_absent; kill -KILL "$CP" "$GW"; no_companion_left; ps_no_gw; gw_only 2
+[ "$(cat "$C/starts" 2>/dev/null)" = start ] || fail "gw_absent: gateway-start.sh must run exactly once"
+LOGF | grep -q 'event=recovered service=gw cause=gateway_absent_companion_absent' || fail "gw_absent: recovery not logged"
+grep -qx core_service "$C/notifications" || fail "gw_absent: recovery notification missing"
+no_companion_start gw_absent; lock_free || fail "gw_absent: lease not released"; singleton_free || fail "gw_absent: singleton lock inherited"
+echo "ok 12 --gateway-only, Companion and Gateway absent: Gateway started once, Companion never started"
+
+# 13. Same, while the health manager repairs the Companion under the lease: nothing started.
+reap; setup gw_hm_lease; kill -KILL "$CP" "$GW"; no_companion_left; ps_no_gw
+mkfifo "$C/lease.in"
+HOME="$C/home" python3 "$R/runtime_mode.py" --repair-lease <"$C/lease.in" >"$C/lease.out" 2>/dev/null & PIDS+=("$!"); LEASE=$!
+exec 6>"$C/lease.in"
+for _ in $(seq 50); do grep -q acquired "$C/lease.out" 2>/dev/null && break; sleep 0.1; done
+grep -q acquired "$C/lease.out" || fail "test setup: lease not acquired"
+gw_only 2; exec 6>&-; wait "$LEASE" 2>/dev/null || true
+[ ! -e "$C/starts" ] || fail "gw_hm_lease: no start while the Companion repair holds the lease"
+LOGF | grep -q 'event=gateway_recovery_deferred cause=gateway_absent_companion_absent reason=lock_busy' || fail "gw_hm_lease: deferral not logged"
+no_companion_start gw_hm_lease
+echo "ok 13 --gateway-only, Companion repair lease held: deferred, nothing started"
+
+# 14. A Companion that appears while the lease is being taken keeps the Gateway (re-check under the lease).
+reap; setup gw_race; kill -KILL "$CP" "$GW"; no_companion_left; ps_no_gw; rm -f "$C/root/runtime_mode.py"
+cat >"$C/root/runtime_mode.py" <<EOF
+import os,subprocess,sys
+p=subprocess.Popen(["$BASH_BIN","-c",'exec -a "node dist/companion/server.js" sleep 600'],start_new_session=True)
+open("$C/race-cp.pid","w").write(str(p.pid)); import time; time.sleep(0.3)
+os.execvp(sys.executable,[sys.executable,"$R/runtime_mode.py"]+sys.argv[1:])
+EOF
+gw_only 1; [ -f "$C/race-cp.pid" ] && PIDS+=("$(cat "$C/race-cp.pid")")
+[ ! -e "$C/starts" ] || fail "gw_race: no start once the Companion is back"
+LOGF | grep -q 'event=gateway_recovery_skipped cause=gateway_absent_companion_absent reason=companion_owns_gateway' || fail "gw_race: skip not logged"
+lock_free || fail "gw_race: lease not released"
+echo "ok 14 --gateway-only, Companion back under the lease: no start"
+
+# 15. A gateway-start.sh still preparing (no openclaw-gateway title yet) is a Gateway: no second start.
+reap; setup gw_starting; kill -KILL "$CP" "$GW"; no_companion_left
+printf '  PID ELAPSED COMMAND\n%s 3 /data/data/com.termux/files/usr/bin/bash %s/root/gateway-start.sh\n' "$DECOY" "$C" >"$C/ps.out"; gw_only 2
+[ ! -e "$C/starts" ] || fail "gw_starting: a Gateway being started must not be started twice"
+lock_free || fail "gw_starting: lease must not be taken"
+echo "ok 15 --gateway-only, gateway-start.sh in progress: no second start"
+
+# 16. Singleton: a running watchdog keeps its lock, a second one exits at once; unknown option refused.
+reap; setup gw_single; ps_ages 300
+( exec env -u OPENCLAW_HOME -u SAMANTHA_DEPLOY_LOCK_FD HOME="$C/home" PATH="$C/bin:$PATH" CLAW_RUNTIME_ROOT="$C/root" GATEWAY_PORT="$PORT" \
+    CORE_SERVICES_WATCHDOG_TICKS=0 CORE_SERVICES_WATCHDOG_INTERVAL_S=1 "$BASH_BIN" "$C/root/core-services-watchdog.sh" --gateway-only </dev/null ) & PIDS+=("$!"); FIRST=$!
+for _ in $(seq 50); do LOGF | grep -q 'event=start' && break; sleep 0.1; done
+! singleton_free || fail "gw_single: the running watchdog must hold the singleton lock"
+TICKS_ARG=1 run_wd_args --gateway-only; rc=$?
+[ "$rc" = 0 ] && [ "$(LOGF | grep -c 'event=start')" = 1 ] || fail "gw_single: a second instance must exit without starting (rc=$rc)"
+for p in $(pgrep -f "$C/root/[c]ore-services-watchdog.sh"); do kill -TERM "$p" 2>/dev/null; done; wait "$FIRST" 2>/dev/null || true
+for _ in $(seq 50); do pgrep -f "$C/root/[c]ore-services-watchdog.sh" >/dev/null || break; sleep 0.1; done
+! pgrep -f "$C/root/[c]ore-services-watchdog.sh" >/dev/null || fail "gw_single: the first watchdog did not stop"
+singleton_free || fail "gw_single: lock must be released when the watchdog stops"
+set +e; TICKS_ARG=1 run_wd_args --bogus 2>/dev/null; rc=$?; set -e
+[ "$rc" = 64 ] || fail "gw_single: unknown option must be refused (rc=$rc)"
+echo "ok 16 singleton held for the life of the loop; second instance exits; unknown option refused"
+
 echo "core-services watchdog gateway port tests passed"

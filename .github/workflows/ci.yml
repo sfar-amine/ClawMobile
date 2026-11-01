@@ -179,6 +179,7 @@ jobs:
           bash ../installer/termux-lite/test-core-services-watchdog.sh
           python3 ../installer/termux-lite/test-engineering-runtime-bridge.py
           python3 ../installer/termux-lite/test-gateway-preflight.py
+          python3 ../installer/termux-lite/test-health-gateway-fallback-owner.py
           node ../installer/termux-lite/test-gemini-live-client.mjs
           python3 ../installer/termux-lite/test-incident-continuation.py
           python3 ../installer/termux-lite/test-incident-correlation.py

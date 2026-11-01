@@ -88,20 +88,28 @@ $opened
 EOF
  log "service=$n action=incident_opened incident_id=$iid correlation_id=$correlation_id"; if "$ROOT/incident-orchestrator.py" handled "$n" 9>&- >/dev/null 2>&1; then "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source health-manager --reason "deterministic recovery exhausted; managed handler available" >/dev/null 2>&1 || true; shadow "$n" "$c" "$iid"; else "$ROOT/incident-orchestrator.py" transition "$iid" awaiting_deterministic_recovery --source health-manager --reason "no managed handler; waiting for health-manager verification" >/dev/null 2>&1 || true; log "service=$n state=awaiting_deterministic_recovery reason=no_repair_handler incident_id=$iid correlation_id=$correlation_id"; fi; fi; }
 due(){ [ "$(now)" -ge "$(get "$1" next 0)" ]; }
-start(){ nohup "$2" 9>&- >>"$D/$1.stderr.log" 2>&1 </dev/null & }
+start(){ nohup "${@:2}" 9>&- >>"$D/$1.stderr.log" 2>&1 </dev/null & }
+# Extra arguments after the script (e.g. --gateway-only) are part of the supervisor's identity: a process
+# running the same script without them is another mode and is replaced like a stale release.
 process_uses_script(){
-  pat="$1"; script="$2"
+  pat="$1"; script="$2"; shift 2
+  local found want missing argv
   for pid in $(pgrep -f "$pat" 9>&- 2>/dev/null); do
     [ -r "/proc/$pid/cmdline" ] || continue
+    found=; argv=$'\n'
     while IFS= read -r -d '' arg; do
-      [ "$arg" = "$script" ] && return 0
+      [ "$arg" = "$script" ] && found=1
+      argv+="$arg"$'\n'
     done <"/proc/$pid/cmdline" 2>/dev/null
+    [ -n "$found" ] || continue
+    missing=; for want in "$@"; do [[ "$argv" == *$'\n'"$want"$'\n'* ]] || missing=1; done
+    [ -z "$missing" ] && return 0
   done
   return 1
 }
-supervisor_on_current_root(){ process_uses_script "$1" "$2"; }
+supervisor_on_current_root(){ process_uses_script "$@"; }
 stop_supervisor(){ pat="$1"; pkill -TERM -f "$pat" 9>&- 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt 8 ]; do sleep 1 9>&-; waited=$((waited+1)); done; if proc "$pat"; then log "service=supervisor state=stop_timeout pattern=$pat action=kill_stale"; pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; sleep 1 9>&-; fi; }
-supervisor_lock(){ case "$1" in adb_watchdog) printf '%s' "$HOME/.openclaw/watchdogs/adb-recovery.lock";; remote_watchdog) printf '%s' "$HOME/.openclaw/watchdogs/remote-desktop.lock";; incident_manager) printf '%s' "$HOME/.openclaw/incidents/manager.lock";; *) return 1;; esac; }
+supervisor_lock(){ case "$1" in adb_watchdog) printf '%s' "$HOME/.openclaw/watchdogs/adb-recovery.lock";; remote_watchdog) printf '%s' "$HOME/.openclaw/watchdogs/remote-desktop.lock";; core_services_watchdog) printf '%s' "$HOME/.openclaw/watchdogs/core-services.lock";; incident_manager) printf '%s' "$HOME/.openclaw/incidents/manager.lock";; *) return 1;; esac; }
 wait_supervisor_lock(){
  n="$1"; lock=$(supervisor_lock "$n") || return 0; waited=0
  while :; do
@@ -119,7 +127,7 @@ wait_supervisor_lock(){
 # 4 déploiements en 17 min ont épuisé 3/3, déclenché un rollback Tier0 puis 4 incidents human_required,
 # et ~490 restart_refused par superviseur, sans fin, sur des processus qui tournaient). Un superviseur
 # ABSENT reste une panne et passe par restart_gate.
-check_supervisor_effect(){ n="$1"; pat="$2"; script="$3"; if proc "$pat" && supervisor_on_current_root "$pat" "$script"; then healthy "$n"; return; fi; unstable "$n"; due "$n" || return; if proc "$pat"; then log "service=$n state=stale_runtime action=replace expected=$script budget=exempt"; stop_supervisor "$pat"; wait_supervisor_lock "$n" || { fail "$n"; return; }; else restart_gate "$n" || return; log "service=$n action=start"; fi; start "$n" "$script"; sleep 3 9>&-; proc "$pat" && supervisor_on_current_root "$pat" "$script" && healthy "$n" || fail "$n"; }
+check_supervisor_effect(){ n="$1"; pat="$2"; script="$3"; local -a sargs=("${@:4}"); if proc "$pat" && supervisor_on_current_root "$pat" "$script" "${sargs[@]}"; then healthy "$n"; return; fi; unstable "$n"; due "$n" || return; if proc "$pat"; then log "service=$n state=stale_runtime action=replace expected=$script budget=exempt"; stop_supervisor "$pat"; wait_supervisor_lock "$n" || { fail "$n"; return; }; else restart_gate "$n" || return; log "service=$n action=start"; fi; start "$n" "$script" "${sargs[@]}"; sleep 3 9>&-; proc "$pat" && supervisor_on_current_root "$pat" "$script" "${sargs[@]}" && healthy "$n" || fail "$n"; }
 # A Companion deploy stops and restarts the server itself: never "repair" it meanwhile (S24 11/10: EADDRINUSE,
 # 15 concurrent repairs a day, each one cutting the Remote Bridge). The canonical mode also closes the race
 # between the outer loop and this repair boundary.
@@ -414,8 +422,17 @@ except Exception:print("UNAVAILABLE 0 0")
  return 0
 }
 check_supervisor(){
- if proc "$2" && supervisor_on_current_root "$2" "$3"; then healthy "$1"; return; fi
- IMMUNE_OBSERVATION="$(immune_supervisor_facts "$1" "$2" "$3" 2>/dev/null)" immune_action "$1" bounded-supervisor-restore check_supervisor_effect "$@" || true
+ local rc=0
+ if proc "$2" && supervisor_on_current_root "$2" "$3" "${@:4}"; then healthy "$1"; return; fi
+ IMMUNE_OBSERVATION="$(immune_supervisor_facts "$1" "$2" "$3" 2>/dev/null)" immune_action "$1" bounded-supervisor-restore check_supervisor_effect "$@" || rc=$?
+ # core-services-watchdog --gateway-only covers the Gateway precisely while no Companion process exists,
+ # which is also when the AI gate (reached through the Companion) cannot answer. Same rule as the Companion
+ # repair below: with no Companion process the bounded effect runs directly (restart budget, backoff).
+ if [ "$rc" -eq 75 ] && [ "$1" = core_services_watchdog ] && ! proc 'dist/companion/[s]erver.js'; then
+  log "service=$1 action=direct_repair reason=ai_gate_unreachable"
+  check_supervisor_effect "$@" || true
+ fi
+ return 0
 }
 # The AI gate reaches its models only through the Companion itself (/v1/intent/interpret): with no
 # Companion process the gate always answers unavailable, whether the Gateway runs or not, and the
@@ -498,6 +515,11 @@ while :; do
  check_supervisor adb_watchdog '[a]db-recovery-watchdog.sh' "$ROOT/adb-recovery-watchdog.sh"
  check_allowlist_expiry
  check_supervisor remote_watchdog '[r]emote-desktop-watchdog.sh' "$ROOT/remote-desktop-watchdog.sh"
+ check_allowlist_expiry
+ # Gateway fallback while no Companion lives (the Companion's own watchdog owns it otherwise); never the
+ # Companion itself, which check_http below owns. Anchored pattern: test-core-services-watchdog.sh (CI, or
+ # a localci-s24 diagnostic on this phone) must never count as this supervisor, nor be stopped as stale.
+ check_supervisor core_services_watchdog '/[c]ore-services-watchdog[.]sh( |$)' "$ROOT/core-services-watchdog.sh" --gateway-only
  check_allowlist_expiry
  check_supervisor incident_manager '[i]ncident-manager.sh' "$ROOT/incident-manager.sh"
  check_allowlist_expiry
