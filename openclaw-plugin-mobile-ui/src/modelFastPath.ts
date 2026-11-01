@@ -7,7 +7,7 @@ import {runCapabilityHelperProcess} from "./companion/capabilityBridge";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { admittedAtMs, dialogueTurn, transportEventRef } from "./dialogueSurface";
+import { admittedAtMs, dialogueTurn, dialogueTurnUntilReady, STILL_RESTARTING_TEXT, transportEventRef } from "./dialogueSurface";
 import { PUBLIC_WEB_BUDGET_MS } from "./companion/runWeb";
 import {brainOnlyEnabled} from "./brainOnly";
 
@@ -442,7 +442,8 @@ export async function handleOwnerFastPath(
   if (brainOnlyEnabled()) return {handled: false};
   const message = (event.bodyForAgent ?? event.content ?? "").trim();
   const graphSurface = surfaceFor(ctx);
-  const reply = await dialogueTurn(runner, {
+  // Amine 28/10 (replaces D-B): a message received while Samantha restarts is kept and answered once she is ready.
+  const reply = await dialogueTurnUntilReady(runner, {
     surface: graphSurface === "whatsapp" ? "whatsapp" : "claw_live",
     graphSurface,
     conversationKey: conversationKey(event, ctx),
@@ -453,6 +454,7 @@ export async function handleOwnerFastPath(
     policy: { modelAllowed: true },
     timeoutSeconds: 75,
   });
+  if (reply.retryable === true) return { handled: true, reply: { text: STILL_RESTARTING_TEXT } };
   if (!reply.handled) return { handled: false };
   return { handled: true, reply: { text: String(reply.text || "").trim() || "Claw n'a pas pu traiter la demande." } };
 }

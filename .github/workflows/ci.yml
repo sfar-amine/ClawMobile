@@ -111,6 +111,12 @@ jobs:
       - name: Gateway preparation splits reuse the pinned existing stage owner
         run: python3 ../installer/termux-lite/test-gateway-prep-stages.py
 
+      - name: Memory recall worker stays warm through the pinned existing compatibility owner
+        run: python3 ../installer/termux-lite/test-memory-retrieval-warm.py
+
+      - name: One checkout owns each compatibility patch for OpenClaw 2026.9.6 and 2026.10.9
+        run: python3 ../installer/termux-lite/test-openclaw-compat-variants.py
+
       - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
         run: python3 ../installer/termux-lite/test-project-room.py
       - name: Pulse room agents (fichier 52 §5)

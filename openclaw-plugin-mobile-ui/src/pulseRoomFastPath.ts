@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import {FAILURE_PHRASES,hasFailurePhrase} from "./companion/receiptPresentation";
 import { contactRoomSession } from "./contactRoomProfile";
 import {admitNativePulseContact} from "./nativePulseAdmission";
-import { admittedAtMs, dialogueTurn, dialogueHandoff, dialogueChildOrdinal, dialogueChildRequest, isQuestionReply, MAX_SPLIT_REQUESTS, splitRequests, transportEventRef,
+import { admittedAtMs, dialogueHandoff, dialogueTurnUntilReady, STILL_RESTARTING_TEXT, dialogueChildOrdinal, dialogueChildRequest, isQuestionReply, MAX_SPLIT_REQUESTS, splitRequests, transportEventRef,
   type DialogueReply, type DialogueRequest, type DialogueRequestContext } from "./dialogueSurface";
 import { runModelFastPath, type FastPathResult, type RunnerOptions } from "./modelFastPath";
 
@@ -25,9 +25,8 @@ export const LEAVE_REQUEST_REFUSAL = "Désolé, je ne peux pas prendre en compte
 export const PULSE_ROOM_NOT_UNDERSTOOD = "Je n’ai pas compris ta demande Pulse. Peux-tu préciser, stp, ce que tu veux créer, modifier ou consulter (projet, offre, phase) ? Tu peux aussi essayer de la reformuler. Merci !";
 export const PULSE_ROOM_HELP = "Je n'ai pas compris la demande Pulse et je ne réponds qu'avec les données de Pulse. Donne le numéro ou le nom du projet ou de l'offre, et ce que tu veux : état, équipe, consommation, forecast, congés de l'équipe.";
 const PULSE_UNAVAILABLE = "Pulse est indisponible pour le moment. Réessaie dans un instant.";
-const STILL_RESTARTING = "Samantha redémarre encore : rien n’a été exécuté. Renvoie ta demande dans quelques minutes, stp.";
-/** Waiting bound while Samantha restarts (S24 28/10: Gateway up, interpreter ready about 1 min 40 s later). */
-export const DEFER_UNTIL_READY = { windowMs: 5 * 60_000, stepMs: 5_000 };
+// The waiting bound is shared with the owner WhatsApp path (dialogueSurface); re-exported for existing callers.
+export { DEFER_UNTIL_READY } from "./dialogueSurface";
 const TEXT_ONLY = "Ici je ne lis que les messages écrits. Écris ta demande Pulse (projet, offre, congés de l'équipe).";
 const CLOSED_SENTENCE=/^Pulse est fermé en ce moment \(ouvert [^()\n]{1,120}\)\. Réessaie [^\n]{1,80}$/u;
 function nativeFailureText(reason:string|undefined):string {
@@ -230,14 +229,9 @@ async function roomTurn(runner: Runner, room: RoomTurn, request: RoomRequest, qu
       ...(nativePulse?{deferHandoff:true}:{}) },
     timeoutSeconds: 75,
   };
-  let turn=await dialogueTurn(runner,input);
-  // Amine 28/10 (replaces D-B): a message received while Samantha restarts is kept and handled once she is
-  // ready. The coordinator kept nothing and ran nothing; the same event is submitted again, bounded.
-  for(const until=Date.now()+DEFER_UNTIL_READY.windowMs;turn.retryable===true&&Date.now()+DEFER_UNTIL_READY.stepMs<=until;){
-    await new Promise(done=>setTimeout(done,DEFER_UNTIL_READY.stepMs));
-    turn=await dialogueTurn(runner,input);
-  }
-  if(turn.retryable===true)return {out:{handled:true,reply:{text:STILL_RESTARTING}},question:false,completed:false,queuedCount:0,resumeRequests:[],keptQueued:0};
+  // Amine 28/10 (replaces D-B): kept and submitted again while Samantha restarts (shared bounded owner).
+  const turn=await dialogueTurnUntilReady(runner,input);
+  if(turn.retryable===true)return {out:{handled:true,reply:{text:STILL_RESTARTING_TEXT}},question:false,completed:false,queuedCount:0,resumeRequests:[],keptQueued:0};
   let reply=turn;
   if(nativePulse&&reply.pendingHandoff)reply=await dialogueHandoff(runner,input,reply.pendingHandoff.goalRef);
   const completed=reply.outcome==='COMPLETED'&&reply.replayed!==true&&!reply.pendingHandoff;

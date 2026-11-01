@@ -87,5 +87,29 @@ if [ -f "$NATIVE_PATCH_DIR/native-turn-provenance.json" ]; then
     echo "[lite] WARNING: native turn provenance patch unsupported; runtime drift requires review." >&2
 fi
 
+# The memory recall worker keep-alive follows checkout ownership like the other sets. A refusal only costs latency.
+MEMORY_PATCH_DIR="${CLAW_CORE_REPO:-$HOME/ClawMobile}/installer/termux-lite/openclaw-compat"
+MEMORY_PATCH_MODE=--apply
+if [ ! -f "$MEMORY_PATCH_DIR/memory-retrieval-warm.json" ]; then
+  MEMORY_PATCH_DIR="$SCRIPT_DIR/openclaw-compat"
+  MEMORY_PATCH_MODE=--rollback
+fi
+if [ -f "$MEMORY_PATCH_DIR/memory-retrieval-warm.json" ]; then
+  python3 "$MEMORY_PATCH_DIR/whatsapp-network-recovery.py" --patch-set memory-retrieval-warm "$MEMORY_PATCH_MODE" >&2 ||
+    echo "[lite] WARNING: memory recall keep-alive patch unsupported; runtime drift requires review." >&2
+fi
+
+# Android filesystem compatibility (OpenClaw 2026.10+: EACCES copy fallbacks, no /proc/self/ns/pid). Same ownership.
+ANDROID_FS_PATCH_DIR="${CLAW_CORE_REPO:-$HOME/ClawMobile}/installer/termux-lite/openclaw-compat"
+ANDROID_FS_PATCH_MODE=--apply
+if [ ! -f "$ANDROID_FS_PATCH_DIR/android-fs-compat.json" ]; then
+  ANDROID_FS_PATCH_DIR="$SCRIPT_DIR/openclaw-compat"
+  ANDROID_FS_PATCH_MODE=--rollback
+fi
+if [ -f "$ANDROID_FS_PATCH_DIR/android-fs-compat.json" ]; then
+  python3 "$ANDROID_FS_PATCH_DIR/whatsapp-network-recovery.py" --patch-set android-fs-compat "$ANDROID_FS_PATCH_MODE" >&2 ||
+    echo "[lite] WARNING: Android filesystem compatibility patch unsupported; runtime drift requires review." >&2
+fi
+
 echo "[lite] Starting OpenClaw Gateway through fast recovery path..."
 exec openclaw gateway --bind "$GATEWAY_BIND" --port "$GATEWAY_PORT" --verbose
