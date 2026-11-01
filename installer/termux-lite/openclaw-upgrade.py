@@ -143,6 +143,7 @@ def default_layout(profile: str, env: dict) -> dict:
             "pause_patterns": [], "companion": None,
             # Isolation: no WhatsApp credentials copied and channels skipped; the real account never connects twice.
             "whatsapp_gate": False, "triage_stub_log": r + "/logs/triage-stub.log", "notify": None,
+            "compat_apply_on_start": True,
             "nice": 10,
             "env": {
                 "HOME": r + "/home", "OPENCLAW_HOME": r + "/home", "OPENCLAW_STATE_DIR": r + "/state",
@@ -827,8 +828,26 @@ class Upgrade:
                 raise Failed("whatsapp_version_mismatch")
 
     # ----------------------------------------------------------------- start + gates
+    def compat_apply(self) -> dict:
+        """Preprod only: what gateway-start.sh does in prod before exec, on the live tree of this layout."""
+        owner = Path(self.l["compat_dir"]) / "whatsapp-network-recovery.py"
+        results = {}
+        for name in COMPAT_SETS + ("whatsapp-network-recovery",):
+            if not owner.with_name(name + ".json").is_file():
+                continue
+            try:
+                run = subprocess.run([sys.executable, str(owner), "--patch-set", name, "--apply", "--openclaw-root",
+                                      str(self.oc_live)], capture_output=True, text=True, timeout=120, env=self.env())
+                doc = json.loads(run.stdout.strip().splitlines()[-1])
+                results[name] = doc.get("state") if doc.get("ok") else "refused:" + str(doc.get("reason"))
+            except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+                results[name] = "refused:apply_failed"
+        return results
+
     def start_gateway(self, phase: str) -> None:
         with self.phase(phase) as p:
+            if self.l.get("compat_apply_on_start"):
+                p["compat"] = self.compat_apply()
             log = Path(self.l["gateway_log"])
             log.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             fd = os.open(log, os.O_CREAT | os.O_APPEND | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
