@@ -17,3 +17,20 @@ WhatsApp : `connection-controller-CejM7bhn.mjs.gz` et `monitor-DVzumwCI.mjs.gz` 
 `server-runtime-startup-services-CSJSnUKS.mjs.gz` vient de `openclaw@2026.10.9`. Ils portent la variante 2026.10.9 du jeu
 `whatsapp-network-recovery` : même correctif, ancres suivies là où l'amont a déplacé `heartbeatSeconds`,
 `reconnectPolicy` et `keepAlive` sous `this.params` et fusionné la décision de reprise.
+
+`@openclaw/fs-safe` : `copy-file-input.js.gz`, `publish-file.js.gz` et `copy-root-file-sync.js.gz` viennent du paquet npm
+`@openclaw/fs-safe@0.26.0` (`npm pack`, archive sha256 `78da1512…3591`), dépendance exacte que `openclaw@2026.10.9` épingle
+et qu'il installe sous `node_modules/@openclaw/fs-safe` ; le jeu `android-fs-compat` les vise à ce chemin.
+
+Supplément du 01/11/2026 (répétition isolée de la 2026.10.9 sur le S24) : `npm pack openclaw@2026.10.9` refait dans un
+dossier neuf, archive sha256 `43c61a00ef2c73416a072a7216cb3be80555d6740199f07194da2714283b04ab`, extraction ciblée.
+- `store-C7nkCeF3.mjs.gz` (sha256 `e3305c23…4815`) : module que la variante 2026.10.9 d'`agent-exec-auth-scope` importe
+  (`s` = `getScopedAuthProfileEnv` ; `c` y est `getScopedSharedAuthStore`). `store-CGYBYVbs.mjs`, importé par la première
+  variante, n'existe pas dans cette archive (ERR_MODULE_NOT_FOUND au démarrage de la Gateway sur le S24).
+- `hook-runner-global-Cn3xHNvt.mjs.gz` (sha256 `c53d7c43…6374`) : module que la variante 2026.10.9 de
+  `model-flow-selection` importe (`n` = `getGlobalHookRunner`).
+- `copy-root-file-sync.js.gz` (sha256 `995884a1…8786`) : copie synchrone gardée que le chargeur de plugins appelle avec
+  `clone: "auto"` au-delà de 64 Kio ; visée par `android-fs-compat`.
+
+Les modules importés ne sont pas modifiés : ils servent au contrôle `installer/termux-lite/test-openclaw-compat-imports.py`
+(chaque import introduit par un remplacement vise un module et une lettre d'export réels de la même version).

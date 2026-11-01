@@ -1,0 +1,89 @@
+{
+  "version": 2,
+  "id": "openclaw-1009-compat-fixes-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Two 2026.10.9 compatibility variants repaired after the isolated S24 rehearsal: agent-exec-auth-scope now imports getScopedAuthProfileEnv as `s` from store-C7nkCeF3.mjs (the chunk of this build) with the broken variant pinned as predecessor, and android-fs-compat covers @openclaw/fs-safe copy-root-file-sync.js (clone \"auto\" resolves to a plain copy). A generic CI check proves every import added by any replacement targets a real module and export of the same OpenClaw build.",
+  "reason": "S24 rehearsal 01/11 (preproduction candidate): the gateway refused to start with ERR_MODULE_NOT_FOUND for dist/store-CGYBYVbs.mjs imported from dist/runtime-fLuYb9ac.mjs (the 2026.9.6 chunk and letter were kept in the 2026.10.9 variant), and openclaw-plugin-mobile-ui failed to load because the plugin loader copies files above 64 KiB with clone \"auto\" and Android refuses FICLONE with EACCES (FsSafeError: guarded synchronous file copy failed). Both corrections were verified on the S24 candidate; their bytes are pinned here and recomputed from npm pack openclaw@2026.10.9 (archive sha256 43c61a00ef2c73416a072a7216cb3be80555d6740199f07194da2714283b04ab) and @openclaw/fs-safe@0.26.0.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/openclaw-1009-compat-fixes-20261101.json",
+    "docs/changes/openclaw-1009-compat-fixes-20261101.md",
+    "installer/termux-lite/openclaw-compat/agent-exec-auth-scope.json",
+    "installer/termux-lite/openclaw-compat/android-fs-compat.json",
+    "installer/termux-lite/test-agent-exec-auth-scope.py",
+    "installer/termux-lite/test-openclaw-compat-imports.py",
+    "installer/termux-lite/test-openclaw-compat-variants.py",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/copy-root-file-sync.js.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/hook-runner-global-Cn3xHNvt.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/store-C7nkCeF3.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.9.6-compat/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.9.6-compat/hook-runner-global-C81Znoo2.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.9.6-compat/store-CGYBYVbs.mjs.gz"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-openclaw-compat-imports.py",
+      "status": "passed",
+      "evidence": "4 tests: every set, every variant (2026.9.6 and 2026.10.9) resolves each introduced relative import to a captured module of the same build and each bound name to a real export (after the same variant patched it); the rehearsal variant is refused (module absent) and a wrong letter is refused; also run with OPENCLAW_COMPAT_ARCHIVE_DIR against both npm archives, no problem. Against the base manifests it reports exactly the agent-exec-auth-scope 2026.10.9 import of ./store-CGYBYVbs.mjs."
+    },
+    {
+      "name": "installer/termux-lite/test-openclaw-compat-variants.py",
+      "status": "passed",
+      "evidence": "9 tests: every 2026.10.9 variant applies, checks, stays unchanged and rolls back on the captured modules (including copy-root-file-sync.js); a candidate patched with a pinned predecessor upgrades and rolls back; patched modules pass node --check; the published copyRootFileSync, executed with a native stand-in refusing FICLONE with EACCES, fails as on the S24 before the patch and copies after it, while clone \"always\" stays strict."
+    },
+    {
+      "name": "installer/termux-lite/test-agent-exec-auth-scope.py",
+      "status": "passed",
+      "evidence": "7 tests: 2026.9.6 unchanged; the 2026.10.9 variant forward/reverse on the npm module, store-C7nkCeF3 exports `s` as getScopedAuthProfileEnv, the rehearsal patch (7010667f) upgrades to f2b33707 and rolls back to the original."
+    },
+    {
+      "name": "test-agent-exec-auth-scope.cjs, test-native-turn-provenance.py, test-memory-retrieval-warm.py, test-model-flow-selection.py, test-whatsapp-network-recovery.py",
+      "status": "passed",
+      "evidence": "Neighbouring owners green on this head."
+    }
+  ],
+  "documentation": [
+    "docs/changes/openclaw-1009-compat-fixes-20261101.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.9.6-compat/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "OpenClaw compatibility patch; no route or capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same pinned sets of the existing owner; one more CI check."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "OpenClaw compatibility only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "No effect on the installed 2026.9.6: both changes are in the 2026.10.9 variants only.",
+    "The runtime effect is proven by the S24 rehearsal of 01/11 (same bytes); production is not touched by this change.",
+    "The generic check is static: it proves module and export names, not the module graph at runtime."
+  ],
+  "rollback": "Revert. On a 2026.10.9 candidate the deploy rollback restores the original modules; a candidate still carrying the rehearsal patch is upgraded or restored through its pinned predecessor."
+}
