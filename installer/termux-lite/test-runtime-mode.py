@@ -98,6 +98,46 @@ class RuntimeModeTests(unittest.TestCase):
             self.assertEqual(run.returncode, 75)
             self.assertEqual(run.stdout.strip(), "emergency_stop")
 
+    def test_gateway_owner_lease_identifies_only_the_live_recorded_process(self):
+        # Real S24 row (01/11, OpenClaw 2026.10.9): state_leases schema and gateway-owner payload.
+        capture = json.loads((ROOT.parent.parent / "openclaw-plugin-mobile-ui/fixtures/"
+                              "s24-2026-11-01-deploy-restart-1009/capture.json").read_text())["state_leases"]
+        row = capture["gateway_owner_row"]
+        import sqlite3
+
+        def started(pid):
+            text = Path(f"/proc/{pid}/stat").read_text()
+            return int(text[text.rindex(")") + 2:].split()[19])
+
+        def write(state, pid, started_at):
+            db = state / "state/openclaw.sqlite"
+            db.parent.mkdir(parents=True, exist_ok=True)
+            if db.exists():
+                db.unlink()
+            payload = json.loads(json.dumps(row["payload_json"]))
+            payload["owner"]["pid"] = pid
+            payload["owner"]["startedAt"] = started_at
+            con = sqlite3.connect(db)
+            con.execute(capture["sql"])
+            con.execute("insert into state_leases values (?,?,?,?,?,?,?,?)",
+                        (row["scope"], row["lease_key"], row["owner"], row["expires_at"], row["heartbeat_at"],
+                         json.dumps(payload), row["created_at"], row["updated_at"]))
+            con.commit(); con.close()
+
+        with tempfile.TemporaryDirectory() as td:
+            state = Path(td)
+            self.assertIsNone(runtime_mode.gateway_owner_pid(state))
+            write(state, os.getpid(), started(os.getpid()))
+            self.assertEqual(runtime_mode.gateway_owner_pid(state), os.getpid())
+            run = subprocess.run([sys.executable, str(ROOT / "runtime_mode.py"), "--gateway-owner-pid", str(state)],
+                                 text=True, capture_output=True, timeout=5)
+            self.assertEqual((run.returncode, json.loads(run.stdout)), (0, {"pid": os.getpid()}))
+            write(state, os.getpid(), started(os.getpid()) + 1)  # reused pid: another start time
+            self.assertIsNone(runtime_mode.gateway_owner_pid(state))
+            dead = subprocess.Popen([sys.executable, "-c", "pass"]); dead.wait()
+            write(state, dead.pid, None)
+            self.assertIsNone(runtime_mode.gateway_owner_pid(state))
+
 
 if __name__ == "__main__":
     unittest.main()

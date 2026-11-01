@@ -1,0 +1,69 @@
+{
+  "version": 2,
+  "id": "deploy-restart-openclaw-1009-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "The runtime restart owner (openclawGatewayClient --deploy-restart and /v1/runtime/restart) now adopts a Gateway it did not launch, identified by the OpenClaw gateway-owner lease (start time checked) or by the Gateway server process on the same state directory; the stop is graceful for up to 15 s before SIGKILL, leftover workers are stopped by start-time identity, a Gateway of another state directory is never awaited nor killed, the restart verdict reaches the deploy log and runtime-sync allows 360 s.",
+  "reason": "S24 01/11 21:06: companion-deploy d55ad8f6 and its rollback ended in gateway_restart_failed. The OpenClaw 2026.10.9 Gateway (PID 22573, ppid 1) had been started by openclaw-upgrade, which writes no Companion pidfile; the pidfile still named the stopped 9.6 Gateway, so the owner selected zero stop targets and reported 'still reachable' after about 11 s (replayed on the S24 and confirmed by POST /v1/runtime/restart: 500 in 11.05 s, Gateway untouched).",
+  "rollback": "Revert this commit and redeploy the previous commit with companion-deploy.sh; a plugin-changing deploy then fails again with gateway_restart_failed while a Gateway started outside the Companion is running.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/runtime-sync.sh",
+    "installer/termux-lite/runtime_mode.py",
+    "installer/termux-lite/test-runtime-mode.py",
+    "openclaw-plugin-mobile-ui/src/companion/openclawGatewayClient.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-gateway-adopt-restart.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-deploy-gateway-restart.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-deploy-restart-1009/capture.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-deploy-restart-1009/README.md",
+    "docs/changes/deploy-restart-openclaw-1009-20261101.md",
+    "docs/changes/deploy-restart-openclaw-1009-20261101.json"
+  ],
+  "routes": [
+    {
+      "route": "POST /v1/runtime/restart, /v1/runtime/stop, /v1/runtime/start",
+      "change": "same contract; adoption of the live Gateway of this state directory, graceful stop, failure message states the target count",
+      "budget": "stop grace 15 s + stop wait 10 s + start 180 s; runtime-sync client 360 s (was 240 s)",
+      "capability": "NO_CAPABILITY (owner runtime route, unchanged)"
+    }
+  ],
+  "tests": [
+    {
+      "name": "scripts/test-gateway-adopt-restart.cjs (new, ci.yml)",
+      "status": "passed",
+      "evidence": "S24 rows replayed (0 targets before the fix); foreign Gateway adopted by state directory and lease under a real inherited flock, stopped gracefully after 2 s, orphan worker stopped, preprod Gateway untouched, pidfile rewritten; about 4 s locally."
+    },
+    {
+      "name": "installer/termux-lite/test-runtime-mode.py",
+      "status": "passed",
+      "evidence": "6 tests including the gateway-owner lease reader on the S24 schema; reused start time and dead pid refused."
+    },
+    {
+      "name": "related owner suites",
+      "status": "passed",
+      "evidence": "test-qa-deploy-gateway-restart, test-qa-runtime-repair-lease 10/10, test-gateway-maintenance-recovery, test-gateway-tools-metadata-preparation, test-runtime-sync.py 27/27, test-qa-restart-protection, test-ci-registration."
+    }
+  ],
+  "documentation": [
+    "docs/changes/deploy-restart-openclaw-1009-20261101.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Runtime owner repair only; no agent, voice or app capability is added or changed.",
+    "ids": []
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same canonical runtime owner and lease helper; adoption mirrors the identity already used by openclaw-upgrade. No new store, daemon, scheduler or retry."
+  },
+  "fixtures": [
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-deploy-restart-1009/ (S24 prod, read-only, 2026-11-01 20:25-20:31 UTC, cleaned)"
+  ],
+  "limitations": [
+    "openclaw-upgrade still logs the Gateway in ~/.openclaw/logs while the Companion logs in workspace/logs; unchanged here.",
+    "The health-manager restart clients keep their 230 s budget; the server-side restart is not aborted by a client timeout."
+  ]
+}

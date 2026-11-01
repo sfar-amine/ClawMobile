@@ -294,6 +294,44 @@ def repair_lease(root: Path | None = None, *, require_exclusive: bool = False) -
         return refused("unavailable")
 
 
+def gateway_owner_pid(state_dir: Path) -> int | None:
+    """OpenClaw's own record of the live Gateway (``state_leases`` scope ``gateway-owner``), read-only.
+
+    Same reader as openclaw-upgrade's ``lease_gateway_pid``: the Companion adopts a Gateway it did not
+    launch (S24 01/11, the 2026.10.9 Gateway started by the switch). Only a live pid is returned.
+    """
+    import sqlite3
+    db = Path(state_dir) / "state" / "openclaw.sqlite"
+    if not db.is_file():
+        return None
+    try:
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
+        try:
+            row = con.execute("select payload_json from state_leases where scope='gateway-owner'").fetchone()
+        finally:
+            con.close()
+        owner = json.loads(row[0])["owner"] if row else None
+        pid = int(owner["pid"]) if owner else None
+        started = owner.get("startedAt") if owner else None
+    except (sqlite3.Error, ValueError, KeyError, TypeError, AttributeError):
+        return None
+    if not pid or pid <= 1:
+        return None
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text()
+    except OSError:
+        return None  # not alive (or not readable): never adopted on the lease alone
+    # OpenClaw records the owner's start time in clock ticks (S24 01/11: startedAt 44781346 = /proc/22573/stat
+    # field 22). A reused pid has another start time and is refused.
+    if isinstance(started, int) and not isinstance(started, bool):
+        try:
+            if int(stat[stat.rindex(")") + 2:].split()[19]) != started:
+                return None
+        except (ValueError, IndexError):
+            return None
+    return pid
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--openclaw-home", type=Path)
@@ -303,7 +341,11 @@ def main(argv=None) -> int:
     parser.add_argument("--require-existing-exclusive", action="store_true")
     parser.add_argument("--check-runtime-parity", nargs=2, type=Path, metavar=("CORE", "PLAYBOOKS"))
     parser.add_argument("--check-parity", nargs=3, type=Path, metavar=("CORE", "PLAYBOOKS", "APP_CONTRACT"))
+    parser.add_argument("--gateway-owner-pid", type=Path, metavar="STATE_DIR")
     args = parser.parse_args(argv)
+    if args.gateway_owner_pid is not None:
+        print(json.dumps({"pid": gateway_owner_pid(args.gateway_owner_pid)}))
+        return 0
     if args.ensure_deployment_lock:
         try:
             os.close(deployment_lock_fd(args.openclaw_home))

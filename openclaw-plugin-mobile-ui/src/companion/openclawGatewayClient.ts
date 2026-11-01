@@ -10,6 +10,10 @@ const DEFAULT_GATEWAY_HOST = "127.0.0.1";
 const DEFAULT_GATEWAY_PORT = 18789;
 const DEFAULT_RUNTIME_START_WAIT_MS = 180_000;
 const DEFAULT_RUNTIME_STOP_WAIT_MS = 10_000;
+// Graceful Gateway shutdown before SIGKILL. OpenClaw 2026.10.9 retires its plugins with 5 s
+// timeouts each (S24 01/11); a SIGKILL after 750 ms left its spawn-broker workers and locks behind.
+const DEFAULT_RUNTIME_STOP_GRACE_MS = 15_000;
+const GATEWAY_OWNER_LEASE_TIMEOUT_MS = 3_000;
 const GATEWAY_LOG_FILE = "companion-openclaw-gateway.log";
 const GATEWAY_PID_FILE = "companion-openclaw-gateway.pid";
 const TERMUX_PREFIX = "/data/data/com.termux/files/usr";
@@ -263,7 +267,7 @@ async function repairStartupMaintenance(): Promise<StartupMaintenanceRepair> {
   const timeout = `${TERMUX_PREFIX}/bin/timeout`;
   return runBoundedStartupMaintenanceRepair({
     gatewayReachable: async () => (await getGatewayStatus(750)).reachable,
-    gatewayOwnerPids: async () => (await listGatewayProcessCandidates()).map((candidate) => candidate.pid),
+    gatewayOwnerPids: async () => (await listOwnStateGatewayCandidates()).map((candidate) => candidate.pid),
     runDoctor: async () => {
       await runCommand(timeout, [
         String(STARTUP_MAINTENANCE_REPAIR_TIMEOUT_S),
@@ -315,7 +319,8 @@ async function startRuntimeInternal(
     };
   }
 
-  const existingGateways = await listGatewayProcessCandidates();
+  // A Gateway proven to run on another state directory (preprod rehearsal) is neither awaited nor killed.
+  const existingGateways = await listOwnStateGatewayCandidates();
   if (existingGateways.length > 0) {
     const graceDeadline = Date.now() + EXISTING_GATEWAY_GRACE_MS;
 
@@ -337,7 +342,7 @@ async function startRuntimeInternal(
     }
     await delay(1_500);
 
-    for (const candidate of await listGatewayProcessCandidates()) {
+    for (const candidate of await listOwnStateGatewayCandidates()) {
       killPidBestEffort(candidate.pid, "SIGKILL");
     }
     await delay(500);
@@ -519,13 +524,20 @@ async function stopRuntimeInternal(): Promise<RuntimeCommandResponse> {
   }
 
   try {
-    await stopGatewayProcess();
-    const after = await waitForGatewayStopped();
+    const stop = await stopGatewayProcess();
+    // Nothing was signalled: waiting the stop budget would only delay the same verdict.
+    const after = stop.targets === 0 && !stop.custom ? await getGatewayStatus() : await waitForGatewayStopped();
     if (!after.reachable) cleanupGatewayPidFile();
+    // Pids and counts only: never a command line or an environment value.
+    const detail = stop.custom ? "" : ` Targets: ${stop.targets} (adopted ${stop.adopted}); descendants stopped: ${stop.descendants}.`;
     return {
       success: !after.reachable,
       state: after.reachable ? "running" : "not_started",
-      message: after.reachable ? "Stop command ran, but OpenClaw gateway is still reachable." : "OpenClaw gateway stopped.",
+      message: after.reachable
+        ? stop.targets === 0 && !stop.custom
+          ? `Stop command ran, but OpenClaw gateway is still reachable: no Gateway process of this state directory was found to stop.${detail}`
+          : `Stop command ran, but OpenClaw gateway is still reachable.${detail}`
+        : `OpenClaw gateway stopped.${detail}`,
       gateway: after,
     };
   } catch (error: any) {
@@ -562,34 +574,58 @@ export async function restartRuntime(): Promise<RuntimeCommandResponse> {
     return {
       ...started,
       message: started.success
-        ? `Restarted OpenClaw gateway. ${started.message}`
-        : `Gateway stopped, but restart failed: ${started.message}`,
+        ? `Restarted OpenClaw gateway. ${stopped.message} ${started.message}`
+        : `Gateway stopped, but restart failed: ${stopped.message} ${started.message}`,
     };
   });
 }
 
-async function stopGatewayProcess() {
+type StopOutcome = { custom: boolean; targets: number; adopted: number; descendants: number };
+
+async function stopGatewayProcess(): Promise<StopOutcome> {
   const command = process.env.CLAWMOBILE_RUNTIME_STOP_COMMAND || "";
   if (command) {
     await runCommand(command, []);
-    return;
+    return { custom: true, targets: 0, adopted: 0, descendants: 0 };
   }
 
   const pid = readGatewayPid();
-  const candidates = await listGatewayProcessCandidates();
-  const targets = selectGatewayStopTargets(candidates, pid);
-  for (const candidate of targets) {
-    killPidBestEffort(candidate.pid, "SIGTERM");
+  const processes = await listProcesses();
+  const candidates = processes.filter(isGatewayProcessCandidate);
+  const adopted = await adoptableGatewayPids(candidates);
+  const targets = selectGatewayStopTargets(candidates, pid, adopted);
+  if (targets.length === 0) return { custom: false, targets: 0, adopted: 0, descendants: 0 };
+  const identity = new Map<number, number | null>();
+  for (const candidate of targets) identity.set(candidate.pid, processStartTime(candidate.pid));
+  // Workers the Gateway spawned (spawn-broker, sqlite readers, esbuild): snapshot them with their start
+  // time now, so only these very processes are stopped later, never a reused pid.
+  const tree = new Map<number, number | null>();
+  for (const child of descendantPids(processes, new Set(targets.map((candidate) => candidate.pid)))) {
+    tree.set(child, processStartTime(child));
   }
 
-  await delay(750);
-  const stillReachable = await getGatewayStatus(300);
-  if (!stillReachable.reachable) return;
-
-  const remaining = selectGatewayStopTargets(await listGatewayProcessCandidates(), pid);
-  for (const candidate of remaining) {
-    killPidBestEffort(candidate.pid, "SIGKILL");
+  for (const candidate of targets) killPidBestEffort(candidate.pid, "SIGTERM");
+  const alive = () => targets.filter((candidate) => sameProcess(candidate.pid, identity.get(candidate.pid) ?? null));
+  const deadline = Date.now() + runtimeStopGraceMs();
+  await delay(250);
+  while (Date.now() < deadline && (alive().length > 0 || (await getGatewayStatus(300)).reachable)) {
+    await delay(250);
   }
+  for (const candidate of alive()) killPidBestEffort(candidate.pid, "SIGKILL");
+
+  let descendants = 0;
+  const leftover = () => [...tree.entries()].filter(([child, started]) => started !== null && sameProcess(child, started));
+  for (const [child] of leftover()) { killPidBestEffort(child, "SIGTERM"); descendants++; }
+  if (descendants > 0) {
+    await delay(1_000);
+    for (const [child] of leftover()) killPidBestEffort(child, "SIGKILL");
+  }
+  return {
+    custom: false,
+    targets: targets.length,
+    adopted: targets.filter((candidate) => adopted.has(candidate.pid)).length,
+    descendants,
+  };
 }
 
 async function waitForGatewayStopped() {
@@ -610,14 +646,19 @@ function runCommand(command: string, args: string[]) {
   });
 }
 
-type ProcessCandidate = {
+export type ProcessCandidate = {
   pid: number;
   ppid: number;
   command: string;
 };
 
-async function listGatewayProcessCandidates(): Promise<ProcessCandidate[]> {
+async function listProcesses(): Promise<ProcessCandidate[]> {
   const output = await captureCommand("ps", ["-ef"]).catch(() => "");
+  return parseProcessTable(output);
+}
+
+/** `ps -ef` rows: UID PID PPID C STIME TTY TIME CMD. */
+export function parseProcessTable(output: string): ProcessCandidate[] {
   return output
     .split(/\r?\n/)
     .map((line) => {
@@ -627,24 +668,176 @@ async function listGatewayProcessCandidates(): Promise<ProcessCandidate[]> {
       const ppid = Number.parseInt(parts[2] || "", 10);
       const command = parts.slice(7).join(" ");
       if (!Number.isFinite(pid) || !Number.isFinite(ppid)) return null;
-      if (!isGatewayRuntimeCommand(command)) return null;
-      if (command.includes("companion/server.js")) return null;
       return { pid, ppid, command };
     })
     .filter((candidate): candidate is ProcessCandidate => candidate != null);
 }
 
-function selectGatewayStopTargets(candidates: ProcessCandidate[], recordedPid: number | null) {
+function isGatewayProcessCandidate(candidate: ProcessCandidate) {
+  return isGatewayRuntimeCommand(candidate.command) && !candidate.command.includes("companion/server.js");
+}
+
+/** Gateway processes and wrappers, minus those whose environment proves another state directory. */
+async function listOwnStateGatewayCandidates(): Promise<ProcessCandidate[]> {
+  const candidates = (await listProcesses()).filter(isGatewayProcessCandidate);
+  const own = canonicalPath(gatewayStateDir(process.env));
+  if (!own) return candidates;
+  return candidates.filter((candidate) => {
+    const env = readProcessEnvironment(candidate.pid);
+    const state = env ? canonicalPath(gatewayStateDir(env)) : null;
+    return state === null || state === own;
+  });
+}
+
+export function selectGatewayStopTargets(
+  candidates: ProcessCandidate[],
+  recordedPid: number | null,
+  adopted: ReadonlySet<number> = new Set(),
+  ownPid: number = process.pid,
+) {
   const selected = new Map<number, ProcessCandidate>();
   for (const candidate of candidates) {
-    const launchedByCompanion = candidate.ppid === process.pid;
+    const launchedByCompanion = candidate.ppid === ownPid;
     const isRecordedProcess = recordedPid != null && candidate.pid === recordedPid;
     const isRecordedChild = recordedPid != null && candidate.ppid === recordedPid;
-    if (launchedByCompanion || isRecordedProcess || isRecordedChild) {
+    // A Gateway this process did not launch (openclaw-upgrade, gateway-start.sh by hand, a previous
+    // Companion): S24 01/11, the 2026.10.9 Gateway started by the switch (ppid 1, no pidfile) was
+    // never stopped and every deploy restart failed. Adoption is decided by adoptableGatewayPids.
+    if (launchedByCompanion || isRecordedProcess || isRecordedChild || adopted.has(candidate.pid)) {
       selected.set(candidate.pid, candidate);
     }
   }
   return [...selected.values()];
+}
+
+/** The Gateway server process itself, never its shell wrappers (gateway-start.sh, run.sh) nor a CLI
+ * subcommand such as `openclaw gateway status`: the 2026.10.9 title `openclaw-gateway`, or
+ * `openclaw[.mjs] gateway` followed by options only (foreground run, no respawn in 2026.10.9). */
+export function isGatewayServiceCommand(command: string) {
+  if (!isGatewayRuntimeCommand(command)) return false;
+  const tokens = command.trim().split(/\s+/).filter(Boolean);
+  if (tokens.some((token) => /(?:^|\/)openclaw-gateway$/.test(token))) return true;
+  const openclawIndex = tokens.findIndex((token) => /(?:^|\/)(?:openclaw|openclaw\.mjs)$/.test(token));
+  if (openclawIndex < 0 || tokens[openclawIndex + 1] !== "gateway") return false;
+  const next = tokens[openclawIndex + 2];
+  return next === undefined || next === "run" || next.startsWith("-");
+}
+
+export type GatewayAdoptionEvidence = {
+  leasePid: number | null;
+  ownStateDir: string;
+  stateDirOf: (pid: number) => string | null;
+};
+
+/** Same identity as openclaw-upgrade's gateway_pids(): OpenClaw's own gateway-owner lease, or the Gateway
+ * process running on this state directory. A preprod Gateway (other state directory) is never adopted. */
+export function selectAdoptableGateways(candidates: ProcessCandidate[], evidence: GatewayAdoptionEvidence) {
+  const adopted = new Set<number>();
+  for (const candidate of candidates) {
+    if (!isGatewayServiceCommand(candidate.command)) continue;
+    if (evidence.leasePid !== null && candidate.pid === evidence.leasePid) { adopted.add(candidate.pid); continue; }
+    const state = evidence.stateDirOf(candidate.pid);
+    if (state !== null && state === evidence.ownStateDir) adopted.add(candidate.pid);
+  }
+  return adopted;
+}
+
+async function adoptableGatewayPids(candidates: ProcessCandidate[]): Promise<Set<number>> {
+  if (!candidates.some((candidate) => isGatewayServiceCommand(candidate.command))) return new Set();
+  const ownStateDir = canonicalPath(gatewayStateDir(process.env));
+  if (!ownStateDir) return new Set();
+  return selectAdoptableGateways(candidates, {
+    leasePid: await readGatewayOwnerLeasePid(ownStateDir),
+    ownStateDir,
+    stateDirOf: (pid) => {
+      const env = readProcessEnvironment(pid);
+      return env ? canonicalPath(gatewayStateDir(env)) : null;
+    },
+  });
+}
+
+function gatewayStateDir(env: NodeJS.ProcessEnv | Record<string, string>) {
+  if (env.OPENCLAW_STATE_DIR) return env.OPENCLAW_STATE_DIR;
+  return env.HOME ? path.join(env.HOME, ".openclaw") : "";
+}
+
+function canonicalPath(value: string) {
+  if (!value || !path.isAbsolute(value)) return null;
+  try { return fs.realpathSync(value); } catch { return path.resolve(value); }
+}
+
+function readProcessEnvironment(pid: number): Record<string, string> | null {
+  try {
+    const out: Record<string, string> = {};
+    for (const item of fs.readFileSync(`/proc/${pid}/environ`).toString("utf8").split("\0")) {
+      const index = item.indexOf("=");
+      if (index > 0) out[item.slice(0, index)] = item.slice(index + 1);
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+/** OpenClaw's record of the live Gateway (state_leases/gateway-owner), read through the checkout's helper. */
+function readGatewayOwnerLeasePid(stateDir: string): Promise<number | null> {
+  let helper: string;
+  try { helper = deployRestartOwner || checkoutFile("runtime_mode.py"); } catch { return Promise.resolve(null); }
+  return new Promise((resolve) => {
+    let out = "";
+    let settled = false;
+    const finish = (pid: number | null) => { if (!settled) { settled = true; clearTimeout(timer); resolve(pid); } };
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn("python3", [helper, "--gateway-owner-pid", stateDir], { stdio: ["ignore", "pipe", "ignore"], env: runtimeEnv() });
+    } catch { resolve(null); return; }
+    const timer = setTimeout(() => { child.kill("SIGKILL"); finish(null); }, GATEWAY_OWNER_LEASE_TIMEOUT_MS);
+    child.stdout?.on("data", (chunk) => { if (out.length < 256) out += String(chunk); });
+    child.once("error", () => finish(null));
+    child.once("close", () => {
+      try {
+        const pid = JSON.parse(out.trim()).pid;
+        finish(Number.isInteger(pid) && pid > 1 ? pid : null);
+      } catch { finish(null); }
+    });
+  });
+}
+
+export function descendantPids(processes: ProcessCandidate[], roots: ReadonlySet<number>) {
+  const out = new Set<number>(roots);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const row of processes) {
+      if (out.has(row.ppid) && !out.has(row.pid)) { out.add(row.pid); changed = true; }
+    }
+  }
+  for (const root of roots) out.delete(root);
+  return [...out];
+}
+
+function processStartTime(pid: number): number | null {
+  try {
+    const text = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
+    const fields = text.slice(text.lastIndexOf(")") + 2).split(" ");
+    const value = Number.parseInt(fields[19] || "", 10);
+    return Number.isFinite(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Alive (a zombie awaiting its parent counts as gone) and, when its start time is known, still the very
+ * process observed earlier. */
+function sameProcess(pid: number, startedAt: number | null) {
+  if (!isProcessAlive(pid)) return false;
+  try {
+    const text = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
+    if (text.slice(text.lastIndexOf(")") + 2).startsWith("Z")) return false;
+  } catch {
+    // No procfs entry readable: rely on the signal probe and start time below.
+  }
+  return startedAt === null || processStartTime(pid) === startedAt;
 }
 
 export function isGatewayRuntimeCommand(command: string) {
@@ -771,6 +964,11 @@ function runtimeStartWaitMs() {
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_RUNTIME_START_WAIT_MS;
 }
 
+function runtimeStopGraceMs() {
+  const raw = Number.parseInt(process.env.CLAWMOBILE_RUNTIME_STOP_GRACE_MS || "", 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_RUNTIME_STOP_GRACE_MS;
+}
+
 function runtimeStopWaitMs() {
   const raw = Number.parseInt(process.env.CLAWMOBILE_RUNTIME_STOP_WAIT_MS || "", 10);
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_RUNTIME_STOP_WAIT_MS;
@@ -824,6 +1022,10 @@ if(require.main===module){
   }
   else if(!deployRestartOwner){process.stdout.write('{"success":false}\n');process.exitCode=2;}
   else void restartRuntime().then(result=>{
+    // The deploy log keeps why a restart failed (S24 01/11: the receipt only said gateway_restart_failed).
+    // Owner messages carry pids, counts and log paths only.
+    process.stderr.write(JSON.stringify({component:"runtime-restart",success:result.success,state:result.state,
+      message:String(result.message||"").slice(0,600)})+"\n");
     process.stdout.write(JSON.stringify({success:result.success})+"\n");
     if(!result.success)process.exitCode=75;
   }).catch(()=>{process.stdout.write('{"success":false}\n');process.exitCode=75;});
