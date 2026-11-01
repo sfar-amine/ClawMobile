@@ -27,8 +27,9 @@ tour worker n'en passe pas). Le tracker `dist/stage-timing-BUG4Fnsv.mjs` de 2026
 `1d8cfb8d…`) que la capture S24 2026.9.6 de `../s24-2026-10-26-gateway-prep-stages/`, réutilisée telle quelle.
 `gateway-prep-stages-harness.cjs` n'est **pas** une capture : c'est le harness écrit pour
 `installer/termux-lite/test-gateway-prep-stages-1009.py` ; il exécute dans une VM les corps publics originaux puis
-patchés avec des dépendances inertes (aucun import du SDK, aucun réseau, aucun modèle). Les empreintes de ces trois
-modules sur le candidat isolé du S24 restent à confirmer avant toute application.
+patchés avec des dépendances inertes (aucun import du SDK, aucun réseau, aucun modèle). Empreintes relevées en lecture
+seule le 01/11 sur le candidat isolé du S24 (`~/.openclaw-android/staging/oc-global`) : identiques aux trois modules npm
+(`f7f6b3b4…`, `de48b6fa…`, `99bb65a4…`) et au tracker (`1d8cfb8d…`).
 
 `@openclaw/fs-safe` : `copy-file-input.js.gz`, `publish-file.js.gz` et `copy-root-file-sync.js.gz` viennent du paquet npm
 `@openclaw/fs-safe@0.26.0` (`npm pack`, archive sha256 `78da1512…3591`), dépendance exacte que `openclaw@2026.10.9` épingle
@@ -56,3 +57,11 @@ Contrat de profil de modèle (01/11/2026) : la variante 2026.10.9 de `model-flow
 `MODEL_PROFILE_CONTRACT_VERSION` depuis `dist/embedded-agent-DoEPu8ye.mjs`, comme `dist/setup-B7DuERIi.mjs` en 2026.9.6 ;
 le propriétaire des métadonnées de session du plugin le lit là (`openclawSdkVersions.ts`). L'ancien résultat corrigé
 (`b8062e79…`) est déclaré en `predecessors` : un candidat déjà corrigé passe au nouveau par ses octets d'origine.
+
+Jeu `startup-triage-optout` (même archive npm, 01/11/2026) : `triage-failure-DoR3aje_.mjs.gz` (sha256 `a19382f0…e8ca746`,
+identique sur le candidat isolé du S24) porte `triageAfterFailure`, que vise la variante 2026.10.9.
+`triage-failure-8uvnbYn8.mjs.gz` (sa réexportation) et `run-HO6sETAH.mjs.gz` (sha256 `692c655a…`, identique sur le
+candidat) prouvent que l'échec final du démarrage et l'échec d'une relance en processus (`onRestartStartupFailure`)
+passent tous les deux par cette fonction. `startup-triage-optout-harness.cjs` n'est **pas** une capture : c'est le
+harness écrit pour `installer/termux-lite/test-startup-triage-optout.py`, qui exécute le corps public original puis
+patché dans une VM avec des dépendances inertes (2026.9.6 et 2026.10.9).

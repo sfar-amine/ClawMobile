@@ -118,6 +118,9 @@ jobs:
           python3 ../installer/termux-lite/test-gateway-prep-stages.py
           python3 ../installer/termux-lite/test-gateway-prep-stages-1009.py
 
+      - name: Gateway startup triage opt-out is explicit, pinned and verified before export
+        run: python3 ../installer/termux-lite/test-startup-triage-optout.py
+
       - name: Memory recall worker stays warm through the pinned existing compatibility owner
         run: python3 ../installer/termux-lite/test-memory-retrieval-warm.py
 
