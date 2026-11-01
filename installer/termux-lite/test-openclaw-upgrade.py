@@ -26,6 +26,18 @@ spec.loader.exec_module(upgrade)
 SECRET = "sk-test-SECRETVALUE-0123456789abcdef0123456789"
 WA_GEN = "openclaw-whatsapp-290d7f7427__openclaw-generation__g-de2d383df15fe333"
 
+FAKE_NPM = r'''
+import json, os, sys
+from pathlib import Path
+assert sys.argv[1] == "install" and "--legacy-peer-deps" in sys.argv
+if os.environ.get("FAKE_NPM_FAIL"): sys.exit(1)
+spec = sys.argv[2]; version = spec.rsplit("@", 1)[1]
+(Path("node_modules/openclaw")).unlink()  # npm prunes the extraneous peer link
+pkg = Path("node_modules/@openclaw/whatsapp/package.json")
+pkg.write_text(json.dumps({"name": "@openclaw/whatsapp", "version": version}))
+print("added 3 packages token=" + os.environ.get("FAKE_SECRET", ""))
+'''
+
 FAKE = r'''
 import http.server, json, os, signal, sqlite3, sys, time
 from pathlib import Path
@@ -71,6 +83,10 @@ elif args[:2] == ["plugins", "update"]:
 elif args[:2] == ["health", "--json"]:
     out({"ok": True, "plugins": {"loaded": ["memory-core", "openclaw-plugin-mobile-ui"], "errors": []},
          "channels": {"whatsapp": {"self": {"e164": "+21600000000"}}}})
+elif args[:3] == ["plugins", "inspect", "whatsapp"]:
+    wa = sorted(state.glob("npm/projects/openclaw-whatsapp-*/node_modules/@openclaw/whatsapp/package.json"))
+    ver = json.loads(wa[0].read_text())["version"] if len(wa) == 1 else None
+    out({"plugin": {"status": "loaded" if ver else "error", "packageVersion": ver}})
 elif args[:2] == ["plugins", "inspect"]:
     n = int(os.environ.get("FAKE_TOOLS", "42"))
     out({"plugin": {"status": "loaded", "toolNames": ["t%d" % i for i in range(n)], "contracts": {"tools": ["t"] * 56}}})
@@ -115,6 +131,8 @@ class Root:
         wa = self.state / "npm/projects" / WA_GEN / "node_modules/@openclaw/whatsapp"
         wa.mkdir(parents=True)
         (wa / "package.json").write_text(json.dumps({"name": "@openclaw/whatsapp", "version": "2026.9.6"}))
+        os.symlink(str(live / "openclaw"), self.state / "npm/projects" / WA_GEN / "node_modules/openclaw")
+        (td / "fake-npm.py").write_text(FAKE_NPM)
         dist = self.state / "extensions/openclaw-plugin-mobile-ui/dist/companion"
         dist.mkdir(parents=True)
         (dist / "openclawSdkVersions.js").write_text('const T={"2026.9.6":{},"2026.10.9":{}};')
@@ -126,7 +144,7 @@ class Root:
             "port": self.port, "state_dir": str(self.state), "config": str(self.state / "openclaw.json"),
             "openclaw_root": str(live / "openclaw"), "node_dir": str(live / "node"),
             "candidate_openclaw": str(cand / "openclaw"), "candidate_node": str(cand / "node"),
-            "cli": [sys.executable, str(fake)],
+            "cli": [sys.executable, str(fake)], "npm": [sys.executable, str(td / "fake-npm.py")],
             "start": [sys.executable, str(fake), "gateway", "--bind", "loopback", "--port", str(self.port)],
             "gateway_start_script": None, "gateway_log": str(td / "logs/gateway.log"),
             "compat_dir": str(td / "no-compat"), "compat_required": [],
@@ -250,6 +268,9 @@ class OpenClawUpgrade(unittest.TestCase):
         self.assertEqual(doc["gates"]["plugin_tools"]["tools"], 42)
         self.assertEqual(doc["whatsapp"], {"from": "2026.9.6", "to": "2026.10.9"})
         self.assertEqual(len(list((r.state / "npm/projects").iterdir())), 1)
+        self.assertTrue((r.state / "npm/projects" / WA_GEN / "node_modules/openclaw").is_symlink())
+        self.assertTrue(doc["phases"]["stage"]["whatsapp_candidate"]["peer_link_kept"])
+        self.assertEqual(doc["gates"]["whatsapp"]["plugin_version"], "2026.10.9")
         self.assertEqual(doc["phases"]["doctor"]["migrated"], 2)
         agents = {d["path"]: d for d in doc["databases"]}
         self.assertEqual(len(agents), 4)
@@ -291,6 +312,16 @@ class OpenClawUpgrade(unittest.TestCase):
         self.assertEqual(len(list((r.state / "npm/projects").iterdir())), 1)
         self.assertNotIn(SECRET, r.all_text())
         self.assertFalse((r.td / "notified").exists())
+
+    def test_whatsapp_candidate_failure_stops_nothing(self):
+        r = self.make()
+        r.start_current_gateway()
+        run = r.run(FAKE_NPM_FAIL="1")
+        doc = r.receipt(run)
+        self.assertEqual((doc["state"], run.returncode), ("failed", 5))
+        self.assertIn("whatsapp_candidate_failed", doc["detail"])
+        self.assertNotIn("stop", doc["phases"])
+        self.assertEqual(r.served_version(), "2026.9.6")
 
     def test_doctor_failure_rolls_back(self):
         r = self.make()

@@ -99,7 +99,7 @@ def default_layout(profile: str, env: dict) -> dict:
                     "whatsapp_connect_s": 180, "cli_s": 150, "companion_s": 300},
         "max_load": 7.0, "min_available_mb": 1200, "disk_factor": 3, "lock_wait_s": 10,
         "keep_backups": 2, "compat_required": list(COMPAT_SETS), "rollback_node": "restore",
-        "whatsapp": {"spec": "@openclaw/whatsapp@" + TARGET_VERSION, "mode": "update"},
+        "whatsapp": {"spec": "@openclaw/whatsapp@" + TARGET_VERSION, "mode": "npm"},
         "meminfo": "/proc/meminfo", "heavy_jobs": HEAVY_JOBS,
     }
     if profile == "prod":
@@ -110,7 +110,7 @@ def default_layout(profile: str, env: dict) -> dict:
             "openclaw_root": "$PREFIX/lib/node_modules/openclaw", "node_dir": "$HOME/.openclaw-android/node",
             "candidate_openclaw": "$HOME/.openclaw-android/staging/oc-global/lib/node_modules/openclaw",
             "candidate_node": "$HOME/.openclaw-android/staging/node-24.22.2",
-            "cli": ["$PREFIX/bin/openclaw"],
+            "cli": ["$PREFIX/bin/openclaw"], "npm": ["$HOME/.openclaw-android/bin/npm"],
             "start": [release + "/gateway-start.sh"],
             "gateway_start_script": release + "/gateway-start.sh",
             "gateway_log": "$HOME/.openclaw/logs/companion-openclaw-gateway.log",
@@ -135,7 +135,7 @@ def default_layout(profile: str, env: dict) -> dict:
             "openclaw_root": r + "/live/openclaw", "node_dir": r + "/live/node",
             "candidate_openclaw": "$HOME/.openclaw-android/staging/oc-global/lib/node_modules/openclaw",
             "candidate_node": "$HOME/.openclaw-android/staging/node-24.22.2",
-            "cli": [r + "/live/bin/openclaw"],
+            "cli": [r + "/live/bin/openclaw"], "npm": [r + "/live/bin/npm"],
             "start": [r + "/live/bin/openclaw", "gateway", "--bind", "loopback", "--port", "19789", "--verbose"],
             "gateway_start_script": None,
             "gateway_log": r + "/logs/gateway.log",
@@ -511,6 +511,7 @@ class Upgrade:
         self.dbs: list[dict] = []
         self.gateway_pid = None
         self.gateway_child = None
+        self.wa_candidate = None
 
     # ----------------------------------------------------------------- plumbing
     def log(self, event: str, **fields) -> None:
@@ -726,6 +727,50 @@ class Upgrade:
                 started = time.monotonic()
                 self.copy_tree(source, target)
                 p[target.name] = {"copied_ms": int((time.monotonic() - started) * 1000)}
+            self.stage_whatsapp(p)
+
+    def stage_whatsapp(self, p: dict) -> None:
+        """@openclaw/whatsapp at the target version, prepared before the window in a copy of its npm project.
+
+        OpenClaw 2026.10.9 `plugins update/install` refuses on Android: fs-safe rejects every temp workspace
+        under /data (owner uid 1000). npm itself installs fine, so the copy is upgraded with npm (no peer
+        install: the project's `node_modules/openclaw` link to the global OpenClaw is kept) and swapped in."""
+        spec = self.l.get("whatsapp") or {}
+        if spec.get("mode") != "npm":
+            return
+        dirs = self.whatsapp_dirs()
+        if len(dirs) != 1:
+            raise Failed("whatsapp_project_missing_or_ambiguous")
+        source = dirs[0]
+        target = self.backup / "whatsapp-candidate" / source.name
+        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        started = time.monotonic()
+        shutil.copytree(source, target, symlinks=True)
+        peer = target / "node_modules/openclaw"
+        peer_link = os.readlink(peer) if peer.is_symlink() else None
+        cmd = list(self.l["npm"]) + ["install", spec["spec"], "--save-exact", "--legacy-peer-deps", "--no-audit",
+                                     "--no-fund", "--omit=dev"]
+        if self.l.get("nice"):
+            cmd = ["nice", "-n", str(self.l["nice"])] + cmd
+        log = self.receipts / f"openclaw-upgrade-{self.stamp}-whatsapp-npm.log"
+        try:
+            run = subprocess.run(cmd, cwd=target, capture_output=True, text=True, env=self.env(),
+                                 timeout=float(self.l["budgets"]["whatsapp_install_s"]), stdin=subprocess.DEVNULL)
+            rc, text = run.returncode, run.stdout + "\n--- stderr ---\n" + run.stderr
+        except subprocess.TimeoutExpired:
+            rc, text = 124, "timeout"
+        fd = os.open(log, os.O_CREAT | os.O_TRUNC | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "w") as handle:
+            handle.write(redact(text[-100000:]))
+        self.doc.setdefault("logs", {})["whatsapp-npm"] = str(log)
+        if peer_link and not peer.exists() and not peer.is_symlink():
+            os.symlink(peer_link, peer)
+        version = package_version(target / "node_modules/@openclaw/whatsapp/package.json")
+        p["whatsapp_candidate"] = {"rc": rc, "version": version, "ms": int((time.monotonic() - started) * 1000),
+                                   "peer_link_kept": bool(peer_link) and peer.is_symlink()}
+        if rc != 0 or version != self.l["target_version"]:
+            raise Failed(f"whatsapp_candidate_failed rc={rc}")
+        self.wa_candidate = target
 
     # ----------------------------------------------------------------- stop / freeze
     def pause_supervisors(self) -> None:
@@ -892,7 +937,15 @@ class Upgrade:
             return
         with self.phase("whatsapp") as p:
             target = self.l["target_version"]
-            if self.whatsapp_version() != target:
+            if spec.get("mode") == "npm" and self.wa_candidate is not None:
+                # Same project directory name, new package bytes: renamed in, the old tree parked for rollback.
+                live = self.state / "npm/projects" / self.wa_candidate.name
+                parked = self.backup / "npm-parked"
+                parked.mkdir(parents=True, exist_ok=True, mode=0o700)
+                os.rename(live, parked / live.name)
+                self.done["whatsapp_parked"].append(live.name)
+                os.rename(self.wa_candidate, live)
+            elif self.whatsapp_version() != target:
                 rc, out, err, ms = self.cli(["plugins", "update", spec["spec"]],
                                             float(self.l["budgets"]["whatsapp_install_s"]),
                                             {"OPENCLAW_SHELL": "exec"}, log_name="whatsapp")
@@ -1017,8 +1070,17 @@ class Upgrade:
         return {"ok": ok, "rc": rc, "status": status, "reply": has_reply, "turn_ms": ms}
 
     def gate_whatsapp(self) -> dict:
+        rc, doc, ms = self.cli_json(["plugins", "inspect", "whatsapp", "--json"], float(self.l["budgets"]["cli_s"]),
+                                    log_name=self.log_tag("gate-whatsapp-plugin"))
+        plugin = (doc or {}).get("plugin") if isinstance(doc, dict) else None
+        plugin = plugin if isinstance(plugin, dict) else {}
+        version = plugin.get("packageVersion") or plugin.get("version")
+        expected = self.l["source_version"] if self.in_rollback else self.l["target_version"]
+        loaded = {"plugin_status": plugin.get("status"), "plugin_version": version}
+        if plugin.get("status") != "loaded" or version != expected:
+            return {"ok": False, "detail": "whatsapp_plugin_not_loaded", **loaded}
         if not self.l.get("whatsapp_gate"):
-            return {"ok": True, "skipped": "isolated_preprod_no_whatsapp_credentials"}
+            return {"ok": True, "connected": "skipped_isolated_preprod_no_whatsapp_credentials", **loaded}
         deadline = time.monotonic() + float(self.l["budgets"]["whatsapp_connect_s"])
         last = {}
         while time.monotonic() < deadline:
@@ -1027,7 +1089,7 @@ class Upgrade:
             if isinstance(wa, dict):
                 last = {"running": wa.get("running"), "connected": wa.get("connected"), "linked": wa.get("linked")}
                 if wa.get("connected") is True:
-                    return {"ok": True, **last}
+                    return {"ok": True, **last, **loaded}
             time.sleep(5)
         return {"ok": False, "detail": "whatsapp_not_connected", **last}
 
