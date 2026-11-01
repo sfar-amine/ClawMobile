@@ -35,6 +35,22 @@ class ActivationReadiness(unittest.TestCase):
         self.c.HEALTH.write_text(json.dumps({'generated_at':int(self.clock) if stamp is None else stamp,
             'runtime_root':str((self.target/'termux-lite').resolve()) if root is None else root,
             'capabilities':{k:{'state':v} for k,v in (states or {k:'healthy' for k in self.meta['critical_capabilities']}).items()}}))
+    def test_release_that_never_passed_its_soak_never_becomes_last_known_good(self):
+        # S24 01/11 22:35: the deploy's rollback promoted the previous commit over a release in
+        # activation_failed, and that failed release became the LKG.
+        confirmed=self.c.RELEASES/'confirmed';confirmed.mkdir();self.c.LKG.symlink_to(confirmed)
+        for state in ('activating','activation_failed','running','failed_no_lkg'):
+            with self.subTest(state=state):
+                self.c.STATE.write_text(json.dumps({'current':'old','soak_state':state}))
+                self.c.CURRENT.unlink();self.c.CURRENT.symlink_to(self.old)
+                pending=self.c.cmd_promote(self.args)
+                self.assertEqual(self.c.LKG.resolve().name,'confirmed')
+                self.assertEqual(pending['last_known_good'],'confirmed')
+    def test_stable_release_still_becomes_last_known_good_on_promotion(self):
+        confirmed=self.c.RELEASES/'confirmed';confirmed.mkdir();self.c.LKG.symlink_to(confirmed)
+        self.c.STATE.write_text(json.dumps({'current':'old','soak_state':'stable'}))
+        pending=self.c.cmd_promote(self.args)
+        self.assertEqual(self.c.LKG.resolve().name,'old');self.assertEqual(pending['last_known_good'],'old')
     def test_real_timeline_exposes_sample_before_worker_ready_not_a_proven_crash(self):
         v=self.capture
         self.assertLess(v['soak_grace_until_epoch'],v['last_health_generated_at'])

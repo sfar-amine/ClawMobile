@@ -146,7 +146,10 @@ def cmd_promote(a):
             raise SystemExit('promotion_state_requires_new_release')
         return s
     # A release still in its LKG hold never becomes the rollback target; the confirmed LKG stays.
-    if old and old!=target.resolve() and not (LKG.exists() and s.get('lkg_candidate')==old.name): link_atomic(LKG,old)
+    # Neither does one that never passed its soak: S24 01/11 22:35, the deploy's rollback promotion
+    # made the release that had just failed activation the LKG.
+    unproven=bool(old) and s.get('current')==old.name and s.get('soak_state') in ('activating','activation_failed','running','failed_no_lkg')
+    if old and old!=target.resolve() and not unproven and not (LKG.exists() and s.get('lkg_candidate')==old.name): link_atomic(LKG,old)
     link_atomic(CURRENT,target)
     for key in ('soak_completed_at','rollback_reason','rolled_back_from','last_bad','lkg_candidate','lkg_due_epoch','soak_last_health_generated_at','soak_last_health_sample','soak_sample_log_unavailable'):
         s.pop(key,None)
