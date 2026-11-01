@@ -39,7 +39,6 @@ import subprocess
 import sys
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -101,7 +100,7 @@ def default_layout(profile: str, env: dict) -> dict:
         "max_load": 7.0, "min_available_mb": 1200, "disk_factor": 3, "lock_wait_s": 10,
         "keep_backups": 2, "compat_required": list(COMPAT_SETS), "rollback_node": "restore",
         "whatsapp": {"spec": "@openclaw/whatsapp@" + TARGET_VERSION, "mode": "update"},
-        "meminfo": "/proc/meminfo",
+        "meminfo": "/proc/meminfo", "heavy_jobs": HEAVY_JOBS,
     }
     if profile == "prod":
         release = "$HOME/.openclaw/releases/current/termux-lite"
@@ -119,6 +118,7 @@ def default_layout(profile: str, env: dict) -> dict:
             "receipts": "$HOME/.openclaw/deploys", "backups": "$HOME/.openclaw/backups/openclaw-upgrade",
             "lock": "$HOME/.openclaw/deploys/companion-deploy.lock", "foreign_locks": [],
             "pause_patterns": [r"core-services-watchdog\.sh"],
+            "gateway_pattern": r"(^|/)openclaw-gateway(\s|$)",
             "lease_preflight": ["python3", release + "/gateway-preflight.py", "agent-leases", "--state-dir",
                                 "$HOME/.openclaw", "--apply"],
             "companion": {"url": "http://127.0.0.1:8765", "pattern": "dist/companion/server.js",
@@ -143,7 +143,7 @@ def default_layout(profile: str, env: dict) -> dict:
             "receipts": r + "/deploys", "backups": r + "/backups",
             "lock": r + "/deploys/companion-deploy.lock",
             "foreign_locks": ["$HOME/.openclaw/deploys/companion-deploy.lock"],
-            "pause_patterns": [], "companion": None,
+            "pause_patterns": [], "companion": None, "gateway_pattern": None,
             # Isolation: no WhatsApp credentials copied and channels skipped; the real account never connects twice.
             "whatsapp_gate": False, "triage_stub_log": r + "/logs/triage-stub.log", "notify": None,
             "compat_apply_on_start": True,
@@ -301,6 +301,44 @@ def listening_pids(port: int) -> list[int]:
         except OSError:
             continue
     return sorted(found)
+
+
+def port_open(port: int, timeout: float = 0.5) -> bool:
+    import socket
+    with contextlib.suppress(OSError):
+        with socket.create_connection(("127.0.0.1", port), timeout=timeout):
+            return True
+    return False
+
+
+def proc_env(pid: int) -> dict:
+    try:
+        raw = Path(f"/proc/{pid}/environ").read_bytes().split(b"\0")
+    except OSError:
+        return {}
+    out = {}
+    for item in raw:
+        key, sep, value = item.partition(b"=")
+        if sep:
+            out[key.decode(errors="replace")] = value.decode(errors="replace")
+    return out
+
+
+def lease_gateway_pid(state_dir: Path) -> int | None:
+    """OpenClaw's own record of the Gateway owner (state_leases/gateway-owner), read-only."""
+    db = Path(state_dir) / "state/openclaw.sqlite"
+    if not db.is_file():
+        return None
+    try:
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+        try:
+            row = con.execute("select payload_json from state_leases where scope='gateway-owner'").fetchone()
+        finally:
+            con.close()
+        pid = int(json.loads(row[0])["owner"]["pid"]) if row else None
+        return pid if pid and Path(f"/proc/{pid}").exists() else None
+    except (sqlite3.Error, ValueError, KeyError, TypeError):
+        return None
 
 
 def descendants(roots: set[int]) -> set[int]:
@@ -539,8 +577,8 @@ class Upgrade:
             self.doc.setdefault("logs", {})[log_name] = str(path)
         return rc, out, err, ms
 
-    def cli_json(self, args, timeout_s):
-        rc, out, err, ms = self.cli(args, timeout_s)
+    def cli_json(self, args, timeout_s, log_name=None):
+        rc, out, err, ms = self.cli(args, timeout_s, log_name=log_name)
         for text in (out, err):
             start = text.find("{")
             if start >= 0:
@@ -605,7 +643,7 @@ class Upgrade:
     def preflight(self) -> None:
         with self.phase("preflight") as p:
             self.acquire_lock()
-            heavy = find_pids(HEAVY_JOBS)
+            heavy = find_pids(self.l.get("heavy_jobs") or HEAVY_JOBS)
             p["heavy_jobs"] = len(heavy)
             if heavy:
                 raise Refused("heavy_job_running")
@@ -635,8 +673,8 @@ class Upgrade:
             if free < int(self.l["disk_factor"]) * total:
                 raise Refused(f"disk_insufficient: free={free} need={int(self.l['disk_factor']) * total}")
             self.dbs = [{"path": str(path.relative_to(self.state)), "bytes": db_bytes(path)} for path in dbs]
-            gw = listening_pids(int(self.l["port"]))
-            p["gateway_listening"] = bool(gw)
+            p["gateway_listening"] = port_open(int(self.l["port"]))
+            p["gateway_pids"] = len(self.gateway_pids())
             # Prerequisites known for 2026.10.9: compat variants on the candidate, triage guard in the start script.
             compat = self.compat_check(Path(self.l["candidate_openclaw"]))
             p["compat_candidate"] = compat
@@ -703,9 +741,32 @@ class Upgrade:
                 os.kill(pid, signal.SIGCONT)
         self.paused = []
 
+    def same_state(self, pid: int) -> bool:
+        """The process runs on THIS layout's state dir (prod and preprod Gateways never get confused)."""
+        env = proc_env(pid)
+        state = env.get("OPENCLAW_STATE_DIR") or (str(Path(env["HOME"]) / ".openclaw") if env.get("HOME") else "")
+        return bool(state) and os.path.realpath(state) == os.path.realpath(self.state)
+
+    def gateway_pids(self) -> set[int]:
+        """Android denies /proc/net and netlink to apps: the Gateway is found by OpenClaw's owner lease, the
+        process started here and the Gateway title, each checked against this layout's state dir."""
+        pids = set(listening_pids(int(self.l["port"])))
+        lease = lease_gateway_pid(self.state)
+        if lease and self.same_state(lease):
+            pids.add(lease)
+        if self.gateway_child is not None and self.gateway_child.poll() is None:
+            pids.add(self.gateway_child.pid)
+        pattern = self.l.get("gateway_pattern")
+        if pattern:
+            regex, mine = re.compile(pattern), own_lineage()
+            for pid in all_pids():
+                if pid not in mine and regex.search(proc_cmdline(pid)) and self.same_state(pid):
+                    pids.add(pid)
+        return pids - own_lineage()
+
     def stop_gateway(self, phase: str = "stop") -> None:
         with self.phase(phase) as p:
-            pids = listening_pids(int(self.l["port"]))
+            pids = sorted(self.gateway_pids())
             p["pids"] = len(pids)
             comp = self.l.get("companion")
             if comp:
@@ -713,11 +774,12 @@ class Upgrade:
                 # it is stopped for a consistent backup and restarted on the switched (or restored) runtime.
                 p["companion"] = kill_pids(find_pids(re.escape(comp["pattern"])), 10)
                 self.done["companion_stopped"] = True
-            p.update(kill_pids(pids + sorted(self.triage_pids()), float(self.l["budgets"]["stop_s"])))
+            tree = sorted(set(pids) | descendants(set(pids)) | self.triage_pids())
+            p.update(kill_pids(tree, float(self.l["budgets"]["stop_s"])))
             deadline = time.monotonic() + 15
-            while listening_pids(int(self.l["port"])) and time.monotonic() < deadline:
+            while (port_open(int(self.l["port"])) or self.gateway_pids()) and time.monotonic() < deadline:
                 time.sleep(0.5)
-            if listening_pids(int(self.l["port"])):
+            if port_open(int(self.l["port"])):
                 raise Failed("gateway_port_still_bound")
             if self.down_at is None:
                 self.down_at = time.monotonic()
@@ -898,6 +960,9 @@ class Upgrade:
 
     in_rollback = False
 
+    def log_tag(self, name: str) -> str:
+        return name + ("-rollback" if self.in_rollback else "")
+
     def gate_health_http(self) -> dict:
         deadline = time.monotonic() + float(self.l["budgets"]["health_s"])
         port = int(self.l["port"])
@@ -905,13 +970,14 @@ class Upgrade:
             codes = [http_status(f"http://127.0.0.1:{port}{path}", 5) for path in self.l["health_paths"]]
             if codes and all(code == 200 for code in codes):
                 return {"ok": True, "ready_ms": int((time.monotonic() - self.down_at) * 1000) if self.down_at else None}
-            if self.gateway_child is not None and self.gateway_child.poll() is not None and not listening_pids(port):
+            if self.gateway_child is not None and self.gateway_child.poll() is not None and not port_open(port):
                 return {"ok": False, "detail": f"gateway_exited rc={self.gateway_child.returncode}"}
             time.sleep(1)
         return {"ok": False, "detail": "health_timeout"}
 
     def gate_health_json(self) -> dict:
-        rc, doc, ms = self.cli_json(["health", "--json"], float(self.l["budgets"]["cli_s"]))
+        rc, doc, ms = self.cli_json(["health", "--json"], float(self.l["budgets"]["cli_s"]),
+                                    log_name=self.log_tag("gate-health"))
         if not isinstance(doc, dict):
             return {"ok": False, "detail": f"health_json_unreadable rc={rc}"}
         plugins = doc.get("plugins") or {}
@@ -922,7 +988,8 @@ class Upgrade:
                 "plugin_errors": len(plugins.get("errors") or []), "cli_ms": ms}
 
     def gate_plugin_tools(self) -> dict:
-        rc, doc, ms = self.cli_json(["plugins", "inspect", self.l["plugin_id"], "--json"], float(self.l["budgets"]["cli_s"]))
+        rc, doc, ms = self.cli_json(["plugins", "inspect", self.l["plugin_id"], "--json"], float(self.l["budgets"]["cli_s"]),
+                                    log_name=self.log_tag("gate-plugin"))
         plugin = (doc or {}).get("plugin") if isinstance(doc, dict) else None
         if not isinstance(plugin, dict):
             return {"ok": False, "detail": f"inspect_unreadable rc={rc}"}
@@ -937,7 +1004,7 @@ class Upgrade:
         session = f"openclaw-upgrade-{self.stamp}-{'rollback' if self.in_rollback else 'gate'}"
         rc, out, err, ms = self.cli(["agent", "--agent", turn["agent"], "--session-id", session, "--message",
                                      turn["message"], "--json", "--timeout", str(turn["timeout_s"])],
-                                    float(turn["timeout_s"]) + 60)
+                                    float(turn["timeout_s"]) + 60, log_name=self.log_tag("gate-turn"))
         doc = None
         start = out.find("{")
         if start >= 0:
@@ -967,8 +1034,8 @@ class Upgrade:
     def triage_pids(self) -> set[int]:
         """Automatic triage processes (openclaw triage, claude/codex) spawned from the Gateway's tree."""
         found = set()
-        roots = set(listening_pids(int(self.l["port"])))
-        if self.gateway_pid:
+        roots = self.gateway_pids()
+        if self.gateway_pid and Path(f"/proc/{self.gateway_pid}").exists():
             roots.add(self.gateway_pid)
         tree = descendants(roots) if roots else set()
         for pid in all_pids():
@@ -1006,8 +1073,6 @@ class Upgrade:
         if not comp:
             return {"ok": True, "skipped": "no_companion_in_profile"}
         kill_pids(find_pids(re.escape(comp["pattern"])), 10)
-        for pid in listening_pids(int(urllib.parse.urlparse(comp["url"]).port or 8765)):
-            kill_pids([pid], 5)
         log = Path(self.l["receipts"]) / f"openclaw-upgrade-{self.stamp}-companion.log"
         fd = os.open(log, os.O_CREAT | os.O_APPEND | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
         try:

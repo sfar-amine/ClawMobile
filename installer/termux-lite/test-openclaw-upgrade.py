@@ -44,6 +44,10 @@ if args[:1] == ["gateway"]:
             self.send_response(200); self.end_headers(); self.wfile.write(v.encode())
         def log_message(self, *a): pass
     signal.signal(signal.SIGTERM, lambda *a: sys.exit(0))
+    con = sqlite3.connect(state / "state/openclaw.sqlite")  # OpenClaw's owner lease, as on the S24
+    con.execute("create table if not exists state_leases(scope text primary key, payload_json text)")
+    con.execute("insert or replace into state_leases values('gateway-owner', ?)", (json.dumps({"owner": {"pid": os.getpid()}, "port": port}),))
+    con.commit(); con.close()
     print("gateway token=" + os.environ.get("FAKE_SECRET", ""), flush=True)
     http.server.HTTPServer(("127.0.0.1", port), H).serve_forever()
 elif args[:1] == ["doctor"]:
@@ -128,8 +132,10 @@ class Root:
             "compat_dir": str(td / "no-compat"), "compat_required": [],
             "receipts": str(td / "deploys"), "backups": str(td / "backups"), "lock": str(td / "deploys/companion-deploy.lock"),
             "foreign_locks": [], "pause_patterns": [r"fake-core-services-watchdog"], "companion": None,
+            "gateway_pattern": r"fake-openclaw\.py gateway",
             "whatsapp_gate": True, "triage_stub_log": None, "notify": [str(td / "notify.sh")],
             "max_load": 1000, "min_available_mb": 0, "nice": 0,
+            "heavy_jobs": "fake-heavy-job-" + str(os.getpid()),
             "budgets": {"stop_s": 5, "health_s": 15, "doctor_s": 30, "whatsapp_install_s": 30,
                         "whatsapp_connect_s": 10, "cli_s": 20, "companion_s": 5},
             "env": {"FAKE_ROOT": str(td), "OPENCLAW_STATE_DIR": str(self.state), "FAKE_SECRET": SECRET},
@@ -185,7 +191,9 @@ class Root:
             return r.read().decode()
 
     def cleanup(self):
-        upgrade.kill_pids(upgrade.listening_pids(self.port), 3)
+        pid = upgrade.lease_gateway_pid(self.state)
+        if pid:
+            upgrade.kill_pids([pid], 3)
         for proc in self.procs:
             if proc.poll() is None:
                 proc.kill()
@@ -337,6 +345,16 @@ class OpenClawUpgrade(unittest.TestCase):
         self.assertEqual(doc["state"], "refused")
         self.assertIn("plugin_sdk_target", doc["detail"])
         self.assertIn("triage_guard", doc["detail"])
+        self.assertEqual(r.served_version(), "2026.9.6")
+
+    def test_heavy_job_refuses(self):
+        r = self.make()
+        r.start_current_gateway()
+        job = subprocess.Popen(["bash", "-c", f"exec -a {r.layout['heavy_jobs']} sleep 30"], start_new_session=True)
+        r.procs.append(job)
+        time.sleep(0.2)
+        doc = r.receipt(r.run())
+        self.assertEqual((doc["state"], doc["detail"]), ("refused", "heavy_job_running"))
         self.assertEqual(r.served_version(), "2026.9.6")
 
     def test_dry_run_and_status(self):
