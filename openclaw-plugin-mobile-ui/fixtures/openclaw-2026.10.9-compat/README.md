@@ -65,3 +65,10 @@ candidat) prouvent que l'échec final du démarrage et l'échec d'une relance en
 passent tous les deux par cette fonction. `startup-triage-optout-harness.cjs` n'est **pas** une capture : c'est le
 harness écrit pour `installer/termux-lite/test-startup-triage-optout.py`, qui exécute le corps public original puis
 patché dans une VM avec des dépendances inertes (2026.9.6 et 2026.10.9).
+
+Proxy de sortie des secrets (01/11/2026) : `ca-D3c9PAvv.mjs.gz` (sha256 `63687cc6…5f5f`) et
+`resolve-system-bin-COKBgJV4.mjs.gz` (sha256 `0c1f6ad9…9a17`) viennent de `openclaw@2026.10.9` (archive npm sha256
+`43c61a00…04ab`, conteneur Claude Code). `ca-D3c9PAvv.mjs` est identique à l'octet au fichier du candidat S24
+(`upgrade-rehearsal/live` et `oc-global`). Le jeu `android-fs-compat` vise `ca-D3c9PAvv.mjs` : il y fait chercher
+`openssl` aussi dans `/data/data/com.termux/files/usr/bin`. `resolve-system-bin-COKBgJV4.mjs` n'est pas modifié ; le
+test l'exécute tel quel avec le module CA, avant et après le correctif.
