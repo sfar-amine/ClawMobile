@@ -568,6 +568,20 @@ class RealReceipts(unittest.TestCase):
 
 
 class Units(unittest.TestCase):
+    def test_compat_dir_prefers_the_scripts_own_manifests_over_a_stale_runtime_root(self):
+        # S24 01/11: the Claw bridge carried CLAW_RUNTIME_ROOT pinned to a replaced release; the dry run read stale
+        # manifests and refused. The manifests next to the script win; the variable is only a fallback.
+        here = os.path.join(os.path.dirname(os.path.abspath(SCRIPT)), "openclaw-compat")
+        old = os.environ.get("CLAW_RUNTIME_ROOT")
+        os.environ["CLAW_RUNTIME_ROOT"] = "/nonexistent/old-release/termux-lite"
+        try:
+            self.assertEqual(upgrade._compat_dir(), here)
+        finally:
+            if old is None:
+                os.environ.pop("CLAW_RUNTIME_ROOT", None)
+            else:
+                os.environ["CLAW_RUNTIME_ROOT"] = old
+
     def test_backup_reads_rows_still_in_the_wal(self):
         with tempfile.TemporaryDirectory() as td:
             db = Path(td) / "live.sqlite"
