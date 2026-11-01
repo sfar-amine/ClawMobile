@@ -111,5 +111,23 @@ if [ -f "$ANDROID_FS_PATCH_DIR/android-fs-compat.json" ]; then
     echo "[lite] WARNING: Android filesystem compatibility patch unsupported; runtime drift requires review." >&2
 fi
 
+# Automatic startup triage opt-out (OpenClaw 2026.9.6 and 2026.10.9 run an unsupervised repair agent or
+# `claude -p` after a failed Gateway start). Same ownership; the variable is exported only once the
+# patched guard is verified, so it never claims a protection the installed modules do not carry.
+TRIAGE_PATCH_DIR="${CLAW_CORE_REPO:-$HOME/ClawMobile}/installer/termux-lite/openclaw-compat"
+TRIAGE_PATCH_MODE=--apply
+if [ ! -f "$TRIAGE_PATCH_DIR/startup-triage-optout.json" ]; then
+  TRIAGE_PATCH_DIR="$SCRIPT_DIR/openclaw-compat"
+  TRIAGE_PATCH_MODE=--rollback
+fi
+if [ -f "$TRIAGE_PATCH_DIR/startup-triage-optout.json" ]; then
+  python3 "$TRIAGE_PATCH_DIR/whatsapp-network-recovery.py" --patch-set startup-triage-optout "$TRIAGE_PATCH_MODE" >&2 ||
+    echo "[lite] WARNING: startup triage opt-out patch unsupported; automatic triage stays as shipped." >&2
+  if [ "$TRIAGE_PATCH_MODE" = --apply ] &&
+     python3 "$TRIAGE_PATCH_DIR/whatsapp-network-recovery.py" --patch-set startup-triage-optout --check >/dev/null 2>&1; then
+    export OPENCLAW_STARTUP_TRIAGE=off
+  fi
+fi
+
 echo "[lite] Starting OpenClaw Gateway through fast recovery path..."
 exec openclaw gateway --bind "$GATEWAY_BIND" --port "$GATEWAY_PORT" --verbose
