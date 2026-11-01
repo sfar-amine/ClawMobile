@@ -2,7 +2,7 @@
   "version": 1,
   "package_version": "2026.9.6",
   "files": [],
-  "purpose": "Android app sandboxes refuse hard links and clones with EACCES and offer no /proc/self/ns/pid. OpenClaw 2026.10 publishes files link-or-copy, falls back from a native clone only on its listed codes, moves migration artifacts by link, and reads the pid namespace inode for its gateway lock: each fails on the S24. Adapted from openclaw-android (MIT, platforms/openclaw/patches/openclaw-patch-hardlink.sh): EACCES joins the copy fallbacks, migration artifacts move by rename when the link is refused, the namespace reads as unavailable, and the guarded synchronous copy (plugin loader, clone \"auto\" above 64 KiB) copies instead of attempting a clone it has no fallback for. Nothing on 2026.9.6.",
+  "purpose": "Android app sandboxes refuse hard links and clones with EACCES and offer no /proc/self/ns/pid. OpenClaw 2026.10 publishes files link-or-copy, falls back from a native clone only on its listed codes, moves migration artifacts by link, and reads the pid namespace inode for its gateway lock: each fails on the S24. Adapted from openclaw-android (MIT, platforms/openclaw/patches/openclaw-patch-hardlink.sh): EACCES joins the copy fallbacks, migration artifacts move by rename when the link is refused, the namespace reads as unavailable, and the guarded synchronous copy (plugin loader, clone \"auto\" above 64 KiB) copies instead of attempting a clone it has no fallback for. Android has no /usr/bin: OpenClaw 2026.10 looks for openssl only in fixed system directories, so the secret egress proxy Worker cannot create its CA and the Gateway refuses to start with secrets.egressProxy; the CA module also searches the Termux binary directory (fixed path, never PATH), as the 2026.9.6 production install was patched by hand on 25/09. Nothing on 2026.9.6.",
   "packages": {
     "2026.10.9": {
       "files": [
@@ -15,6 +15,22 @@
             [
               "\t\t\t\tparentReceipt: plan.parentReceipt,\n\t\t\t\tstrategy: \"link-required\",\n\t\t\t\tonSyncFailure: \"preserve\"\n",
               "\t\t\t\tparentReceipt: plan.parentReceipt,\n\t\t\t\tstrategy: \"link-or-copy\",\n\t\t\t\tonSyncFailure: \"preserve\"\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/ca-D3c9PAvv.mjs",
+          "original": "63687cc6c1536a323997ccd455e09908f4dd69d2d40bfce23ad0d783a3605f5f",
+          "patched": "5b1fd3ecdfae563cca56a9f9424f6afe72f4b7a1699699aa89c7b78f134abd2f",
+          "replacements": [
+            [
+              "\t\tconst openssl = resolveSystemBin(\"openssl\");\n\t\tif (!openssl) throw new Error(`openssl is required to generate ${options.purpose} certificates`);\n",
+              "\t\tconst openssl = resolveSystemBin(\"openssl\", { extraDirs: [\"/data/data/com.termux/files/usr/bin\"] });\n\t\tif (!openssl) throw new Error(`openssl is required to generate ${options.purpose} certificates`);\n"
+            ],
+            [
+              "\tconst openssl = resolveSystemBin(\"openssl\");\n\tif (!openssl) throw new Error(\"openssl is required to generate local proxy certificates\");\n",
+              "\tconst openssl = resolveSystemBin(\"openssl\", { extraDirs: [\"/data/data/com.termux/files/usr/bin\"] });\n\tif (!openssl) throw new Error(\"openssl is required to generate local proxy certificates\");\n"
             ]
           ]
         },
