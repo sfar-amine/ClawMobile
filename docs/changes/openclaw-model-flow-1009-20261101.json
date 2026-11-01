@@ -1,0 +1,87 @@
+{
+  "version": 2,
+  "id": "openclaw-model-flow-1009-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "The three model-flow behaviour tests (setup, compaction, native session) take the pinned OpenClaw version as argument: 2026.9.6 (default) replays the unchanged S24 capture; 2026.10.9 replays the same invariants on the public npm functions of the upgrade candidate, with the patched modules of the model-flow-selection variant and new function extracts of the public patchSessionEntry chain. The plugin's profile persistence (conversationModelProfile.ts pin and readProfile) is run against the 2026.10.9 patchSessionEntry, worker and direct writers. CI gains one 2026.10.9 step next to each existing one.",
+  "reason": "Step 2 of the OpenClaw 2026.9.6 to 2026.10.9 upgrade. Step 1 only qualified the SDK surface statically; the model profile hook, the session summary pin and the profile metadata write were exercised on 2026.9.6 code alone, while 2026.10.9 moved the setup functions into the embedded-agent chunk, wraps the hook in claim admission, reads the compaction entry through an async worker reader, and rewrote patchSessionEntry (public projection, external commit guard, worker writer).",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/model-flow-sdk-fixtures.cjs",
+    "installer/termux-lite/test-model-flow-setup.cjs",
+    "installer/termux-lite/test-model-flow-compaction.cjs",
+    "installer/termux-lite/test-model-flow-native-session.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-model-flow-sdk/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-model-flow-sdk/PROVENANCE.json",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-model-flow-sdk/native-session-cas-snippets.json",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-model-flow-sdk/model-ref-profile-BNjB2hED.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-model-flow-sdk/fetch-request-authority-DJ_0g9EM.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-model-flow-sdk/LICENSE.openclaw",
+    "docs/changes/openclaw-model-flow-1009-20261101.json",
+    "docs/changes/openclaw-model-flow-1009-20261101.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-model-flow-setup.cjs (2026.9.6 and 2026.10.9)",
+      "status": "passed",
+      "evidence": "Node 20, 22 and 26.11.1. Both versions: exact original and patched SHA, contract module equal to the openclawSdkVersions.ts row and exported, closed settings validation, scoped owner hook, lock precedence, 20 fallbacks, clearing, immutable config, awaited outer prefix with source admission rechecked, before_runtime before CLI dispatch, settings before native auth, explicit clearing through the hook merge. 2026.10.9 also: the three type pins of config-contracts are identical to the 2026.9.6 pins and apply with the exact SHA; a revoked claim admission stops before the hook, and a revocation during the awaited hook discards its settings."
+    },
+    {
+      "name": "installer/termux-lite/test-model-flow-compaction.cjs (2026.9.6 and 2026.10.9)",
+      "status": "passed",
+      "evidence": "Node 20, 22 and 26.11.1. Both versions: summary hook awaited before preparation, model-only pin across refreshed configs, null inheritance, locked and transcript-preflight sessions untouched, refusal and hook failure stop before preparation, explicit summary account consumed by the native target without model suffix, no cross-provider account reuse. 2026.10.9 also: the entry is read through the async worker reader with latest consistency; a compaction aborted before the read never reaches the hook, and one aborted during the hook does not use its result."
+    },
+    {
+      "name": "installer/termux-lite/test-model-flow-native-session.cjs (2026.9.6 and 2026.10.9)",
+      "status": "passed",
+      "evidence": "Node 22 and 26.11.1. 2026.9.6 unchanged. 2026.10.9, worker writer (production default for this call) and direct writer: async preparation, separate-process reset and same-generation metadata conflict refused with no stale write, null patch writes nothing, activity preserved, 451 rows within the 25 s budget, 455 transactions for 452 writes; the selected writer is checked. Plugin pin on the same functions: the plugin sees a projected entry, pluginExtensions and private keys stay in the row, first pin wins without a write, a reset between listing and pin is refused 409, a concurrent write between preparation and commit is refused by the writer CAS, and a retry keeps both. A mutant without the row recheck fails."
+    },
+    {
+      "name": "installer/termux-lite/test-ci-registration.py, installer/termux-lite/test-model-flow-selection.py",
+      "status": "passed",
+      "evidence": "New CI steps are registered; the model-flow-selection owner is unchanged. Full tools/localci.py not run by the author (targeted tests only)."
+    }
+  ],
+  "documentation": [
+    "docs/changes/openclaw-model-flow-1009-20261101.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-model-flow-sdk/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Tests and fixtures only; no route, action, setting or capability changes."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No runtime code changes. The tests keep the existing vm-extract model over authored SQLite ports; no new store, router, scheduler, daemon or retry engine."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Only tests, fixtures, CI steps and documentation change; the 2026.9.6 legs keep their assertions."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "No invariant failed on 2026.10.9. Differences found and now tested: claim admission and guarded fetch authority around the profile hook; async entry read with cancellation in compaction; patchSessionEntry projects the entry given to the plugin (private keys hidden, then restored for the same generation) and keeps pluginExtensions; for the plugin call it selects the worker writer.",
+    "Still authored ports: the worker transport (thread, transfer frames, commit receipt, outcome-unknown), the row write, the entry merge, the row scan and the database identity guards. The real worker thread is not started.",
+    "No OpenClaw 2026.10.9 code is imported: its engines need Node 24.22.1+ or 26.12.1+, CI has 26.11.1. The plugin pin source is type-stripped by Node (experimental API) for the native-session leg.",
+    "Other 2026.10.9 declaration files that may repeat the hook types were not checked here; the pins cover config-contracts only."
+  ],
+  "rollback": "Revert this commit: the tests return to the 2026.9.6-only form and the fixture folder and CI steps disappear. No runtime or S24 state changes."
+}

@@ -2,7 +2,7 @@
   "version": 1,
   "package_version": "2026.9.6",
   "files": [],
-  "purpose": "Android app sandboxes refuse hard links and clones with EACCES and offer no /proc/self/ns/pid. OpenClaw 2026.10 publishes files link-or-copy, falls back from a native clone only on its listed codes, moves migration artifacts by link, and reads the pid namespace inode for its gateway lock: each fails on the S24. Adapted from openclaw-android (MIT, platforms/openclaw/patches/openclaw-patch-hardlink.sh): EACCES joins the copy fallbacks, migration artifacts move by rename when the link is refused, the namespace reads as unavailable. Nothing on 2026.9.6.",
+  "purpose": "Android app sandboxes refuse hard links and clones with EACCES and offer no /proc/self/ns/pid. OpenClaw 2026.10 publishes files link-or-copy, falls back from a native clone only on its listed codes, moves migration artifacts by link, and reads the pid namespace inode for its gateway lock: each fails on the S24. Adapted from openclaw-android (MIT, platforms/openclaw/patches/openclaw-patch-hardlink.sh): EACCES joins the copy fallbacks, migration artifacts move by rename when the link is refused, the namespace reads as unavailable, and the guarded synchronous copy (plugin loader, clone \"auto\" above 64 KiB) copies instead of attempting a clone it has no fallback for. Nothing on 2026.9.6.",
   "packages": {
     "2026.10.9": {
       "files": [
@@ -163,6 +163,18 @@
             [
               "            input.signal?.throwIfAborted();\n        const unsupported = [\"ENOTSUP\", \"EOPNOTSUPP\", \"ENOSYS\", \"EXDEV\", \"EINVAL\"].includes(copied.errorCode);\n        throw new FsSafeError(copied.errorCode === \"too-large\" ? \"too-large\" : unsupported ? \"unsupported-platform\" : \"helper-failed\", copied.errorMessage ?? \"native file copy failed\", { cause: Object.assign(new Error(copied.errorMessage ?? \"native file copy failed\"), { code: copied.errorCode }) });\n",
               "            input.signal?.throwIfAborted();\n        const unsupported = [\"ENOTSUP\", \"EOPNOTSUPP\", \"ENOSYS\", \"EXDEV\", \"EINVAL\", \"EACCES\"].includes(copied.errorCode);\n        throw new FsSafeError(copied.errorCode === \"too-large\" ? \"too-large\" : unsupported ? \"unsupported-platform\" : \"helper-failed\", copied.errorMessage ?? \"native file copy failed\", { cause: Object.assign(new Error(copied.errorMessage ?? \"native file copy failed\"), { code: copied.errorCode }) });\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "node_modules/@openclaw/fs-safe/dist/copy-root-file-sync.js",
+          "original": "995884a1fca211fe18b8332dbc422c4be6e0cd2b53cb6bd3697c265414868786",
+          "patched": "bd72128fef4ba7f76c2df04526d1d0d6e1253167b5a044295ca53fa254229e86",
+          "replacements": [
+            [
+              "    const clone = resolveCopyCloneMode(options.clone, \"never\");\n",
+              "    const clone = resolveCopyCloneMode(options.clone === \"auto\" ? \"never\" : options.clone, \"never\");\n"
             ]
           ]
         },

@@ -1,0 +1,143 @@
+{
+ "version": 1,
+ "capture": {
+  "runtimeCapture": false,
+  "sanitized": true,
+  "kind": "public npm package code only",
+  "source": "npm pack openclaw@2026.10.9 (Claude Code container, 2026-11-01); targeted extraction, read as text, never imported or executed",
+  "openclaw": "2026.10.9",
+  "tarball_sha256": "43c61a00ef2c73416a072a7216cb3be80555d6740199f07194da2714283b04ab"
+ },
+ "files": [
+  {
+   "module": "model-ref-profile-BNjB2hED.mjs",
+   "bytes": 979,
+   "sha256": "b9ced4a4af5d472c2703e0226b23562f2615b6c96f6e31b93e48a7d3671635e6"
+  },
+  {
+   "module": "fetch-request-authority-DJ_0g9EM.mjs",
+   "bytes": 1790,
+   "sha256": "97a3192e3a2f2552c52c5699cc285c3b7c132177d3a65056cf321c9d603e7597"
+  }
+ ],
+ "snippet_modules": [
+  {
+   "module": "session-store-runtime-B8fW3ciZ.mjs",
+   "bytes": 11818,
+   "sha256": "b09c1a9b310c3f8b42c734e3ef864d28ac8ce6793e3036291fd4257b44200b37",
+   "snippets": [
+    "preserveGenerationPrivateFields+getSessionEntry",
+    "listSessionEntries",
+    "patchSessionEntry"
+   ]
+  },
+  {
+   "module": "session-store-runtime-internal-CtkzYf1V.mjs",
+   "bytes": 3758,
+   "sha256": "89e17c687b4677190110cca4f46bb6635cb83cb3a450cae7eed3707420f494f2",
+   "snippets": [
+    "toSessionAccessScope..clearGenerationPrivateFieldsForRotatedSessionPatch"
+   ]
+  },
+  {
+   "module": "session-entry-projection-DwG6-KIA.mjs",
+   "bytes": 2911,
+   "sha256": "87cef8467ab223efcf90dded7e25d2cfbd1ccb725d736aca68e48a804fb71eba",
+   "snippets": [
+    "projection-region"
+   ]
+  },
+  {
+   "module": "main-session-recovery-clear-B0tByn8u.mjs",
+   "bytes": 1735,
+   "sha256": "00559298d222e0ffa03047b4d0f071bc262da821339e8f1e08c7f33f55196e85",
+   "snippets": [
+    "MAIN_SESSION_RECOVERY_CLEAR_PATCH"
+   ]
+  },
+  {
+   "module": "session-source-authority-h1UO3u0I.mjs",
+   "bytes": 8567,
+   "sha256": "002a834db1bfe0c739e11002db3440becc9af63f74383ff3c95274e6c3955357",
+   "snippets": [
+    "sessionEntryCommitGuardOptions",
+    "captureExternalSessionCommitGuard",
+    "prepareSessionSourceAuthority"
+   ]
+  },
+  {
+   "module": "session-accessor.sqlite-entry-DLa7_9ui.mjs",
+   "bytes": 56975,
+   "sha256": "5b2cdf8f46e5ccabf25b066cd805965142c0ac15e5ad9af7b5720a7bef36bb94",
+   "snippets": [
+    "captureSessionEntryPatchSource",
+    "patchSessionEntryCore..patchSessionEntryInScope",
+    "patchSqliteSessionEntrySnapshot"
+   ]
+  },
+  {
+   "module": "session-entry-patch-operation-C0KSoGVF.mjs",
+   "bytes": 12087,
+   "sha256": "9db78a2e87d4f4829dca2a335d19d638a7032a57853b26772ad110961db6dcc7",
+   "snippets": [
+    "mergeSessionEntryPatch"
+   ]
+  },
+  {
+   "module": "session-accessor.sqlite-entry-store-CIM2yoGL.mjs",
+   "bytes": 53730,
+   "sha256": "8df6508c240e14adeb5a9d66bf6473941d8b05882be74c774d3bf1a5f4a7a1cc",
+   "snippets": [
+    "readSessionEntrySelectionSnapshot..readUnchangedLifecycleTargetSnapshot"
+   ]
+  },
+  {
+   "module": "session-mutation-conflict-error-CSUFwifz.mjs",
+   "bytes": 1366,
+   "sha256": "83cf712bb7ae3090a8cae7d9fb5afa01fec36b94ee0433131bbab479b21ff05b",
+   "snippets": [
+    "SqliteSessionMutationConflictError"
+   ]
+  },
+  {
+   "module": "session-accessor.sqlite-entry-equality-w0pZmXiY.mjs",
+   "bytes": 1530,
+   "sha256": "15beb2759192ff27962b6c830bfce6f25599eab88f12eac273446cdef18fa07b",
+   "snippets": [
+    "equality-region"
+   ]
+  },
+  {
+   "module": "session-accessor.sqlite-entry-mutation-CxTIILGh.mjs",
+   "bytes": 5325,
+   "sha256": "5c1212c8b0f1b9091cb3010a20bcd711ad6d080921a5bbd596ae0357abd83faa",
+   "snippets": [
+    "patch-guard+mutation-region"
+   ]
+  },
+  {
+   "module": "openclaw-agent-db-transaction-D2d1A44G.mjs",
+   "bytes": 2209,
+   "sha256": "9bfc1437ffb0127bac2983478a90752700b6bd22acb2ad6329e8819e052f3aa7",
+   "snippets": [
+    "runOpenClawAgentWriteWithYieldingAdmission"
+   ]
+  },
+  {
+   "module": "openclaw-agent-db-DWI9Bgur.mjs",
+   "bytes": 45924,
+   "sha256": "d0e204b720b54029d8bee1b9f517909a80810c16394529b7524bbe34a00fcab7",
+   "snippets": [
+    "runOpenClawAgentWriteTransaction"
+   ]
+  },
+  {
+   "module": "session-entry-patch.worker-D77IuVN7.mjs",
+   "bytes": 7860,
+   "sha256": "67763f79a09d37a0715b6069c22d77f603574a284aa7770fcc292e6cd09b936e",
+   "snippets": [
+    "createSessionWorkerOperationContext..commitSessionEntryPatch"
+   ]
+  }
+ ]
+}

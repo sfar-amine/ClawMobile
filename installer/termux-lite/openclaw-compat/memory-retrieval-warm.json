@@ -1,7 +1,7 @@
 {
   "version": 1,
   "package_version": "2026.9.6",
-  "purpose": "Keep the existing memory-core recall worker pool and idle SQLite handles warm for 12 h instead of the WorkerTaskPool 60 s default and the 30 min handle window, so a spoken turn after a pause neither respawns the recall worker nor reopens the agent database (whose reopen queues an integrity quick_check ahead of the session write) on the critical path; the pool's own memory-critical retirement is unchanged.",
+  "purpose": "Keep the existing memory-core recall worker pool and idle SQLite handles warm for 12 h instead of the WorkerTaskPool 60 s default and the 30 min handle window, so a spoken turn after a pause neither respawns the recall worker nor reopens the agent database (whose reopen queues an integrity quick_check ahead of the session write) on the critical path; the pool's own memory-critical retirement is unchanged. A per-turn session participant record also stops opening a one-shot SQLite Worker while it holds the agent write admission: it uses OpenClaw's own native participant writer (the incognito path), so the session writes of the same turn no longer queue behind a Worker spawn.",
   "files": [
     {
       "root": "openclaw",
@@ -37,6 +37,18 @@
           "// Samantha S24 31/10: a 30 min window closes the agent database between spoken turns; its reopen queues an\n// integrity quick_check that holds the session writer ~2.6 s on the next turn. Keep idle handles 12 h.\nconst SQLITE_IDLE_HANDLE_TTL_MS = 432e5;"
         ]
       ]
+    },
+    {
+      "root": "openclaw",
+      "path": "dist/session-accessor-DLYTHSBj.mjs",
+      "original": "756d3a5876376b176c2be08cc3b71b9166792e77f5d862a111e88a2acf01155e",
+      "patched": "d70d83249c896004c703e84eacaa3052169e7df826d05aa4292c5a403c61ef74",
+      "replacements": [
+        [
+          "\tconst execution = captureOpenClawAgentDatabaseExecution(options);\n\tconst assertQueuedCurrent = () => {",
+          "\t// Samantha S24 01/11: a participant record opened a one-shot SQLite Worker (spawn, open, bind, close) while\n\t// holding the agent write admission, so the next session write queued ~2 s. Record it natively instead,\n\t// like the incognito branch above, after the agent database is admitted on its usual async path.\n\tif (command.type === \"participant\") return runOpenClawAgentWriteAdmission(options, () => withOpenClawAgentDatabaseAsync(options, () => {\n\t\tassertCurrent();\n\t\treturn native(capturedScope);\n\t}, assertCurrent), true);\n\tconst execution = captureOpenClawAgentDatabaseExecution(options);\n\tconst assertQueuedCurrent = () => {"
+        ]
+      ]
     }
   ],
   "packages": {
@@ -63,6 +75,18 @@
             [
               "const SQLITE_IDLE_HANDLE_TTL_MS = 18e5;",
               "// Samantha S24 31/10: a 30 min window closes the agent database between spoken turns; its reopen queues an\n// integrity quick_check that holds the session writer ~2.6 s on the next turn. Keep idle handles 12 h.\nconst SQLITE_IDLE_HANDLE_TTL_MS = 432e5;"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/session-accessor-C3ljJ974.mjs",
+          "original": "c000b950a69d04879e214410f348659ce7beef9042c8572bcffbcb25200caa34",
+          "patched": "bed9c5d2f5f5780cd1995486a4ea695f4da94f77b6fdc52d298394d321d4781c",
+          "replacements": [
+            [
+              "\tconst execution = captureOpenClawAgentDatabaseExecution(options);\n\tconst assertQueuedCurrent = () => {",
+              "\t// Samantha S24 01/11: a participant record opened a one-shot SQLite Worker (spawn, open, bind, close) while\n\t// holding the agent write admission, so the next session write queued ~2 s. Record it natively instead,\n\t// like the incognito branch above, after the agent database is admitted on its usual async path.\n\tif (command.type === \"participant\") return runOpenClawAgentWriteAdmission(options, () => withOpenClawAgentDatabaseRuntime(options, () => {\n\t\tassertCurrent();\n\t\treturn native(capturedScope);\n\t}, assertCurrent), true);\n\tconst execution = captureOpenClawAgentDatabaseExecution(options);\n\tconst assertQueuedCurrent = () => {"
             ]
           ]
         }
