@@ -1,0 +1,69 @@
+{
+  "version": 2,
+  "id": "test-waiting-cues-settle-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "Test only: test-voice-waiting-cues.cjs no longer sleeps a fixed 20 ms before reading the run status; it waits (5 s bound) for the persisted effect of each observer frame, and an ordered barrier step proves the discovery and result frames were applied before asserting they did not move the activity.",
+  "reason": "Intermittent local CI failure at the first activity assertion (about line 73): the observer persists each frame through its own write queue and registry write, which a loaded host does not finish within 20 ms. 15/15 idle runs passed, one loaded CI run failed; the product code was not at fault.",
+  "files": [
+    "openclaw-plugin-mobile-ui/scripts/test-voice-waiting-cues.cjs",
+    "docs/changes/test-waiting-cues-settle-20261101.json",
+    "docs/changes/test-waiting-cues-settle-20261101.md"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-voice-waiting-cues.cjs",
+      "status": "passed",
+      "evidence": "5 cases; 30/30 idle, 30/30 under two busy loops, 30/30 as 3 concurrent runs under six busy loops (4 vCPU). The base version failed 9/30 under that last load. Already registered in .github/workflows/ci.yml job mobile-ui-plugin."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-voice-deferred-readback.cjs, test-voice-brain-delegation.cjs",
+      "status": "passed",
+      "evidence": "Unchanged, rerun on the change (16 and 28 cases)."
+    },
+    {
+      "name": "complete-final-head-local-ci",
+      "status": "pending",
+      "evidence": "tools/localci.py is run by the reviewer on the exact PR head."
+    }
+  ],
+  "fixtures": {
+    "path": "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-30-direct-call-id, s24-2026-10-30-tool-search-direct, s24-2026-10-25-typed-tools",
+    "provenance": "Existing S24 captures, unchanged; no new capture."
+  },
+  "documentation": [
+    "docs/changes/test-waiting-cues-settle-20261101.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Test script only; no capability, route or runtime behaviour changed."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No product code touched; the observer, its bounded write queue and the run status projection are unchanged."
+  },
+  "app_impact": {
+    "required": false,
+    "detail": "None: test script only."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Test script only; MCP execution contracts unchanged."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applicable",
+  "limitations": [
+    "The 5 s bound is a ceiling, not a delay: each wait returns as soon as the persisted status shows the expected effect."
+  ],
+  "rollback": "Revert this commit; test script only, nothing to redeploy."
+}

@@ -23,7 +23,15 @@ async function test(name,run){await run();passed++;console.log('PASS '+name);}
 const expected=sid=>'agent:main:companion-chat-'+sid;
 const frame=(id,sid,seq,data,stream='tool')=>({type:'event',event:'agent',payload:{runId:id,sessionKey:expected(sid),seq,stream,data}});
 const terminal=(id,text)=>({runId:id,status:'ok',summary:'completed',result:{payloads:[{text}],meta:{stopReason:'stop'}}});
-const settle=()=>new Promise(r=>setTimeout(r,20));
+// The observer persists each frame through its own write queue; the test waits for the persisted effect (bounded), never
+// for a fixed delay (a 20 ms sleep raced the registry write on a loaded CI host).
+const OBSERVED_WRITE_MS=5000;
+async function until(read,ok,what){
+ const deadline=Date.now()+OBSERVED_WRITE_MS;
+ for(;;){const value=await read();if(ok(value))return value;
+  if(Date.now()>=deadline)assert.fail(what+' not persisted within '+OBSERVED_WRITE_MS+' ms: '+JSON.stringify(value));
+  await new Promise(r=>setTimeout(r,5));}
+}
 
 (async()=>{try{
  const runs=require('../dist/companion/runs');
@@ -68,8 +76,8 @@ const settle=()=>new Promise(r=>setTimeout(r,20));
   o.event(frame(id,'waiting',1,{phase:'start',name:'read',toolCallId:'c0',args:{path:'skills/samantha-factures/SKILL.md'}}));
   o.event(frame(id,'other-session',2,{phase:'start',name:'samantha_pulse',toolCallId:'cx',args:{action:'pulse.read'}}));
   o.event(frame(id,'waiting',2,{phase:'start',name:'samantha_utility_billing',toolCallId:direct.calls[0].callId,args:{action:'bill.status',params:{provider:'steg'}}}));
-  await settle();
-  let byId=await runs.getRunStatus(id),byClient=await runs.getRunStatusByClientRunId(client);
+  let {byId,byClient}=await until(async()=>({byId:await runs.getRunStatus(id),byClient:await runs.getRunStatusByClientRunId(client)}),
+   v=>v.byId.progress?.activity&&v.byClient.progress?.activity,'the first typed activity');
   assert.equal(byId.progress.activity.tool,'samantha_utility_billing');assert.equal(byId.progress.activity.action,'bill.status');
   assert.deepEqual(byClient.progress.activity,byId.progress.activity,'the voice first reads the run by its clientRunId');
   assert.ok(!JSON.stringify(byId).includes('steg'),'parameters never reach the status');
@@ -77,13 +85,16 @@ const settle=()=>new Promise(r=>setTimeout(r,20));
   // Discovery and the result frame do not move the activity; a later typed call does.
   o.event(frame(id,'waiting',3,{phase:'result',name:'samantha_utility_billing',toolCallId:direct.calls[0].callId}));
   o.event(frame(id,'waiting',4,{phase:'start',name:'samantha_catalogue',toolCallId:'c2',args:{query:'agenda'}}));
-  await settle();assert.equal((await runs.getRunStatus(id)).progress.activity.tool,'samantha_utility_billing');
-  o.event(frame(id,'waiting',5,{phase:'start',name:direct.calls[1].tool,toolCallId:direct.calls[1].callId,args:{action:direct.calls[1].action,params:{title:'x',start_time:'2026-10-31T10:00'}}}));
-  await settle();byId=await runs.getRunStatus(id);
+  // Ordered barrier: a titled untyped step queued after them; once it is persisted, frames 3 and 4 were applied.
+  o.event(frame(id,'waiting',5,{phase:'start',name:'read',toolCallId:'c3',args:{path:'skills/samantha-agenda/SKILL.md',title:'Je prépare ta demande'}}));
+  byId=await until(()=>runs.getRunStatus(id),v=>v.progress?.steps?.some(s=>s.label==='Je prépare ta demande'),'the barrier step');
+  assert.equal(byId.progress.activity.tool,'samantha_utility_billing');assert.equal(byId.progress.activity.action,'bill.status');
+  o.event(frame(id,'waiting',6,{phase:'start',name:direct.calls[1].tool,toolCallId:direct.calls[1].callId,args:{action:direct.calls[1].action,params:{title:'x',start_time:'2026-10-31T10:00'}}}));
+  byId=await until(()=>runs.getRunStatus(id),v=>v.progress?.activity?.action!=='bill.status','the later typed activity');
   assert.deepEqual({tool:byId.progress.activity.tool,action:byId.progress.activity.action},{tool:'samantha_agenda',action:'agenda.event.create'});
   // A titled typed call is still a public step, as before.
-  o.event(frame(id,'waiting',6,{phase:'start',name:'samantha_agenda',toolCallId:'c4',args:{action:'agenda.event.read',title:'Je consulte ton agenda'}}));
-  await settle();assert.ok((await runs.getRunStatus(id)).progress.steps.some(s=>s.label==='Je consulte ton agenda'));
+  o.event(frame(id,'waiting',7,{phase:'start',name:'samantha_agenda',toolCallId:'c4',args:{action:'agenda.event.read',title:'Je consulte ton agenda'}}));
+  await until(()=>runs.getRunStatus(id),v=>v.progress?.steps?.some(s=>s.label==='Je consulte ton agenda'),'the titled typed step');
   await o.final(terminal(id,'Rendez-vous ajouté.'));
   const done=await runs.getRunStatus(id);assert.equal(done.state,'done');assert.equal(done.progress.activity.tool,'samantha_agenda');
   assert.equal(gatewayCalls,0,'status reads of an observed run stay local');
