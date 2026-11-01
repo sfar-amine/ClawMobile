@@ -60,18 +60,20 @@ Racine `~/.openclaw-android/staging/upgrade-rehearsal`, port 19789, prod intacte
 
 MESURES
 
-## Ce que la répétition a trouvé
+## Ce que la répétition a trouvé (bloquants pour la prod)
 
-- `openclaw plugins update` (et `install`) échoue sous Android en 2026.10.9. fs-safe refuse tout espace temporaire sous `/data`, qui appartient à l'uid 1000. Le script prépare donc WhatsApp avec npm, hors fenêtre. Le correctif amont reste à faire dans le jeu `android-fs-compat`.
-- La copie de base qui servait au premier essai de Gateway 9.6 portait le bail de la Gateway de prod (PID vivant), et le démarrage a été refusé. En prod, le bail de la Gateway arrêtée est mort, donc libre.
-- `doctor --fix` est la phase longue de la coupure.
-- Doctor migre :
-  - les 7 bases d'agent, schéma v23 → v25 ;
-  - la base d'état, v18 → v20 ;
-  - la config (`systemAgent` et `heartbeat.agentId`) ;
-  - les index d'état partagé.
+1. **Le Worker du proxy d'egress des secrets ne démarre pas en 2026.10.9.** `secrets.egressProxy` est configuré en prod, et la Gateway refuse de démarrer : « Secret egress proxy Worker is unavailable ». Le bundle de stabilité est `state/logs/stability/*gateway.startup_failed.json` (pile dans `runtime-BobAZq4r.mjs`, message `fatal` du Worker). Le même fs-safe 0.26 refuse tout espace temporaire sous `/data` (uid 1000), probablement la même cause. La configuration réduite de l'étape 3 n'avait pas ce bloc, d'où l'absence de problème alors. Sans correctif, la bascule de prod revient en arrière toute seule.
+2. **Le triage automatique se déclenche bel et bien.** Quand le démarrage échoue, la 10.9 lance « Automatic triage » : environ 2 min, `openclaw triage`, qui échoue ici (`claude`/`codex` remplacés par des leurres en préprod). Le script le détecte (gate `no_triage`, journal et processus) et tue ces processus au retour arrière. La garde dans `gateway-start.sh` reste à décider. Tant qu'elle manque, le préflight de prod refuse (`triage_guard`).
+3. **Le plugin Samantha se charge avec 0 outil sur 56 en 10.9.** Message : « requires capability consent ». Le script ajoute la phase `consent` (`plugins enable openclaw-plugin-mobile-ui --accept-capabilities`, hors ligne). Sans elle, la gate `plugin_tools` fait revenir en arrière.
+4. **Le tour agent restait bloqué sur le hook `before_model_resolve` du plugin Samantha.** La copie de préproduction chargeait le plugin depuis le dossier de prod : les enregistrements d'installation sont dans `config_machine_state` de la base d'état, avec des chemins absolus. Le hook résolvait alors le SDK 9.6 de prod. En prod, la racine globale porte la 10.9 après la bascule. La préproduction réécrit maintenant ces enregistrements et pointe `CLAWMOBILE_OPENCLAW_BIN` sur sa propre racine (voir les mesures pour le résultat).
+5. **`openclaw plugins update` et `install` échouent sous Android en 2026.10.9** (fs-safe : `/data` appartient à l'uid 1000). WhatsApp est donc préparé avec npm, hors fenêtre, en 18 s.
+6. **`doctor --fix` est la phase longue** : 324 à 514 s sur les copies en vraie taille. Il fait tourner des contrôles de « peer link » sur chaque plugin npm. Doctor migre :
+   - les 7 bases d'agent, schéma v23 → v25 ;
+   - la base d'état, v18 → v20 ;
+   - la config (`systemAgent` et `heartbeat.agentId`).
 
-  Les bases `headless-state*` restent en v18.
+   Les `headless-state*` restent en v18.
+7. Une copie de base porte le bail de la Gateway de prod (PID vivant). Sur la copie, le démarrage est refusé. En prod, le bail de la Gateway arrêtée est mort.
 
 ## Tests
 

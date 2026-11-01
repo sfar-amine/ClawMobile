@@ -653,6 +653,14 @@ class Upgrade:
             p["heavy_jobs"] = len(heavy)
             if heavy:
                 raise Refused("heavy_job_running")
+            # Same calm wait as companion-deploy.sh (COMPANION_DEPLOY_WAIT_CALM_S): 3 calm samples 10 s apart.
+            waited, calm = 0, 0
+            while self.o.wait_calm and waited < self.o.wait_calm and calm < 3:
+                calm = calm + 1 if load1() <= float(self.l["max_load"]) else 0
+                if calm < 3:
+                    time.sleep(10)
+                    waited += 10
+            p["calm_wait_s"] = waited
             p["load1"], p["available_mb"] = load1(), available_mb(self.l["meminfo"])
             if p["load1"] > float(self.l["max_load"]):
                 raise Refused(f"load_too_high: {p['load1']}")
@@ -1334,12 +1342,15 @@ def main(argv=None) -> int:
     ap.add_argument("--dry-run", action="store_true", help="preflight only, nothing stopped or changed")
     ap.add_argument("--force-gate-failure", choices=GATES, help="rehearsal: fail this gate to exercise the rollback")
     ap.add_argument("--skip-prerequisite", action="append", help="rehearsal: accept a known missing prerequisite")
+    ap.add_argument("--wait-calm", type=int, default=0, metavar="S",
+                    help="wait up to S seconds (max 1800) for load <= max_load before refusing")
     ap.add_argument("--stamp", help=argparse.SUPPRESS)
     ap.add_argument("--status", action="store_true", help="print the last receipt")
     options = ap.parse_args(argv)
     if options.force_gate_failure and options.profile == "prod":
         print("force_gate_failure_refused_in_prod", file=sys.stderr)
         return 2
+    options.wait_calm = max(0, min(1800, options.wait_calm))
     layout = load_layout(options.profile, options.layout, dict(os.environ))
     if options.status:
         receipts = sorted(Path(layout["receipts"]).glob("openclaw-upgrade-*[0-9].json"))

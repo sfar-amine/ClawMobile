@@ -417,6 +417,17 @@ class OpenClawUpgrade(unittest.TestCase):
         self.assertEqual((doc["state"], doc["detail"]), ("refused", "heavy_job_running"))
         self.assertEqual(r.served_version(), "2026.9.6")
 
+    def test_load_too_high_refuses_after_bounded_calm_wait(self):
+        r = self.make(max_load=-1)
+        r.start_current_gateway()
+        started = time.monotonic()
+        doc = r.receipt(r.run("--wait-calm", "10"))
+        self.assertEqual(doc["state"], "refused")
+        self.assertIn("load_too_high", doc["detail"])
+        self.assertEqual(doc["phases"]["preflight"]["calm_wait_s"], 10)
+        self.assertLess(time.monotonic() - started, 60)
+        self.assertEqual(r.served_version(), "2026.9.6")
+
     def test_dry_run_and_status(self):
         r = self.make()
         r.start_current_gateway()
