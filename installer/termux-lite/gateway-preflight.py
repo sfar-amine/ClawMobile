@@ -121,7 +121,9 @@ def stale_gateway_lock_status(state_dir: Path, config_path: Path, port: int,
         return {"state": "unsafe", "reason": "state_lock_unreadable", "detail": type(exc).__name__}
 
     candidates = []
-    for path in lock_dir.glob("gateway.*.lock"):
+    # OpenClaw 2026.9.x names the config lock gateway.<hash>.lock; 2026.10.9 names it
+    # state.<hash>.lock (S24 01/11 23:35: count 0, config_lock_ambiguous, Gateway left down).
+    for path in sorted(set(lock_dir.glob("gateway.*.lock")) | set(lock_dir.glob("state.*.lock"))):
         if path.name == "gateway.state.lock":
             continue
         try:
