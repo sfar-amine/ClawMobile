@@ -70,6 +70,36 @@ class NativeAuthScopePatch(unittest.TestCase):
         self.assertEqual(owner.digest(fixed), entry['patched'])
         self.assertEqual(owner.transform(fixed, entry, reverse=True), original)
 
+    def test_2026_10_9_variant_targets_this_build_and_supersedes_the_rehearsal_patch(self):
+        """S24 rehearsal 01/11: the first 2026.10.9 variant imported the 2026.9.6 chunk (ERR_MODULE_NOT_FOUND)."""
+        import gzip
+        fixture = FIXTURE.parent.parent / 'openclaw-2026.10.9-compat'
+        entry = json.loads(MANIFEST.read_text())['packages']['2026.10.9']['files'][0]
+        original = gzip.decompress((fixture / 'runtime-fLuYb9ac.mjs.gz').read_bytes())
+        self.assertEqual(owner.digest(original), entry['original'])
+        fixed = owner.transform(original, entry)
+        self.assertEqual(owner.transform(fixed, entry, reverse=True), original)
+        self.assertIn(b'import { s as getScopedAuthProfileEnv } from "./store-C7nkCeF3.mjs";', fixed)
+        store = gzip.decompress((fixture / 'store-C7nkCeF3.mjs.gz').read_bytes()).decode()
+        self.assertIn('getScopedAuthProfileEnv as s,', store[store.rindex('export {'):])
+        previous = entry['predecessors'][0]
+        self.assertIn('./store-CGYBYVbs.mjs', previous['replacements'][0][1])
+        broken = owner.transform(original, {**entry, **previous})
+        self.assertEqual(owner.digest(broken), previous['patched'])
+        # The owner reaches the fixed bytes from the rehearsal patch only through the verified original.
+        self.assertEqual(owner.transform(broken, {**entry, **previous}, reverse=True), original)
+        root = self.root / 'v10'
+        (root / 'dist').mkdir(parents=True)
+        (root / 'package.json').write_text('{"version":"2026.10.9"}')
+        (root / entry['path']).write_bytes(broken)
+        run = lambda mode: subprocess.run([sys.executable, str(OWNER), '--patch-set', 'agent-exec-auth-scope',
+                                           '--openclaw-root', str(root), '--' + mode], capture_output=True, text=True)
+        self.assertNotEqual(run('check').returncode, 0)
+        self.assertEqual(run('apply').returncode, 0)
+        self.assertEqual((root / entry['path']).read_bytes(), fixed)
+        self.assertEqual(run('rollback').returncode, 0)
+        self.assertEqual((root / entry['path']).read_bytes(), original)
+
     def test_start_uses_checkout_ownership_and_restores_after_rollback(self):
         import os
         source = (HERE / 'gateway-start.sh').read_text()

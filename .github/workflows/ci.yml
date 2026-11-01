@@ -122,6 +122,9 @@ jobs:
       - name: One checkout owns each compatibility patch for OpenClaw 2026.9.6 and 2026.10.9
         run: python3 ../installer/termux-lite/test-openclaw-compat-variants.py
 
+      - name: Every compatibility replacement imports a real module and export of its own OpenClaw build
+        run: python3 ../installer/termux-lite/test-openclaw-compat-imports.py
+
       - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
         run: python3 ../installer/termux-lite/test-project-room.py
       - name: Pulse room agents (fichier 52 §5)
