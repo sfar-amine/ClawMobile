@@ -438,6 +438,21 @@ class OpenClawUpgrade(unittest.TestCase):
                                  "--status"], capture_output=True, text=True, env=r.env())
         self.assertEqual(json.loads(status.stdout)["state"], "dry_run_ok")
 
+    def test_wrapper_detaches_and_the_receipt_follows(self):
+        r = self.make()
+        r.start_current_gateway()
+        run = subprocess.run(["bash", str(HERE / "openclaw-upgrade.sh"), "--profile", "staging", "--layout",
+                              str(r.layout_path), "--dry-run", "--detach"], capture_output=True, text=True,
+                             env=r.env(), timeout=30)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        stamp = run.stdout.split("stamp=")[1].split()[0]
+        receipt = r.td / "deploys" / f"openclaw-upgrade-{stamp}.json"
+        for _ in range(200):
+            if receipt.exists() and json.loads(receipt.read_text())["state"] != "in_progress":
+                break
+            time.sleep(0.1)
+        self.assertEqual(json.loads(receipt.read_text())["state"], "dry_run_ok")
+
     def test_prod_refuses_forced_failure(self):
         run = subprocess.run([sys.executable, str(SCRIPT), "--profile", "prod", "--force-gate-failure", "agent_turn"],
                              capture_output=True, text=True)
