@@ -22,3 +22,8 @@ Participant de session (01/11) : `session-accessor-C3ljJ974.mjs.gz` vient de `op
 `openclaw-2026.10.9.tgz`, conteneur Claude Code), identique à l'octet au fichier du candidat S24 (SHA-256 `c000b950…caa34`).
 Il porte la variante 2026.10.9 de l'entrée « participant natif » du jeu `memory-retrieval-warm` : même ancre qu'en
 2026.9.6, mais avec `withOpenClawAgentDatabaseRuntime`, seule fonction d'admission de base importée par ce module.
+
+Contrat de profil de modèle (01/11/2026) : la variante 2026.10.9 de `model-flow-selection` exporte aussi
+`MODEL_PROFILE_CONTRACT_VERSION` depuis `dist/embedded-agent-DoEPu8ye.mjs`, comme `dist/setup-B7DuERIi.mjs` en 2026.9.6 ;
+le propriétaire des métadonnées de session du plugin le lit là (`openclawSdkVersions.ts`). L'ancien résultat corrigé
+(`b8062e79…`) est déclaré en `predecessors` : un candidat déjà corrigé passe au nouveau par ses octets d'origine.
