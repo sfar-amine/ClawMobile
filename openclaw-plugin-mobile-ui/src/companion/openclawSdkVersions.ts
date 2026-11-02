@@ -97,6 +97,20 @@ export function surfaceSubpaths(surface: SdkSurface): string[] {
   return [...new Set(Object.values(surface).map(([subpath]) => subpath))];
 }
 
+/** Value of a numeric constant that a hashed chunk exports, read as text and never imported (#126): importing the
+ * model profile chunk made the Gateway capture the agent runtime and its providers' SDKs. Exactly one declaration
+ * `const <symbol> = <n>;` exported in place (2026.9.6 patch) or by an `export { … }` clause without alias
+ * (2026.10.9 patch); anything else is 0, the refused value. */
+export function readChunkConstExport(text: string, symbol: string): number {
+  if (!/^[A-Za-z_$][\w$]*$/.test(symbol)) return 0;
+  const declarations = [...text.matchAll(new RegExp(`^(export )?const ${symbol.replace(/\$/g, "\\$")} = (\\d+);$`, "gm"))];
+  if (declarations.length !== 1) return 0;
+  const [, inline, value] = declarations[0];
+  const exported = Boolean(inline) || [...text.matchAll(/^export \{([^}]*)\};$/gm)]
+    .some(clause => clause[1].split(",").map(part => part.trim().split(/\s+as\s+/)).some(([local, alias]) => local === symbol && (alias === undefined || alias === symbol)));
+  return exported ? Number(value) : 0;
+}
+
 /** Imports each subpath once through the package's own export map, then picks the pinned exports. */
 export async function importSurface(surface: SdkSurface, resolve: (specifier: string) => string,
   load: (specifier: string) => Promise<any>): Promise<{modules: Map<string, any>; picked: Record<string, any>}> {
