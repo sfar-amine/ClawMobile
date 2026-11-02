@@ -39,5 +39,6 @@
   ],
   "limitations": [
     "La route agenda de lecture n'a toujours pas de sonde de santé (point d'entrée typé dans le contrat, pas sur la route) : correctif côté playbooks à suivre."
-  ]
+  ],
+  "rollback": "Revert du merge, puis companion-deploy vers le commit précédent."
 }
