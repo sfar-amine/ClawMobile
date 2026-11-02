@@ -11,6 +11,7 @@ const labels: Record<string, {fr: string; en: string}> = {
   "immune.root_guardian": {fr: "Supervision principale", en: "Root guardian"},
   "immune.health_manager": {fr: "Gestionnaire de santé", en: "Health manager"},
   "immune.incident_orchestrator": {fr: "Gestionnaire d’incidents", en: "Incident orchestrator"},
+  "notification.owner_delivery": {fr: "Notifications à Amine", en: "Owner notifications"},
 };
 const states: Record<string, string> = {ready: "healthy", ok: "healthy", down: "failed", stale: "degraded", unverified: "unknown", human_required: "waiting"};
 const allowed = new Set(["healthy", "attention", "degraded", "running", "waiting", "blocked", "failed", "recovered", "resolved", "disabled", "unknown"]);
@@ -26,6 +27,7 @@ const descriptions: Record<string, string> = {
   nightly_acceptance_incomplete: "La recette nocturne est incomplète.",
   daily_log_audit: "Audit du journal quotidien incomplet.",
   scheduler_health: "Planificateur à surveiller.",
+  notification_undeliverable: "Une notification WhatsApp n’a pas pu être livrée après tous ses essais (dernières 24 h).",
 };
 /** Closed list only; the Health Manager may join several reasons with commas (e.g. "scheduler_health,daily_log_audit"). */
 function description(value: unknown): string {

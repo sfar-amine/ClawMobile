@@ -1,0 +1,9 @@
+{
+  "source": "S24 Termux, ~/.openclaw/health/whatsapp-outbound.log, ~/.openclaw/incidents/events.log, ~/.openclaw/health/health.log, ~/.openclaw/workspace/logs/companion-openclaw-gateway.log",
+  "access": "Claw MCP claw_exec, read-only (grep/awk/python sur copies en mémoire), aucune écriture sur le S24",
+  "captured_on": "2026-11-02",
+  "files": {
+    "whatsapp-outbound-cleaned.log": "98d3d423cd7e81df03dc05199435587c17e7b321cb62f67969cb41f9c4213eeb"
+  },
+  "redaction": "message_id -> mid-NNNN ; numéros -> <num> ; aucun corps de message"
+}

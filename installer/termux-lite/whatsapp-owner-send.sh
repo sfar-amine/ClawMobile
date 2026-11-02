@@ -143,6 +143,20 @@ message="${1:-}"
 key="${2:-}"
 [ -n "$message" ] && [ -n "$key" ] || exit 64
 case "$key" in *[!A-Za-z0-9._:-]*) exit 64;; esac
+# Bounded retries per key (owner_notify_retry.py, ledger = $STATE_LOG). Exit 0
+# with the earlier message id when the key was already accepted (the Gateway
+# idempotency key only dedupes briefly: S24 02/11, one key accepted 152 times);
+# 75 = backoff not elapsed, 76 = undeliverable (terminal, recorded once).
+# Nothing is sent in these cases. A missing policy fails open to one attempt.
+POLICY="$(cd "$(dirname "$0")" && pwd)/owner_notify_retry.py"
+policy(){ python3 "$POLICY" "$1" "$STATE_LOG" "$key" 2>/dev/null || true; }
+fail_and_exit(){ policy after-failure; exit "$1"; }
+decision="$(policy gate)"
+case "$decision" in
+  accepted*) mid="${decision#accepted}"; printf '%s\n' "${mid# }"; exit 0;;
+  deferred\ *) printf 'next_attempt_at=%s\n' "${decision#deferred }"; exit 75;;
+  undeliverable*) printf '%s\n' 'state=undeliverable'; exit 76;;
+esac
 
 target="$(python3 - "$HOME/.openclaw/openclaw.json" <<'PY'
 import json, sys
@@ -156,7 +170,7 @@ PY
 )"
 if [ -z "$target" ]; then
   printf '%s state=failed reason=no_owner_target key=%s\n' "$(date -Iseconds)" "$key" >>"$STATE_LOG"
-  exit 66
+  fail_and_exit 66
 fi
 params="$(python3 - "$target" "$message" "$key" <<'PY'
 import json, sys
@@ -177,12 +191,12 @@ set -e
 elapsed=$(( $(date +%s) - started ))
 if [ "$rc" -ne 0 ]; then
   printf '%s state=failed reason=gateway_call rc=%s elapsed_s=%s key=%s\n' "$(date -Iseconds)" "$rc" "$elapsed" "$key" >>"$STATE_LOG"
-  exit "$rc"
+  fail_and_exit "$rc"
 fi
 message_id="$(printf '%s' "$out" | python3 -c 'import json,sys; o=json.load(sys.stdin); m=o.get("messageId"); assert o.get("channel")=="whatsapp" and isinstance(m,str) and m; print(m)' 2>/dev/null || true)"
 if [ -z "$message_id" ]; then
   printf '%s state=failed reason=invalid_response elapsed_s=%s key=%s\n' "$(date -Iseconds)" "$elapsed" "$key" >>"$STATE_LOG"
-  exit 67
+  fail_and_exit 67
 fi
 printf '%s state=accepted elapsed_s=%s key=%s message_id=%s\n' "$(date -Iseconds)" "$elapsed" "$key" "$message_id" >>"$STATE_LOG"
 printf '%s\n' "$message_id"

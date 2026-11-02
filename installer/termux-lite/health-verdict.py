@@ -86,6 +86,26 @@ def whatsapp_health(raw,last_outbound='',now=None):
  if connected and failed:return 'degraded','latest_outbound_failed'
  if connected:return 'healthy','channel_connected'
  return 'degraded','channel_not_connected'
+def latest_send_attempt(lines):
+ # Only real send attempts describe the channel; a terminal `undeliverable`
+ # bookkeeping line (owner_notify_retry.py) is not a newer delivery result.
+ rows=[z for z in lines if ' state=accepted' in z or ' state=failed' in z]
+ return rows[-1] if rows else ''
+def owner_delivery_health(lines,now=None):
+ # Visibility of owner notifications that exhausted their bounded retries,
+ # without a new channel: degraded for 24 h after the terminal line, so the
+ # app health view and the daily report show it once. Non-critical and not
+ # read by any repair owner (the health manager only reads notification.whatsapp).
+ now=NOW if now is None else now
+ try:
+  spec=importlib.util.spec_from_file_location('owner_notify_retry',Path(__file__).with_name('owner_notify_retry.py'))
+  policy=importlib.util.module_from_spec(spec);spec.loader.exec_module(policy)
+  keys=policy.recent_undeliverable(lines,now)
+ except (OSError,ImportError,AttributeError,SyntaxError):
+  return item('unverified',False,reason='owner_delivery_policy_unavailable',evidence='health/whatsapp-outbound.log')
+ row=item('degraded' if keys else 'healthy',False,reason=f'notification_undeliverable,count={len(keys)}' if keys else 'no_undeliverable_notification_24h',evidence='health/whatsapp-outbound.log state=undeliverable (24 h)')
+ row['undeliverable_24h']=len(keys);row['keys']=keys[-5:]
+ return row
 def latest_channel_event(path,channel):
  if not path.exists():return ''
  rows=[z for z in path.read_text(errors='ignore').splitlines() if f'channel={channel} state=' in z]
@@ -188,12 +208,12 @@ def live():
  x['companion']=item('healthy' if run('curl -fsS --max-time 3 http://127.0.0.1:8765/v1/health') else 'down',True,evidence='http://127.0.0.1:8765/v1/health')
  wa=run('timeout 8 openclaw channels status',10); ev=OC/'incidents/events.log'
  outbound=OC/'health/whatsapp-outbound.log'; lastwa=''
- if outbound.exists():
-  lines=[z for z in outbound.read_text(errors='ignore').splitlines() if 'state=' in z]
-  if lines:lastwa=lines[-1]
+ outbound_lines=outbound.read_text(errors='ignore').splitlines() if outbound.exists() else []
+ lastwa=latest_send_attempt(outbound_lines)
  if not lastwa:lastwa=latest_channel_event(ev,'whatsapp')
  wastate,wareason=whatsapp_health(wa,lastwa)
  x['notification.whatsapp']=external_readiness(wastate,False,reason=wareason,evidence='channel status + latest canonical outbound evidence')
+ x['notification.owner_delivery']=owner_delivery_health(outbound_lines)
  smstate,smreason,smfresh=smtp_health(OC/'health/smtp-probe.json',ev)
  x['notification.smtp']=external_readiness(smstate,False,reason=smreason,evidence='live SMTP probe + latest delivery evidence',freshness=smfresh)
  tx=OC/'health/transaction-health.json'
