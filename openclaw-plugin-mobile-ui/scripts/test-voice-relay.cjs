@@ -16,65 +16,10 @@ assert.equal(mod.reconnectDelay(1), 750);
 assert.equal(mod.reconnectDelay(2), 2000);
 assert.ok(mod.reconnectDelay(8) <= 60000);
 
-const recharge = mod.renderFastVoiceResult({
-  execution: {
-    state: "completed",
-    result: {
-      ok: true,
-      data: { recharge: { value: "1.234", unit: "TND" } },
-    },
-  },
-});
-assert.match(recharge, /solde de recharge/);
-assert.match(recharge, /1\.234 TND/);
-
-const orangeSummary = mod.renderFastVoiceResult({
-  execution: {
-    state: "completed",
-    result: {
-      ok: true,
-      data: {
-        balances: {
-          recharge: { value: "26.540", unit: "TND" },
-          forfait: { value: "11", unit: "TND" },
-          forfait_bonus: { value: "74.900", unit: "TND" },
-        },
-        cards: [
-          { title: "Compte de recharge", value: "26.540", unit: "TND" },
-          { title: "Bonus internet mobile", value: "22.82", unit: "GO" },
-        ],
-      },
-    },
-  },
-});
-assert.match(orangeSummary, /solde de recharge : 26\.540 TND/);
-assert.match(orangeSummary, /forfait : 11 TND/);
-assert.match(orangeSummary, /bonus sur recharge : 74\.900 TND/);
-assert.match(orangeSummary, /Bonus internet mobile : 22\.82 GO/);
-assert.equal((orangeSummary.match(/26\.540 TND/g) || []).length, 1);
-
-const clarificationValue = {
-  execution: {
-    state: "completed",
-    result: {
-      state: "needs_counter",
-      sent: false,
-      choices: ["recharge", "balances"],
-    },
-  },
-};
-const clarification = mod.extractFastClarification(clarificationValue);
-assert.equal(
-  clarification.question,
-  "Précise : solde de recharge ou tous les soldes.",
-);
-assert.deepEqual(clarification.choices, ["recharge", "balances"]);
-assert.equal(mod.renderFastVoiceResult(clarificationValue), null);
-
-assert.equal(
-  mod.composeContinuationRequest("mon solde Orange", "tous les soldes"),
-  "mon solde Orange\nPrécision utilisateur : tous les soldes",
-);
+// ADR 02/11 « le cerveau partout », step 3: the relay no longer renders a deterministic result nor composes
+// « Précision utilisateur »; the brain answers and its question is projected as is.
+for (const legacy of ["renderFastVoiceResult", "extractFastClarification", "composeContinuationRequest", "deterministicVoiceAdmission"])
+  assert.equal(mod[legacy], undefined, legacy);
 
 assert.equal(
   mod.looksLikeClarificationQuestion("Quelle facture veux-tu payer ?"),

@@ -114,21 +114,25 @@ function fake(script) {
   {
     const replies = [];
     const handler = port.createInterpretHandler(() => undefined);
-    await handler({ params: { systemPrompt: "x", message: "y" }, respond: (...a) => replies.push(a) });
+    await handler({ params: { systemPrompt: "x", message: "y", purpose: port.IMMUNE_PURPOSE, model: port.IMMUNE_MODELS[0] }, respond: (...a) => replies.push(a) });
     await port.createInterpretHandler(() => async () => ({}))({ params: {}, respond: (...a) => replies.push(a) });
     assert.equal(replies[0][2].code, "UNAVAILABLE");
     assert.equal(replies[1][2].code, "INVALID_REQUEST");
+    // ADR 02/11 step 3: the owner's dedicated interpreter is retired with no switch; its purpose is refused before any model.
+    let ownerCalls = 0;
+    await port.createInterpretHandler(() => async () => { ownerCalls++; return { text: JSON.stringify(decision) }; })(
+      { params: { systemPrompt: "x", message: "y" }, respond: (...a) => replies.push(a) });
+    assert.equal(replies[2][0], false); assert.equal(replies[2][2].message, "dedicated intent interpreter retired"); assert.equal(ownerCalls, 0);
   }
-  // The single-brain switch concerns Amine. A contact's professional AI stays the one admitted Gemini profile,
+  // The single brain concerns Amine. A contact's professional AI stays the one admitted Gemini profile,
   // on the Pulse catalogue only. The room is admitted at its turn and Python re-reads the sealed contact evidence
   // at send: the Gateway keeps no third lease (S24 28-29/10, every room message was refused by it).
   {
-    const old=process.env.SAMANTHA_BRAIN_ONLY;process.env.SAMANTHA_BRAIN_ONLY='1';
     const replies=[];let calls=0;
     const request={message:{ref:'evt-authored',text:'état du projet 20495',provenance:'server_verified'},catalogue:{domains:[{domain_id:'pulse'}]}};
     const params={systemPrompt:'authored professional fixture',message:'REQUEST='+JSON.stringify(request),purpose:port.NATIVE_PULSE_PURPOSE,model:GEMINI};
     const handler=port.createInterpretHandler(()=>async()=>{calls++;return {text:JSON.stringify({outcome:'intent',domain:'pulse',intent_id:'project.phases',parameters:{project_id:'20495'}})};});
-    try{
+    {
       await handler({params,respond:(...v)=>replies.push(v)});
       assert.equal(calls,1);assert.equal(replies.at(-1)[0],true,'a room interpretation needs no Gateway lease');
       for(const invalid of [{...params,model:'openai/gpt-5.6-terra'},{...params,message:'état du projet 20495'},
@@ -137,7 +141,7 @@ function fake(script) {
         await handler({params:invalid,respond:(...v)=>replies.push(v)});
         assert.equal(calls,1,'other model, owner catalogue or malformed request: refused before the model');assert.equal(replies.at(-1)[0],false);
       }
-    }finally{if(old===undefined)delete process.env.SAMANTHA_BRAIN_ONLY;else process.env.SAMANTHA_BRAIN_ONLY=old;}
+    }
   }
   // The credential-owner port also serves C2 Sol -> Luna -> Gemini free. C1 still rejects Sol above.
   assert.deepEqual([...port.IMMUNE_MODELS],['openai/gpt-5.6-sol',LUNA,GEMINI]);

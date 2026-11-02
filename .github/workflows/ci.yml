@@ -252,7 +252,6 @@ jobs:
           node scripts/test-run-web.cjs
           node scripts/test-run-web-mcp.cjs
           node scripts/test-run-web-voice.cjs
-          node scripts/test-run-web-agent.cjs
           python3 ../installer/termux-lite/test-model-fast-path-web.py
           python3 ../installer/termux-lite/test-model-fast-path-intent.py
 
@@ -375,7 +374,6 @@ jobs:
           node scripts/test-turn-budget.cjs
           node scripts/test-claw-live-token-failure.cjs
           node scripts/test-warm-v2-ownership.cjs
-          node scripts/test-phone-datetime.cjs
           node scripts/test-claw-live-warm.cjs
           node scripts/test-claw-live-warm-cancellation.cjs
           node scripts/test-voice-latency-budget.cjs
@@ -615,8 +613,6 @@ jobs:
 
       - name: Verify host-bound capability owner admission (P1)
         run: |
-          node scripts/test-capability-tool.cjs
-          node scripts/test-capability-admission.cjs
           node scripts/test-typed-capability-tools.cjs
           node scripts/test-typed-tools-direct-visible.cjs
           node scripts/test-typed-device-direct.cjs
@@ -714,9 +710,6 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-guarded-operator-wait.py
           node scripts/test-guarded-entry-wait.cjs
-
-      - name: O10 voice admits the low-risk owner decision record, never payment or confirmed paths
-        run: node scripts/test-voice-low-risk-admission.cjs
 
       - name: HS8 memo owner pipeline idempotence and canonical text continuation
         run: node scripts/test-memo-intent-pipeline.cjs && node scripts/test-memo-deferred-retry.cjs && node scripts/test-memo-p1-http.cjs

@@ -6,7 +6,7 @@ const policyCapture=require('../fixtures/refonte-model-flows/s24-policy-voice-me
 const clone=value=>JSON.parse(JSON.stringify(value));
 (async()=>{
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'model-flows-'));
- process.env.OPENCLAW_STATE_DIR=root;process.env.SAMANTHA_CONTROL_PLAYBOOKS=root;delete process.env.SAMANTHA_BRAIN_ONLY;
+ process.env.OPENCLAW_STATE_DIR=root;process.env.SAMANTHA_CONTROL_PLAYBOOKS=root;
  await fs.mkdir(path.join(root,'clawmobile-companion'));await fs.mkdir(path.join(root,'skill_intelligence'));
  await fs.writeFile(path.join(root,'clawmobile-companion/runs.json'),JSON.stringify({version:1,runs:[],archivedSessionIds:[],paymentRequests:[],ownerConfirmations:[]}));
  const ids={'acct-22477f3dabfb':'openai:authored-oauth-fixture','acct-bd186a666d02':'google:authored-free-fixture','acct-edcf442a2103':'github-copilot:authored-token-fixture'};

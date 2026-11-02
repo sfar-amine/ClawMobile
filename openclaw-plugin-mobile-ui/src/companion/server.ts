@@ -53,15 +53,14 @@ import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
-import { routeUnresolvedVoiceTurn, voiceTurnLogLine } from "./voiceBrainDelegation";
+import { routeVoiceTurnToBrain, voiceTurnLogLine } from "./voiceBrainDelegation";
 /**
  * Voice brain turn reads (S24 31/10 latency): voiceRunStatus answers a followed run from memory, so the voice reads every
  * 100 ms instead of VOICE_BRAIN_POLL_MS = 500 (mean wait after the answer lands: 50 ms, was 250 ms).
  */
 const VOICE_RUN_POLL_MS = 100;
-import {brainOnlyEnabled} from "../brainOnly";
 import { dialogueConversationId } from "../dialogueSurface";
-import { clawLiveCapabilityTurn, createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
+import { createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
 import { clawLiveCapability, clawLiveDecision } from "./clawLiveUnderstanding";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
@@ -1028,13 +1027,8 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "POST" && routePath === "/claw-live/decision") {
     const body = await readJsonBody<any>(req);
-    // Lot 41 V2: a listed correction gesture after a voice turn needs no resolver call.
-    const result: any = await clawLiveDecision(clawLiveWarmCore, String(body?.request || ""), () => capabilityBridge(String(body?.request || ""), {
-      execute: false,
-      surface: "claw_live",
-      caller: "owner",
-      timeoutSeconds: 10,
-    }),body?.phoneDateTime);
+    // Every turn goes to the brain (ADR 02/11, step 3); only the kept social reflexes stay with the voice interface.
+    const result: any = clawLiveDecision(String(body?.request || ""));
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, result);
     return;
@@ -1063,23 +1057,13 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     if (body.clarificationId !== undefined && body.clarificationId !== clarificationId) {
       writeJson(res,400,{success:false,error:"clarification_session_mismatch"}); return;
     }
-    // The same ephemeral ticket guards resolution, prepared execution and the final bridge.
-    // A stored clarification never grants admission to a following request.
-    // Brain delegation (Amine 25/10/2026): a turn the coordinator leaves unresolved keeps the existing Graph executor
-    // when the Graph resolves it to an executable, clarifying or stopping decision (payment path included). A model-only
-    // turn goes to Samantha's main agent (same owner as ask_samantha / POST /runs), never a Graph execution of a
-    // conversational sentence nor a free answer of the voice interface.
-    const brainOrLegacy = (text: string) => {
+    // The ephemeral ticket is revalidated before the brain submission; a stored clarification never grants admission.
+    const execute = (text: string) => {
       assertCurrent();
-      return routeUnresolvedVoiceTurn(text, {sessionId, clientRunId: String(body.clientRunId || ""), admission: admission.ticket, assertCurrent}, {
-        resolve: (unresolved) => capabilityBridge(unresolved, {execute:false,surface:"claw_live",caller:"owner",timeoutSeconds:5}),
-        execute: (unresolved) => capabilityBridge(unresolved, {execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35}),
+      return routeVoiceTurnToBrain(text, {sessionId, clientRunId: String(body.clientRunId || ""), admission: admission.ticket, assertCurrent}, {
         submit: submitIntent, status: voiceRunStatus, pollMs: VOICE_RUN_POLL_MS, deferred: clawLiveWarmCore.voiceDeferredOwner(body?.voiceTurn),
       });
     };
-    const execute = (request: string) => brainOnlyEnabled() ? brainOrLegacy(request) : clawLiveCapabilityTurn(
-      {request, clarificationId, originId: body.clientRunId,sessionId, assertCurrent}, brainOrLegacy,
-    );
     const turnStarted = Date.now();
     const result: any = await clawLiveCapability(clawLiveWarmCore, body, execute, {assertCurrent});
     console.log(voiceTurnLogLine(result, Date.now() - turnStarted));
@@ -1172,7 +1156,6 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         authority,
         admission: admission.admitted ? admission.ticket : undefined,
         ...((body as any)?.voiceDelegation === true ? {voiceDelegation:true as const} : {}),
-        ...((body as any)?.phoneDateTime !== undefined ? {phoneDateTime:(body as any).phoneDateTime} : {}),
         ...(replayOf?{replayOf}:{}),
       },
     );

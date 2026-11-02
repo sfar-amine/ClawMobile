@@ -10,7 +10,6 @@ import type { Duplex } from "stream";
 import WebSocket, { WebSocketServer } from "ws";
 import { createClawLiveToken, validatedClawLiveVoice, CLAW_LIVE_MODEL, type ClawLiveBootstrapOptions } from "./clawLive";
 import { reconnectDelay } from "./reconnectPolicy";
-import { VoiceUnderstandingState } from "./clawLiveUnderstanding";
 import type { VoiceDeferredOwner } from "./voiceBrainDelegation";
 import { voiceTurnStages, voiceStagesLine, type ObservedRunTiming, type VoiceTurnStages } from "./voiceTurnStages";
 
@@ -104,8 +103,6 @@ export class ClawLiveWarmCore {
   private readonly runTiming:(runId:string)=>ObservedRunTiming;
   private readonly log:(line:string)=>void;
   private voiceStages:VoiceTurnStages[]=[];
-  /** Lot 41 piste 2: ephemeral « Compris / Ce n'est pas ça » slot of the single voice owner. */
-  readonly understanding=new VoiceUnderstandingState(()=>this.now());
 
   constructor(deps:WarmDeps={}) {
     this.tokenFactory=deps.tokenFactory||((options)=>createClawLiveToken(fetch,undefined,options) as Promise<TokenBundle>);
@@ -423,11 +420,6 @@ export class ClawLiveWarmCore {
     if(!entry||!turnId)return undefined;
     return {alive:()=>entry.deferredAlive(turnId),settle:(receipt)=>entry.deferredSettled(turnId,receipt)};
   }
-  measureVoiceDecision(request:string,run:()=>Promise<any>):Promise<any> {
-    const matches=[...this.protocols.values()].map(protocol=>({protocol,turnId:protocol.matchingFinalRequest(request)})).filter(row=>row.turnId!==null);
-    if(matches.length!==1)return run();
-    return matches[0].protocol.measureDecision(matches[0].turnId!,run);
-  }
   private failStage(stage:string,e:any){const message=String(e?.message||e||stage);this.state="error";this.stage=stage;this.lastError=message.slice(0,160);console.warn(`[claw-live-warm] ${stage}: ${message.slice(0,320)}`);}
   private scheduleReconnect(){
     if(this.reconnectTimer||this.stopped)return;
@@ -450,7 +442,7 @@ export class ClawLiveWarmCore {
     this.pendingConnects.clear();this.connectPromise=null;
     if(this.reconnectTimer)clearTimeout(this.reconnectTimer);this.reconnectTimer=null;if(this.setupTimer)clearTimeout(this.setupTimer);this.setupTimer=null;
     const p=this.provider;this.provider=null;this.providerReady=false;this.legacyOpenTurn=false;this.legacyPendingTools.clear();
-    if(!preserveResume){this.resumeHandle="";this.resumeHandleAt=0;this.historyLoaded=false;this.conversationId="";this.understanding.clear();}
+    if(!preserveResume){this.resumeHandle="";this.resumeHandleAt=0;this.historyLoaded=false;this.conversationId="";}
     this.state="cold";this.stage=preserveResume&&this.hasValidResumeHandle()?"resumable_idle":"idle";this.resumedLast=false;this.reconnectAttempts=0;
     try{p?.close();}catch{}
   }

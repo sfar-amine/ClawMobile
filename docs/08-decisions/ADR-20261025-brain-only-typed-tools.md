@@ -80,3 +80,7 @@ Le patch de trois modules a ses empreintes avant/après, captures publiques et r
 ### Entrée voix cloud existante (26/10)
 
 La voix relay authentifiée doit appliquer le même choix `main` avant toute interprétation lorsque brain-only est activé. Son bearer et son WS restent des preuves de canal, sans équivalence au ticket natif P1 signé. La délégation réutilise `voiceRelay.runAgentTurn`, le Gateway, ses gardes de scope, son idempotencyKey et sa session ; aucun admin/P1 n'est forgé pour rendre un outil exécutable. Le renderer terminal canonique évite de prendre un résumé technique pour un résultat. Le budget commun borne l'attente sans prétendre annuler ou rejouer un effet incertain.
+
+## Mise à jour du 2 novembre 2026 : interrupteur retiré
+
+`SAMANTHA_BRAIN_ONLY=1` est actif sur le S24 depuis le 28/10. L’étape 3 de l’ADR « le cerveau partout » (samantha-ui-playbooks, `docs/08-decisions/ADR-20261102-brain-everywhere.md` et son annexe d’inventaire, §8) rend ce mode inconditionnel : core ne lit plus la variable, et les branches owner qu’elle éteignait sont supprimées (coordinateur avant l’agent sur WhatsApp, l’app, Claw Live et le relais Bixby ; heure/date par regex ; routeur de skills local ; outil texte libre `clawmobile_capability`). Un seul chemin, sans repli natif. Le retour arrière est un revert suivi d’un redéploiement par `companion-deploy.sh`. Les réflexes vocaux sociaux restent, par décision d’Amine. Détail : `docs/changes/brain-only-unconditional-20261102.md`.

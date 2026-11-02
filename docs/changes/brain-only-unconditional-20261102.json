@@ -1,0 +1,125 @@
+{
+  "version": 2,
+  "id": "brain-only-unconditional-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Étape 3 de l'ADR « le cerveau partout » : SAMANTHA_BRAIN_ONLY devient inconditionnel. Core ne lit plus la variable et supprime les branches owner qu'elle éteignait : coordinateur avant l'agent sur WhatsApp, l'app, Claw Live et le relais Bixby ; heure/date par regex ; routeur de skills local ; outil texte libre clawmobile_capability. Les réflexes vocaux sociaux sont gardés.",
+  "reason": "Décision d'Amine du 02/11 : un seul chemin, aucun interrupteur, aucun repli natif. SAMANTHA_BRAIN_ONLY=1 est actif sur le S24 depuis le 28/10 (~/.openclaw/.env, processus Gateway et Companion, lecture seule du 02/11), donc les branches legacy sont mortes en production.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
+    "docs/changes/brain-only-unconditional-20261102.json",
+    "docs/changes/brain-only-unconditional-20261102.md",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-intent-durable-read-paired.py",
+    "installer/termux-lite/test-model-fast-path-intent.py",
+    "installer/termux-lite/test-runtime-foundations.py",
+    "openclaw-plugin-mobile-ui/scripts/lib/legacy-fast-path-as-dialogue.cjs",
+    "openclaw-plugin-mobile-ui/scripts/prepare-lite.mjs",
+    "openclaw-plugin-mobile-ui/scripts/test-agent-capability-guard.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-brain-only-entry.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-capability-admission.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-capability-tool.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-e3-surfaces.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-edit-replay.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-generation-interrupt.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-context-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-read-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-deferred-retry.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-intent-pipeline.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-p1-http.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-model-fast-path.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-model-flows-executors.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-model-flows-policy.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-model-flows.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-n1-factual-failure.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-native-turn-observation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-native-turn-progress.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-turn-admission.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-phone-datetime.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-reason-class-conversation-cause.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-receipt-presentation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-request-language-transport.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-progress.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web-agent.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web-voice.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-submit-reconciliation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-turn-measurement.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-failure-presentation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-brain-delegation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-low-risk-admission.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-option-a.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-relay-brain-only.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-relay.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-understanding.cjs",
+    "openclaw-plugin-mobile-ui/src/brainOnly.ts",
+    "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
+    "openclaw-plugin-mobile-ui/src/capabilityTool.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveUnderstanding.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveWarm.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/phoneDateTime.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceBrainDelegation.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceRelay.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceRoundLearning.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/nativeTurnProgress.ts",
+    "openclaw-plugin-mobile-ui/src/nativeTurnProgressOwner.ts"
+  ],
+  "tests": [
+    {
+      "name": "plugin-ci-node",
+      "status": "passed",
+      "evidence": "tsc vert. Les 196 scripts Node non appariés de .github/workflows/ci.yml passent en local ; test-catalog.cjs, non touché, a échoué une fois sous charge parallèle puis passe seul."
+    },
+    {
+      "name": "brain-path",
+      "status": "passed",
+      "evidence": "test-brain-only-entry (variable à '0', aucun hook inbound_claim, aucun clawmobile_capability, aucune lecture de la variable dans src ni dans model-fast-path.py), test-voice-relay-brain-only, test-voice-brain-delegation, test-agent-capability-guard, test-e3-surfaces, test-owner-turn-admission (80 cas), test-edit-replay, test-memo-*."
+    },
+    {
+      "name": "paired",
+      "status": "passed",
+      "evidence": "C8 test-mcp-read-paired et C12 test-mcp-context-paired (playbooks 24cb837b), C16 test-native-pulse-paired (067fb028), C18 test-native-fast-paired (0d267872), test-intent-durable-read-paired.py (633d4516)."
+    },
+    {
+      "name": "installer-python",
+      "status": "passed",
+      "evidence": "test-model-fast-path-intent, -dialogue, -web, -generic-display, test-runtime-foundations, test-runtime-sync, test-native-pulse-private-input, test-model-efficiency, test-telecom-display, test-guarded-operator-wait, test-companion-acceptance-web-recipe, test-no-hardcoded-clawmobile."
+    }
+  ],
+  "documentation": [
+    "docs/changes/brain-only-unconditional-20261102.md",
+    "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Aucune capability ajoutée ni modifiée dans le registre. Les outils typés samantha_* existants deviennent le seul chemin owner ; le paiement et les confirmations humaines sont inchangés."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "L'interrupteur hôte de l'ADR L3 est retiré et ses branches owner legacy sont supprimées ; aucun nouveau propriétaire, store, routeur ou démon.",
+    "documents": [
+      "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md"
+    ]
+  },
+  "rollback": "Revert de ce commit puis redéploiement par installer/termux-lite/companion-deploy.sh <commit précédent>, qui ramène aussi les copies Gateway et Tier0. Garder SAMANTHA_BRAIN_ONLY=1 dans ~/.openclaw/.env : la version précédente et les playbooks le lisent encore.",
+  "limitations": [
+    "Non déployé ; recette réelle WhatsApp owner, app et voix à faire après déploiement.",
+    "CI canonique tools/localci.py non lancée (file du conteneur occupée).",
+    "Les playbooks lisent encore SAMANTHA_BRAIN_ONLY (interpretation_gateway.py) : la variable reste sur le S24 jusqu'à leur étape.",
+    "Conflits attendus avec claude/room-brain (#522) dans index.ts (imports, registerTool), sans conflit de fond."
+  ]
+}

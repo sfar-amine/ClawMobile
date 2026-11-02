@@ -50,12 +50,9 @@ import { getSkillStatus as clawmobile_skill_status } from "./trace_induction/sta
 import { runSkillFastPath as clawmobile_skill_run_fast_path } from "./trace_induction/fastpath";
 import { reflectFastPathFailure as clawmobile_skill_reflect_fast_path_failure } from "./trace_induction/repair";
 import { clawmobile_batch_execute } from "./tools/batch";
-import { handleOwnerBeforeDispatch, handleOwnerFastPath } from "./modelFastPath";
 import { handlePulseRoomBeforeDispatch } from "./pulseRoomFastPath";
 import { runtimeNoticeSendingHook } from "./runtimeNotices";
-import { createCapabilityTool } from "./capabilityTool";
 import {conversationModelProfileHooks} from "./companion/conversationModelProfile";
-import {brainOnlyEnabled} from "./brainOnly";
 import {createTypedCapabilityTools, readTypedToolCatalogue} from "./typedCapabilityTools";
 import { agentCapabilityHook,TYPED_CONTROL_ADMISSION_METHOD,typedControlAdmissionHandler } from "./capabilityAgentGuard";
 import { createContactTool } from "./contactTools";
@@ -221,24 +218,9 @@ function register(api: any) {
     await handleQaContactMediaReceived(event,ctx);
   });
 
-  api.on("inbound_claim", async (event: any, ctx: any) => {
-    const result = await handleOwnerFastPath(event, ctx);
-    if (result.handled) {
-      api.logger?.debug?.("[capability-first] owner capability handled before model");
-      return result;
-    }
-    return result;
-  });
-
   // Pièce Pulse (fichier 52 §5): only a contact routed to a Pulse room agent, closed to the Pulse family.
   // before_dispatch, not inbound_claim: the Gateway runs inbound_claim only for plugin-bound conversations (S24 12/10).
   api.on("before_dispatch", async (event: any, ctx: any) => {
-    // Owner WhatsApp turns: same capability-first path as the app (inbound_claim never fires for them).
-    const owner = await handleOwnerBeforeDispatch(event, ctx);
-    if (owner.handled) {
-      api.logger?.debug?.("[capability-first] owner capability handled before model");
-      return owner;
-    }
     const contactRoom = await handleContactRoomBeforeDispatch(event, ctx);
     if (contactRoom.handled) return contactRoom;
     const room = await handlePulseRoomBeforeDispatch(event, ctx);
@@ -254,12 +236,9 @@ function register(api: any) {
 
   // The factory receives OpenClaw's trusted current-turn context. The first
   // execute argument is a tool-call id, not an authorization context.
-  if (brainOnlyEnabled()) {
-    api.registerTool({contextVersion: 2, create: (ctx: any) => createTypedCapabilityTools(ctx)},
-      {names: [...readTypedToolCatalogue().map(tool => tool.name), "samantha_catalogue"]});
-  } else {
-    api.registerTool((ctx: any) => createCapabilityTool(ctx), {name: "clawmobile_capability"});
-  }
+  // Owner turns (WhatsApp, app, voice) reach the brain directly; it chooses these typed tools (ADR 02/11, step 3).
+  api.registerTool({contextVersion: 2, create: (ctx: any) => createTypedCapabilityTools(ctx)},
+    {names: [...readTypedToolCatalogue().map(tool => tool.name), "samantha_catalogue"]});
   api.registerTool((ctx: any) => createContactTool("transmettre_a_amine", ctx), { name: "transmettre_a_amine" });
   api.registerTool((ctx: any) => createContactTool("noter_contact", ctx), { name: "noter_contact" });
 

@@ -5,17 +5,17 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=r
  const captured=JSON.stringify(capture);assert(captured.includes('Per-turn run identifier (UUID)'));assert(captured.includes('Conversation target id'));
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'native-turn-observation-'));
  const realMono=process.hrtime.bigint;let now=1000000n;process.hrtime.bigint=()=>now*1000000n;
- process.env.OPENCLAW_STATE_DIR=root;process.env.SAMANTHA_BRAIN_ONLY='1';
+ process.env.OPENCLAW_STATE_DIR=root;
  const key='agent:main:whatsapp:direct:+19995550123',owners=()=>new Set(['+19995550123']);
  await fs.writeFile(path.join(root,'openclaw.json'),JSON.stringify({commands:{ownerAllowFrom:['whatsapp:+19995550123']}}));
  const client=require('../dist/companion/openclawAgentClient');let gatewayCalls=0;
  client.callOpenClawGateway=async()=>{gatewayCalls++;throw Error('unexpected_gateway_call')};
  const runs=require('../dist/companion/runs'),{createNativeTurnProgressOwner}=require('../dist/nativeTurnProgressOwner');
- const owner=createNativeTurnProgressOwner({owners,enabled:()=>true});
+ const owner=createNativeTurnProgressOwner({owners});
  const {nativeTurnProgressHooks,activeObservedNativeWhatsAppRun}=require('../dist/nativeTurnProgress');
  const id=n=>String(n).padStart(8,'0')+'-1111-4111-8111-111111111111';
  const ctx=n=>({channelId:'whatsapp',sessionKey:key,runId:id(n),accountId:'default'});
- let posts=0;const hooks=nativeTurnProgressHooks({owners,enabled:()=>true,post:async(i,b)=>{posts++;return owner.observe(i,b)}});
+ let posts=0;const hooks=nativeTurnProgressHooks({owners,post:async(i,b)=>{posts++;return owner.observe(i,b)}});
  let server;
  try{
   await hooks.received({content:'private-authored-content'},ctx(1));assert.equal(posts,1);
