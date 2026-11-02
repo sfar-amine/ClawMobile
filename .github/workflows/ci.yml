@@ -201,6 +201,8 @@ jobs:
           python3 ../installer/termux-lite/test-whatsapp-channel-health.py
           python3 ../installer/termux-lite/test-whatsapp-lock-recovery.py
           bash ../installer/termux-lite/test-whatsapp-owner-send.sh
+          python3 ../installer/termux-lite/test-owner-notify-retry.py
+          python3 ../installer/termux-lite/test-whatsapp-listener.py
 
       - name: Run immune I1/I2/I3/I8 contracts (deterministic recovery, handler gate, LKG hold, ingress root)
         run: |

@@ -1,0 +1,11 @@
+{
+  "source": "S24 Termux : ~/.openclaw/workspace/logs/companion-openclaw-gateway.log*, ~/.openclaw/health/health.log*, ~/.openclaw/health/whatsapp-outbound.log, sortie de `openclaw channels status`, code OpenClaw 2026.10.9 installé (usr/lib/node_modules/openclaw/dist, ~/.openclaw/npm/projects/*/node_modules/@openclaw/whatsapp/dist)",
+  "access": "Claw MCP claw_exec, lecture seule (grep/awk/sed/python sur flux, fichiers temporaires effacés), aucun envoi, aucun redémarrage, aucune écriture durable sur le S24",
+  "captured_on": "2026-11-02",
+  "files": {
+    "gateway-whatsapp-timeline.log": "fa953858b91eb04b805cb5d8eef47420ef38ac1b3134b9dc1646e66270a658ae",
+    "health-whatsapp-20261102.log": "319580d98fec3e6d3aa4c51083d98b37ad492afff8fa92f0db561ee840d8cd31",
+    "capture.json": "a6223eb1521599e67cb0cfdd0fefb475cd23982fa117e380c839dc575b9fba40"
+  },
+  "redaction": "numéros -> <num> ; incident_id/correlation_id -> <id> ; codes ANSI retirés ; aucun corps de message, destinataire haché ni jeton"
+}
