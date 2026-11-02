@@ -17,6 +17,7 @@
     "installer/termux-lite/test-intent-durable-read-paired.py",
     "installer/termux-lite/test-model-fast-path-intent.py",
     "installer/termux-lite/test-runtime-foundations.py",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/p1-gateway-clarify.cjs",
     "openclaw-plugin-mobile-ui/scripts/lib/legacy-fast-path-as-dialogue.cjs",
     "openclaw-plugin-mobile-ui/scripts/prepare-lite.mjs",
     "openclaw-plugin-mobile-ui/scripts/test-agent-capability-guard.cjs",
@@ -120,6 +121,7 @@
     "Non déployé ; recette réelle WhatsApp owner, app et voix à faire après déploiement.",
     "CI canonique tools/localci.py non lancée (file du conteneur occupée).",
     "Les playbooks lisent encore SAMANTHA_BRAIN_ONLY (interpretation_gateway.py) : la variable reste sur le S24 jusqu'à leur étape.",
-    "Conflits attendus avec claude/room-brain (#522) dans index.ts (imports, registerTool), sans conflit de fond."
+    "Conflits attendus avec claude/room-brain (#522) dans index.ts (imports, registerTool), sans conflit de fond.",
+    "Diagnostic CI p1 (Gateway public isolé) : le cas « clarification » vérifiait l'ancien coordinateur de l'app avant le cerveau ; il vérifie désormais que les deux tours atteignent le vrai Gateway (signé = propriétaire, non signé = non-propriétaire) sans appel au helper de dialogue."
   ]
 }
