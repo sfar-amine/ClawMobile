@@ -589,7 +589,7 @@ ROOMS = ('conversation', 'projet', 'pulse', 'agenda', 'taches', 'lignes', 'memoi
 # capability-first contact boundary, which checks the canonical decision before executing it.
 ENFORCED_ROOMS = {'conversation', 'projet', 'pulse', 'agenda', 'actions', 'messages', 'qa', 'maison'}
 PROJECT_AGENT = 'contacts-projet'
-# Pièce Pulse (fichier 52 §5): the agent only names the room; the plugin's pulse-room ingress executes Pulse alone.
+# Pièce Pulse (fichier 52 §5, Amine 02/11): the room agent's brain uses the room's typed tool only (pulse-room.py).
 PULSE_AGENTS = {'pulse': 'contacts-pulse', 'projet+pulse': 'contacts-projet-pulse'}
 CAPABILITY_ROOMS = {'agenda', 'actions', 'messages', 'qa'}
 ROOM_TAG = 'r17-rooms:'
@@ -1265,7 +1265,8 @@ class Contacts:
         forbidden={'exec','process','write','edit','apply_patch','browser','web_fetch','message',
                    'sessions_list','sessions_history','sessions_send','sessions_spawn','session_status',
                    'sessions_search','memory_search','memory_get','gateway','cron','nodes','clawmobile_capability'}
-        allowed={'web_search','transmettre_a_amine','noter_contact'}|({'read'} if agent=='contacts-projet-pulse' else set())
+        # pulse-room.py room_tools (Amine 02/11): the room's typed tool samantha_pulse joins the contact tools.
+        allowed={'web_search','transmettre_a_amine','noter_contact','samantha_pulse'}|({'read'} if agent=='contacts-projet-pulse' else set())
         if (not isinstance(tools,dict) or not isinstance(tools.get('allow'),list) or
                 not isinstance(tools.get('deny'),list) or
                 any(type(v) is not str for v in tools['allow']+tools['deny']) or

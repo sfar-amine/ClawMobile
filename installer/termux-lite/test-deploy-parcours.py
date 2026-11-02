@@ -18,24 +18,82 @@ AUTH = json.loads((Path(__file__).resolve().parents[2] / "openclaw-plugin-mobile
 GENERIC = "La préparation ou la vérification de cette commande n’a pas abouti. Aucun nouvel essai automatique n’est lancé."
 
 
+def row(reply="", state="", reason="", facts=False, error=None):
+    return {"reply": reply, "state": state, "reasonCode": reason, "facts": facts, "seconds": 1.0, "error": error}
+
+
+# The room brain's own sentences (pulseRoomBrain.ts) and the playbooks room owner's question for a creation.
+REFUSAL = "Ici je ne traite que Pulse : projets, offres, congés de l'équipe et solde de congés. Pour le reste, vois directement avec Amine."
+LEAVE = ("Désolé, je ne peux pas prendre en compte les demandes de congé : j’utilise le compte Pulse d’Amine, donc un congé "
+         "posé ici serait enregistré au nom d’Amine. Merci de poser ta demande de congé directement dans Pulse, avec ton propre compte.")
+ACCESS = "L’accès à la pièce Pulse n’est pas confirmé. Rien n’a été exécuté."
+ASK = "Pour créer le projet, il me manque : le nom, le client et la date de fin. Peux-tu me les donner ?"
+ROOM_OK = {"contact_read": row("", "COMPLETED", facts=True), "incomplete_ask": row(ASK, "NEEDS_INPUT"),
+           "room_write_prepared": row("", "PREPARED", "CANCELLED"), "room_outside": row(REFUSAL, "OUTSIDE_SCOPE", "scope_outside"),
+           "room_leave_refused": row(LEAVE, "DENIED", "scope_leave_request")}
+
+
+class RoomVerdicts(unittest.TestCase):
+    """The room brain paths (Amine 02/11): fixed typed calls through the deployed room tool or owner."""
+    def test_expected_outcomes_pass(self):
+        for path, value in ROOM_OK.items():
+            self.assertEqual(p.room_verdict(path, value)[0], "passed", path)
+        for path in ("contact_read", "incomplete_ask", "room_write_prepared"):
+            self.assertEqual(p.room_verdict(path, row(CLOSED, "TECHNICAL_FAILURE", "service_closed")), ("passed", "pulse_closed"))
+        self.assertEqual(p.room_verdict("room_write_prepared", row(ASK, "NEEDS_CHOICE")), ("passed", "asked_before_prepare"))
+
+    def test_a_write_that_ran_or_a_broken_room_fails(self):
+        self.assertEqual(p.room_verdict("room_write_prepared", row("Phase mise à jour.", "COMPLETED")), ("failed", "write_not_stopped"))
+        self.assertEqual(p.room_verdict("room_write_prepared", row("", "PREPARED", "COMPLETED")), ("failed", "write_not_stopped"))
+        self.assertEqual(p.room_verdict("contact_read", row(ACCESS, "DENIED", "room_grant_revoked")), ("failed", "room_admission_refused"))
+        self.assertEqual(p.room_verdict("contact_read", row("", "COMPLETED")), ("failed", "no_verified_result"))
+        self.assertEqual(p.room_verdict("contact_read", row(GENERIC, "TECHNICAL_FAILURE")), ("failed", "broken_reply"))
+        self.assertEqual(p.room_verdict("incomplete_ask", row("Projet créé.", "COMPLETED")), ("failed", "no_question"))
+        self.assertEqual(p.room_verdict("room_outside", row("Il fait beau.", "COMPLETED")), ("failed", "not_refused"))
+        self.assertEqual(p.room_verdict("room_leave_refused", row(REFUSAL, "DENIED", "scope_forbidden")), ("failed", "leave_not_refused"))
+        self.assertEqual(p.room_verdict("room_outside", row(error="room_tool_unavailable")), ("failed", "path_error"))
+        # The owner's own dry run refused the discovered target: nothing to judge, nothing written.
+        self.assertEqual(p.room_verdict("room_write_prepared", row("x", "TECHNICAL_FAILURE", "pulse_preparation_failed")),
+                         ("inconclusive", "write_not_prepared"))
+
+    def test_runner_argv_is_one_fixed_typed_call(self):
+        seen = []
+        def run(argv, **kw):
+            seen.append(argv)
+            class P: stdout = json.dumps({"reply": REFUSAL, "state": "OUTSIDE_SCOPE", "reasonCode": "scope_outside", "facts": False}); returncode = 0
+            return P()
+        out = p.room_turn("tool", "agenda.read", {}, run=run)
+        self.assertEqual(seen[0][2:], ["tool", "agenda.read", "{}"])
+        self.assertEqual(p.room_verdict("room_outside", out), ("passed", "ok"))
+        p.room_turn("prepare-first-project", None, {"phase": "Réalisation", "state": "started"}, run=run)
+        self.assertEqual(seen[1][2:], ["prepare-first-project", '{"phase": "Réalisation", "state": "started"}'])
+        self.assertTrue(all(m in ("tool", "prepare", "prepare-first-project") for _, m, _a, _p in p.ROOM_CALLS))
+        # A write action is never sent through the tool mode (the tool would hand a complete write off).
+        self.assertFalse([a for _, m, a, _p in p.ROOM_CALLS if m == "tool" and a in ("project.create", "project.phase.set_status")])
+
+    def test_room_tools_reads_the_closed_policy(self):
+        directory = tempfile.TemporaryDirectory(); self.addCleanup(directory.cleanup)
+        config = Path(directory.name) / "openclaw.json"
+        before = json.loads((Path(__file__).resolve().parents[2] / "openclaw-plugin-mobile-ui/fixtures/"
+                             "s24-2026-11-02-pulse-room-brain/room-grant-recette.json").read_text())["agent_tools_before"]
+        config.write_text(json.dumps({"agents": {"entries": {n: {"tools": t} for n, t in before.items()}}}))
+        self.assertEqual(p.room_tools(config)["reason"], "room_tools_not_closed")  # S24 02/11, before provision
+        spec = importlib.util.spec_from_file_location("pulse_room", Path(__file__).with_name("pulse-room.py"))
+        owner = importlib.util.module_from_spec(spec); spec.loader.exec_module(owner)
+        config.write_text(json.dumps({"agents": {"entries": {n: {"tools": owner.room_tools(n, t)} for n, t in before.items()}}}))
+        self.assertEqual(p.room_tools(config)["state"], "passed")
+
+
 class Verdicts(unittest.TestCase):
     def test_captured_replies(self):
         self.assertEqual(p.verdict("owner_read", OWNER_READ, None), ("passed", "ok"))
-        self.assertEqual(p.verdict("contact_read", CLOSED, None), ("passed", "pulse_closed"))
-        self.assertEqual(p.verdict("incomplete_ask", CLOSED, None), ("passed", "pulse_closed"))
         self.assertEqual(p.verdict("write_recap", RECAP, None), ("passed", "ok"))
-        # The S24 room rendered the closed-hours answer of a creation as this generic sentence (bug fixed with it).
-        self.assertEqual(p.verdict("incomplete_ask", GENERIC, None), ("failed", "broken_reply"))
 
     def test_open_hours_and_failures(self):
-        self.assertEqual(p.verdict("incomplete_ask", "Pour créer le projet, quel est le client ?", None), ("passed", "ok"))
-        self.assertEqual(p.verdict("incomplete_ask", "Projet créé.", None), ("failed", "no_question"))
         self.assertEqual(p.verdict("write_recap", "C’est fait, rendez-vous ajouté.", None), ("failed", "not_stopped_at_recap"))
         self.assertEqual(p.verdict("write_recap", "Confirme : rendez-vous ajouté ?", None), ("failed", "not_stopped_at_recap"))
         self.assertEqual(p.verdict("owner_read", "", None), ("failed", "empty_reply"))
-        self.assertEqual(p.verdict("contact_read", "", "TimeoutExpired"), ("failed", "path_error"))
-        self.assertEqual(p.verdict("contact_read", "L’accès à la pièce Pulse n’est pas confirmé. Rien n’a été exécuté.", None),
-                         ("failed", "broken_reply"))
+        self.assertEqual(p.verdict("owner_read", "", "TimeoutExpired"), ("failed", "path_error"))
 
     def test_refused_typed_tool_is_broken(self):
         # Captured on the S24 30/10 23:57 Tunis (deployment dbe0f455, typed agenda calls refused by the guard).
@@ -67,7 +125,7 @@ class Verdicts(unittest.TestCase):
 
     def test_outage_is_inconclusive_never_a_rollback(self):
         self.assertEqual(p.verdict("owner_read", "", "429 rate limit"), ("inconclusive", "provider_unavailable"))
-        self.assertEqual(p.verdict("contact_read", "Le modèle n’est pas joignable pour le moment.", None),
+        self.assertEqual(p.room_verdict("contact_read", row("Le modèle n’est pas joignable pour le moment.")),
                          ("inconclusive", "provider_unavailable"))
 
 
@@ -174,45 +232,55 @@ class ProviderAuthorization(unittest.TestCase):
             def mark(self): self.turn += 1; return self.turn
             def cause(self, mark): return self.found[mark - 1]
         owner = lambda replies: (lambda text: (replies.pop(0), 1.0, None))
-        room = lambda replies: (lambda text: (replies.pop(0), 1.0, None))
-        report = p.run_all(owner([AUTH["owner_reply"], RECAP, "ok"]), room([CLOSED, CLOSED, CLOSED]),
-                           lambda: ([200, 200, 200], 0.1), Causes(["google_authorization_unavailable", "other"]))
+        room = lambda broken=None: (lambda mode, action, params: row(GENERIC, "TECHNICAL_FAILURE") if broken else ROOM_OK[
+            next(path for path, m, a, _p in p.ROOM_CALLS if (m, a) == (mode, action))])
+        tools = lambda: {"path": "room_tools", "state": "passed", "reason": "ok", "seconds": 0.1}
+        report = p.run_all(owner([AUTH["owner_reply"], RECAP, "ok"]), room(), lambda: ([200, 200, 200], 0.1),
+                           Causes(["google_authorization_unavailable", "other"]), tools)
         self.assertEqual(report["state"], "inconclusive")
         self.assertEqual(report["paths"][0], {"path": "owner_read", "state": "inconclusive",
                                               "reason": "provider_authorization_expired", "seconds": 1.0})
-        self.assertEqual(report["paths"][3]["state"], "passed")
+        self.assertEqual(report["paths"][7]["state"], "passed")
         # Another path broken for another reason still fails the run (the caller rolls back).
-        report = p.run_all(owner([AUTH["owner_reply"], RECAP, "ok"]), room([CLOSED, GENERIC, CLOSED]),
-                           lambda: ([200, 200, 200], 0.1), Causes(["google_authorization_unavailable", "other"]))
+        report = p.run_all(owner([AUTH["owner_reply"], RECAP, "ok"]), room(True), lambda: ([200, 200, 200], 0.1),
+                           Causes(["google_authorization_unavailable", "other"]), tools)
         self.assertEqual(report["state"], "failed")
         self.assertNotIn("agenda", json.dumps(report))
 
 
 class Run(unittest.TestCase):
-    def run_with(self, owner_replies, room_replies, codes=(200, 200, 200)):
+    def run_with(self, owner_replies, room_rows=None, codes=(200, 200, 200), tools_state="passed"):
         sent = {"owner": [], "room": []}
+        rows = dict(ROOM_OK, **(room_rows or {}))
         def owner(text):
             sent["owner"].append(text); return owner_replies.pop(0), 1.0, None
-        def room(text):
-            sent["room"].append(text); return room_replies.pop(0), 1.0, None
-        return p.run_all(owner, room, lambda: (list(codes), 0.1)), sent
+        def room(mode, action, params):
+            sent["room"].append((mode, action, params))
+            return rows[next(path for path, m, a, _p in p.ROOM_CALLS if (m, a) == (mode, action))]
+        tools = lambda: {"path": "room_tools", "state": tools_state, "reason": "ok", "seconds": 0.1}
+        return p.run_all(owner, room, lambda: (list(codes), 0.1), tools=tools), sent
 
     def test_order_cleanup_and_no_user_text_in_receipt(self):
-        report, sent = self.run_with([OWNER_READ, RECAP, "D’accord, je ne l’ajoute pas."], [CLOSED, CLOSED, CLOSED])
+        report, sent = self.run_with([OWNER_READ, RECAP, "D’accord, je ne l’ajoute pas."])
         self.assertEqual(report["state"], "passed")
         self.assertEqual([r["path"] for r in report["paths"]], list(p.PATHS))
-        # The recap is cancelled, never confirmed; the room question is closed for the next run.
+        # The recap is cancelled, never confirmed; no room write is ever handed off.
         self.assertTrue(sent["owner"][-1].startswith("Annule"))
         self.assertFalse(any(t.strip().lower() in ("oui", "confirme") for t in sent["owner"]))
-        self.assertTrue(sent["room"][-1].startswith("Annule"))
+        self.assertEqual([c[0] for c in sent["room"]], ["tool", "prepare", "prepare-first-project", "tool", "tool"])
         self.assertNotIn("agenda", json.dumps(report))
+        self.assertNotIn("Pulse", json.dumps(report))
 
     def test_one_failure_fails_and_outage_is_inconclusive(self):
-        report, _ = self.run_with([OWNER_READ, RECAP, "ok"], [CLOSED, GENERIC, CLOSED])
+        report, _ = self.run_with([OWNER_READ, RECAP, "ok"], {"incomplete_ask": row(GENERIC, "TECHNICAL_FAILURE")})
         self.assertEqual(report["state"], "failed")
-        report, _ = self.run_with([OWNER_READ, RECAP, "ok"], [CLOSED, CLOSED, CLOSED], codes=(200, 503, 200))
+        report, _ = self.run_with([OWNER_READ, RECAP, "ok"], {"room_write_prepared": row("ok", "COMPLETED")})
         self.assertEqual(report["state"], "failed")
-        report, _ = self.run_with([OWNER_READ, "Le modèle n’est pas joignable.", "ok"], [CLOSED, CLOSED, CLOSED])
+        report, _ = self.run_with([OWNER_READ, RECAP, "ok"], tools_state="failed")
+        self.assertEqual(report["state"], "failed")
+        report, _ = self.run_with([OWNER_READ, RECAP, "ok"], codes=(200, 503, 200))
+        self.assertEqual(report["state"], "failed")
+        report, _ = self.run_with([OWNER_READ, "Le modèle n’est pas joignable.", "ok"])
         self.assertEqual(report["state"], "inconclusive")
 
 

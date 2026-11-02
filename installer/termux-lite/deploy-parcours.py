@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
-"""Deployment acceptance on five representative paths (Amine 29/10: at deploy time only, five paths, not every use case).
+"""Deployment acceptance on representative paths (Amine 29/10: at deploy time only, not every use case).
 
 Runs after the runtime switch, against what really answers now: the Gateway with the synced plugin and the active
 playbooks snapshot. Nothing is sent on WhatsApp and nothing is written:
-  1. owner_read        owner brain (same agent as WhatsApp), dedicated session, an agenda read;
-  2. contact_read      test contact « Recette Pulse » (fictitious number) in the Pulse room, a project list;
-  3. incomplete_ask    same contact, an incomplete creation: Samantha must ask, never act;
-  4. write_recap       owner brain, an agenda write that must stop at the confirmation recap, then cancelled;
-  5. app_read          the Companion routes the app reads.
-« Pulse est fermé » is a valid answer for 2 and 3. A provider outage is inconclusive (a rollback would not fix it), and so
+  1. owner_read          owner brain (same agent as WhatsApp), dedicated session, an agenda read;
+  2. room_tools          the two Pulse room agents: the room tool allowed, every other tool closed (openclaw.json);
+  3. contact_read        test contact « Recette Pulse » (fictitious number) in the Pulse room, its room brain's
+                         samantha_pulse tool (Amine 02/11), a project list;
+  4. incomplete_ask      same contact, an incomplete creation: Samantha must ask, never act;
+  5. room_write_prepared same contact, a complete phase status on its first project: prepared by the room owner, the
+                         grant re-read, then closed before any Pulse write (the runner never sends the hand-off);
+  6. room_outside        same contact, another domain's action: refused;
+  7. room_leave_refused  same contact, a leave request: refused (Amine's Pulse account);
+  8. write_recap         owner brain, an agenda write that must stop at the confirmation recap, then cancelled;
+  9. app_read            the Companion routes the app reads.
+« Pulse est fermé » is a valid answer for 3, 4 and 5. The room paths call the deployed room tool or its owner with one
+fixed typed call each (deploy-parcours-room.cjs), never the model. A provider outage is inconclusive (a rollback would not fix it), and so
 is an external provider authorization to redo (Google access expired or revoked): the owner reconnects, the candidate
 is not at fault (S24 31/10 12:02). That cause is read from the typed tool result of the turn when the agent transcript
 is readable; otherwise from the owner sentence alone.
@@ -16,7 +23,7 @@ is readable; otherwise from the owner sentence alone.
 Exit 0 = passed, 1 = a path failed (the caller rolls back), 3 = inconclusive (provider unavailable or provider
 authorization to redo), 2 = usage.
 One JSON object on stdout: the receipt section."""
-import functools, json, os, re, sqlite3, subprocess, sys, time, urllib.error, urllib.request
+import functools, importlib.util, json, os, re, sqlite3, subprocess, sys, time, urllib.error, urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -49,7 +56,20 @@ OWNER_TRANSCRIPT = Path.home() / ".openclaw/agents/main/agent/openclaw-agent.sql
 TYPED_ADMISSION_REFUSED = "typed_host_admission_required"
 TYPED_TECHNICAL_FAILURE = "typed_technical_failure"
 DONE_WRITE = re.compile(r"\b(ajouté|créé|enregistré|c’est fait|c'est fait)\b", re.I)
-PATHS = ("owner_read", "contact_read", "incomplete_ask", "write_recap", "app_read")
+PATHS = ("owner_read", "room_tools", "contact_read", "incomplete_ask", "room_write_prepared", "room_outside",
+         "room_leave_refused", "write_recap", "app_read")
+# One fixed typed call per room path (runner mode, action, params); see deploy-parcours-room.cjs.
+ROOM_CALLS = (
+    ("contact_read", "tool", "project.search", {}),
+    ("incomplete_ask", "prepare", "project.create", {}),
+    ("room_write_prepared", "prepare-first-project", None, {"phase": "Réalisation", "state": "started"}),
+    ("room_outside", "tool", "agenda.read", {}),
+    ("room_leave_refused", "tool", "leave.request", {"start_at": "2026-12-01", "end_at": "2026-12-02"}),
+)
+ROOM_AGENTS = ("contacts-pulse", "contacts-projet-pulse")
+ROOM_REFUSAL = "Ici je ne traite que Pulse"
+LEAVE_REFUSAL = "compte Pulse d’Amine"
+OPENCLAW_CONFIG = Path.home() / ".openclaw/openclaw.json"
 
 
 def fresh_owner_session(now=time.gmtime):
@@ -144,15 +164,74 @@ class TurnCauses:
         return "other" if seen else None
 
 
-def room_turn(text, run=subprocess.run):
-    """One Recette Pulse message through the deployed room hook, no delivery: (text, seconds, error)."""
+def room_turn(mode, action, params, run=subprocess.run):
+    """One Recette Pulse typed call through the deployed room brain, no delivery: a row (reply, state, reasonCode,
+    facts, seconds, error)."""
+    began = time.monotonic()
+    argv = ["node", str(ROOM_RUNNER), mode, *([action] if action else []), json.dumps(params, ensure_ascii=False)]
+    try:
+        p = run(argv, capture_output=True, text=True, timeout=ROOM_TIMEOUT_S)
+        value = json.loads((p.stdout or "{}").strip().splitlines()[-1])
+        if not isinstance(value, dict):
+            raise ValueError("room_runner_output")
+        return {"reply": str(value.get("reply") or ""), "state": str(value.get("state") or ""),
+                "reasonCode": str(value.get("reasonCode") or ""), "facts": value.get("facts") is True,
+                "seconds": time.monotonic() - began, "error": value.get("error")}
+    except (OSError, ValueError, IndexError, subprocess.TimeoutExpired) as e:
+        return {"reply": "", "state": "", "reasonCode": "", "facts": False, "seconds": time.monotonic() - began,
+                "error": type(e).__name__}
+
+
+def room_verdict(path, row):
+    """'passed' | 'failed' | 'inconclusive' and a short reason for one room path (no user text in the receipt)."""
+    reply, state, reason, error = row["reply"], row["state"], row["reasonCode"], row["error"]
+    if error and OUTAGE.search(str(error)) or OUTAGE.search(reply):
+        return "inconclusive", "provider_unavailable"
+    if error:
+        return "failed", "path_error"
+    if reason == "room_grant_revoked":
+        return "failed", "room_admission_refused"
+    if path in ("contact_read", "incomplete_ask", "room_write_prepared") and CLOSED.search(reply):
+        return "passed", "pulse_closed"
+    asked = state in ("NEEDS_INPUT", "NEEDS_CHOICE") and "?" in reply
+    if path == "contact_read":
+        if state == "COMPLETED" and (reply.strip() or row["facts"]) and not BROKEN.search(reply):
+            return "passed", "ok"
+        return "failed", "broken_reply" if BROKEN.search(reply) else "no_verified_result"
+    if path == "incomplete_ask":
+        return ("passed", "ok") if asked else ("failed", "no_question")
+    if path == "room_write_prepared":
+        if state == "COMPLETED":
+            return "failed", "write_not_stopped"
+        if state == "PREPARED":
+            return ("passed", "prepared_stopped") if reason not in ("", "COMPLETED") else ("failed", "write_not_stopped")
+        if asked:
+            return "passed", "asked_before_prepare"
+        if reason == "recette_no_project" or state == "TECHNICAL_FAILURE" and reason.startswith("pulse_"):
+            # The owner's own dry run refused the target (or the list was empty): nothing to judge, nothing written.
+            return "inconclusive", "write_not_prepared"
+        return "failed", "write_path_broken"
+    if path == "room_outside":
+        return ("passed", "ok") if state == "OUTSIDE_SCOPE" and reply.startswith(ROOM_REFUSAL) else ("failed", "not_refused")
+    if path == "room_leave_refused":
+        return (("passed", "ok") if state == "DENIED" and reason == "scope_leave_request" and LEAVE_REFUSAL in reply
+                else ("failed", "leave_not_refused"))
+    return "failed", "unknown_path"
+
+
+def room_tools(config=OPENCLAW_CONFIG):
+    """The room agents allow their room tool and keep every other tool closed (pulse-room.py room_tools)."""
     began = time.monotonic()
     try:
-        p = run(["node", str(ROOM_RUNNER), text], capture_output=True, text=True, timeout=ROOM_TIMEOUT_S)
-        value = json.loads((p.stdout or "{}").strip().splitlines()[-1])
-        return str(value.get("reply") or ""), time.monotonic() - began, value.get("error")
-    except (OSError, ValueError, IndexError, subprocess.TimeoutExpired) as e:
-        return "", time.monotonic() - began, type(e).__name__
+        spec = importlib.util.spec_from_file_location("pulse_room", HERE / "pulse-room.py")
+        owner = importlib.util.module_from_spec(spec); spec.loader.exec_module(owner)
+        entries = (json.loads(Path(config).read_text()).get("agents") or {}).get("entries") or {}
+        closed = all(isinstance(entries.get(name), dict) and isinstance(entries[name].get("tools"), dict)
+                     and owner.room_tools(name, entries[name]["tools"]) == entries[name]["tools"] for name in ROOM_AGENTS)
+        state = ("passed", "ok") if closed else ("failed", "room_tools_not_closed")
+    except (OSError, ValueError, SystemExit, AttributeError):
+        state = ("failed", "room_tools_unverified")
+    return {"path": "room_tools", "state": state[0], "reason": state[1], "seconds": round(time.monotonic() - began, 1)}
 
 
 def app_read(get=None):
@@ -190,16 +269,12 @@ def verdict(path, text, error, cause=None):
         return ("inconclusive", "provider_authorization_expired") if cause is None else ("failed", "unconfirmed_provider_authorization")
     if BROKEN.search(text):
         return "failed", "broken_reply"
-    if path in ("contact_read", "incomplete_ask") and CLOSED.search(text):
-        return "passed", "pulse_closed"
-    if path == "incomplete_ask" and "?" not in text:
-        return "failed", "no_question"
     if path == "write_recap" and (not re.search(r"Confirme", text) or "?" not in text or DONE_WRITE.search(text)):
         return "failed", "not_stopped_at_recap"
     return "passed", "ok"
 
 
-def run_all(owner=None, room=room_turn, app=app_read, causes=None):
+def run_all(owner=None, room=room_turn, app=app_read, causes=None, tools=room_tools):
     session = fresh_owner_session()
     owner = owner or functools.partial(owner_turn, session=session)
     causes = causes or TurnCauses(session)
@@ -212,9 +287,11 @@ def run_all(owner=None, room=room_turn, app=app_read, causes=None):
         reply = owner(text)
         record(path, *reply, cause=causes.cause(mark))
     judged_owner("owner_read", "Qu'est-ce que j'ai dans mon agenda demain ?")
-    record("contact_read", *room("Liste mes projets Pulse"))
-    record("incomplete_ask", *room("Crée un nouveau projet"))
-    room("Annule la demande en cours")  # leaves no open question for the next run; not judged
+    rows.append(tools())
+    for path, mode, action, params in ROOM_CALLS:
+        row = room(mode, action, params)
+        state, reason = room_verdict(path, row)
+        rows.append({"path": path, "state": state, "reason": reason, "seconds": round(row["seconds"], 1)})
     judged_owner("write_recap", "Ajoute à mon agenda demain à 10h un rendez-vous intitulé Recette déploiement")
     owner("Annule, ne l'ajoute pas.")  # the recap is never confirmed; not judged
     codes, took = app()

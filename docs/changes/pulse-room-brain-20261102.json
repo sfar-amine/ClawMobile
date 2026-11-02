@@ -1,0 +1,89 @@
+{
+  "version": 2,
+  "id": "pulse-room-brain-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Pièce Pulse (décision d'Amine du 02/11 : « Un autorisé sur une pièce peut tout faire dedans ») : le cerveau du contact autorisé (agents contacts-pulse et contacts-projet-pulse) raisonne avec le seul outil typé de sa pièce, samantha_pulse, au principal du contact (jamais owner). Grant de pièce relu une fois par message et juste avant toute écriture, portée pulse_room du coordinateur inchangée, création de congé refusée, réponses des propriétaires remises directement (canDeliverSourceReply). Remplace l'interception native before_dispatch de la pièce (pulseRoomFastPath.ts retiré) ; un seul chemin, sans bascule.",
+  "reason": "Amine veut que Sadok (pièce Pulse) ait la même expérience que ses propres conversations : un cerveau qui lit la demande, appelle samantha_pulse, lit le résultat, demande ou agit, répond. Le chemin natif (un appel d'interprète puis coordinateur déterministe) bornait la boucle (pulseRoomMayUseModel) et ne servait pas cette expérience.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/08-decisions/ADR-20261102-pulse-room-brain.md",
+    "docs/changes/pulse-room-brain-20261102.json",
+    "docs/changes/pulse-room-brain-20261102.md",
+    "installer/termux-lite/deploy-parcours-room.cjs",
+    "installer/termux-lite/deploy-parcours.py",
+    "installer/termux-lite/people-trusted.py",
+    "installer/termux-lite/project-room.py",
+    "installer/termux-lite/pulse-room.py",
+    "installer/termux-lite/test-deploy-parcours.py",
+    "installer/termux-lite/test-pulse-room.py",
+    "installer/termux-lite/test-runtime-sync.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-pulse-room-brain/pulse-tool.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-pulse-room-brain/room-grant-recette.json",
+    "openclaw-plugin-mobile-ui/scripts/lib/pulse-room-brain-paired.py",
+    "openclaw-plugin-mobile-ui/scripts/test-native-fast-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-native-pulse-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-brain.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+    "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
+    "openclaw-plugin-mobile-ui/src/contactRoomProfile.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/src/pulseRoomBrain.ts",
+    "openclaw-plugin-mobile-ui/src/pulseRoomFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "Cerveau de la pièce Pulse (nouveau, scripts/test-pulse-room-brain.cjs, inscrit en CI ; apparié au propriétaire playbooks 30a92b19)",
+      "status": "passed",
+      "evidence": "Build plugin (tsc + prepare-lite). 79 contrôles hors appariement, 88 avec ROOM_PLAYBOOKS_ROOT (playbooks 30a92b19, processus Pulse MOCK), sur la projection réelle de samantha_pulse et le grant réel du contact de recette (fixture S24 du 02/11) : seul samantha_pulse pour la session de pièce, ni outils propriétaires, ni fondation, mémoire ou préchargement #126 (contrôle propriétaire conservé), fabrique Gateway unique ; admission refusée sans preuve, avec une preuve propriétaire, avec senderIsOwner, autre outil ou autre agent, et pour 11 grants absents/révoqués (succès faux, suspendu, owner, sans pulse, mauvais agent, pièce combinée, maison, expiré, numéro ou identifiant faux, lecture en échec) sans helper ; hôte privé sans owner ni caller ; leave.request refusé avec LEAVE_REQUEST_REFUSAL sans lecture ni helper, leave.balance lu ; hors domaine refusé ; réponse propriétaire remise telle quelle, faits vérifiés seuls au modèle avec la consigne ; écriture préparée puis handoff du même événement après relecture du grant ; abort si grant révoqué ou tour arrêté ; issue inconnue jamais rejouée ; grant lu une fois par message, relu pour un nouveau message, lecture échouée jamais réutilisée ; appariement : lecture, écriture préparée (--prepare-command), handoff unique (--prepared-command-stdin), rejeu sans écriture, hôte owner refusé, autre domaine OUTSIDE_SCOPE, congé DENIED scope_leave_request."
+    },
+    {
+      "name": "Recette de déploiement (test-deploy-parcours.py, test-pulse-room.py, inscrits en CI)",
+      "status": "passed",
+      "evidence": "18 tests deploy-parcours (nouveaux chemins room_tools, contact_read, incomplete_ask, room_write_prepared, room_outside, room_leave_refused ; écriture jamais tool, PREPARED/COMPLETED, pulse_closed, refus d'admission, inconclusive sur refus du dry run ; politique d'outils lue sur la fixture S24 avant/après provision) ; 3 tests pulse-room (politique fermée des deux agents, mise à jour idempotente depuis la politique S24 réelle, AGENTS) ; node --check deploy-parcours-room.cjs."
+    },
+    {
+      "name": "Non-régression plugin (étapes node scripts/test-*.cjs de ci.yml)",
+      "status": "passed",
+      "evidence": "206 scripts rejoués localement sur le build : 201 verts du premier coup ; test-pulse-room-brain et test-typed-failure-presentation verts après correction (inventaire des codes producteurs) ; test-mcp-read-paired, test-mcp-context-paired et test-qa-contact-media-paired demandent leur checkout playbooks apparié et ses arguments (étapes CI dédiées), non concernés. Rejoués après la dernière modification : guard E3, outils typés (direct-visible, device, direct-call-id, instances partagées), brain-only, fondation, préchargement #126, pièces contact, admission, surfaces E3, poignée native, outils contact, pièces R17 appariées."
+    },
+    {
+      "name": "Installeur Python",
+      "status": "passed",
+      "evidence": "test-people-trusted (21), test-project-room, test-runtime-sync (26), test-ci-registration, test-native-room-owner-readers, test-native-pulse-private-input, test-whatsapp-allowlist (49), test-claw-capability-agent-policy (28), test-model-efficiency : verts."
+    }
+  ],
+  "documentation": [
+    "docs/changes/pulse-room-brain-20261102.md",
+    "docs/08-decisions/ADR-20261102-pulse-room-brain.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Aucune capability ni route nouvelle : les intentions Pulse existantes (registre et manifeste inchangés) sont appelées par l'outil typé samantha_pulse déjà déclaré dans openclaw.plugin.json, sous la portée pulse_room existante.",
+    "ids": []
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "La pièce Pulse ne passe plus par l'interception before_dispatch native : le cerveau du contact appelle l'outil typé de sa pièce. Mêmes propriétaires (fabrique typée, garde before_tool_call, people-trusted, coordinateur et sa portée pulse_room, préparation et exécution Pulse) ; aucun store, registre, routeur ou démon nouveau.",
+    "documents": [
+      "docs/08-decisions/ADR-20261102-pulse-room-brain.md"
+    ]
+  },
+  "fixtures": [
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-pulse-room-brain/pulse-tool.json : outil samantha_pulse projeté par le Graph, capture S24 du 02/11 (14 des 37 actions, liste complète en provenance)",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-pulse-room-brain/room-grant-recette.json : grant réel du contact de recette (numéro fictif), politique d'outils des agents de pièce avant ce lot, drapeaux Gateway ; capture S24 du 02/11, lecture seule"
+  ],
+  "rollback": "Retour arrière automatique de companion-deploy.sh si la recette échoue ; sinon revert du commit puis companion-deploy vers le commit précédent : le plugin revenu rétablit l'interception native (SAMANTHA_NATIVE_PULSE_HANDOFF=1 reste dans l'environnement Gateway). Playbooks : activate-ui-playbooks.sh au SHA précédent (ajout seulement). La politique d'outils écrite par pulse-room.py provision est sans effet avec l'ancien plugin ; pour rendre web_search à contacts-pulse, restaurer agents.entries.contacts-pulse.tools depuis la fixture agent_tools_before.",
+  "limitations": [
+    "Données Pulse désormais dans la session du modèle de l'agent contact (même fournisseur et compte que le cerveau d'Amine) : admission DATA01 à confirmer par Amine avant déploiement (ADR-20261102).",
+    "Code natif devenu mort non retiré dans ce lot (liste exacte dans la note) : PR de suite core + playbooks.",
+    "Pièce Pulse combinée à agenda/actions/messages/qa non servie pour Pulse (aucun tel grant sur le S24 le 02/11).",
+    "Recette : le choix du modèle n'est pas rejoué (garantie d'absence d'écriture) ; l'écriture préparée vise le premier projet de la liste du contact de recette et rend inconclusive si le dry run du propriétaire la refuse.",
+    "Ordre de déploiement : playbooks apparié activé, puis pulse-room.py provision, puis companion-deploy ; pas encore exécuté sur le S24."
+  ]
+}

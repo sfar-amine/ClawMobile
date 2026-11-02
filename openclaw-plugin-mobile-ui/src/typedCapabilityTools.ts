@@ -13,7 +13,7 @@ export type TypedToolContext = {
   senderIsOwner?: boolean; sessionKey?: string; sessionId?: string; agentId?: string;
   messageChannel?: string; assertInvocationCurrent?: () => void;
 };
-type Action = {action: string; description: string; params: any; examples: string[]; risk: string; confirmationRequired: boolean;
+export type Action = {action: string; description: string; params: any; examples: string[]; risk: string; confirmationRequired: boolean;
   canonicalStatus?: string; executionMode?: string; nativeOwner?: {owner:string;contract:string;reason:string};
   execution?: {kind: string; method: string; path: string; pathParams?: Record<string, any>; query?: string[]; budgetMs?: number; control?: string}};
 export type DomainTool = {name: string; domain: string; description: string; actions: Action[]};
@@ -43,11 +43,16 @@ export function readTypedToolCatalogue(home = os.homedir()): DomainTool[] {
   } catch { return []; }
 }
 
-function toolSchema(tool: DomainTool) {
+/** Model-facing parameter shapes of a set of actions (host-only markers removed, duplicates merged). */
+export function actionParamShapes(actions: Action[]) {
   const publicSchema = (value: any): any => Array.isArray(value) ? value.map(publicSchema)
     : value && typeof value === "object" ? Object.fromEntries(Object.entries(value)
       .filter(([key]) => !["entity_id", "entity_id_if_numeric"].includes(key)).map(([key, child]) => [key, publicSchema(child)])) : value;
-  const shapes = [...new Set(tool.actions.map(a => JSON.stringify(publicSchema(a.params))))].map(encoded => JSON.parse(encoded));
+  return [...new Set(actions.map(a => JSON.stringify(publicSchema(a.params))))].map(encoded => JSON.parse(encoded));
+}
+
+function toolSchema(tool: DomainTool) {
+  const shapes = actionParamShapes(tool.actions);
   const confirmation = {type: "object", properties: {
     confirmationId: {type: "string", minLength: 1, maxLength: 160},
     payloadHash: {type: "string", pattern: "^[a-f0-9]{64}$"},
