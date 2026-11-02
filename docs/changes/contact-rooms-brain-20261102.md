@@ -80,12 +80,61 @@ contact existant : les deux contacts Pulse et le contact Projet gardent exacteme
 | --- | --- | --- |
 | Agenda | `agenda.event.read`, `agenda.event.create`, `agenda.event.update`, `agenda.reminder.schedule` | `agenda.sync` (candidate non qualifiée, absente de l'outil) |
 | Actions | `device.status.read`, `device.alarm.next`, `device.alarm.set`, `device.dnd.read`, `device.dnd.set`, `device.torch.read`, `device.torch.set`, `device.timer.start`, `device.timer.cancel`, `device.volume.set`, `device.ringer.set`, `device.brightness.set`, `device.battery_saver.set`, `device.bluetooth.set`, `device.wifi.enable`, `device.app.open`, `device.settings.open`, `device.screenshot.take` | `device.sms.latest`, `device.photos.today` (SMS et photos d'Amine, décision du 31/10, `scope_owner_private`) ; `device.modes_routines` (pas de propriétaire typé) |
-| Messages | `messaging.send` (au nom d'Amine) | — |
+| Messages | `messaging.send` (au nom d'Amine), **avec la confirmation d'Amine pour chaque envoi** | — |
 | Pulse | inchangé (#522) | `leave.request` (compte Pulse d'Amine) |
-| QA | — | tout : pas de propriétaire typé, aucun outil (`room_domain_not_typed`) |
+| QA | — | tout : pas de propriétaire typé, aucun outil (`room_domain_not_typed`) ; TODO : propriétaire typé `samantha_qa` dans un lot séparé (décision d'Amine du 02/11) |
 
 Hors du domaine de ses pièces, l'appel est refusé (`OUTSIDE_SCOPE`) avec une phrase fixe qui nomme les pièces ouvertes.
 Dans une pièce Pulse seule, c'est la phrase #522.
+
+### Envoi au nom d'Amine : sa confirmation pour chaque envoi (décision d'Amine du 02/11)
+Réponse d'Amine à la question de ce lot : un envoi WhatsApp en son nom depuis la pièce messages exige sa confirmation
+pour chaque envoi. L'agenda reste en accès complet.
+
+Propriétaires réutilisés, sans nouveau store d'approbation :
+- la **confirmation propriétaire du Companion** (`companion/confirmations.ts`, `confirmationCore.ts`, celle des
+  paiements et de l'allowlist WhatsApp) : enregistrement dans le registre des runs (`runs.json`, dont le Companion est
+  le seul écrivain), TTL de 120 s, signature ECDSA de la clé propriétaire de l'app après biométrie, usage unique
+  (`consume` contre l'intention exacte) ;
+- l'**écran de confirmation de l'app** (`OwnerConfirmationActivity`, type « confirmation » générique : titre,
+  sous-titre, description, puis biométrie, ou refus). Il est ouvert depuis une notification Termux par le même
+  mécanisme que la notification de campagne QA (`backends/ownerConfirmationNotification.ts`, clic qui lance seulement
+  l'activité installée `ai.samantha.android.dev`, vérifiée sur le S24) ;
+- le **propriétaire de pièce playbooks** et sa commande préparée (`handoff` une fois, ou `abort`) ;
+- le **RPC Gateway `send`**, déjà utilisé en production pour l'avis de progression d'Amine, qui annonce l'issue au
+  contact.
+
+Déroulé :
+1. Le contact demande un envoi. Le cerveau appelle `samantha_whatsapp`. La commande est préparée puis arrêtée à son
+   hand-off, et le grant est relu.
+2. L'hôte de pièce ne remet jamais l'envoi lui-même (`OWNER_CONFIRMED_ROOMS`). Il envoie au Companion, par
+   `POST /v1/whatsapp/rooms/send-approvals` (boucle locale et en-tête propriétaire), les paramètres **liés** de la
+   commande. Ce sont le destinataire et le texte renvoyés par le propriétaire de pièce, qui doivent être égaux aux
+   arguments.
+3. Le Companion (`companion/roomSendApprovals.ts`) relit le grant, puis prépare la confirmation d'Amine :
+   - titre « Message au nom d'Amine » ;
+   - sous-titre « <qui demande> → <destinataire> » ;
+   - description « « <texte exact> » » ;
+   - empreinte qui lie le principal, la conversation, le but, l'événement, le destinataire et le texte.
+
+   Un texte qu'on ne peut pas présenter tel quel (plusieurs lignes, plus de 300 caractères) est refusé avec une raison
+   nommée : rien n'est raccourci. Le Companion notifie Amine sur son téléphone.
+4. Le contact reçoit l'état nommé : « Ta demande d'envoi à <destinataire> est en attente de la confirmation d'Amine.
+   Rien n'est envoyé sans son accord ; je te donne la suite ici. »
+5. Amine confirme avec sa biométrie (signature) ou refuse, dans l'écran existant. Les routes `owner-confirmation` et
+   `cancel` déclenchent la décision. Un minuteur à l'échéance traite l'expiration.
+   - **Confirmé** : grant relu sans cache, `consume` contre l'intention exacte (usage unique), puis `handoff` du même
+     but avec `ownerConfirmation {requestId, bindingHash}`. Les playbooks refusent tout hand-off de la pièce messages
+     sans cette confirmation. L'envoi est fait une fois et vérifié ; il n'est jamais rejoué, même si l'issue est
+     inconnue.
+   - **Refusé** : `abort(owner_refused)`.
+   - **Expiré** : `abort(owner_confirmation_expired)`.
+   - **Grant retiré entre-temps** : `abort(admission_revoked)` ; la confirmation n'est pas consommée.
+6. Le contact reçoit l'issue : envoyé, refusé, expiré, accès retiré, ou issue non vérifiée.
+
+Le contact ne peut jamais confirmer à la place d'Amine. L'outil de pièce n'a ni `confirm` ni `cancel`. La garde refuse
+la session du contact comme propriétaire. Une confirmation exige la signature de la clé de l'app d'Amine (une preuve
+signée par une autre clé est refusée). Les playbooks exigent la confirmation consommée au hand-off.
 
 ### Consignes et politique d'outils
 - `project-room.py room_tool_policy` est l'unique politique d'outils d'un agent de pièce :
@@ -109,6 +158,12 @@ Dans une pièce Pulse seule, c'est la phrase #522.
   - `dialogueTurn`/`runModelFastPath` en mode contact (`qaContext`) ;
   - `people-trusted.py qa-ingress-read` ;
   - le code natif Pulse déjà listé par #522.
+
+## Route
+`POST /v1/whatsapp/rooms/send-approvals` (Companion, boucle locale et en-tête propriétaire, budget 10 s).
+`NO_CAPABILITY` : c'est une route hôte vers Companion, appelée par l'outil de pièce, jamais par l'agent ou la voix. Elle
+ne fait que préparer la confirmation d'Amine et sa notification ; rien n'y est exécuté. Son refus sans en-tête
+propriétaire est ajouté à `companion-acceptance.py`.
 
 ## Recette de déploiement (`deploy-parcours.py`, sans écriture)
 En plus des chemins existants (dont `room_tools`, étendu à tout agent de pièce typé présent), avec le contact de
@@ -138,10 +193,14 @@ La fixture ne contient ni numéro, ni nom, ni identifiant de contact. Les fixtur
 Pulse, grant du contact de recette).
 
 ## Risques
-- **Messages** : un contact de la pièce envoie un WhatsApp au nom d'Amine sans confirmation d'Amine à chaque envoi.
-  C'est la règle « tout faire dedans » ; le fichier 50 recommandait la confirmation. Question pour Amine.
-- **Agenda** : le détail et les écritures sont ouverts. Le fichier 50 prévoyait « libre/occupé » par défaut.
-  Question pour Amine.
+- **Messages** : Amine a 120 s pour confirmer (TTL de la confirmation propriétaire existante, non modifié). Passé ce
+  délai, l'envoi est abandonné et le contact peut redemander.
+- **Redémarrage du Companion** pendant l'attente : l'attente en mémoire est perdue. La confirmation expire alors sans
+  être consommée et rien n'est envoyé ; le contact ne reçoit pas d'issue. Si Amine confirme juste après ce
+  redémarrage, l'écran indique la confirmation enregistrée, pas l'envoi (`actionExecuted: false`).
+- **Annonce de l'issue au contact** : le RPC Gateway `send` est éprouvé pour l'avis à Amine (même processus Companion).
+  Pour un contact, il est couvert par les tests (simulé) et doit être observé à la première vraie demande.
+- **Agenda** : accès complet confirmé par Amine (lecture détaillée, création, modification).
 - **Actions** :
   - La capture d'écran est une écriture admise. Son fichier reste dans la Galerie ; le propriétaire typé ne rend au
     contact que le nom et la taille du fichier.
@@ -158,7 +217,7 @@ Pulse, grant du contact de recette).
   `ROOM_TOOLS` et `roomSession`/`createRoomTools`.
 
 ## Déploiement (ordre)
-1. Playbooks d’abord : `activate-ui-playbooks.sh a77e7359` (branche playbooks `claude/contact-rooms-brain`, à pousser avant la CI de ce lot : l’étape appariée la récupère sur GitHub).
+1. Playbooks d’abord : `activate-ui-playbooks.sh 284da97f` (branche playbooks `claude/contact-rooms-brain`, à pousser avant la CI de ce lot : l’étape appariée la récupère sur GitHub).
    - Avec l'ancien playbooks, le nouveau plugin refuse les pièces non Pulse (`typed_room_admission_required`) et garde
      Pulse.
    - Avec le nouveau playbooks, l'ancien plugin garde son chemin (portée `contact_room:` conservée).

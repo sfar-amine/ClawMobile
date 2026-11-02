@@ -67,8 +67,14 @@ Ce qui reste fixé par le code, quelle que soit la demande :
 Les données de la pièce passent par la session du modèle de l'agent du contact (DATA01, acceptée par Amine le 02/11
 pour les pièces). Cette admission couvre aussi le point ouvert ci-dessus pour Pulse.
 
-Questions ouvertes pour Amine :
-- La pièce agenda était décrite « libre/occupé par défaut » (fichier 50). Elle donne désormais le détail et les
-  écritures.
-- La pièce messages envoie sans la confirmation d'Amine à chaque message. Le fichier 50 la recommandait.
-- La pièce QA : faut-il un propriétaire typé, ou bien fermer la pièce ?
+Réponses d'Amine (02/11) :
+- **Agenda** : accès complet (lecture détaillée, création, modification), tel que livré.
+- **Messages** : un envoi WhatsApp en son nom exige **sa confirmation pour chaque envoi**.
+  - La commande préparée s'arrête à son hand-off. L'hôte de pièce ne la remet jamais.
+  - Amine reçoit une demande de confirmation propriétaire : qui demande, destinataire, texte exact, avec confirmation
+    biométrique ou refus. Elle passe par la confirmation propriétaire existante du Companion et l'écran
+    `OwnerConfirmationActivity`.
+  - Sur confirmation, la même commande est remise une fois, vérifiée et jamais rejouée. Sur refus ou expiration, elle
+    est abandonnée.
+  - Le contact reçoit « en attente de la confirmation d'Amine », puis l'issue.
+- **QA** : propriétaire typé `samantha_qa` dans un lot séparé ; d'ici là, `room_domain_not_typed`.

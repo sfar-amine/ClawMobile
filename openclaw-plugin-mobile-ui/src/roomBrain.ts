@@ -27,6 +27,7 @@
  * and the rule to answer with them only, as in Amine's own typed turns.
  */
 import os from "node:os";
+import http from "node:http";
 import {allowlistRead} from "./companion/whatsappAllowlist";
 import {runCapabilityHelperProcess} from "./companion/capabilityBridge";
 import {consumeRoomInvocation} from "./capabilityAgentGuard";
@@ -94,6 +95,25 @@ const ROOM_REFUSED: Partial<Record<TypedRoom, Record<string, {text: string; reas
   actions: {"device.sms.latest": {text: OWNER_PRIVATE_REFUSAL, reason: "scope_owner_private"},
     "device.photos.today": {text: OWNER_PRIVATE_REFUSAL, reason: "scope_owner_private"}},
 };
+/**
+ * Amine 02/11: rooms whose writes need AMINE's confirmation of each one. A WhatsApp send in his name (messages) stops
+ * at its prepared hand-off; the room host never hands it off itself. It asks the Companion's owner confirmation
+ * (companion/roomSendApprovals.ts: biometric, signed, single use) and answers « en attente de la confirmation
+ * d'Amine »; the Companion hands the same prepared command off once on his confirmation, or aborts it.
+ */
+export const OWNER_CONFIRMED_ROOMS: ReadonlySet<TypedRoom> = new Set<TypedRoom>(["messages"]);
+export const ROOM_SEND_TEXTS = {
+  pending: (to: string) => `Ta demande d’envoi à ${to} est en attente de la confirmation d’Amine. Rien n’est envoyé sans son accord ; je te donne la suite ici.`,
+  notPresentable: "Ce message ne peut pas être présenté tel quel à Amine pour confirmation (une seule ligne, 300 caractères au plus). Rien n’a été envoyé.",
+  unavailable: "La demande de confirmation n’a pas pu être transmise à Amine. Rien n’a été envoyé.",
+  confirmed: (to: string) => `Amine a confirmé : ton message pour ${to} est envoyé.`,
+  refused: (to: string) => `Amine n’a pas confirmé l’envoi à ${to} : rien n’a été envoyé.`,
+  expired: (to: string) => `Amine n’a pas confirmé l’envoi à ${to} à temps : rien n’a été envoyé. Tu peux refaire la demande plus tard.`,
+  unverifiedConfirmation: "La confirmation d’Amine n’a pas pu être vérifiée : rien n’a été envoyé.",
+  stopped: "L’action était prête, mais l’accès à la pièce Messages n’est plus confirmé : rien n’a été envoyé sur WhatsApp.",
+  unknown: "Je n’ai pas de résultat vérifié de WhatsApp pour cette demande. Rien n’est rejoué automatiquement : vérifie son état avant tout nouvel essai.",
+};
+
 /** Rooms without a typed owner yet: no tool, so nothing runs there (named reason, not a fallback). */
 export const UNTYPED_ROOMS: Readonly<Record<string, string>> = {qa: "room_domain_not_typed"};
 
@@ -113,10 +133,37 @@ export type RoomToolOptions = {
   readGrant?: GrantRead;
   /** Tests only: the typed helper process otherwise. */
   runTyped?: TypedRun;
+  /** Tests only: the Companion owner confirmation request (loopback POST /v1/whatsapp/rooms/send-approvals) otherwise. */
+  requestOwnerApproval?: (body: any) => Promise<any>;
 };
 export type PulseRoomToolOptions = RoomToolOptions;
 type RoomContext = {agentId?: string; sessionKey?: string; sessionId?: string; senderIsOwner?: boolean;
-  messageChannel?: string; assertInvocationCurrent?: () => void};
+  messageChannel?: string; agentAccountId?: string; assertInvocationCurrent?: () => void};
+
+/** The Companion owner confirmation request of one prepared room send (loopback, owner flow; nothing runs there). */
+export function requestRoomSendApproval(body: any): Promise<any> {
+  const encoded = JSON.stringify(body);
+  return new Promise((resolve, reject) => {
+    const req = http.request({host: "127.0.0.1", port: Number(process.env.CLAWMOBILE_COMPANION_PORT) || 8765,
+      path: "/v1/whatsapp/rooms/send-approvals", method: "POST", headers: {"Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(encoded), "X-Clawmobile-Owner-Flow": "v1"}}, res => {
+      let bytes = 0, raw = "";
+      res.on("data", part => {bytes += part.length; if (bytes > 16384) {req.destroy(Error("owner_confirmation_unavailable")); return;} raw += part;});
+      res.on("end", () => {
+        try {
+          const value = JSON.parse(raw);
+          if ((res.statusCode || 500) >= 400) reject(Error(typeof value?.reason === "string" ? value.reason : "owner_confirmation_unavailable"));
+          else resolve(value);
+        } catch {reject(Error("owner_confirmation_unavailable"));}
+      });
+    });
+    req.setTimeout(10000, () => req.destroy(Error("owner_confirmation_unavailable")));
+    req.on("error", reject);
+    req.end(encoded);
+  });
+}
+const flat = (value: any) => value && typeof value === "object" && !Array.isArray(value)
+  ? JSON.stringify(Object.keys(value).sort().map(k => [k, value[k]])) : null;
 
 /**
  * One room grant read per incoming message: the agent run (OpenClaw runId) is the message, whatever room tool of the
@@ -242,7 +289,7 @@ export function roomHost(room: {room?: string; contactId: string; conversationKe
 }
 
 function createRoomTool(context: RoomContext, room: RoomPrincipal, tool: DomainTool, refusal: string,
-  read: GrantRead, typed: TypedRun) {
+  read: GrantRead, typed: TypedRun, approval: (body: any) => Promise<any>) {
   const actions = roomActions(tool);
   if (!actions.length) return null;
   const texts = TEXTS[room.room], domain = ROOM_TYPED[room.room].domain, refused = ROOM_REFUSED[room.room] || {};
@@ -292,6 +339,28 @@ function createRoomTool(context: RoomContext, room: RoomPrincipal, tool: DomainT
               host, roomAdmission: fresh || roomGrantPacket(room, eventRef, grant)}));
             return delivered(texts.stopped, "DENIED", "room_grant_revoked");
           }
+          if (OWNER_CONFIRMED_ROOMS.has(room.room)) {
+            // Amine confirms this very send; the room host never hands it off. Nothing is sent before his confirmation.
+            reached = "owner_confirmation";
+            const parameters = result?.prepared?.parameters;
+            let reason = "owner_confirmation_unavailable";
+            if (flat(parameters) !== null && flat(parameters) === flat(args.params)) {
+              try {
+                const asked = await approval({schemaVersion: 1, goalRef, agentId: room.agent, sessionKey: room.sessionKey,
+                  userRunId: bound.userRunId, invocationId: bound.invocationId,
+                  accountId: typeof context.agentAccountId === "string" && context.agentAccountId ? context.agentAccountId : null,
+                  parameters});
+                if (asked?.state === "awaiting_owner" && typeof asked.reply === "string" && asked.reply)
+                  return delivered(asked.reply, "PENDING_OWNER", "owner_confirmation_required");
+              } catch (error: any) {
+                if (error?.message === "owner_confirmation_not_presentable") reason = error.message;
+              }
+            }
+            await typed(JSON.stringify({command: {operation: "abort", domain, goalRef, reason: "owner_confirmation_unavailable"},
+              host, roomAdmission: fresh}));
+            return delivered(reason === "owner_confirmation_not_presentable" ? ROOM_SEND_TEXTS.notPresentable
+              : ROOM_SEND_TEXTS.unavailable, "DENIED", reason);
+          }
           reached = "handoff";
           result = await typed(JSON.stringify({command: {operation: "handoff", domain, goalRef}, host,
             roomAdmission: fresh}));
@@ -313,11 +382,12 @@ export function createRoomTools(context: RoomContext, options: RoomToolOptions =
   const catalogue = options.catalogue || readTypedToolCatalogue(options.home || os.homedir());
   const read: GrantRead = options.readGrant || (contactId => allowlistRead("get", contactId));
   const typed = options.runTyped || roomTypedHelper(options);
+  const approval = options.requestOwnerApproval || requestRoomSendApproval;
   const refusal = roomRefusal(session.rooms);
   const tools = session.rooms.flatMap(name => {
     const room = contactRoomPrincipal(context.agentId, context.sessionKey, name);
     const tool = catalogue.find(t => t.domain === ROOM_TYPED[name].domain && t.name === ROOM_TYPED[name].tool);
-    const made = room && tool && ROOM_TOOLS.has(tool.name) ? createRoomTool(context, room, tool, refusal, read, typed) : null;
+    const made = room && tool && ROOM_TOOLS.has(tool.name) ? createRoomTool(context, room, tool, refusal, read, typed, approval) : null;
     return made ? [made] : [];
   });
   return tools.length ? tools : null;
