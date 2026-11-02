@@ -1,0 +1,494 @@
+{
+ "provenance": {
+  "captured_at": "2026-11-02",
+  "device": "S24 (Termux, profil owner), OpenClaw 2026.10.9",
+  "captured_by": "Claude via claw_exec (lecture seule, action crb-fixture-capture-3)",
+  "source": "~/.openclaw/capability-views/agent-tools.json, outil de domaine pulse (projection compilée par le Capability Graph)",
+  "cleaning": "exemples retirés ; 14 des 37 actions conservées (nom, libellé, schéma, risque, confirmation, mode) ; schéma de project.create réduit à 5 de ses propriétés (name, client, RefClient, start, end), les autres actions à l'identique ; la liste complète des 37 actions et leur risque est dans all_actions",
+  "all_actions": [
+   [
+    "certificate.rotate",
+    "write"
+   ],
+   [
+    "cra.status",
+    "read"
+   ],
+   [
+    "evaluations.mine",
+    "read"
+   ],
+   [
+    "evaluations.team",
+    "read"
+   ],
+   [
+    "finance.ca",
+    "read"
+   ],
+   [
+    "leave.balance",
+    "read"
+   ],
+   [
+    "leave.calendar",
+    "read"
+   ],
+   [
+    "leave.request",
+    "write"
+   ],
+   [
+    "offer.assign_collaborator",
+    "write"
+   ],
+   [
+    "offer.create",
+    "write"
+   ],
+   [
+    "offer.forecast",
+    "read"
+   ],
+   [
+    "offer.forecast.set",
+    "write"
+   ],
+   [
+    "offer.remove_collaborator",
+    "write"
+   ],
+   [
+    "offer.search",
+    "read"
+   ],
+   [
+    "offer.set_status",
+    "write"
+   ],
+   [
+    "offer.snapshot",
+    "read"
+   ],
+   [
+    "offer.team",
+    "read"
+   ],
+   [
+    "offer.update",
+    "write"
+   ],
+   [
+    "project.assign_collaborator",
+    "write"
+   ],
+   [
+    "project.collaborator_monthly_consumption",
+    "read"
+   ],
+   [
+    "project.create",
+    "write"
+   ],
+   [
+    "project.edit",
+    "write"
+   ],
+   [
+    "project.forecast",
+    "read"
+   ],
+   [
+    "project.monthly_performance",
+    "read"
+   ],
+   [
+    "project.mutate",
+    "write"
+   ],
+   [
+    "project.order",
+    "write"
+   ],
+   [
+    "project.phase.set_status",
+    "write"
+   ],
+   [
+    "project.phases",
+    "read"
+   ],
+   [
+    "project.recent_consumption",
+    "read"
+   ],
+   [
+    "project.remove_collaborator",
+    "write"
+   ],
+   [
+    "project.resource_forecast",
+    "read"
+   ],
+   [
+    "project.resource_forecast.set",
+    "write"
+   ],
+   [
+    "project.revenue",
+    "read"
+   ],
+   [
+    "project.search",
+    "read"
+   ],
+   [
+    "project.set_status",
+    "write"
+   ],
+   [
+    "project.snapshot",
+    "read"
+   ],
+   [
+    "project.team",
+    "read"
+   ]
+  ]
+ },
+ "version": 1,
+ "capabilityRevision": "1e0476abc173fceb",
+ "tools": [
+  {
+   "name": "samantha_pulse",
+   "domain": "pulse",
+   "description": "Pulse",
+   "actions": [
+    {
+     "action": "certificate.rotate",
+     "description": "installer le nouveau certificat Pulse",
+     "params": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+     },
+     "risk": "write",
+     "confirmationRequired": true,
+     "directExecution": true,
+     "canonicalStatus": "ready",
+     "executionMode": "command"
+    },
+    {
+     "action": "cra.status",
+     "description": "voir l'état des CRA",
+     "params": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+     },
+     "risk": "read",
+     "confirmationRequired": false,
+     "directExecution": true,
+     "canonicalStatus": "ready",
+     "executionMode": "command"
+    },
+    {
+     "action": "evaluations.mine",
+     "description": "voir tes évaluations",
+     "params": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+     },
+     "risk": "read",
+     "confirmationRequired": false,
+     "directExecution": true,
+     "canonicalStatus": "ready",
+     "executionMode": "command"
+    },
+    {
+     "action": "leave.balance",
+     "description": "consulter ton solde de congé",
+     "params": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+     },
+     "risk": "read",
+     "confirmationRequired": false,
+     "directExecution": true,
+     "canonicalStatus": "ready",
+     "executionMode": "command"
+    },
+    {
+     "action": "leave.calendar",
+     "description": "voir qui est en congé dans l'équipe",
+     "params": {
+      "type": "object",
+      "properties": {
+       "month": {
+        "type": "string",
+        "maxLength": 12000,
+        "description": "absent = ce mois"
+       }
+      },
+      "required": [],
+      "additionalProperties": false
+     },
+     "risk": "read",
+     "confirmationRequired": false,
+     "directExecution": true,
+     "canonicalStatus": "ready",
+     "executionMode": "command"
+    },
+    {
+     "action": "leave.request",
+     "description": "soumettre une demande de congé",
+     "params": {
+      "type": "object",
+      "properties": {
+       "start_at": {
+        "type": "string",
+        "maxLength": 12000
+       },
+       "end_at": {
+        "type": "string",
+        "maxLength": 12000
+       }
+      },
+      "required": [
+       "end_at",
+       "start_at"
+      ],
+      "additionalProperties": false
+     },
+     "risk": "write",
+     "confirmationRequired": true,
+     "directExecution": true,
+     "canonicalStatus": "ready",
+     "executionMode": "command"
+    },
+    {
+     "action": "offer.search",
+     "description": "chercher une offre Pulse",
+     "params": {
+      "type": "object",
+      "properties": {
+       "offer_query": {
+        "type": "string",
+        "maxLength": 12000,
+        "description": "nom, client ou numéro"
+       },
+       "offer_status": {
+        "type": "string",
+        "maxLength": 12000,
+        "description": "valeurs jointes par « , » ; « gagnées » = gagnees, « en cours » = en_cours ; « sauf X » ou « pas encore X » = toutes les autres ; sinon unresolved"
+       },
+       "offer_owner": {
+        "type": "string",
+        "maxLength": 12000,
+        "description": "personne nommée"
+       }
+      },
+      "required": [],
+      "additionalProperties": false
+     },
+     "risk": "read",
+     "confirmationRequired": false,
+     "directExecution": true,
+     "canonicalStatus": "ready",
+     "executionMode": "command"
+    },
+    {
+     "action": "offer.set_status",
+     "description": "changer le statut de l'offre",
+     "params": {
+      "type": "object",
+      "properties": {
+       "offer_id": {
+        "type": "string",
+        "pattern": "[0-9]{1,12}"
+       },
+       "status_value": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+       }
+      },
+      "required": [
+       "offer_id",
+       "status_value"
+      ],
+      "additionalProperties": false
+     },
+     "risk": "write",
+     "confirmationRequired": true,
+     "directExecution": true,
+     "canonicalStatus": "ready",
+     "executionMode": "command"
+    },
+    {
+     "action": "project.create",
+     "description": "créer un projet Pulse",
+     "params": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+       "name": {
+        "type": "string",
+        "maxLength": 240,
+        "description": "Exact project label (Libelle); never invented."
+       },
+       "client": {
+        "type": "string",
+        "maxLength": 512,
+        "description": "Client label to resolve uniquely from the fresh native form; not an invented ID."
+       },
+       "RefClient": {
+        "type": "string",
+        "maxLength": 128,
+        "entity_id": true
+       },
+       "start": {
+        "type": "string",
+        "maxLength": 10,
+        "pattern": "(?:20[0-9]{2}-[0-9]{2}-[0-9]{2}|[0-9]{2}/[0-9]{2}/20[0-9]{2})",
+        "description": "Project start (JJ/MM/AAAA or AAAA-MM-JJ); phase Réalisation and contract dates follow it."
+       },
+       "end": {
+        "type": "string",
+        "maxLength": 10,
+        "pattern": "(?:20[0-9]{2}-[0-9]{2}-[0-9]{2}|[0-9]{2}/[0-9]{2}/20[0-9]{2})",
+        "description": "Project end, after the start."
+       }
+      }
+     },
+     "risk": "write",
+     "confirmationRequired": true,
+     "directExecution": true,
+     "canonicalStatus": "ready",
+     "executionMode": "command"
+    },
+    {
+     "action": "project.phase.set_status",
+     "description": "changer le statut d'une phase du projet",
+     "params": {
+      "type": "object",
+      "properties": {
+       "project_query": {
+        "type": "string",
+        "maxLength": 12000
+       },
+       "phase": {
+        "type": "string",
+        "maxLength": 12000
+       },
+       "state": {
+        "type": "string",
+        "maxLength": 12000
+       },
+       "phase_id": {
+        "type": "string",
+        "maxLength": 12000
+       }
+      },
+      "required": [
+       "project_query",
+       "state"
+      ],
+      "additionalProperties": false
+     },
+     "risk": "write",
+     "confirmationRequired": true,
+     "directExecution": true,
+     "canonicalStatus": "ready",
+     "executionMode": "command"
+    },
+    {
+     "action": "project.revenue",
+     "description": "voir le chiffre d'affaires du projet",
+     "params": {
+      "type": "object",
+      "properties": {
+       "project_id": {
+        "type": "string",
+        "pattern": "[0-9]{1,12}"
+       }
+      },
+      "required": [
+       "project_id"
+      ],
+      "additionalProperties": false
+     },
+     "risk": "read",
+     "confirmationRequired": false,
+     "directExecution": false,
+     "canonicalStatus": "ready",
+     "executionMode": "native_owner"
+    },
+    {
+     "action": "project.search",
+     "description": "chercher un projet Pulse",
+     "params": {
+      "type": "object",
+      "properties": {
+       "project_query": {
+        "type": "string",
+        "maxLength": 12000
+       }
+      },
+      "required": [],
+      "additionalProperties": false
+     },
+     "risk": "read",
+     "confirmationRequired": false,
+     "directExecution": true,
+     "canonicalStatus": "ready",
+     "executionMode": "command"
+    },
+    {
+     "action": "project.set_status",
+     "description": "changer le statut du projet",
+     "params": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+     },
+     "risk": "write",
+     "confirmationRequired": true,
+     "directExecution": false,
+     "canonicalStatus": "candidate",
+     "executionMode": "unqualified"
+    },
+    {
+     "action": "project.team",
+     "description": "voir l'équipe du projet",
+     "params": {
+      "type": "object",
+      "properties": {
+       "project_query": {
+        "type": "string",
+        "maxLength": 12000
+       }
+      },
+      "required": [
+       "project_query"
+      ],
+      "additionalProperties": false
+     },
+     "risk": "read",
+     "confirmationRequired": false,
+     "directExecution": true,
+     "canonicalStatus": "ready",
+     "executionMode": "command"
+    }
+   ]
+  }
+ ]
+}

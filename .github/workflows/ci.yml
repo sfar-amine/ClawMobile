@@ -331,24 +331,14 @@ jobs:
           node scripts/test-native-pulse-handoff.cjs
           python3 ../installer/termux-lite/test-native-pulse-private-input.py
 
-      - name: C16 actual native room paired with immutable Pulse owners (MOCK only)
+      - name: Pulse room brain paired with the playbooks room owner (Amine 02/11, MOCK Pulse processes only)
         run: |
-          peer=$(mktemp -d "${TMPDIR:-/tmp}/c16-native-playbooks.XXXXXX")
+          peer=$(mktemp -d "${TMPDIR:-/tmp}/room-brain-playbooks.XXXXXX")
           trap 'rm -rf -- "$peer"' EXIT
           git init "$peer"
-          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git 067fb028df0209d0b023ec30cacfdb29a3a2cc9e
+          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git ad9f41a78b026028ef1420b71f6ccdb750587b26
           git -C "$peer" checkout --detach FETCH_HEAD
-          npm ci --prefix "$peer/billing/direct-runtime" --ignore-scripts --no-audit --no-fund
-          C16_PLAYBOOKS_ROOT="$peer" C16_EXPECTED_PB_SHA=067fb028df0209d0b023ec30cacfdb29a3a2cc9e C16_EVIDENCE_PATH="$RUNNER_TEMP/c16-native-paired-result.json" node scripts/test-native-pulse-paired.cjs
-
-      - name: C18 native FAST reads paired with immutable canonical owners (MOCK only)
-        run: |
-          peer=$(mktemp -d "${TMPDIR:-/tmp}/c18-native-fast-playbooks.XXXXXX")
-          trap 'rm -rf -- "$peer"' EXIT
-          git init "$peer"
-          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git 0d26787241cf9e71a6287d6fce6f69a18263a4a0
-          git -C "$peer" checkout --detach FETCH_HEAD
-          C18_PLAYBOOKS_ROOT="$peer" C18_EXPECTED_PB_SHA=0d26787241cf9e71a6287d6fce6f69a18263a4a0 C18_EVIDENCE_PATH="$RUNNER_TEMP/c18-native-fast-paired-result.json" node scripts/test-native-fast-paired.cjs
+          ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-pulse-room-brain.cjs
 
       - name: Run composed read and model fast path contracts
         run: |
@@ -356,7 +346,7 @@ jobs:
           node scripts/test-model-fast-path.cjs
           node scripts/test-model-fast-path-intent.cjs
           node scripts/test-model-fast-path-mcp-read.cjs
-          node scripts/test-pulse-room-fast-path.cjs
+          node scripts/test-pulse-room-brain.cjs
           node scripts/test-contact-room-fast-path.cjs
 
       - name: Qualify Companion M1 contracts and telemetry offline

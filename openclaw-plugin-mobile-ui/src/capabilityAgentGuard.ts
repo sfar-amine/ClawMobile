@@ -6,6 +6,7 @@
  */
 import {createHash} from 'node:crypto';
 import {dialogueRequestText} from './dialogueSurface';
+import {pulseRoomSession} from './contactRoomProfile';
 export const TYPED_CONTROL_ADMISSION_METHOD='samantha.typed-control.admission';
 // OpenClaw 2026.10.9 loads this plugin several times in one Gateway process (one copy per plugin build of its
 // capture: S24 02/11 10:24, three copies of openclaw-plugin-mobile-ui). The before_tool_call hook and the tool execute
@@ -20,7 +21,9 @@ export const AGENT_CAPABILITY_REFUSAL = "capability_first_required";
 
 // Current-invocation proof of the existing guard, not a business registry. A
 // tool cannot receive this through model arguments, persisted JSON or replay.
-type TypedProof={at:number;tool:string;runId:string;sessionKey:string;sessionId?:string;args:string;
+// principal: « owner » for the owner's main agent, « room:pulse:wa-… » for a Pulse room contact. One never
+// consumes the other's proof (consumeTypedInvocation / consumeRoomInvocation).
+type TypedProof={at:number;tool:string;runId:string;sessionKey:string;sessionId?:string;args:string;principal:string;
   control?:{operationId:string;paramsHash:string;expiresAt:number;assertCurrent:()=>void};};
 const TYPED_REGISTRY=Symbol.for('samantha.typed-invocations.v1');
 function typedRegistry(): Map<string, TypedProof> {
@@ -58,12 +61,37 @@ export function consumeTypedInvocation(callId: unknown, tool: string, args: unkn
   if (typeof callId !== "string") throw Error("typed_host_admission_required");
   const proof = typedInvocations.get(callId);
   typedInvocations.delete(callId); // One execute only, including a refused invocation.
-  if (!proof || Date.now() < proof.at || Date.now() - proof.at > 120000 || proof.tool !== tool || context.senderIsOwner !== true ||
+  if (!proof || proof.principal !== "owner" || Date.now() < proof.at || Date.now() - proof.at > 120000 || proof.tool !== tool || context.senderIsOwner !== true ||
       !context.sessionKey || context.sessionKey !== proof.sessionKey ||
       context.sessionId && context.sessionId !== proof.sessionId || typeof context.assertInvocationCurrent !== "function" ||
       JSON.stringify(invocationArgs(args)) !== proof.args) throw Error("typed_host_admission_required");
   context.assertInvocationCurrent();
   return {owner: true, conversationKey: proof.sessionKey, userRunId: proof.runId, invocationId: callId,[typedSeal]:proof};
+}
+
+/** Room tools reachable by a Pulse room contact (Amine 02/11): its room's typed domain only. */
+export const PULSE_ROOM_TOOLS: ReadonlySet<string> = new Set(["samantha_pulse"]);
+
+/**
+ * The room contact's counterpart of consumeTypedInvocation: the current SDK invocation of THIS room session, admitted
+ * by before_tool_call for the same contact principal. An owner proof never satisfies it, and its proof never
+ * satisfies the owner's. Authority is still the room grant, re-read by the room tool (pulseRoomBrain).
+ */
+export function consumeRoomInvocation(callId: unknown, tool: string, args: unknown, context: {
+  senderIsOwner?: boolean; agentId?: string; sessionKey?: string; sessionId?: string; assertInvocationCurrent?: () => void;
+}) {
+  if (typeof callId !== "string") throw Error("typed_host_admission_required");
+  const proof = typedInvocations.get(callId);
+  typedInvocations.delete(callId);
+  const room = pulseRoomSession(context?.agentId, context?.sessionKey);
+  if (!proof || !room || proof.principal !== room.principal || !PULSE_ROOM_TOOLS.has(tool) || proof.tool !== tool ||
+      Date.now() < proof.at || Date.now() - proof.at > 120000 || context.senderIsOwner === true ||
+      context.sessionKey !== proof.sessionKey || context.sessionId && context.sessionId !== proof.sessionId ||
+      typeof context.assertInvocationCurrent !== "function" || JSON.stringify(invocationArgs(args)) !== proof.args)
+    throw Error("typed_host_admission_required");
+  context.assertInvocationCurrent();
+  return {owner: false as const, principal: room.principal, room, conversationKey: room.conversationKey,
+    userRunId: proof.runId, invocationId: callId};
 }
 
 /** Keep only this already-admitted SDK callback alive while Companion owns the effect/receipt. */
@@ -123,10 +151,13 @@ export function agentCapabilityHook(
     if (typedName.test(toolName)) {
       const callId = ownData(event, "toolCallId") ?? ownData(context, "toolCallId");
       const runId = ownData(context, "runId"), sessionKey = ownData(context, "sessionKey");
-      if (ownData(ownData(context, "requester"), "senderIsOwner") !== true ||
-          typeof callId !== "string" || !typedId.test(callId) || typeof runId !== "string" || !typedId.test(runId) ||
-          typeof sessionKey !== "string" || !sessionKey || sessionKey.length > 512 ||
-          ownData(context, "agentId") && ownData(context, "agentId") !== "main") return refused();
+      const senderIsOwner = ownData(ownData(context, "requester"), "senderIsOwner");
+      // A Pulse room contact's own session: only its room tools, never as the owner (Amine 02/11).
+      const room = pulseRoomSession(ownData(context, "agentId"), sessionKey);
+      if (room ? senderIsOwner === true || !PULSE_ROOM_TOOLS.has(toolName) :
+          senderIsOwner !== true || ownData(context, "agentId") && ownData(context, "agentId") !== "main") return refused();
+      if (typeof callId !== "string" || !typedId.test(callId) || typeof runId !== "string" || !typedId.test(runId) ||
+          typeof sessionKey !== "string" || !sessionKey || sessionKey.length > 512) return refused();
       const at = Date.now();
       for (const [id, proof] of typedInvocations) if (at - proof.at > 120000) typedInvocations.delete(id);
       if (typedInvocations.has(callId)) { typedInvocations.delete(callId); return refused(); }
@@ -134,7 +165,7 @@ export function agentCapabilityHook(
       const params = invocationArgs(ownData(event, "params")) as Record<string, unknown>;
       const encoded = JSON.stringify(params);
       if (encoded.length > 32768) return refused();
-      typedInvocations.set(callId, {at, tool: toolName, runId, sessionKey,
+      typedInvocations.set(callId, {at, tool: toolName, runId, sessionKey, principal: room ? room.principal : "owner",
         sessionId: typeof ownData(context, "sessionId") === "string" ? ownData(context, "sessionId") as string : undefined,
         args: encoded});
       return {params};
