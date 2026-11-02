@@ -117,6 +117,7 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-gateway-prep-stages.py
           python3 ../installer/termux-lite/test-gateway-prep-stages-1009.py
+          python3 ../installer/termux-lite/test-session-open-plugin-tools.py
 
       - name: Gateway startup triage opt-out is explicit, pinned and verified before export
         run: python3 ../installer/termux-lite/test-startup-triage-optout.py
