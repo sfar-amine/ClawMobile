@@ -31,6 +31,20 @@ Le S24 reste la source de vérité opérationnelle (`claw_context`). Une copie G
 - **Aucun secret** dans Git, les logs, les reçus ou les réponses : jetons, cookies, `.env`, OTP, données de paiement, e-mails de compte.
 - **Propriétaires canoniques réutilisés.** Pas de nouveau store, registre, routeur, scheduler, démon ou moteur de retry si un propriétaire existe déjà.
 
+## Le cerveau partout (décision d'Amine du 02/11/2026, règle globale)
+Référence : `samantha-ui-playbooks/docs/08-decisions/ADR-20261102-brain-everywhere.md`. Elle remplace « déterministe d'abord » là où il y a conflit.
+- **Une boucle sur toute surface** : WhatsApp, app et voix d'Amine, contacts des pièces, automatisations à modèle. Le modèle lit la demande, choisit un outil typé ou un skill, lit le résultat vérifié et rédige la réponse. Un seul chemin pour Amine et pour les contacts, sans interrupteur ni repli natif conservé à côté.
+- **Le déterministe devient outil** : outils typés, Graph, propriétaires, coordinateurs et vérification portent les effets, les confirmations, les reçus et les faits vérifiés. Aucun hook (`before_dispatch`, `inbound_claim`…) ni réponse `handled: true` ne décide de l'intention à la place du cerveau. Toute voie de ce type est convertie, jamais ajoutée.
+- **La sécurité reste au code** :
+  - écritures par outils typés seulement ;
+  - commande préparée, confirmation hôte ou politique de pièce, relecture du droit, relecture fraîche et vérification ;
+  - aucun rejeu après un résultat indéterminé ;
+  - paiement, biométrie et OTP humains ;
+  - portée de la pièce et isolation des contacts ;
+  - jamais de fait inventé.
+- **Amélioration continue** : le cerveau propose ; la modification passe par learning gate, proposition, PR, CI, recette, puis activation avec retour arrière. Jamais de modification silencieuse en production.
+- **Performance** : skill préchargé par l'hôte (#520), outils typés fréquents en `catalogMode: "direct-only"`, `skills_read` en un seul aller-retour, Tool Search gardé au-delà de 100 outils, préfixe de prompt stable en cache.
+
 ## Règles de livraison (chaque PR)
 1. **Fixtures réelles.** Toute route qui lit le Gateway ou un fichier ou une base du runtime est testée avec des captures nettoyées du S24, sous `openclaw-plugin-mobile-ui/fixtures/`, jamais seulement avec des formes inventées. **Toute source de vérité runtime (chemin, table, format) est confirmée sur le S24 avant le code.** Demande la capture à Claude.
    - Exemple : sur le S24, les tâches planifiées sont dans `state/openclaw.sqlite`, table `cron_jobs`, et non dans `cron/jobs.json`.
