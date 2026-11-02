@@ -76,8 +76,8 @@ class RuntimeSync(unittest.TestCase):
         plugin = repo / PLUGIN_ID; (plugin / "dist").mkdir(parents=True)
         (plugin / "package.json").write_text('{"name":"openclaw-plugin-mobile-ui"}')
         (plugin / "openclaw.plugin.json").write_text('{"id":"openclaw-plugin-mobile-ui"}')
-        (plugin / "dist/index.js").write_text("require('./pulseRoomFastPath')\n")
-        (plugin / "dist/pulseRoomFastPath.js").write_text("// room\n")
+        (plugin / "dist/index.js").write_text("require('./pulseRoomBrain')\n")
+        (plugin / "dist/pulseRoomBrain.js").write_text("// room\n")
         # Public source contracts only; no synthetic account/runtime payload.
         for rel in ("installer/termux-lite/context_memory.py", "installer/termux-lite/model-fast-path.py", "openclaw-plugin-mobile-ui/src/companion/runWeb.ts", "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json"):
             dest = repo / rel; dest.parent.mkdir(parents=True, exist_ok=True)
@@ -227,7 +227,7 @@ class RuntimeSync(unittest.TestCase):
         self.assertIn("inventes jamais", (self.rooms["project"] / "AGENTS.md").read_text())
         self.assertIn("inventes jamais", (self.rooms["pulse"] / "AGENTS.md").read_text())
         self.assertEqual((self.root / "contacts-agent.md").read_text(), (self.home / ".openclaw/workspace-contacts/AGENTS.md").read_text())
-        self.assertEqual("// room\n", (self.ext / "dist/pulseRoomFastPath.js").read_text())
+        self.assertEqual("// room\n", (self.ext / "dist/pulseRoomBrain.js").read_text())
         self.assertEqual("dep", (self.ext / "node_modules/dep/x.js").read_text())  # the Gateway's installed deps stay
         manifest = json.loads((self.home / ".openclaw/releases/current/manifest.json").read_text())
         self.assertEqual(self.commit, manifest["source_commit"])

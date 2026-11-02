@@ -1,29 +1,84 @@
-// deploy-parcours.py, paths 2-3: one message of the test contact « Recette Pulse » (fictitious +216 10 000 001,
-// added by Amine with his biometrics on 29/10) through the Pulse-room hook the Gateway has loaded. The reply is
-// returned here and never delivered: nothing is sent on WhatsApp. Prints one JSON line {reply, seconds, error}.
+// deploy-parcours.py, room paths (Amine 02/11): the Pulse room brain of the test contact « Recette Pulse »
+// (fictitious +216 10 000 001, added by Amine with his biometrics on 29/10, routed to contacts-projet-pulse), through
+// what the Gateway has loaded: the deployed room tool factory, the before_tool_call proof, the real room grant read
+// (people-trusted) and the real typed helper (playbooks room owner). The model's choice is replaced by one fixed typed
+// call per path. Nothing is sent on WhatsApp. Prints one JSON line {reply, state, reasonCode, facts, seconds, error}.
+//
+//   tool <action> <params-json>   the room tool itself (reads and refusals only, see deploy-parcours.py ROOM_CALLS)
+//   prepare <action> <params-json>  a write: the room owner's `call` only, then `abort` of its prepared hand-off.
+//                                 The room owner never writes in `call` (every room write stops at its hand-off) and
+//                                 this runner never sends `handoff`: no Pulse write is possible here.
+//   prepare-first-project <params-json>  same, on the first project of the contact's own project list (read)
 'use strict';
 const fs=require('fs'),path=require('path'),{execFileSync}=require('child_process');
-const text=process.argv[2];
-const E164='+21610000001',SESSION='agent:contacts-projet-pulse:whatsapp:direct:'+E164;
+const [,,mode,action,paramsJson]=process.argv;
+const E164='+21610000001',AGENT='contacts-projet-pulse',SESSION=`agent:${AGENT}:whatsapp:direct:${E164}`;
+const TOOL_ACTIONS=new Set(['project.search','leave.balance','leave.request','agenda.read']);
+const WRITE_ACTIONS=new Set(['project.create','project.phase.set_status']);
 function gatewayEnv(){
-  // The hook spawns the same helpers as inside the Gateway: run it with the Gateway's environment.
+  // The helpers run as inside the Gateway: run them with the Gateway's environment.
   const pid=execFileSync('pgrep',['-f','openclaw-gateway'],{encoding:'utf8'}).trim().split('\n')[0];
   for(const line of fs.readFileSync(`/proc/${pid}/environ`,'utf8').split('\0')){
     const i=line.indexOf('=');if(i>0&&!(line.slice(0,i) in process.env))process.env[line.slice(0,i)]=line.slice(i+1);
   }
 }
+function params(raw){
+  const value=JSON.parse(raw||'{}');
+  if(!value||typeof value!=='object'||Array.isArray(value)||JSON.stringify(value).length>500)throw Error('usage');
+  return value;
+}
 (async()=>{
-  const began=Date.now();let reply='',error=null;
+  const began=Date.now();let out={reply:'',state:'',reasonCode:'',facts:false,error:null};
   try{
-    if(!text||text.length>500)throw Error('usage');
+    const tool=mode==='tool',first=mode==='prepare-first-project';
+    if(!(tool&&TOOL_ACTIONS.has(action)||mode==='prepare'&&WRITE_ACTIONS.has(action)||first))throw Error('usage');
     gatewayEnv();
     const dist=path.join(process.env.HOME,'.openclaw/extensions/openclaw-plugin-mobile-ui/dist');
-    const {handlePulseRoomBeforeDispatch}=require(path.join(dist,'pulseRoomFastPath'));
-    const id='recette-'+Date.now();
-    const out=await handlePulseRoomBeforeDispatch({content:text,messageId:id,sessionKey:SESSION,channel:'whatsapp',isGroup:false},
-      {messageId:id,sessionKey:SESSION,channelId:'whatsapp'});
-    if(!out||out.handled!==true)error='not_handled';else reply=String(out.text||out.reply?.text||'');
-  }catch(e){error=String(e&&e.message||e).slice(0,120);}
-  console.log(JSON.stringify({reply,seconds:(Date.now()-began)/1000,error}));
+    const brain=require(path.join(dist,'pulseRoomBrain'));
+    const run='recette-'+Date.now();
+    if(tool){
+      const args={action,params:params(paramsJson)},call=run+'-1';
+      const ctx={agentId:AGENT,sessionKey:SESSION,sessionId:run,senderIsOwner:false,messageChannel:'whatsapp',assertInvocationCurrent(){}};
+      const tools=brain.createPulseRoomTools(ctx);
+      if(!tools)throw Error('room_tool_unavailable');
+      const {agentCapabilityHook}=require(path.join(dist,'capabilityAgentGuard'));
+      const proof=agentCapabilityHook({toolName:tools[0].name,params:args,toolCallId:call},
+        {requester:{senderIsOwner:false},agentId:AGENT,runId:run,sessionKey:SESSION,sessionId:run});
+      if(proof?.block)throw Error('room_proof_refused');
+      const result=await tools[0].execute(call,args);
+      const body=JSON.parse(result.content[0].text);
+      out={reply:String(result.details?.sourceReply?.text||''),state:String(body.state||''),reasonCode:String(body.reasonCode||''),
+        facts:!!(body.facts&&Object.keys(body.facts).length),error:null};
+    }else{
+      const {pulseRoomSession}=require(path.join(dist,'contactRoomProfile'));
+      const {roomGrantPacket}=brain;
+      const {allowlistRead}=require(path.join(dist,'companion/whatsappAllowlist'));
+      const room=pulseRoomSession(AGENT,SESSION),typed=brain.roomTypedHelper();
+      const once=async(call,command,grant)=>typed(JSON.stringify({command,host:brain.roomHost(room,run,call),
+        roomAdmission:roomGrantPacket(room,run+':'+call,grant)}));
+      const grant=await allowlistRead('get',room.contactId);
+      let target=action,given=first?{}:params(paramsJson);
+      if(first){
+        // The contact's own project list, read through the room owner; its first project is the dry-run target.
+        const list=await once('list',{operation:'call',domain:'pulse',action:'project.search',params:{}},grant);
+        const id=list?.facts?.projects?.[0]?.project_id;
+        if(list?.state!=='COMPLETED'||!/^\d{1,12}$/.test(String(id??''))){
+          out={reply:String(list?.answer||''),state:String(list?.state||''),reasonCode:'recette_no_project',facts:false,error:null};
+          throw Object.assign(Error('done'),{done:true});
+        }
+        target='project.phase.set_status';given={...params(action),project_query:String(id)};
+      }
+      const result=await once('write',{operation:'call',domain:'pulse',action:target,params:given},grant);
+      const goalRef=result?.prepared?.goalRef;
+      if(goalRef){
+        // Grant re-read as before a real hand-off, then the prepared write is closed without any effect.
+        const fresh=await allowlistRead('get',room.contactId);
+        const closed=await once('write',{operation:'abort',domain:'pulse',goalRef,reason:'stopped_before_effect'},fresh);
+        out={reply:String(result.answer||''),state:'PREPARED',reasonCode:String(closed?.state||''),facts:false,error:null};
+      }else out={reply:String(result?.answer||''),state:String(result?.state||''),reasonCode:String(result?.reasonCode||''),
+        facts:!!(result?.facts&&Object.keys(result.facts).length),error:null};
+    }
+  }catch(e){if(!e?.done)out.error=String(e&&e.message||e).slice(0,120);}
+  console.log(JSON.stringify({...out,seconds:(Date.now()-began)/1000}));
   process.exit(0);
 })();
