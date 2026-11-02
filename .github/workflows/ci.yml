@@ -236,6 +236,8 @@ jobs:
           node scripts/test-canonical-agent-bootstrap.cjs
           node scripts/test-owner-foundation.cjs
           node scripts/test-mcp-foundation.cjs
+      - name: Préchargement par tour du skill d'un domaine typé clair (#126)
+        run: node scripts/test-owner-skill-preload.cjs
       - name: N4 request language transport
         run: node scripts/test-request-language-transport.cjs
 

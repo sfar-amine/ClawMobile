@@ -337,7 +337,7 @@ class ConfigTests(unittest.TestCase):
         )
         self.assertEqual(
             value["agents"]["entries"]["main"]["tools"],
-            {"deny": ["dangerous-test"]},
+            {"deny": ["dangerous-test", "skills_read", "skills_search"]},
         )
         self.assertEqual(
             value["agents"]["entries"]["gemini"]["model"]["fallbacks"],
@@ -353,6 +353,40 @@ class ConfigTests(unittest.TestCase):
         out = cfg.apply_efficiency(config_path=self.config, apply=False)
         self.assertFalse(out["config_changed"])
         self.assertEqual(out["file_paths"], [])
+
+    # #126: skills_read is cataloged behind Tool Search (S24 02/11, OpenClaw 2026.10.9); denied for main only, merged.
+    def test_main_skill_tools_deny_merges_with_existing_policy(self):
+        value = json.loads(self.config.read_text())
+        value["agents"]["entries"]["main"]["tools"] = {"allow": ["group:openclaw", "read"], "deny": ["skills_read", "x"], "alsoAllow": ["y"]}
+        self.config.write_text(json.dumps(value))
+        out = cfg.apply_efficiency(config_path=self.config, apply=True)
+        self.assertIn("agents.entries.main.tools.deny", out["config_paths"])
+        self.assertEqual(out["main_denied_tools"], ["skills_read", "skills_search"])
+        tools = json.loads(self.config.read_text())["agents"]["entries"]["main"]["tools"]
+        self.assertEqual(tools, {"allow": ["group:openclaw", "read"], "deny": ["skills_read", "x", "skills_search"], "alsoAllow": ["y"]})
+        again = cfg.apply_efficiency(config_path=self.config, apply=False)
+        self.assertNotIn("agents.entries.main.tools.deny", again["config_paths"])
+
+    def test_main_without_tools_policy_gets_only_the_deny(self):
+        value = json.loads(self.config.read_text())
+        del value["agents"]["entries"]["main"]["tools"]
+        self.config.write_text(json.dumps(value))
+        cfg.apply_efficiency(config_path=self.config, apply=True)
+        tools = json.loads(self.config.read_text())["agents"]["entries"]["main"]["tools"]
+        self.assertEqual(tools, {"deny": ["skills_read", "skills_search"]})
+
+    def test_skill_tools_deny_is_main_only_and_never_rewrites_odd_policies(self):
+        cfg.apply_efficiency(config_path=self.config, apply=True)
+        entries = json.loads(self.config.read_text())["agents"]["entries"]
+        self.assertEqual(entries["engineering-lite"], {"workspace": "/engineering", "marker": "unchanged"})
+        self.assertEqual(entries["gemini"]["tools"], {"allow": ["clawmobile_capability"]})
+        for odd in ("not-a-dict", {"deny": "skills_read"}):
+            value = json.loads(self.config.read_text())
+            value["agents"]["entries"]["main"]["tools"] = odd
+            self.config.write_text(json.dumps(value))
+            out = cfg.apply_efficiency(config_path=self.config, apply=True)
+            self.assertNotIn("agents.entries.main.tools.deny", out["config_paths"])
+            self.assertEqual(json.loads(self.config.read_text())["agents"]["entries"]["main"]["tools"], odd)
 
     def test_retry_settings_are_separate(self):
         cfg.apply_efficiency(config_path=self.config, apply=True)

@@ -17,6 +17,12 @@ MAIN_BOOTSTRAP_MAX = 8000
 MAIN_BOOTSTRAP_TOTAL = 14000
 GEMINI_BOOTSTRAP_MAX = 1600
 GEMINI_BOOTSTRAP_TOTAL = 2600
+# #126 (S24 02/11, OpenClaw 2026.10.9): skills_read sits behind Tool Search, so an unmatched owner turn paid
+# tool_search + skills_read (two model round trips, about 8 s) before its typed tool. Denied for main, the host prompt
+# falls back to « Clear match: read exact <location> with `read` », one direct call (verified live 02/11). No plugin
+# path exists: catalogMode is owned by core, and a per-turn toolsAllow cannot remove skills_read while `read` stays
+# allowed. Merged into any existing main policy, never replacing it.
+MAIN_DENIED_SKILL_TOOLS = ("skills_read", "skills_search")
 
 GEMINI_AGENTS = """# Claw Gemini channel
 
@@ -85,6 +91,25 @@ def _merge_retry_settings(path: Path, *, max_retries: int, max_delay_ms: int, ap
     return changed
 
 
+def _merge_tool_deny(agent: dict[str, Any], names: tuple[str, ...]) -> bool:
+    """Append missing names to agent.tools.deny; keep every existing allow/deny entry and its order."""
+    tools = agent.get("tools")
+    if tools is None:
+        tools = agent["tools"] = {}
+    if not isinstance(tools, dict):
+        return False
+    deny = tools.get("deny")
+    if deny is None:
+        deny = []
+    if not isinstance(deny, list):
+        return False
+    missing = [name for name in names if name not in deny]
+    if not missing:
+        return False
+    tools["deny"] = [*deny, *missing]
+    return True
+
+
 def _patch_config(value: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     out = copy.deepcopy(value)
     changes: list[str] = []
@@ -104,6 +129,8 @@ def _patch_config(value: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
             if main.get(key) != val:
                 main[key] = val
                 changes.append(f"agents.entries.main.{key}")
+        if _merge_tool_deny(main, MAIN_DENIED_SKILL_TOOLS):
+            changes.append("agents.entries.main.tools.deny")
 
     gemini = entries.get("gemini")
     if isinstance(gemini, dict):
@@ -176,6 +203,7 @@ def apply_efficiency(*, config_path: Path = CONFIG, apply: bool = False) -> dict
         "file_paths": file_changes,
         "gemini_present": gemini_present,
         "main_bootstrap": {"per_file": MAIN_BOOTSTRAP_MAX, "total": MAIN_BOOTSTRAP_TOTAL},
+        "main_denied_tools": list(MAIN_DENIED_SKILL_TOOLS),
         "gemini_bootstrap": {"per_file": GEMINI_BOOTSTRAP_MAX, "total": GEMINI_BOOTSTRAP_TOTAL},
         "retry": {
             "main": {"maxRetries": 1, "maxRetryDelayMs": 3000},
