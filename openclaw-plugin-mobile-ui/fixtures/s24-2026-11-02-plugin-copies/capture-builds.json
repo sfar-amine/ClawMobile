@@ -1,0 +1,95 @@
+{
+  "source": "S24 02/11 10:24-10:29 local, ~/.openclaw/tmp/plugin-captures/963b558c-5187-4822-a6bd-03c71ce69f67/captures (read-only listing, names and times only)",
+  "gateway": "OpenClaw 2026.10.9, Gateway restarted by runtime-sync.sh 0c5a9b46 at 10:24",
+  "capture_total": {
+    "files": 41700,
+    "size": "454M"
+  },
+  "builds": [
+    {
+      "at": "10:24:38",
+      "build": "openclaw-plugin-build-wd9vO3",
+      "top": [
+        "@openclaw"
+      ]
+    },
+    {
+      "at": "10:24:51",
+      "build": "openclaw-plugin-build-YQKVlf",
+      "top": [
+        "samantha-error-filter"
+      ]
+    },
+    {
+      "at": "10:25:08",
+      "build": "openclaw-plugin-build-kLxp3r",
+      "top": [
+        "@openclaw",
+        "baileys",
+        "…96 packages (whatsapp)"
+      ]
+    },
+    {
+      "at": "10:25:16",
+      "build": "openclaw-plugin-build-poHhe1",
+      "top": [
+        "samantha-error-filter"
+      ]
+    },
+    {
+      "at": "10:25:19",
+      "build": "openclaw-plugin-build-R5Gnx5",
+      "top": [
+        "openclaw-plugin-mobile-ui",
+        "ws"
+      ]
+    },
+    {
+      "at": "10:25:32",
+      "build": "openclaw-plugin-build-dv93bh",
+      "top": [
+        "@openclaw",
+        "baileys",
+        "…96 packages (whatsapp)"
+      ]
+    },
+    {
+      "at": "10:25:56",
+      "build": "openclaw-plugin-build-dHbW50",
+      "top": [
+        "openclaw-plugin-mobile-ui",
+        "ws"
+      ]
+    },
+    {
+      "at": "10:26:09",
+      "build": "openclaw-plugin-build-ksUQCx",
+      "top": [
+        "@openclaw",
+        "baileys",
+        "…96 packages (whatsapp)"
+      ]
+    },
+    {
+      "at": "10:28:48",
+      "build": "openclaw-plugin-build-ouKICM",
+      "top": [
+        "openclaw-plugin-mobile-ui",
+        "ws",
+        "openclaw",
+        "…215 packages (session store SDK graph)"
+      ]
+    },
+    {
+      "at": "10:29:17",
+      "build": "openclaw-plugin-build-AQKbud",
+      "top": [
+        "@openclaw",
+        "baileys",
+        "…96 packages (whatsapp)"
+      ]
+    }
+  ],
+  "plugin_copies": 3,
+  "observed": "Recette agent:main:recette-deploy:20261102t092704z after this restart: samantha_agenda → {state: unverified, reason: typed_host_admission_required}; the same plugin passed 5/5 at 00:20 (other load order)."
+}

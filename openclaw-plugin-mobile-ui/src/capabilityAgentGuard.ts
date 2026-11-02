@@ -10,7 +10,11 @@
 import {createHash} from 'node:crypto';
 import {dialogueRequestText} from './dialogueSurface';
 export const TYPED_CONTROL_ADMISSION_METHOD='samantha.typed-control.admission';
-const typedSeal=Symbol('typed-host-invocation');
+// OpenClaw 2026.10.9 loads this plugin several times in one Gateway process (one copy per plugin build of its
+// capture: S24 02/11 10:24, three copies of openclaw-plugin-mobile-ui). The before_tool_call hook and the tool execute
+// can come from different copies, so the proof and its seal are process-wide (Symbol.for), never module-private:
+// a per-module Map refused every typed call (typed_host_admission_required) whenever the copies differed.
+const typedSeal=Symbol.for('samantha.typed-host-invocation.v1');
 export type AgentCapabilityHookContext = { requester?: { senderIsOwner?: unknown }; runId?: string; sessionKey?: string; sessionId?: string; toolCallId?: string; agentId?: string };
 export type AgentCapabilityHookEvent = { toolName?: unknown; params?: unknown; toolCallId?: string };
 export type AgentCapabilityHookResult = { params?: Record<string, unknown>; block?: boolean; blockReason?: string };
@@ -21,7 +25,17 @@ export const AGENT_CAPABILITY_REFUSAL = "capability_first_required";
 // tool cannot receive this through model arguments, persisted JSON or replay.
 type TypedProof={at:number;tool:string;runId:string;sessionKey:string;sessionId?:string;args:string;
   control?:{operationId:string;paramsHash:string;expiresAt:number;assertCurrent:()=>void};};
-const typedInvocations = new Map<string, TypedProof>();
+const TYPED_REGISTRY=Symbol.for('samantha.typed-invocations.v1');
+function typedRegistry(): Map<string, TypedProof> {
+  const holder = globalThis as any;
+  const existing = Object.getOwnPropertyDescriptor(holder, TYPED_REGISTRY)?.value;
+  if (existing instanceof Map) return existing as Map<string, TypedProof>;
+  const created = new Map<string, TypedProof>();
+  // Defined once for the process, neither replaceable nor enumerable; every copy of this module shares it.
+  Object.defineProperty(holder, TYPED_REGISTRY, {value: created, writable: false, configurable: false, enumerable: false});
+  return created;
+}
+const typedInvocations = typedRegistry();
 // S24 30/10 23:57: a direct (catalogMode "direct-only") call keeps the provider's Responses id `call_<hex>|fc_<hex>`;
 // refusing `|` blocked every direct samantha_* call. The id stays an opaque Map key of this invocation only.
 const typedId = /^[A-Za-z0-9_.:|-]{1,200}$/;
