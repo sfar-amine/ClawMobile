@@ -141,6 +141,11 @@ class AllowlistTests(unittest.TestCase):
         self.assertEqual(out['receipt']['rooms'],['conversation','agenda','actions','messages'])
         agent='contacts-agenda-actions-messages';entry=self.cfg['agents']['entries'][agent]
         self.assertEqual(entry['workspace'],'/contacts');self.assertIn('clawmobile_capability',entry['tools']['deny'])
+        # Amine 02/11: the room brain gets the typed tool of each granted room, the contact tools, nothing else.
+        self.assertEqual(entry['tools']['allow'],['transmettre_a_amine','noter_contact','samantha_agenda',
+                                                  'samantha_device_assistance','samantha_whatsapp'])
+        self.assertFalse(set(entry['tools']['allow'])&set(entry['tools']['deny']))
+        self.assertTrue({'exec','message','read','web_search'}.issubset(entry['tools']['deny']))
         peer=[b for b in self.cfg['bindings'] if b['match'].get('peer',{}).get('id')==NEW]
         self.assertEqual([b['agentId'] for b in peer],[agent])
         # Narrowing removes the binding but keeps the inert profile for other contacts/reuse.

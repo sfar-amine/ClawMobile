@@ -1,0 +1,95 @@
+{
+  "version": 2,
+  "id": "contact-rooms-brain-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Pièces des contacts, étape 4 de « Le cerveau partout » (décision d'Amine du 02/11 : « Si quelqu'un est autorisé sur une pièce il peut tout faire dedans ») : agenda, actions et messages, seules ou combinées (avec Pulse ou Projet), reçoivent le cerveau de la pièce Pulse. Un modèle (ROOM_TYPED), une fabrique (roomBrain.ts createRoomTools), une garde (roomToolPrincipal, consumeRoomInvocation), un principal room:<pièce>:wa-…, une politique d'outils d'agent (project-room.py room_tool_policy). Grant relu une fois par message et avant chaque écriture ; écritures préparées, arrêtées au hand-off, exécutées une fois et vérifiées ; SMS et photos d'Amine refusés ; QA sans propriétaire typé : aucun outil (room_domain_not_typed). L'interception native contactRoomFastPath (before_dispatch, phrases fixes) est retirée ; Pulse inchangé pour ses deux agents.",
+  "reason": "Amine veut que tout contact autorisé sur une pièce ait la même expérience que la pièce Pulse : son cerveau lit la demande, appelle l'outil typé de sa pièce, lit le résultat vérifié et répond. contactRoomFastPath décidait avant le cerveau (règle « Le cerveau partout » : toute voie de ce type est convertie).",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/08-decisions/ADR-20261102-pulse-room-brain.md",
+    "docs/changes/contact-rooms-brain-20261102.json",
+    "docs/changes/contact-rooms-brain-20261102.md",
+    "docs/work/samantha-runtime/contracts/r17.md",
+    "installer/termux-lite/contacts-agent.md",
+    "installer/termux-lite/deploy-parcours-room.cjs",
+    "installer/termux-lite/deploy-parcours.py",
+    "installer/termux-lite/people-trusted.py",
+    "installer/termux-lite/project-room.py",
+    "installer/termux-lite/pulse-room.py",
+    "installer/termux-lite/test-deploy-parcours.py",
+    "installer/termux-lite/test-pulse-room.py",
+    "installer/termux-lite/test-whatsapp-allowlist.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-contact-rooms-brain/room-tools.json",
+    "openclaw-plugin-mobile-ui/scripts/lib/contact-room-brain-paired.py",
+    "openclaw-plugin-mobile-ui/scripts/test-contact-room-brain.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-contact-room-fast-path.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-private-ingress.cjs",
+    "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
+    "openclaw-plugin-mobile-ui/src/contactRoomFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/contactRoomProfile.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/src/pulseRoomBrain.ts",
+    "openclaw-plugin-mobile-ui/src/roomBrain.ts"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "Cerveau des pièces des contacts (nouveau, scripts/test-contact-room-brain.cjs, inscrit en CI ; apparié aux playbooks a77e7359, branche claude/contact-rooms-brain)",
+      "status": "passed",
+      "evidence": "Build plugin (tsc + prepare-lite). 99 contrôles hors appariement, 109 avec ROOM_PLAYBOOKS_ROOT=a77e7359 (propriétaires simulés), sur la fixture S24 du 02/11 (outils agenda, device-assistance, whatsapp ; politiques des agents ; aucun grant agenda/actions/messages/qa) et le grant du contact de recette : modèle et roomAgentFor (miroir de people-trusted room_agent) ; session générique : samantha_agenda (sans agenda.sync candidate), samantha_device_assistance (20), samantha_whatsapp ; session Pulse+agenda : deux outils ; aucun outil pour qa, projet, contacts, le propriétaire, un autre agent, un groupe, un autre canal, un agent hors ordre ; fabrique Gateway unique (ROOM_TOOLS) ; before_dispatch ne traite plus un message de pièce ; contactRoomFastPath absent du build ; garde : outil d'une pièce non portée, senderIsOwner, agent différent, outil propriétaire, sessions contacts/qa/projet refusés ; preuve consommée par l'outil de sa pièce seulement, jamais par l'outil propriétaire et inversement ; 10 grants révoqués refusés sans helper ; grant lu une fois par message pour deux outils de pièce ; hôte {room: agenda, clé agenda-room:…, surface pulse_room} sans owner ; refus hors domaine nommant les pièces ; SMS et photos refusés sans lecture ; Pulse combiné : congé refusé ; écriture préparée puis handoff après relecture ; abort si grant révoqué ou Stop ; issue inconnue jamais rejouée. Appariement : lecture d'appareil, torch-set une fois après handoff, rejeu sans effet, création d'agenda sous politique de pièce (pulse_room_direct_write) puis create_event.py, envoi WhatsApp clos par abort sans envoi, SMS DENIED scope_owner_private, autre domaine OUTSIDE_SCOPE, hôte owner refusé. Face aux playbooks déployés fd2df2b1 : pièces non Pulse refusées (typed_room_admission_required)."
+    },
+    {
+      "name": "Pièce Pulse inchangée (scripts/test-pulse-room-brain.cjs, #522, sans modification)",
+      "status": "passed",
+      "evidence": "79 contrôles ; 88 appariés avec les playbooks a77e7359, fd2df2b1 (déployé) et ad9f41a7 (épinglé en CI) : même projection, même hôte, même paquet, même refus."
+    },
+    {
+      "name": "Installeur Python",
+      "status": "passed",
+      "evidence": "test-pulse-room (4, dont la politique générique : agents de pièce typés fermés une fois, Pulse du S24 au point fixe, qa intouché, ROOM_TOOLS_RULE dans les trois consignes), test-deploy-parcours (19 : chemins room_generic_tools/read/outside, room_tools étendu aux agents typés), test-whatsapp-allowlist (49, profil combiné avec ses trois outils typés), test-people-trusted (21), test-project-room (2), test-runtime-sync (26), test-native-room-owner-readers (10), test-qa-room-access (38), test-native-pulse-private-input (5), test-ci-registration (3), test-claw-capability-agent-policy ; node --check deploy-parcours-room.cjs."
+    },
+    {
+      "name": "Non-régression plugin (tous les scripts node scripts/test-*.cjs)",
+      "status": "passed",
+      "evidence": "226 scripts rejoués sur le build de la branche et sur celui de la base c2a74a44 : statuts identiques, sauf test-contact-room-brain (nouveau, vert), test-contact-room-fast-path (retiré) et test-gateway-adopt-restart (en échec sur la base sous charge parallèle, vert sur la branche). test-qa-private-ingress (partie ingress de pièce retirée) vert."
+    },
+    {
+      "name": "Playbooks appariés",
+      "status": "passed",
+      "evidence": "Avec C17_CORE_ROOT sur cette branche, la suite complète playbooks a77e7359 a les mêmes échecs d'environnement que la base fd2df2b1 ; test_native_room_context, test_native_pulse_read_matrix et test_native_pulse_ingress_owner verts."
+    }
+  ],
+  "documentation": [
+    "docs/changes/contact-rooms-brain-20261102.md",
+    "docs/08-decisions/ADR-20261102-pulse-room-brain.md",
+    "docs/work/samantha-runtime/contracts/r17.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Aucune capability ni route nouvelle : les outils typés samantha_agenda, samantha_device_assistance et samantha_whatsapp existent déjà (openclaw.plugin.json, projection du Graph) ; ils sont donnés aux sessions des pièces sous la portée room:<pièce> des playbooks.",
+    "ids": []
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Plus aucune interception before_dispatch pour les pièces des contacts : le cerveau du contact appelle l'outil typé de chacune de ses pièces. Mêmes propriétaires (fabrique typée, garde before_tool_call, people-trusted, coordinateur, Graph, propriétaires agenda, appareil et WhatsApp) ; aucun store, registre, routeur ou démon nouveau.",
+    "documents": [
+      "docs/08-decisions/ADR-20261102-pulse-room-brain.md"
+    ]
+  },
+  "fixtures": [
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-contact-rooms-brain/room-tools.json : outils des domaines agenda, device-assistance et whatsapp (sha256 identique au S24 et à la projection playbooks fd2df2b1, révision 1e0476abc173fceb), politiques d'outils des quatre agents contacts, bindings R17 par agent, combinaisons de pièces des fiches comptées ; capture S24 du 02/11 en lecture seule, sans numéro, nom ni identifiant de contact",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-pulse-room-brain/ (réutilisées) : outil samantha_pulse et grant du contact de recette"
+  ],
+  "rollback": "Retour arrière automatique de companion-deploy.sh si la recette échoue ; sinon revert du commit puis companion-deploy vers c2a74a44 : le plugin revenu rétablit contactRoomFastPath (portée contact_room: conservée dans les playbooks) et la pièce Pulse #522 ; runtime-sync.sh ramène les consignes. Les politiques d'outils écrites par pulse-room.py provision ou par un grant sont sans effet avec l'ancien plugin ; restaurer agents.entries.contacts-*.tools depuis la fixture room-tools.json pour revenir exactement. Playbooks : activate-ui-playbooks.sh fd2df2b1.",
+  "limitations": [
+    "Questions pour Amine : pièce agenda en détail et en écriture (fichier 50 : libre/occupé par défaut) ; pièce messages sans confirmation d'Amine à chaque envoi (fichier 50 : confirmation recommandée) ; pièce QA sans propriétaire typé (créer samantha_qa ou fermer la pièce).",
+    "QA et device.modes_routines : aucun propriétaire typé, rien n'est exécuté (room_domain_not_typed).",
+    "Code devenu inutilisé non retiré (PR de suite) : transition.contact_room_verdict (gardé pour le retour arrière du seul core), runModelFastPath en mode contact qaContext, people-trusted qa-ingress-read, et le code natif Pulse listé par #522.",
+    "Fusion avec #524 : index.ts (before_dispatch disparaît, fabrique typée unique avec ROOM_TOOLS et roomSession/createRoomTools).",
+    "Recette : room_generic_read ne lit vraiment que si le contact de recette a une pièce agenda ou actions ; sinon il vérifie la fermeture sur la vraie lecture du grant. Pas encore exécuté sur le S24."
+  ]
+}

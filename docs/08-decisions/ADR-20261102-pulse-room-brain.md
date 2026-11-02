@@ -35,3 +35,40 @@ Les données Pulse lues pour un contact passent désormais par le modèle de l'a
 même compte que le cerveau d'Amine, `agents.entries.contacts-*.model`), et non plus seulement par l'interprète
 Gemini admis sous `pulse_interpretation`. La décision du 02/11 l'implique ; l'admission de données correspondante
 (DATA01) doit être confirmée avant le déploiement.
+
+## Extension à toutes les pièces des contacts (02/11/2026, étape 4 de « Le cerveau partout »)
+Note : [contact-rooms-brain-20261102](../changes/contact-rooms-brain-20261102.md).
+
+La même décision s'applique aux pièces agenda, actions et messages, seules ou combinées entre elles, avec Pulse ou
+avec Projet : « Si quelqu'un est autorisé sur une pièce il peut tout faire dedans », dans le domaine de la pièce
+seulement. Le mécanisme Pulse devient le mécanisme unique des pièces :
+- un modèle (`contactRoomProfile.ts` `ROOM_TYPED`, playbooks `typed_tools.ROOM_DOMAINS`) :
+  - `pulse` → `samantha_pulse` ;
+  - `agenda` → `samantha_agenda` ;
+  - `actions` → `samantha_device_assistance` ;
+  - `messages` → `samantha_whatsapp` ;
+- un principal `room:<pièce>:wa-…` ;
+- une fabrique (`roomBrain.ts` `createRoomTools`) ;
+- une garde (`capabilityAgentGuard.ts` `roomToolPrincipal`, `consumeRoomInvocation`) ;
+- une politique d'outils d'agent (`project-room.py` `room_tool_policy`).
+
+L'interception native `contactRoomFastPath.ts` (`before_dispatch`, réponses déterministes) est retirée, sans bascule
+par pièce ni repli natif.
+
+Ce qui reste fixé par le code, quelle que soit la demande :
+- Le compte utilisé est celui d'Amine (décision `caller: owner`). Une écriture que le propriétaire récapitulerait
+  (agenda, envoi WhatsApp) passe par la politique de pièce : commande préparée par l'hôte, arrêt au hand-off, grant
+  relu sans cache, exécution unique, vérification, aucun rejeu.
+- Les SMS et les photos d'Amine ne sont ouverts à aucune pièce (décision du 31/10) : refus nommé `scope_owner_private`.
+- Paiement, banque et transaction sont refusés.
+- `device.modes_routines` et la pièce `qa` n'ont pas de propriétaire typé. Aucun outil n'est donné et rien n'est
+  exécuté (`room_domain_not_typed`). Aucune réponse n'est inventée.
+
+Les données de la pièce passent par la session du modèle de l'agent du contact (DATA01, acceptée par Amine le 02/11
+pour les pièces). Cette admission couvre aussi le point ouvert ci-dessus pour Pulse.
+
+Questions ouvertes pour Amine :
+- La pièce agenda était décrite « libre/occupé par défaut » (fichier 50). Elle donne désormais le détail et les
+  écritures.
+- La pièce messages envoie sans la confirmation d'Amine à chaque message. Le fichier 50 la recommandait.
+- La pièce QA : faut-il un propriétaire typé, ou bien fermer la pièce ?
