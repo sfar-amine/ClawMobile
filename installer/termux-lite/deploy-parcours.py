@@ -47,6 +47,7 @@ AUTHORIZATION_REPLY = re.compile(
     r"|Google Tasks n[’']est pas autorisé|reconnect\w* (?:ton |l[’'])?(?:agenda|accès|compte) Google", re.I)
 OWNER_TRANSCRIPT = Path.home() / ".openclaw/agents/main/agent/openclaw-agent.sqlite"
 TYPED_ADMISSION_REFUSED = "typed_host_admission_required"
+TYPED_TECHNICAL_FAILURE = "typed_technical_failure"
 DONE_WRITE = re.compile(r"\b(ajouté|créé|enregistré|c’est fait|c'est fait)\b", re.I)
 PATHS = ("owner_read", "contact_read", "incomplete_ask", "write_recap", "app_read")
 
@@ -128,6 +129,12 @@ class TurnCauses:
             # the candidate's own regression, whatever the sentence.
             if isinstance(result, dict) and result.get("reason") == TYPED_ADMISSION_REFUSED:
                 return TYPED_ADMISSION_REFUSED
+            # S24 01/11-02/11: the agenda read route stayed open after a closed Google incident; every read answered
+            # TECHNICAL_FAILURE « reconnue, mais pas disponible » (no facts) and owner_read still passed on the
+            # sentence for a day. A technical failure that names no provider authorization is a broken path.
+            if (isinstance(result, dict) and result.get("state") == "TECHNICAL_FAILURE"
+                    and (result.get("facts") or {}).get("reason") not in PROVIDER_AUTHORIZATION):
+                return TYPED_TECHNICAL_FAILURE
             if not isinstance(result, dict) or not isinstance(result.get("facts"), dict):
                 continue
             seen = True
@@ -169,6 +176,8 @@ def verdict(path, text, error, cause=None):
         return "failed", "path_error"
     if cause == TYPED_ADMISSION_REFUSED:
         return "failed", "typed_admission_refused"
+    if cause == TYPED_TECHNICAL_FAILURE:
+        return "failed", "typed_technical_failure"
     if not text.strip():
         return "failed", "empty_reply"
     # The typed tool result names a provider authorization to redo: whatever sentence the brain built on it
