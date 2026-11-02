@@ -371,8 +371,11 @@ async function startRuntimeInternal(
     const logPath = gatewayLogPath();
     let out: number | null = null;
     try {
-      fs.writeFileSync(logPath, `--- OpenClaw gateway start ${new Date().toISOString()} ---\n`);
-      out = fs.openSync(logPath, "a");
+      // S24 02/11: writeFileSync (flag "w") truncated this log at every start, so each deploy restart erased the
+      // previous run (16:13–19:24 UTC lost at the 19:24 UTC restart). Append only: the bound is the existing
+      // health-cycle rotation (gateway-log-retention.py: 4 MiB cap, 3 archives), which keeps this inode.
+      out = openGatewayLogForAppend(logPath);
+      fs.writeSync(out, `--- OpenClaw gateway start ${new Date().toISOString()} ---\n`);
       const child = spawn(command, args, {
         detached: true,
         stdio: ["ignore", out, out],
@@ -976,6 +979,15 @@ function runtimeStopWaitMs() {
 
 function gatewayLogPath() {
   return path.join(ensureLogsDir(), GATEWAY_LOG_FILE);
+}
+
+/** Never truncates: O_APPEND keeps every earlier run until the bounded rotation archives it. */
+export function openGatewayLogForAppend(logPath: string): number {
+  return fs.openSync(
+    logPath,
+    fs.constants.O_WRONLY | fs.constants.O_APPEND | fs.constants.O_CREAT | fs.constants.O_NOFOLLOW,
+    0o600,
+  );
 }
 
 function gatewayPidPath() {

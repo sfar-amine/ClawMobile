@@ -407,6 +407,8 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-android-network-mutation-guard.py WifiRestorerTests DetachedRestorerProcessTest HealthManagerSweepContractTest CellularDefaultTests -v
           python3 ../installer/termux-lite/test-health-verdict.py
+      - name: S24 26-29/10 night offline (Wi-Fi and mobile data cut by Android UI) detected, one notification, never re-enabled
+        run: python3 ../installer/termux-lite/test-wifi-night-offline.py
       - name: Run request cancellation owner contract
         run: node scripts/test-control-request-cancel.cjs
       - name: Run Control pinned runtime snapshot regression
@@ -719,6 +721,9 @@ jobs:
 
       - name: F7 Gateway append log retention
         run: python3 ../installer/termux-lite/test-gateway-log-retention.py
+
+      - name: S24 02/11 Gateway start appends, never truncates (bounded rotation kept)
+        run: node scripts/test-gateway-log-append.cjs
 
       - name: E3 agent file write (biometric, CAS, privacy lines kept, free vocabulary, five backups)
         run: node scripts/test-agent-file-write-plan.cjs
