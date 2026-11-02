@@ -3,6 +3,8 @@
 Date : 25 octobre 2026. Statut : implémentation derrière interrupteur hôte ; recette et activation non réalisées.
 Décisions : S24 EVT-3228 (3fcf038f), EVT-3229 (0a436deb), EVT-3230 (3852c560), EVT-3222. Spécification de référence : samantha-core, branche claude/refonte-spec-20261025, da5927cf.
 
+**Remplacé en partie le 02/11/2026** par samantha-ui-playbooks `docs/08-decisions/ADR-20261102-brain-everywhere.md` (décision d'Amine, le cerveau partout) : la liste fermée de réflexes sociaux répondus sans cerveau et l'exclusion des contacts des pièces sont remplacées ; un seul chemin du cerveau pour tous, sans interrupteur conservé. Le reste de cet ADR s'applique.
+
 ## Décision et propriétaires
 
 `SAMANTHA_BRAIN_ONLY=1` est lu uniquement dans l’environnement de l’hôte. L’app, WhatsApp owner et la voix ne passent plus par un tri préalable. La liste fermée de réflexes sociaux est conservée. Les gestes explicites gardent leur propriétaire. Le cerveau choisit une réponse, une question ou un outil ; il ne fournit jamais route, entrypoint, caller ou autorisation.
