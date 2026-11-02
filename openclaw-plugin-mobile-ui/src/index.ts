@@ -51,13 +51,13 @@ import { runSkillFastPath as clawmobile_skill_run_fast_path } from "./trace_indu
 import { reflectFastPathFailure as clawmobile_skill_reflect_fast_path_failure } from "./trace_induction/repair";
 import { clawmobile_batch_execute } from "./tools/batch";
 import { handleOwnerBeforeDispatch, handleOwnerFastPath } from "./modelFastPath";
-import { handlePulseRoomBeforeDispatch } from "./pulseRoomFastPath";
+import { createPulseRoomTools, pulseRoomPrincipal } from "./pulseRoomBrain";
 import { runtimeNoticeSendingHook } from "./runtimeNotices";
 import { createCapabilityTool } from "./capabilityTool";
 import {conversationModelProfileHooks} from "./companion/conversationModelProfile";
 import {brainOnlyEnabled} from "./brainOnly";
 import {createTypedCapabilityTools, readTypedToolCatalogue} from "./typedCapabilityTools";
-import { agentCapabilityHook,TYPED_CONTROL_ADMISSION_METHOD,typedControlAdmissionHandler } from "./capabilityAgentGuard";
+import { agentCapabilityHook,PULSE_ROOM_TOOLS,TYPED_CONTROL_ADMISSION_METHOD,typedControlAdmissionHandler } from "./capabilityAgentGuard";
 import { createContactTool } from "./contactTools";
 import { handleContactRoomBeforeDispatch } from "./contactRoomFastPath";
 import { handleQaContactMediaReceived } from "./qaContactMediaOwner";
@@ -230,8 +230,8 @@ function register(api: any) {
     return result;
   });
 
-  // Pièce Pulse (fichier 52 §5): only a contact routed to a Pulse room agent, closed to the Pulse family.
   // before_dispatch, not inbound_claim: the Gateway runs inbound_claim only for plugin-bound conversations (S24 12/10).
+  // The Pulse room is no longer intercepted here (Amine 02/11): its contact's brain runs with the room tool below.
   api.on("before_dispatch", async (event: any, ctx: any) => {
     // Owner WhatsApp turns: same capability-first path as the app (inbound_claim never fires for them).
     const owner = await handleOwnerBeforeDispatch(event, ctx);
@@ -240,10 +240,7 @@ function register(api: any) {
       return owner;
     }
     const contactRoom = await handleContactRoomBeforeDispatch(event, ctx);
-    if (contactRoom.handled) return contactRoom;
-    const room = await handlePulseRoomBeforeDispatch(event, ctx);
-    if (room.handled) api.logger?.debug?.("[capability-first] pulse room handled before model");
-    return room.handled ? room : undefined;
+    return contactRoom.handled ? contactRoom : undefined;
   });
 
   // Chantier 1 (doc 71): one warm interpreter for every surface, Gemini then Luna.
@@ -254,12 +251,14 @@ function register(api: any) {
 
   // The factory receives OpenClaw's trusted current-turn context. The first
   // execute argument is a tool-call id, not an authorization context.
-  if (brainOnlyEnabled()) {
-    api.registerTool({contextVersion: 2, create: (ctx: any) => createTypedCapabilityTools(ctx)},
-      {names: [...readTypedToolCatalogue().map(tool => tool.name), "samantha_catalogue"]});
-  } else {
-    api.registerTool((ctx: any) => createCapabilityTool(ctx), {name: "clawmobile_capability"});
-  }
+  // One typed factory: a Pulse room contact's session gets its room tool only (pulseRoomBrain), whatever the owner
+  // mode; the owner's main agent gets the owner typed tools in brain-only mode. Nothing else ever sees either.
+  const brainOnly = brainOnlyEnabled();
+  const typedNames = new Set<string>(PULSE_ROOM_TOOLS);
+  if (brainOnly) for (const name of [...readTypedToolCatalogue().map(tool => tool.name), "samantha_catalogue"]) typedNames.add(name);
+  api.registerTool({contextVersion: 2, create: (ctx: any) => pulseRoomPrincipal(ctx) ? createPulseRoomTools(ctx)
+    : brainOnly ? createTypedCapabilityTools(ctx) : null}, {names: [...typedNames]});
+  if (!brainOnly) api.registerTool((ctx: any) => createCapabilityTool(ctx), {name: "clawmobile_capability"});
   api.registerTool((ctx: any) => createContactTool("transmettre_a_amine", ctx), { name: "transmettre_a_amine" });
   api.registerTool((ctx: any) => createContactTool("noter_contact", ctx), { name: "noter_contact" });
 
