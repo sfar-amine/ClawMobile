@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "id": "revert-model-profile-host-session-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Revert du code de la PR #516 (hooks de profil via api.runtime) : chargé par la Gateway 2026.10.9, chaque appel d'outil typé samantha_* était refusé (typed_host_admission_required), comme avec #510. La recette de déploiement échoue désormais sur ce refus au lieu de juger la phrase.",
+  "reason": "S24 02/11 09:44 UTC, déploiement 20e36415 : write_recap failed (not_stopped_at_recap) et rollback automatique vers 0c5a9b46. Le transcript agent:main:recette-deploy:20261102t084441z montre samantha_agenda agenda.event.read puis agenda.event.create en state unverified, reason typed_host_admission_required ; owner_read avait été jugé passé sur la phrase générique « Je n'ai pas de résultat vérifié… ». Aucune écriture.",
+  "rollback": "Ré-appliquer #516 (revert de ce revert) seulement avec une preuve que le hook before_tool_call et les outils typés partagent la même instance de module sous la Gateway 2026.10.9.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/scripts/test-model-profile-host-session.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/conversationModelProfile.ts",
+    "openclaw-plugin-mobile-ui/src/companion/openclawSdkVersions.ts",
+    "openclaw-plugin-mobile-ui/src/companion/ownerTurnGateway.ts",
+    "installer/termux-lite/deploy-parcours.py",
+    "installer/termux-lite/test-deploy-parcours.py",
+    "docs/changes/revert-model-profile-host-session-20261102.json",
+    "docs/changes/revert-model-profile-host-session-20261102.md"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "Recette de déploiement",
+      "status": "passed",
+      "evidence": "python3 installer/termux-lite/test-deploy-parcours.py : 13 tests verts, dont le refus d'admission typé du 02/11 (owner_read et write_recap → failed typed_admission_refused)."
+    },
+    {
+      "name": "CI locale complète (ci.yml)",
+      "status": "passed",
+      "evidence": "L'arbre plugin revient à 0c5a9b46, en production saine (recette 5/5 du 02/11 00:20) ; la CI locale de cette PR rejoue toute la suite."
+    }
+  ],
+  "documentation": [
+    "docs/changes/revert-model-profile-host-session-20261102.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Rétablit le chargement précédent du SDK de session et durcit le verdict de la recette ; aucune capacité ajoutée ni retirée.",
+    "ids": []
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Revert vers les propriétaires précédents ; la recette garde son lecteur de transcript en lecture seule."
+  },
+  "fixtures": [
+    "Transcript de recette S24 agent:main:recette-deploy:20261102t084441z (résultats d'outils seulement, cités dans le .md ; aucun texte utilisateur)"
+  ],
+  "limitations": [
+    "#126 (premier tour après redémarrage de la Gateway, 72–90 s) reste ouvert. La cause exacte du refus n'est pas établie : #510 et #516 retirent tous deux l'import par URL de fichier du SDK de session et cassent l'admission ; hypothèse non prouvée : sans cet import, le hook et les outils ne partagent plus la même instance du module de garde.",
+    "La note model-profile-host-session-20261102 et ses fixtures sont conservées (le contrat de livraison refuse la suppression d'une note)."
+  ]
+}
