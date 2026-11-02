@@ -40,13 +40,43 @@ class PulseRoomTests(unittest.TestCase):
         entries = json.loads(self.state.read_text())['agents']['entries']
         pulse, both = entries['contacts-pulse'], entries['contacts-projet-pulse']
         self.assertEqual(str(self.target), pulse['workspace']); self.assertIn('read', pulse['tools']['deny'])
-        self.assertEqual(entries['contacts-projet']['workspace'], both['workspace']); self.assertEqual(['web_search', 'read', 'transmettre_a_amine', 'noter_contact'], both['tools']['allow'])
+        # Amine 02/11: the Pulse room brain gets its room's typed tool and the contact tools, nothing else.
+        self.assertEqual(['transmettre_a_amine', 'noter_contact', 'samantha_pulse'], pulse['tools']['allow'])
+        self.assertIn('web_search', pulse['tools']['deny'])
+        self.assertEqual(entries['contacts-projet']['workspace'], both['workspace'])
+        self.assertEqual(['web_search', 'read', 'transmettre_a_amine', 'noter_contact', 'samantha_pulse'], both['tools']['allow'])
+        self.assertIs(True, both['tools']['fs']['workspaceOnly'])
+        closed = {'exec', 'process', 'write', 'edit', 'apply_patch', 'message', 'sessions_list', 'sessions_history',
+                  'sessions_send', 'sessions_spawn', 'session_status', 'sessions_search', 'memory_search', 'memory_get',
+                  'gateway', 'cron', 'nodes', 'browser', 'web_fetch', 'clawmobile_capability'}
         for entry in (pulse, both):
-            self.assertIn('clawmobile_capability', entry['tools']['deny']); self.assertNotEqual(entries['main'].get('tools'), entry['tools'])
-        self.assertIn('Les demandes de congé ne sont pas prises en compte ici', (self.target / 'AGENTS.md').read_text())
+            self.assertTrue(closed.issubset(entry['tools']['deny']), entry['tools'])
+            self.assertFalse(set(entry['tools']['allow']) & set(entry['tools']['deny']))
+            self.assertFalse({t for t in entry['tools']['allow'] if t.startswith('samantha_')} - {'samantha_pulse'})
+            self.assertNotEqual(entries['main'].get('tools'), entry['tools'])
+        agents = (self.target / 'AGENTS.md').read_text()
+        self.assertIn('Les demandes de congé ne sont pas prises en compte ici', agents)
+        self.assertIn('`samantha_pulse`', agents); self.assertNotIn('interprète', agents)
         self.assertTrue((self.target / 'SOUL.md').is_file())
         again = self.provision(); self.assertEqual('present', json.loads(again.stdout)['agents'])
         log = (Path(str(self.state) + '.log')).read_text().splitlines(); self.assertEqual(2, len(log))  # dry-run + apply, once
+
+    def test_existing_room_agents_are_closed_to_their_room_tool_once(self):
+        # S24 02/11 (fixture s24-2026-11-02-pulse-room-brain): both room agents existed with web_search and no room tool.
+        fixture = json.loads((HERE.parent.parent / 'openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-pulse-room-brain/'
+                              'room-grant-recette.json').read_text())['agent_tools_before']
+        cfg = json.loads(self.state.read_text())
+        for name, tools in fixture.items():
+            cfg['agents']['entries'][name] = {'model': {'primary': 'm'}, 'workspace': 'w-' + name, 'tools': tools}
+        self.state.write_text(json.dumps(cfg))
+        out = self.provision(); self.assertEqual(0, out.returncode, out.stderr)
+        self.assertEqual(['contacts-projet-pulse', 'contacts-pulse'], json.loads(out.stdout)['agents'])
+        entries = json.loads(self.state.read_text())['agents']['entries']
+        self.assertEqual(['transmettre_a_amine', 'noter_contact', 'samantha_pulse'], entries['contacts-pulse']['tools']['allow'])
+        self.assertEqual(['web_search', 'read', 'transmettre_a_amine', 'noter_contact', 'samantha_pulse'],
+                         entries['contacts-projet-pulse']['tools']['allow'])
+        self.assertEqual('w-contacts-pulse', entries['contacts-pulse']['workspace'])
+        again = self.provision(); self.assertEqual('present', json.loads(again.stdout)['agents'])
 
     def test_an_open_contact_agent_is_never_cloned(self):
         cfg = json.loads(self.state.read_text()); cfg['agents']['entries']['contacts']['tools']['deny'] = ['write']
