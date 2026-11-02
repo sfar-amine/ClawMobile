@@ -2,6 +2,7 @@
 import {execFileSync} from 'child_process';
 import path from 'path';
 import os from 'os';
+import {ownerSkillPreload} from './ownerSkillPreload';
 export const OWNER_FOUNDATION_FLAG='SAMANTHA_CONTEXT_FOUNDATION';
 export function ownerFoundationEnabled(){return process.env[OWNER_FOUNDATION_FLAG]==='1';}
 type FoundationOptions={authority?:'owner';home?:string;read?:(file:string,args:string[])=>string};
@@ -69,8 +70,14 @@ export function projectContextHasBootstrap(ctx:any){
  return ctx?.trigger==='user'&&typeof ctx.sessionKey==='string'&&!/:(cron|subagent):/.test(ctx.sessionKey);
 }
 /** Only trusted main-agent workspace context admits this hook. Contacts retain their own bootstrap. */
-export function ownerFoundationHook(_event:unknown,ctx:any){
- if(!ownerFoundationEnabled()||ctx?.agentId!=='main'||ctx.workspaceDir!==path.join(os.homedir(),'.openclaw','workspace'))return;
+export function ownerFoundationHook(event:unknown,ctx:any){
+ if(ctx?.agentId!=='main'||ctx.workspaceDir!==path.join(os.homedir(),'.openclaw','workspace'))return;
+ // #126: the clear typed domain's SKILL.md for this turn only (prependContext, after the cached system prefix).
+ const preload=ownerSkillPreload(event,ctx);
+ const foundation=ownerFoundationEnabled()?ownerFoundationSystemContext(ctx):undefined;
+ return preload?{...foundation,prependContext:preload}:foundation;
+}
+function ownerFoundationSystemContext(ctx:any){
  const companion=typeof ctx.sessionKey==='string'&&ctx.sessionKey.startsWith('agent:main:companion-');
  const parts=ownerFoundationParts({authority:'owner',bootstrapInProjectContext:!companion&&projectContextHasBootstrap(ctx)});
  // Companion supplies the stable part (or, with an older producer, the whole block) through its existing

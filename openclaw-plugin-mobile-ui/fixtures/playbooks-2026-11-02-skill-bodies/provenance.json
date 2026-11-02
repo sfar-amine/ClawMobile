@@ -1,0 +1,34 @@
+{
+ "version": 1,
+ "source": "samantha-ui-playbooks de922be4e6349b43560bde1912b0d7a8811653af (origin/main, 2026-11-02)",
+ "kind": "source_projection_not_s24_capture",
+ "runtime_path": "~/.openclaw/workspace/skills/<name>/SKILL.md",
+ "installer": "activate-ui-playbooks.sh -> tools/install_interaction_rules.py --apply -> context_foundation.skill_files (body unchanged)",
+ "s24_cross_check_20261025": {
+  "samantha-agenda": "d3f2b362cea0700b8f879cf77bc121ac8aab8042bb5613054801753503cd5421 = playbooks 489834ba agenda/SKILL.md",
+  "samantha-factures": "f0ea7084ce24c1dd4144092263f221023fbc5b768ac4b16ab8395974f267c9d9 = playbooks b40dcbeb billing/SKILL.md",
+  "orange-telecom": "478e069fad04d21dcca57c06157c9e5ff3e73ee8599791601641ba3c3fa77133 = playbooks b40dcbeb telecom/SKILL.md"
+ },
+ "files": {
+  "samantha-agenda": {
+   "source": "agenda/SKILL.md",
+   "bytes": 4152,
+   "sha256": "c101c37c294b937e88350fce38a94442f300eed0bbdc00b383e07ebc423dab43"
+  },
+  "samantha-factures": {
+   "source": "billing/SKILL.md",
+   "bytes": 12068,
+   "sha256": "e873497116c94f724acd54670933c735b192f33e96e03ef2757b583eb3bfa55a"
+  },
+  "orange-telecom": {
+   "source": "telecom/SKILL.md",
+   "bytes": 6136,
+   "sha256": "979dcba2ff893be61ecbf77d226fca514f0f957e2398e8e64c0b2ab13f8db536"
+  },
+  "samantha-appareil": {
+   "source": "device/SKILL.md",
+   "bytes": 3099,
+   "sha256": "bb06c3700c0c9135776b51e96bf77b64c5188d18430199f32171c14204f0240f"
+  }
+ }
+}
