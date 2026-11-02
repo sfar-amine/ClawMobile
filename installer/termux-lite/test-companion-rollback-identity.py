@@ -44,7 +44,10 @@ CHECKOUT_STUBS = {
     # The full performance acceptance fails on both commits: it must no longer decide the rollback.
     "companion-acceptance.py": 'import json,pathlib\nopen(pathlib.Path.home()/"accept.log","a").write("run\\n")\n'
                                'print(json.dumps({"ok":False,"checks":[{"route":"/agent/config","status":"fail"}]}))\nraise SystemExit(1)\n',
-    "runtime-sync.sh": '#!/bin/sh\necho "$1" >> "$HOME/runtime-sync.log"\necho "{\\"ok\\":true,\\"commit\\":\\"$1\\"}"\n',
+    # FAKE_RUNTIME_SYNC_FAIL: the sync answers like a Gateway restart that failed.
+    "runtime-sync.sh": '#!/bin/sh\necho "$1" >> "$HOME/runtime-sync.log"\n'
+                       '[ -n "$FAKE_RUNTIME_SYNC_FAIL" ] && { echo "{\\"ok\\":false,\\"reason\\":\\"gateway_restart_failed\\"}"; exit 1; }\n'
+                       'echo "{\\"ok\\":true,\\"commit\\":\\"$1\\"}"\n',
     "incident-notify.sh": '#!/bin/sh\necho "$*" >> "$HOME/notify.log"\n',
     "companion-server.sh": '#!/bin/sh\nexit 0\n',
 }
@@ -102,7 +105,7 @@ class RollbackIdentity(unittest.TestCase):
         self.assertFalse(receipt["acceptance"]["ok"])
         self.assertEqual(["run"], self.lines("accept.log"))
         rb = receipt["rollback_acceptance"]
-        self.assertEqual({"head_is_previous": True, "dist_matches_backup": True, "health_ready": True}, rb["checks"])
+        self.assertEqual({"head_is_previous": True, "dist_matches_backup": True, "health_ready": True, "runtime_restored": True}, rb["checks"])
         self.assertTrue(rb["ok"]); self.assertEqual("identity_and_health", rb["criterion"])
         self.assertEqual({"ok": True, "commit": self.previous}, receipt["runtime"])
         self.assertEqual([self.previous], self.lines("runtime-sync.log"))
@@ -116,7 +119,7 @@ class RollbackIdentity(unittest.TestCase):
         rc, receipt = self.deploy(FAKE_GIT_IGNORE_RESET="1")
         self.assertEqual(6, rc)
         self.assertEqual("rollback_failed", receipt["state"])
-        self.assertEqual({"head_is_previous": False, "dist_matches_backup": True, "health_ready": True}, receipt["rollback_acceptance"]["checks"])
+        self.assertEqual({"head_is_previous": False, "dist_matches_backup": True, "health_ready": True, "runtime_restored": False}, receipt["rollback_acceptance"]["checks"])
         self.assertFalse(receipt["rollback_acceptance"]["ok"])
         self.assertEqual(1, len(self.lines("notify.log"))); self.assertIn("human_required", self.lines("notify.log")[0])
         self.assertEqual([], self.lines("runtime-sync.log"))
@@ -125,7 +128,7 @@ class RollbackIdentity(unittest.TestCase):
         rc, receipt = self.deploy(FAKE_TAMPER_BACKUP="1")
         self.assertEqual(6, rc)
         self.assertEqual("rollback_failed", receipt["state"])
-        self.assertEqual({"head_is_previous": True, "dist_matches_backup": False, "health_ready": True}, receipt["rollback_acceptance"]["checks"])
+        self.assertEqual({"head_is_previous": True, "dist_matches_backup": False, "health_ready": True, "runtime_restored": False}, receipt["rollback_acceptance"]["checks"])
         self.assertEqual(1, len(self.lines("notify.log")))
 
     def test_health_never_ready_after_the_bounded_retry_is_a_failed_rollback(self):
@@ -134,8 +137,21 @@ class RollbackIdentity(unittest.TestCase):
         self.assertEqual("rollback_failed", receipt["state"])
         self.assertFalse(receipt["rollback_acceptance"]["checks"]["health_ready"])
         self.assertEqual(1, len(self.lines("notify.log")))
+        # S24 02/11 (deploy 20e36415): even with the Companion health not ready, the Gateway plugin and the Tier0
+        # release are brought back to previous; before, the sync was skipped and the Gateway kept the candidate.
+        self.assertTrue(receipt["rollback_acceptance"]["checks"]["runtime_restored"])
+        self.assertEqual([self.previous], self.lines("runtime-sync.log"))
+        self.assertEqual({"ok": True, "commit": self.previous}, receipt["runtime"])
         # Bounded: one deploy probe, then 60 probes (2 s apart) for the rollback restart.
         self.assertEqual(61, sum(1 for l in self.lines("curl.log") if l.endswith("/v1/health")))
+
+    def test_a_failed_runtime_sync_is_a_failed_rollback(self):
+        rc, receipt = self.deploy(FAKE_RUNTIME_SYNC_FAIL="1")
+        self.assertEqual(6, rc)
+        self.assertEqual("rollback_failed", receipt["state"])
+        self.assertFalse(receipt["rollback_acceptance"]["checks"]["runtime_restored"])
+        self.assertEqual([self.previous], self.lines("runtime-sync.log"))
+        self.assertEqual(1, len(self.lines("notify.log")))
 
     def test_a_build_failure_rolls_back_without_any_acceptance(self):
         rc, receipt = self.deploy(FAKE_BUILD_RC="1")

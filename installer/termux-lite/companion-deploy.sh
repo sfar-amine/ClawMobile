@@ -362,15 +362,24 @@ rollback(){
   # different from the one that admitted the restarted Companion.
   health_ok=false; restart && health_ok=true
   head_now="$(git rev-parse HEAD 2>/dev/null)"; dist_now="$(dist_hash "$PLUGIN/dist" 2>/dev/null)"
-  rollback_acc=$(python3 - "$previous" "$head_now" "$backup_hash" "$dist_now" "$health_ok" <<'PY'
+  # S24 02/11 09:44 UTC (deploy 20e36415): the Companion health was not ready in time, the runtime sync sat at the
+  # end of the && chain and never ran, so the Gateway kept the failed candidate's plugin (typed tools refused) for
+  # 50 minutes. Once the checkout identity is proven, the Gateway plugin and Tier0 release are always brought back
+  # to previous, whatever the Companion health; a failed sync is its own failed check.
+  runtime_ok=false; runtime=""
+  if [ "$head_now" = "$previous" ] && [ -n "$dist_now" ] && [ "$dist_now" = "$backup_hash" ]; then
+    runtime=$(sync_runtime "$previous") && runtime_ok=true
+  fi
+  rollback_acc=$(python3 - "$previous" "$head_now" "$backup_hash" "$dist_now" "$health_ok" "$runtime_ok" <<'PY'
 import json,sys
-previous,head,want,got,health=sys.argv[1:6]
-checks={"head_is_previous":bool(head) and head==previous,"dist_matches_backup":bool(got) and got==want,"health_ready":health=="true"}
+previous,head,want,got,health,runtime=sys.argv[1:7]
+checks={"head_is_previous":bool(head) and head==previous,"dist_matches_backup":bool(got) and got==want,"health_ready":health=="true",
+        "runtime_restored":runtime=="true"}
 print(json.dumps({"ok":all(checks.values()),"criterion":"identity_and_health","head":head[:12] or None,"checks":checks}))
 PY
 )
-  if [ "$head_now" = "$previous" ] && [ -n "$dist_now" ] && [ "$dist_now" = "$backup_hash" ] && $health_ok \
-     && runtime=$(sync_runtime "$previous"); then write rolled_back "$full" "$previous" "$reason" "$acc" "$runtime" "$rollback_acc"
+  if [ "$head_now" = "$previous" ] && [ -n "$dist_now" ] && [ "$dist_now" = "$backup_hash" ] && $health_ok && $runtime_ok; then
+    write rolled_back "$full" "$previous" "$reason" "$acc" "$runtime" "$rollback_acc"
   else write rollback_failed "$full" "$previous" "$reason" "$acc" "${runtime:-}" "$rollback_acc"; "$ROOT/incident-notify.sh" human_required "Samantha — déploiement Companion ${full:0:7} annulé mais le retour arrière n'est pas sain." >/dev/null 2>&1 || true; fi
   exit 6
 }

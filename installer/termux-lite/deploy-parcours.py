@@ -46,6 +46,7 @@ AUTHORIZATION_REPLY = re.compile(
     r"(?:agenda|accès|compte) Google[^.]{0,40}(?:a expiré|est expiré|a été révoqué|n[’']est pas connecté)"
     r"|Google Tasks n[’']est pas autorisé|reconnect\w* (?:ton |l[’'])?(?:agenda|accès|compte) Google", re.I)
 OWNER_TRANSCRIPT = Path.home() / ".openclaw/agents/main/agent/openclaw-agent.sqlite"
+TYPED_ADMISSION_REFUSED = "typed_host_admission_required"
 DONE_WRITE = re.compile(r"\b(ajouté|créé|enregistré|c’est fait|c'est fait)\b", re.I)
 PATHS = ("owner_read", "contact_read", "incomplete_ask", "write_recap", "app_read")
 
@@ -122,6 +123,11 @@ class TurnCauses:
                 result = json.loads(_text(message.get("content")))
             except (ValueError, AttributeError, TypeError):
                 continue
+            # S24 02/11 09:44 UTC (deploy 20e36415): the guard refused every typed call; the brain answered with the
+            # generic « pas de résultat vérifié » sentence, which no reply pattern names. A refused admission is
+            # the candidate's own regression, whatever the sentence.
+            if isinstance(result, dict) and result.get("reason") == TYPED_ADMISSION_REFUSED:
+                return TYPED_ADMISSION_REFUSED
             if not isinstance(result, dict) or not isinstance(result.get("facts"), dict):
                 continue
             seen = True
@@ -161,6 +167,8 @@ def verdict(path, text, error, cause=None):
         return "inconclusive", "provider_unavailable"
     if error:
         return "failed", "path_error"
+    if cause == TYPED_ADMISSION_REFUSED:
+        return "failed", "typed_admission_refused"
     if not text.strip():
         return "failed", "empty_reply"
     # The typed tool result names a provider authorization to redo: whatever sentence the brain built on it

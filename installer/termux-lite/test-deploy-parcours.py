@@ -137,6 +137,22 @@ class ProviderAuthorization(unittest.TestCase):
         missing = p.TurnCauses("agent:main:recette-deploy:x", Path(tempfile.gettempdir()) / "absent-parcours.sqlite")
         self.assertEqual((missing.mark(), missing.cause(0)), (None, None))
 
+    def test_refused_typed_admission_fails_whatever_the_sentence(self):
+        # S24 02/11 09:44 UTC, deploy 20e36415 (PR #516), recette transcript agent:main:recette-deploy:20261102t084441z:
+        # both agenda calls refused by the guard; owner_read was judged passed on the generic sentence.
+        refused = {"state": "unverified", "reason": "typed_host_admission_required",
+                   "answer": "Je n'ai pas de résultat vérifié pour cette action. Vérifie son état avant tout nouvel essai."}
+        causes = self.transcript([("s-1", self.tool_result(refused))])
+        cause = causes.cause(0)
+        self.assertEqual(cause, "typed_host_admission_required")
+        self.assertEqual(p.verdict("owner_read", refused["answer"], None, cause), ("failed", "typed_admission_refused"))
+        self.assertEqual(p.verdict("write_recap", "D’accord, je ne relance pas l’ajout.", None, cause),
+                         ("failed", "typed_admission_refused"))
+        # Before this fix the same reply passed: the sentence alone is not a reliable signal.
+        self.assertEqual(p.verdict("owner_read", refused["answer"], None), ("passed", "ok"))
+        # A provider outage keeps its own verdict.
+        self.assertEqual(p.verdict("owner_read", "Le modèle n’est pas joignable.", None, cause), ("inconclusive", "provider_unavailable"))
+
     def test_run_names_the_reason_and_never_masks_another_failure(self):
         class Causes:
             def __init__(self, found): self.found, self.turn = list(found), 0

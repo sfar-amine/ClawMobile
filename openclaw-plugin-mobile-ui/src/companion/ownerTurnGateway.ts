@@ -9,7 +9,7 @@ import path from "path";
 import {createRequire} from "module";
 import {pathToFileURL} from "url";
 import {turnAdmission, type AdmissionTicket} from "./ownerTurnAdmission";
-import {importSurface, openclawSdkVersion, readChunkConstExport} from "./openclawSdkVersions";
+import {importSurface, openclawSdkVersion} from "./openclawSdkVersions";
 
 export const OWNER_TURN_SCOPES = Object.freeze(["operator.admin", "operator.write"]);
 export const OWNER_TURN_METHOD = "agent";
@@ -96,7 +96,8 @@ export async function loadInstalledGatewaySdk(binary = process.env.CLAWMOBILE_OP
 
 let loader: OwnerTurnSdkLoader = () => loadInstalledGatewaySdk();
 
-async function installedSessionStorePackage(binary: string) {
+/** Lazy access to the same pinned SDK session metadata owner. No config/credential copy or new store. */
+export async function loadInstalledSessionStoreSdk(binary = process.env.CLAWMOBILE_OPENCLAW_BIN || "openclaw"): Promise<any> {
   let entry: string;
   try { entry = require.resolve("openclaw/plugin-sdk/session-store-runtime"); }
   catch {
@@ -106,29 +107,15 @@ async function installedSessionStorePackage(binary: string) {
   const pkg = await packageRoot(entry);
   const pinned = openclawSdkVersion(pkg.version);
   if (!pinned) throw unavailable("owner_transport_version_unsupported");
-  return {pkg, pinned};
-}
-
-/** Model profile contract version of the installed OpenClaw, read as text (#126): the contract chunk is hashed per
- * version and only exports the symbol once model-flow-selection is applied; importing it from the plugin made the
- * Gateway copy the whole agent runtime into its plugin capture. Resolution only, no module is loaded. */
-export async function readInstalledModelProfileContractVersion(binary = process.env.CLAWMOBILE_OPENCLAW_BIN || "openclaw"): Promise<number> {
-  const {pkg, pinned} = await installedSessionStorePackage(binary);
-  return readChunkConstExport(await fs.readFile(path.join(pkg.root, pinned.modelProfileContract.module), "utf8"),
-    pinned.modelProfileContract.symbol);
-}
-
-/** Lazy access to the same pinned SDK session metadata owner. No config/credential copy or new store.
- * Inside the Gateway the profile hooks use the host's own session API instead (conversationModelProfile, #126). */
-export async function loadInstalledSessionStoreSdk(binary = process.env.CLAWMOBILE_OPENCLAW_BIN || "openclaw"): Promise<any> {
-  const {pkg, pinned} = await installedSessionStorePackage(binary);
   const resolve = createRequire(path.join(pkg.root, "package.json"));
-  const [surface, modelProfileContractVersion] = await Promise.all([
+  // The contract chunk is hashed per version and only exports the symbol once model-flow-selection is applied.
+  const [surface, contract] = await Promise.all([
     importSurface(pinned.sessionStore, specifier => resolve.resolve(specifier), file => nativeImport(pathToFileURL(file).href)),
-    readInstalledModelProfileContractVersion(binary)]);
+    nativeImport(pathToFileURL(path.join(pkg.root, pinned.modelProfileContract.module)).href)]);
   for (const key of Object.keys(pinned.sessionStore))
     if (typeof surface.picked[key] !== "function") throw unavailable("owner_session_metadata_unavailable");
-  return {...surface.modules.get(pinned.sessionStore.getSessionEntry[0]), ...surface.picked, modelProfileContractVersion};
+  return {...surface.modules.get(pinned.sessionStore.getSessionEntry[0]), ...surface.picked,
+    modelProfileContractVersion: contract[pinned.modelProfileContract.symbol]??0};
 }
 let loading: Promise<GatewaySdk> | undefined;
 /** Tests uniquement. */
