@@ -72,3 +72,13 @@ Proxy de sortie des secrets (01/11/2026) : `ca-D3c9PAvv.mjs.gz` (sha256 `63687cc
 (`upgrade-rehearsal/live` et `oc-global`). Le jeu `android-fs-compat` vise `ca-D3c9PAvv.mjs` : il y fait chercher
 `openssl` aussi dans `/data/data/com.termux/files/usr/bin`. `resolve-system-bin-COKBgJV4.mjs` n'est pas modifié ; le
 test l'exécute tel quel avec le module CA, avant et après le correctif.
+
+Ouverture de session sans module WhatsApp (02/11/2026, même archive npm `openclaw@2026.10.9`, sha256 `43c61a00…04ab`,
+conteneur Claude Code) : `string-coerce-1VuiLaaR.mjs.gz`, `string-normalization-D6DKCpwE.mjs.gz`, `regexp-BZyMFTlj.mjs.gz`,
+`glob-pattern-DuaaJ-nB.mjs.gz`, `tool-policy-shared-CNWjndK7.mjs.gz`, `tool-grant-allowlist-m1tXxJWt.mjs.gz` et
+`manifest-tool-availability-DJlsKWK1.mjs.gz` sont les modules publics, à l'octet près, qui portent les helpers de
+`resolvePluginToolPluginIds` (`tools-DQdRObqo.mjs`, déjà présent ; sha256 `de48b6fa…`, identique à l'installation de
+production du S24 relevée le 02/11). `plugin-tool-selection-harness.cjs` n'est **pas** une capture : c'est le harness
+écrit pour `installer/termux-lite/test-session-open-plugin-tools.py`, qui exécute dans une VM ces corps originaux
+(choix des plugins du registre d'outils d'un tour) ; seuls les prédicats installé/activé/plan de contrôle sont inertes
+(tout plugin disponible, comme sur le S24 où les deux plugins se chargent).
