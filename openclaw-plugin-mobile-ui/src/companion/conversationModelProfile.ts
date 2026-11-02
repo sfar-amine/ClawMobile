@@ -1,6 +1,6 @@
 /** Settings of the existing conversation metadata owner, stored in the native SessionEntry only. */
 import {createHash} from "crypto";
-import {loadInstalledSessionStoreSdk} from "./ownerTurnGateway";
+import {loadInstalledSessionStoreSdk,readInstalledModelProfileContractVersion} from "./ownerTurnGateway";
 import {configuredModelFlow,CONTACT_MODEL_AGENTS,verifiedModelFlowProvenance} from "./modelOwner";
 import {publicModelRef} from "./accountIdentity";
 import {contactRoomSession} from "../contactRoomProfile";
@@ -22,6 +22,21 @@ let sdkLoader:()=>Promise<Sdk>=loadInstalledSessionStoreSdk;
 /** Tests replace the installed SDK, never the profile policy or a production storage path. */
 export function setConversationModelProfileSdkForTests(load:()=>Promise<Sdk>){sdkLoader=load;sdkPromise=undefined;}
 const sdk=()=>sdkPromise??=(sdkLoader().catch(e=>{sdkPromise=undefined;throw e;}));
+/** #126: inside the Gateway the host hands the plugin its own session store and runtime config (api.runtime).
+ * Using them imports no host module, so OpenClaw copies nothing into the plugin capture (21 045 files, 190 MB at
+ * each restart on the S24 with the installed SDK import) and no second instance of any module exists. Same
+ * functions and parameters as the installed SDK surface. The Companion process has no api: it keeps the loader. */
+let contractReader:()=>Promise<number>=()=>readInstalledModelProfileContractVersion();
+/** Tests replace the installed contract chunk reader, never the profile policy. */
+export function setModelProfileContractReaderForTests(read:()=>Promise<number>){contractReader=read;}
+export function hostSessionStoreSdk(api:any,contractVersion:()=>Promise<number>=()=>contractReader()):(()=>Promise<Sdk>)|undefined{
+ const session=api?.runtime?.agent?.session,config=api?.runtime?.config;
+ if(!session||!config||typeof config.current!=="function"||
+    ["getSessionEntry","listSessionEntries","patchSessionEntry"].some(name=>typeof session[name]!=="function"))return undefined;
+ return async()=>({modelProfileContractVersion:await contractVersion(),getRuntimeConfig:()=>config.current(),
+  getSessionEntry:(p:any)=>session.getSessionEntry(p),listSessionEntries:(p:any)=>session.listSessionEntries(p),
+  patchSessionEntry:(p:any)=>session.patchSessionEntry(p)});
+}
 function currentAgent(config:any,id:string){return config?.agents?.entries?.[id]??config?.agents?.list?.find((row:any)=>row.id===id)??{};}
 function flowFor(agentId:string,key:string,config:any):"brain"|"whatsapp"|undefined {
  if(agentId==="main"){
@@ -122,6 +137,8 @@ function validIdentity(ctx:any){return closedText(ctx?.agentId,64)&&closedText(c
 /** Uses only native session metadata and the existing SDK per-run context. Neither is an execution authority. */
 export function conversationModelProfileHooks(api:any){
  const contextApi=api.runContext||api,contextKey=MODEL_PROFILE_NAMESPACE;
+ const host=hostSessionStoreSdk(api);let hostPromise:Promise<Sdk>|undefined;
+ const sessionOwner=()=>host?(hostPromise??=host().catch(e=>{hostPromise=undefined;throw e;})):sdk();
  const getContext=(ctx:any)=>contextApi.getRunContext?.({runId:ctx.runId,namespace:contextKey});
  const setContext=(ctx:any,value:any)=>contextApi.setRunContext?.({runId:ctx.runId,namespace:contextKey,value});
  const matchingContext=(ctx:any,profile:SessionProfile)=>{
@@ -146,7 +163,7 @@ export function conversationModelProfileHooks(api:any){
    if(event?.modelProfileStage!=="summary"&&!["main",...CONTACT_MODEL_AGENTS].includes(ctx?.agentId))return undefined;
    try{
     if(!validIdentity(ctx))return {modelSelectionRefused:"session_identity_unavailable"};
-    const owner=await sdk(),config=owner.getRuntimeConfig(),flow=flowFor(ctx.agentId,ctx.sessionKey,config);
+    const owner=await sessionOwner(),config=owner.getRuntimeConfig(),flow=flowFor(ctx.agentId,ctx.sessionKey,config);
     if(!flow&&event.modelProfileStage!=="summary")return undefined;
     const entry=owner.getSessionEntry({agentId:ctx.agentId,sessionKey:ctx.sessionKey,readConsistency:"latest"});
     if(entry?.sessionId!==ctx.sessionId)return {modelSelectionRefused:"session_identity_changed"};
@@ -193,7 +210,7 @@ export function conversationModelProfileHooks(api:any){
   },
   async admit(_event:any,ctx:any){
    if(!["main",...CONTACT_MODEL_AGENTS].includes(ctx?.agentId))return undefined;
-   try{const owner=await sdk(),config=owner.getRuntimeConfig(),flow=flowFor(ctx?.agentId,ctx?.sessionKey,config);if(!flow)return undefined;
+   try{const owner=await sessionOwner(),config=owner.getRuntimeConfig(),flow=flowFor(ctx?.agentId,ctx?.sessionKey,config);if(!flow)return undefined;
     const entry=owner.getSessionEntry({agentId:ctx.agentId,sessionKey:ctx.sessionKey,readConsistency:"latest"});
     if(entry?.sessionId!==ctx.sessionId)throw refusal();
     const frozen=readProfile(entry);

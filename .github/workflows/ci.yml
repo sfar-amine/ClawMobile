@@ -442,7 +442,7 @@ jobs:
         run: node scripts/test-control-automations-latency.cjs
 
       - name: Run agent configuration owner contract
-        run: node scripts/test-agent-config.cjs && node scripts/test-model-flows.cjs && node scripts/test-conversation-model-profile.cjs
+        run: node scripts/test-agent-config.cjs && node scripts/test-model-flows.cjs && node scripts/test-conversation-model-profile.cjs && node scripts/test-model-profile-host-session.cjs
       - name: Agent config concurrent owner reads
         working-directory: openclaw-plugin-mobile-ui
         run: node scripts/test-agent-config-flight.cjs
