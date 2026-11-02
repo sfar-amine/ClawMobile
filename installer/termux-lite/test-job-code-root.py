@@ -149,8 +149,8 @@ class JobCodeRootTests(unittest.TestCase):
         self.assertEqual(out["state"], "attention_required")
         row = next(r for r in out["jobs"] if r["key"] == "samantha:context-compactor")
         self.assertEqual(row, {"key": "samantha:context-compactor", "state": "failed", "reason": "readback_mismatch_restored"})
-        self.assertEqual(self.by_key(cron)["samantha:context-compactor"]["payload"]["argv"][2],
-                         "$HOME/ClawMobile/installer/termux-lite/context-compact.sh")
+        original = next(j for j in self.jobs if j["declarationKey"] == "samantha:context-compactor")["payload"]["argv"][2]
+        self.assertEqual(self.by_key(cron)["samantha:context-compactor"]["payload"]["argv"][2], original)
 
     def test_cli_check_reads_the_store_read_only(self):
         self.store()
