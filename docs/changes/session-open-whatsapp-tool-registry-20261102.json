@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "id": "session-open-whatsapp-tool-registry-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Le premier tour de l'agent main après un démarrage de la Gateway ou un rechargement de configuration ne réimporte plus le plugin @openclaw/whatsapp pour son registre d'outils : whatsapp_call et whatsapp_login sont refusés à main par le propriétaire de configuration existant (model-efficiency-config.py), fusionnés à la politique en place. Le canal WhatsApp et les outils Samantha ne changent pas.",
+  "reason": "S24 31/10-02/11, OpenClaw 2026.10.9 : les 45 s avant l'ouverture de session (recette 02/11 16:25:03 → session ouverte 16:25:48,4) se décomposent en 8,4 s de CLI, 0,6 s d'acceptation, 3,8 s avant le run, 30,5 s d'outils de plugins dont 29,7 s de « loading whatsapp » synchrone (Gateway figée 46 s) et 2,0 s de préparation. Même cause aux premiers runs du 31/10 23:08 (6,9 s), 01/11 23:23 (14,8 s) et 02/11 16:15 (14,2 s), plus longue sous charge concurrente. Aucune attente de voie, SQLite au plus 1,7 s, hooks du plugin 31 ms.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/model-efficiency-config.py",
+    "installer/termux-lite/test-model-efficiency.py",
+    "installer/termux-lite/test-session-open-plugin-tools.py",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/plugin-tool-selection-harness.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/glob-pattern-DuaaJ-nB.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/manifest-tool-availability-DJlsKWK1.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/regexp-BZyMFTlj.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/string-coerce-1VuiLaaR.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/string-normalization-D6DKCpwE.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/tool-grant-allowlist-m1tXxJWt.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/tool-policy-shared-CNWjndK7.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-session-open-plugin-tools/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-session-open-plugin-tools/gateway-cold-runs.log",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-session-open-plugin-tools/whatsapp-openclaw.plugin.json",
+    "docs/changes/session-open-whatsapp-tool-registry-20261102.json",
+    "docs/changes/session-open-whatsapp-tool-registry-20261102.md"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "Ouverture de session sans module WhatsApp (test-session-open-plugin-tools.py, inscrit en CI)",
+      "status": "passed",
+      "evidence": "6 tests verts. Corps publics OpenClaw 2026.10.9 exécutés en VM (resolvePluginToolPluginIds et helpers, sha256 vérifiés, tools-DQdRObqo identique au S24) sur le manifeste WhatsApp capturé (sha256 identique au S24) : politique S24 actuelle → [openclaw-plugin-mobile-ui, whatsapp], politique corrigée → [openclaw-plugin-mobile-ui], refus de whatsapp_call seul → whatsapp encore chargé. Rejeu du journal Gateway capturé : chargements 6867 / 14822,5 / 14239,7 / 29703,7 ms, plus de la moitié de chaque fenêtre ; reste ≤ 7 s par run ; recette 45,41 s → ≤ 20 s ; battement figé 46180 ms ; tour témoin sans chargement < 3 s. Le test échoue (4 échecs) si le refus est retiré."
+    },
+    {
+      "name": "Propriétaire de configuration (test-model-efficiency.py)",
+      "status": "passed",
+      "evidence": "26 tests verts : refus fusionné après les entrées existantes, ordre gardé, idempotence, agents contacts et autres inchangés, politiques non conformes jamais réécrites."
+    }
+  ],
+  "documentation": [
+    "docs/changes/session-open-whatsapp-tool-registry-20261102.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Aucune capability, route ou outil Samantha modifié ; seuls deux outils du plugin WhatsApp (whatsapp_call, dont la fabrique renvoie null, et whatsapp_login, connexion QR humaine) ne sont plus proposés à l'agent main ; aucune capability ni skill ne les utilise.",
+    "ids": []
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Réutilise le propriétaire de configuration model-efficiency-config.py et la politique d'outils publique d'OpenClaw ; aucun store, registre, routeur, scheduler ni démon ; aucun correctif du dist OpenClaw."
+  },
+  "fixtures": [
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-session-open-plugin-tools/ : lignes de marqueurs du journal Gateway du S24 (31/10-02/11, sans texte de message ni identifiant sensible) et manifeste @openclaw/whatsapp@2026.10.9 (npm, identique à l'octet au S24)",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/ : sept modules publics npm openclaw@2026.10.9 ajoutés (archive sha256 43c61a00…04ab) et harness de sélection écrit pour le test"
+  ],
+  "rollback": "Sans déploiement : retirer whatsapp_call et whatsapp_login de agents.entries.main.tools.deny dans ~/.openclaw/openclaw.json (les autres entrées restent), puis redémarrer proprement la Gateway. Complet : revert du commit puis le même retrait (le script reverti ne retire pas les entrées).",
+  "limitations": [
+    "Gain mesuré sur captures, pas encore en production : à confirmer au premier run après le prochain redémarrage (plus de « loading whatsapp », core-plugin-tools sous 1 s).",
+    "L'application modifie openclaw.json : un rechargement à chaud recharge les 13 plugins (environ 20 à 40 s figées, une fois) ; à faire dans une fenêtre de déploiement suivie d'un redémarrage propre.",
+    "Restent hors de ce lot : écriture de nouvelle session et vérification d'intégrité SQLite (4 à 8 s au premier tour d'une session), double chargement des 13 plugins au démarrage de la Gateway (OpenClaw), démarrage du CLI de recette (8 s)."
+  ]
+}
