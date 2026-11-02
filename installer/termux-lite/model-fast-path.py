@@ -198,7 +198,16 @@ def _ui_root() -> Path:
     pinned = HOME / ".openclaw/runtime-ui-playbooks/current"
     if (pinned / "skill_intelligence/capability_graph.py").is_file():
         return pinned
-    return HOME / ".openclaw/workspace/ui-playbooks"
+    workspace = HOME / ".openclaw/workspace/ui-playbooks"
+    # Single code root (02/11): keep answering from the working copy, and leave a throttled event that
+    # runtime-sync.sh --check turns into an alert. Never blocking, never raising.
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from code_root import record_event
+        record_event("model_fast_path", "fallback", workspace, "pin_missing", HOME)
+    except Exception:
+        pass
+    return workspace
 UI_ROOT = _ui_root()
 STATIC_BAD = ("{", "}", "$(", "`", ";", "&&", "||", "|", ">", "<")
 SAFE_EXECUTION_STATES = {"completed"}

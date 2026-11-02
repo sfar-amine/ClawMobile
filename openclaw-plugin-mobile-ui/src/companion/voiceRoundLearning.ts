@@ -1,7 +1,7 @@
 import { execFile } from "child_process";
-import fs from "fs";
 import os from "os";
 import path from "path";
+import { playbooksRootFor, playbooksRootHas } from "./playbooksRoot";
 
 /**
  * Hands a voice realignment round to the existing owner `engineering.learning_gate`
@@ -13,17 +13,12 @@ import path from "path";
 export type RoundCaptureResult = { state: string; receipt_id?: string; duplicate?: boolean; learning_outcome?: string; reason?: string };
 export type RoundCaptureRunner = (payload: Record<string, unknown>) => Promise<RoundCaptureResult>;
 
-/** Same playbooks root resolution as claw-capability.py (pinned snapshot before the workspace). */
+/** Same playbooks root resolution as claw-capability.py (pinned snapshot before the workspace, whose use is
+ * recorded as a code-root fallback, playbooksRoot.ts). */
 export function playbooksRoot(home = os.homedir()): string | null {
-  const candidates = [
-    process.env.CLAW_UI_PLAYBOOKS_ROOT || "",
-    path.join(home, ".openclaw/runtime-ui-playbooks/current"),
-    path.join(home, ".openclaw/workspace/ui-playbooks"),
-  ].filter(Boolean);
-  for (const root of candidates) {
-    try { if (fs.statSync(path.join(root, "skill_intelligence/improvement.py")).isFile()) return root; } catch {}
-  }
-  return null;
+  const required = "skill_intelligence/improvement.py";
+  const root = playbooksRootFor("voice_round_learning", required, { home, overrides: [process.env.CLAW_UI_PLAYBOOKS_ROOT], overridesMustContain: true });
+  return playbooksRootHas(root, required) ? root : null;
 }
 
 const TIMEOUT_MS = 4_000;

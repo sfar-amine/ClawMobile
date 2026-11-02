@@ -1,0 +1,338 @@
+[
+ {
+  "id": "fbe8f430-fdfa-4add-b8f2-002bdc8d3f6c",
+  "name": "Claw — Bilan quotidien",
+  "declarationKey": "samantha:immune:daily-1700",
+  "enabled": true,
+  "schedule": {
+   "kind": "cron",
+   "expr": "0 17 * * *",
+   "tz": "Africa/Tunis",
+   "staggerMs": 0
+  },
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+   "kind": "command",
+   "argv": [
+    "python3",
+    "-m",
+    "reporting.immune_daily",
+    "send"
+   ],
+   "cwd": "/data/data/com.termux/files/home/.openclaw/workspace/ui-playbooks",
+   "timeoutSeconds": 240,
+   "noOutputTimeoutSeconds": 240,
+   "outputMaxBytes": 8000
+  },
+  "_columns": {
+   "payload_kind": "command",
+   "declaration_key": "samantha:immune:daily-1700",
+   "enabled": 1
+  }
+ },
+ {
+  "id": "78e51e71-d961-41cf-8757-b831eaad4bc2",
+  "name": "Context Compactor",
+  "displayName": "Context Compactor",
+  "declarationKey": "samantha:context-compactor",
+  "enabled": true,
+  "schedule": {
+   "kind": "every",
+   "everyMs": 300000,
+   "anchorMs": 1790443480411
+  },
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+   "kind": "command",
+   "argv": [
+    "sh",
+    "-lc",
+    "$HOME/ClawMobile/installer/termux-lite/context-compact.sh"
+   ],
+   "timeoutSeconds": 45
+  },
+  "_columns": {
+   "payload_kind": "command",
+   "declaration_key": "samantha:context-compactor",
+   "enabled": 1
+  }
+ },
+ {
+  "id": "9aee0e1e-5583-41a2-87e0-172ed077dfc0",
+  "name": "Context Guardian",
+  "displayName": "Context Guardian",
+  "declarationKey": "samantha:context-guardian",
+  "enabled": true,
+  "schedule": {
+   "kind": "every",
+   "everyMs": 900000,
+   "anchorMs": 1791648567422
+  },
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+   "kind": "command",
+   "argv": [
+    "sh",
+    "-lc",
+    "$HOME/ClawMobile/installer/termux-lite/context-guardian.sh"
+   ],
+   "timeoutSeconds": 45
+  },
+  "_columns": {
+   "payload_kind": "command",
+   "declaration_key": "samantha:context-guardian",
+   "enabled": 1
+  }
+ },
+ {
+  "id": "ff8c7e99-5fdc-44c7-ad68-938b4693ec37",
+  "name": "Cross-surface Memory Curator",
+  "displayName": "Cross-surface Memory Curator",
+  "declarationKey": "claw:cross-surface-memory-curator",
+  "enabled": true,
+  "schedule": {
+   "kind": "cron",
+   "expr": "10 22 * * *",
+   "tz": "Africa/Tunis"
+  },
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+   "kind": "command",
+   "argv": [
+    "sh",
+    "-lc",
+    "/data/data/com.termux/files/home/ClawMobile/installer/termux-lite/context-dream.sh"
+   ]
+  },
+  "_columns": {
+   "payload_kind": "command",
+   "declaration_key": "claw:cross-surface-memory-curator",
+   "enabled": 1
+  }
+ },
+ {
+  "id": "86342a0e-4160-472d-accb-997f9e98b040",
+  "name": "Diagnostic SMTP bilan sans envoi",
+  "declarationKey": "samantha:immune:smtp-diagnostic-20260928",
+  "enabled": false,
+  "schedule": {
+   "kind": "at",
+   "at": "2026-09-28T09:31:53.700Z"
+  },
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+   "kind": "command",
+   "argv": [
+    "<omitted: disabled one-shot diagnostic, outside this lot>"
+   ],
+   "timeoutSeconds": 50,
+   "noOutputTimeoutSeconds": 50,
+   "outputMaxBytes": 5000
+  },
+  "_columns": {
+   "payload_kind": "command",
+   "declaration_key": "samantha:immune:smtp-diagnostic-20260928",
+   "enabled": 0
+  }
+ },
+ {
+  "id": "e58e16d3-a106-49c0-9070-3a42bcfcd41c",
+  "name": "Point personnel des taches",
+  "declarationKey": "samantha:todos:daily-1000",
+  "enabled": true,
+  "schedule": {
+   "kind": "cron",
+   "expr": "0 10 * * *",
+   "tz": "Africa/Tunis",
+   "staggerMs": 0
+  },
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+   "kind": "command",
+   "argv": [
+    "sh",
+    "-lc",
+    "cd $HOME/.openclaw/workspace/ui-playbooks && python3 tools/todos_daily.py --send"
+   ]
+  },
+  "_columns": {
+   "payload_kind": "command",
+   "declaration_key": "samantha:todos:daily-1000",
+   "enabled": 1
+  }
+ },
+ {
+  "id": "f3bc55d7-da51-4357-9506-7df70ea500a2",
+  "name": "Recette bilan immunitaire",
+  "declarationKey": "samantha:immune:acceptance-20260928",
+  "enabled": false,
+  "schedule": {
+   "kind": "at",
+   "at": "2026-09-28T09:36:15.937Z"
+  },
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+   "kind": "command",
+   "argv": [
+    "python3",
+    "-m",
+    "reporting.immune_daily",
+    "send",
+    "--acceptance-id",
+    "IMMUNE-RECETTE-20260928-PATH"
+   ],
+   "cwd": "/data/data/com.termux/files/home/.openclaw/workspace/ui-playbooks",
+   "timeoutSeconds": 240,
+   "noOutputTimeoutSeconds": 240,
+   "outputMaxBytes": 6000
+  },
+  "_columns": {
+   "payload_kind": "command",
+   "declaration_key": "samantha:immune:acceptance-20260928",
+   "enabled": 0
+  }
+ },
+ {
+  "id": "31f05210-eedb-46c0-bb1a-f4b2ab4e6155",
+  "name": "Samantha Agenda Sync",
+  "declarationKey": "samantha:agenda:sync-v2",
+  "enabled": true,
+  "schedule": {
+   "kind": "every",
+   "everyMs": 60000,
+   "anchorMs": 1790549888390
+  },
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+   "kind": "command",
+   "argv": [
+    "/data/data/com.termux/files/home/.openclaw/agenda/google-venv/bin/python",
+    "-m",
+    "agenda.sync_runtime",
+    "tick"
+   ],
+   "cwd": "/data/data/com.termux/files/home/.openclaw/workspace/ui-playbooks",
+   "timeoutSeconds": 90
+  },
+  "_columns": {
+   "payload_kind": "command",
+   "declaration_key": "samantha:agenda:sync-v2",
+   "enabled": 1
+  }
+ },
+ {
+  "id": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+  "name": "Samantha Engineering Maintenance",
+  "declarationKey": "samantha:engineering-maintenance",
+  "enabled": true,
+  "schedule": {
+   "kind": "every",
+   "everyMs": 900000,
+   "anchorMs": 1791648615875
+  },
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+   "kind": "command",
+   "argv": [
+    "python3",
+    "-m",
+    "skill_intelligence.engineering_maintenance"
+   ],
+   "cwd": "/data/data/com.termux/files/home/.openclaw/runtime-ui-playbooks/current",
+   "timeoutSeconds": 240,
+   "noOutputTimeoutSeconds": 240,
+   "outputMaxBytes": 16000
+  },
+  "_columns": {
+   "payload_kind": "command",
+   "declaration_key": "samantha:engineering-maintenance",
+   "enabled": 1
+  }
+ },
+ {
+  "id": "81b21724-04f5-4422-9e29-32d31ded298d",
+  "name": "Samantha — Recette nocturne",
+  "declarationKey": "samantha:nightly-acceptance",
+  "enabled": true,
+  "schedule": {
+   "kind": "cron",
+   "expr": "0 3 * * *",
+   "tz": "Africa/Tunis",
+   "staggerMs": 0
+  },
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+   "kind": "command",
+   "argv": [
+    "sh",
+    "-lc",
+    "H=\"$HOME\"; PB=$(readlink -f \"$H/.openclaw/runtime-ui-playbooks/current\") || exit 3; exec python3 \"$H/ClawMobile/installer/termux-lite/companion-nightly-acceptance.py\" --secret-root \"core_plugin=$H/ClawMobile/openclaw-plugin-mobile-ui\" --secret-root \"core_installer=$H/ClawMobile/installer\" --secret-root \"playbooks=$PB\" --secret-root \"deploys=$H/.openclaw/deploys\" --secret-root \"oc_logs=$H/.openclaw/logs\" --secret-root \"health=$H/.openclaw/health\" --secret-root \"ws_memory=$H/.openclaw/workspace/memory\" --secret-root \"ws_openclaw=$H/.openclaw/workspace/.openclaw\""
+   ],
+   "timeoutSeconds": 1000
+  },
+  "_columns": {
+   "payload_kind": "command",
+   "declaration_key": "samantha:nightly-acceptance",
+   "enabled": 1
+  }
+ },
+ {
+  "id": "1121f97a-0a06-4873-afaa-a25d17311150",
+  "name": "Slack Control Purge",
+  "declarationKey": "samantha:slack-control-purge",
+  "enabled": false,
+  "schedule": {
+   "kind": "every",
+   "everyMs": 3600000,
+   "anchorMs": 1790686607344
+  },
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+   "kind": "command",
+   "argv": [
+    "/data/data/com.termux/files/home/.openclaw-android/bin/node",
+    "/data/data/com.termux/files/home/ClawMobile/installer/termux-lite/claw-slack-purge.mjs"
+   ],
+   "timeoutSeconds": 240,
+   "noOutputTimeoutSeconds": 240
+  },
+  "_columns": {
+   "payload_kind": "command",
+   "declaration_key": "samantha:slack-control-purge",
+   "enabled": 0
+  }
+ },
+ {
+  "id": "90762ca7-1f5e-496f-abdf-8c0983741593",
+  "name": "heartbeat-main",
+  "displayName": "Heartbeat (main)",
+  "declarationKey": "heartbeat:main",
+  "enabled": true,
+  "schedule": {
+   "kind": "every",
+   "everyMs": 1800000,
+   "anchorMs": 244160
+  },
+  "sessionTarget": "main",
+  "wakeMode": "next-heartbeat",
+  "payload": {
+   "kind": "heartbeat"
+  },
+  "_columns": {
+   "payload_kind": "heartbeat",
+   "declaration_key": "heartbeat:main",
+   "enabled": 1
+  }
+ }
+]

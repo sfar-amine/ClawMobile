@@ -3,7 +3,10 @@ set -euo pipefail
 
 R="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 D="${SAMANTHA_CONTEXT_ROOT:-$HOME/.openclaw/context-sync}"
-UI_ROOT="${SAMANTHA_UI_PLAYBOOKS_ROOT:-$HOME/.openclaw/workspace/ui-playbooks}"
+# Single code root (02/11): explicit root, then the activated playbooks pin, then the workspace copy (alerted).
+UI_ROOT="$(python3 "$R/code_root.py" resolve --component context_dream --require skill_intelligence/improvement.py \
+  --override "${SAMANTHA_UI_PLAYBOOKS_ROOT:-}" --override "${CLAW_UI_PLAYBOOKS_ROOT:-}" 2>/dev/null)" \
+  || UI_ROOT="${SAMANTHA_UI_PLAYBOOKS_ROOT:-$HOME/.openclaw/workspace/ui-playbooks}"
 BRIDGE="${SAMANTHA_IMPROVEMENT_BRIDGE:-1}"
 STORE="${SAMANTHA_IMPROVEMENT_STORE:-$HOME/.openclaw/skill-intelligence/improvements.db}"
 

@@ -1,0 +1,128 @@
+{
+  "version": 2,
+  "id": "single-code-root-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "La production lit l'épingle activée : résolveur commun épingle d'abord (Python et TypeScript) avec repli alerté sur la copie de travail, learning gate sans écriture dans un dépôt, redémarrage du Companion sans reconstruction ni resynchronisation hors du commit déployé, dérives de racine dans runtime-sync.sh --check et migration idempotente des jobs S24 vers les épingles à l'activation et au déploiement.",
+  "reason": "Décision d'Amine du 02/11/2026 : une seule racine de code en production, les copies de travail deviennent des copies de développement. Audit S24 du 02/11 : trois jobs tournaient dans la copie playbooks détachée depuis 13 jours, trois autres dans le checkout core, et plusieurs appelants lisaient la copie de travail en dur. Contrainte : aucune rigidité, repli et alerte, jamais de blocage.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/single-code-root-20261102.json",
+    "docs/changes/single-code-root-20261102.md",
+    "installer/termux-lite/activate-ui-playbooks.sh",
+    "installer/termux-lite/claw-capability.py",
+    "installer/termux-lite/claw-job-run.sh",
+    "installer/termux-lite/clawmobile",
+    "installer/termux-lite/code_root.py",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/companion-server.sh",
+    "installer/termux-lite/context-dream.sh",
+    "installer/termux-lite/job_code_root.py",
+    "installer/termux-lite/learning-gate-close.sh",
+    "installer/termux-lite/learning-gate.py",
+    "installer/termux-lite/lib.sh",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/run.sh",
+    "installer/termux-lite/runtime-sync.sh",
+    "installer/termux-lite/test-code-root.py",
+    "installer/termux-lite/test-job-code-root.py",
+    "installer/termux-lite/test-learning-gate.py",
+    "installer/termux-lite/test-no-hardcoded-clawmobile.py",
+    "installer/termux-lite/test-runtime-sync.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-job-code-root/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-job-code-root/cron-jobs.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-job-code-root/cron-jobs.schema.sql",
+    "openclaw-plugin-mobile-ui/scripts/test-playbooks-root.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/playbooksRoot.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceRoundLearning.ts"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-code-root.py",
+      "status": "passed",
+      "evidence": "12 tests : résolution épingle d'abord, repli non bloquant avec événement limité, contrôle de dérive (repli récent, checkout sale, copie en avance, skills), garde du Companion, câblage activation et déploiement."
+    },
+    {
+      "name": "installer/termux-lite/test-job-code-root.py",
+      "status": "passed",
+      "evidence": "7 tests sur la capture S24 cron_jobs du 02/11 : six jobs nommés, migration argv/cwd seuls relue, idempotence, job en cours et cible absente laissés, relecture divergente restaurée, retour arrière exact, lecture seule du store."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-playbooks-root.cjs",
+      "status": "passed",
+      "evidence": "22 vérifications : épingle d'abord, repli alerté et limité, overrides, appelants sans racine de travail en dur."
+    },
+    {
+      "name": "installer/termux-lite/test-learning-gate.py",
+      "status": "passed",
+      "evidence": "7 tests : registre jamais écrit, candidat avec proposition, HOW-TO et journal hors dépôt, registre lu sur l'épingle puis repli enregistré."
+    },
+    {
+      "name": "installer/termux-lite/test-runtime-sync.py",
+      "status": "passed",
+      "evidence": "27 tests, dont la dérive de racine et la ligne de base des skills enregistrée au déploiement ; sortie inchangée sans les nouveaux modules."
+    },
+    {
+      "name": "installer/termux-lite/test-activate-ui-playbooks.sh",
+      "status": "passed",
+      "evidence": "Activation, retour arrière, rétention et vues inchangés."
+    },
+    {
+      "name": "installer/termux-lite/test-no-hardcoded-clawmobile.py",
+      "status": "passed",
+      "evidence": "Seul job_code_root.py est ajouté à la liste blanche, avec sa raison."
+    },
+    {
+      "name": "installer/termux-lite/test-ci-registration.py",
+      "status": "passed",
+      "evidence": "Les nouveaux tests sont inscrits dans .github/workflows/ci.yml."
+    },
+    {
+      "name": "existing regression set",
+      "status": "passed",
+      "evidence": "test-context-dream.py, test-memory-curator-cron.py, test-claw-capability-agent-policy.py, test-slack-runtime-contract.py, test-model-fast-path-*.py, test-engineering-runtime-bridge.py, test-control-runtime-snapshot.cjs, test-mcp-foundation.cjs, test-mcp-context-*.cjs, test-mcp-read-owner.cjs, test-mcp-remember.cjs, test-runtime-root.cjs."
+    }
+  ],
+  "documentation": [
+    "docs/changes/single-code-root-20261102.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Aucune route, aucun réglage ni aucune action d'app : seule la racine de code lue en production change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Propriétaires existants réutilisés : activate-ui-playbooks.sh, runtime-sync.sh --check et le gestionnaire de santé pour l'alerte, le scheduler OpenClaw pour les jobs, registry-candidates pour la learning gate. Aucun nouveau store, démon, routeur ni ordonnanceur."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "mcpBridge.ts résout request_context.py et continuum_ingress par le même résolveur, à chaque appel ; CLAW_UI_PLAYBOOKS_ROOT reste prioritaire."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "CI canonique complète (tools/localci.py) sur le head GitHub exact non exécutée ici, à faire avant fusion.",
+    "Les modules playbooks appellent encore des helpers core via le checkout déployé ~/ClawMobile ; sa propreté est désormais une dérive alertée.",
+    "Les adaptateurs de paiement font l'objet d'un commit séparé de ce même lot."
+  ],
+  "rollback": "python3 ~/ClawMobile/installer/termux-lite/job_code_root.py --rollback pour les jobs, puis revert de ce commit et companion-deploy.sh sur le commit précédent."
+}
