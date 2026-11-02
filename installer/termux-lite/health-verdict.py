@@ -76,15 +76,41 @@ def outbound_superseded(status,last_outbound,now):
  if not m:return False
  ago=0 if m.group(1) else int(m.group(2))*AGO_UNITS[m.group(3)]
  return now-ago>failed_at
+# A send refused for lack of a listener (`reason=listener_unavailable`, written by whatsapp-owner-send.sh) was
+# never dispatched: it says the listener was absent at that second, not that the channel cannot send. S24 02/11:
+# one such refusal at 17:22:32 (5.9 s plugin-reload gap) kept WhatsApp `latest_outbound_failed` for 3 h while
+# connected, and the health manager opened incidents at 17:28, 18:16, 18:56 and 19:56. Once the channel is seen
+# connected 90 s after it (longest real gap 76 s; below the manager's 120 s grace, so a refusal alone never opens
+# an incident), it no longer degrades; any later failed send is newer and degrades again at once.
+LISTENER_GAP_EVIDENCE_S=90
+def listener_gap_elapsed(last_outbound,now):
+ import datetime as dt
+ if 'reason=listener_unavailable' not in last_outbound:return False
+ try:failed_at=dt.datetime.fromisoformat(last_outbound.split()[0]).timestamp()
+ except (ValueError,IndexError):return False
+ return now-failed_at>=LISTENER_GAP_EVIDENCE_S
+# S24 02/11 20:09, load 6.1: `openclaw channels status` answered in 9.3, 10.8 and 11.3 s (cold CLI). The
+# old 8 s cut it off: empty output read as `channel_not_connected` 231 times in 5 days, 127 of them in hours
+# the Gateway log covers, and only 4 matched a real WhatsApp closure (24 false incidents). 15 s keeps headroom.
+WHATSAPP_STATUS_TIMEOUT_S=15
 def whatsapp_health(raw,last_outbound='',now=None):
+ # No output means the CLI did not answer in time: that is no evidence about the channel. It is published
+ # `unverified`, never `channel_not_connected`, so a slow phone cannot open a WhatsApp outage.
+ if not raw.strip():return 'unverified','channel_status_unreadable'
  lines=[z.strip().lower() for z in raw.splitlines()]
  status=next((z for z in lines if z.startswith('- whatsapp ')), '')
  terminal=('health:logged-out' in status or 'status=401 unauthorized' in status or 'session logged out' in raw.lower())
- failed='state=failed' in last_outbound.lower() and not outbound_superseded(status,last_outbound,time.time() if now is None else now)
+ now=time.time() if now is None else now
+ failed='state=failed' in last_outbound.lower() and not outbound_superseded(status,last_outbound,now)
  connected=', connected' in status and 'stopped' not in status
+ if failed and connected and listener_gap_elapsed(last_outbound,now):failed=False
  if terminal:return 'degraded','terminal_auth_logout'
  if connected and failed:return 'degraded','latest_outbound_failed'
  if connected:return 'healthy','channel_connected'
+ # Enabled but stopped: no OpenClaw task owns a reconnection any more (retries given up, start failure).
+ # Only this state is repairable by `channels.start`; `running` without `connected` is OpenClaw's own
+ # reconnect loop (408/428/503/499, network outage), which must keep the single retry owner.
+ if status.startswith('- whatsapp ') and ' enabled' in status and 'stopped' in status.split(', '):return 'degraded','channel_stopped'
  return 'degraded','channel_not_connected'
 def latest_send_attempt(lines):
  # Only real send attempts describe the channel; a terminal `undeliverable`
@@ -206,7 +232,7 @@ def live():
   x['remote_desktop']=item('unverified',True,reason='RDC functional probe unavailable')
  x['gateway']=item('healthy' if run('curl -fsS --max-time 3 http://127.0.0.1:18789/healthz') else 'down',True,evidence='http://127.0.0.1:18789/healthz')
  x['companion']=item('healthy' if run('curl -fsS --max-time 3 http://127.0.0.1:8765/v1/health') else 'down',True,evidence='http://127.0.0.1:8765/v1/health')
- wa=run('timeout 8 openclaw channels status',10); ev=OC/'incidents/events.log'
+ wa=run(f'timeout {WHATSAPP_STATUS_TIMEOUT_S} openclaw channels status',WHATSAPP_STATUS_TIMEOUT_S+2); ev=OC/'incidents/events.log'
  outbound=OC/'health/whatsapp-outbound.log'; lastwa=''
  outbound_lines=outbound.read_text(errors='ignore').splitlines() if outbound.exists() else []
  lastwa=latest_send_attempt(outbound_lines)
