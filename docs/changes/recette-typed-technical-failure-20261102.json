@@ -1,0 +1,43 @@
+{
+  "version": 2,
+  "id": "recette-typed-technical-failure-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "La recette de déploiement échoue quand un outil typé samantha_* du tour répond TECHNICAL_FAILURE sans autorisation fournisseur nommée (typed_technical_failure), au lieu de juger la phrase.",
+  "reason": "S24 01/11-02/11 : la route agenda.google.connector (lecture) est restée ouverte après la clôture de l'incident Google 8a24d3fd ; chaque lecture répondait TECHNICAL_FAILURE « reconnue, mais pas disponible » sans facts, et owner_read passait sur la phrase pendant un jour (recettes 20261102t104844z et t105428z). Route rétablie à la main le 02/11 12:05 Tunis (recover-id + lecture vérifiée).",
+  "files": [
+    "installer/termux-lite/deploy-parcours.py",
+    "installer/termux-lite/test-deploy-parcours.py",
+    "docs/changes/recette-typed-technical-failure-20261102.json",
+    "docs/changes/recette-typed-technical-failure-20261102.md"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "Recette de déploiement",
+      "status": "passed",
+      "evidence": "python3 installer/termux-lite/test-deploy-parcours.py : 14 tests verts ; TECHNICAL_FAILURE sans cause → failed typed_technical_failure ; autorisation Google nommée → toujours inconclusive ; lecture complétée → other."
+    }
+  ],
+  "documentation": [
+    "docs/changes/recette-typed-technical-failure-20261102.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Verdict de la recette seulement.",
+    "ids": []
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même lecteur de transcript en lecture seule."
+  },
+  "fixtures": [
+    "Transcripts de recette S24 agent:main:recette-deploy:20261102t104844z et t105428z (résultats d'outils seulement, cités dans le test)"
+  ],
+  "limitations": [
+    "La route agenda de lecture n'a toujours pas de sonde de santé (point d'entrée typé dans le contrat, pas sur la route) : correctif côté playbooks à suivre."
+  ]
+}

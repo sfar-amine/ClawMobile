@@ -153,6 +153,21 @@ class ProviderAuthorization(unittest.TestCase):
         # A provider outage keeps its own verdict.
         self.assertEqual(p.verdict("owner_read", "Le modèle n’est pas joignable.", None, cause), ("inconclusive", "provider_unavailable"))
 
+    def test_typed_technical_failure_fails_the_path(self):
+        # S24 02/11 recette agent:main:recette-deploy:20261102t104844z: route agenda.google.connector open since 01/11,
+        # samantha_agenda agenda.event.read → TECHNICAL_FAILURE without facts; owner_read was judged passed.
+        broken = {"state": "TECHNICAL_FAILURE", "receiptId": None, "facts": {},
+                  "answer": "Cette action est reconnue, mais elle n'est pas disponible pour le moment.", "replayed": False}
+        cause = self.transcript([("s-1", self.tool_result(broken))]).cause(0)
+        self.assertEqual(cause, "typed_technical_failure")
+        self.assertEqual(p.verdict("owner_read", OWNER_READ, None, cause), ("failed", "typed_technical_failure"))
+        # A named provider authorization keeps its own (inconclusive) verdict.
+        named = {"state": "TECHNICAL_FAILURE", "facts": {"reason": "google_authorization_unavailable"}}
+        self.assertEqual(self.transcript([("s-1", self.tool_result(named))]).cause(0), "google_authorization_unavailable")
+        # A completed read after it is not this turn's failure once marked.
+        ok = {"state": "COMPLETED", "facts": {"state": "completed", "events": []}}
+        self.assertEqual(self.transcript([("s-1", self.tool_result(ok))]).cause(0), "other")
+
     def test_run_names_the_reason_and_never_masks_another_failure(self):
         class Causes:
             def __init__(self, found): self.found, self.turn = list(found), 0
