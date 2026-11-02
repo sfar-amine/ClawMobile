@@ -6,8 +6,8 @@
   "kind": "repair",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Revert du code de la PR #516 (hooks de profil via api.runtime) : chargé par la Gateway 2026.10.9, chaque appel d'outil typé samantha_* était refusé (typed_host_admission_required), comme avec #510. La recette de déploiement échoue désormais sur ce refus au lieu de juger la phrase.",
-  "reason": "S24 02/11 09:44 UTC, déploiement 20e36415 : write_recap failed (not_stopped_at_recap) et rollback automatique vers 0c5a9b46. Le transcript agent:main:recette-deploy:20261102t084441z montre samantha_agenda agenda.event.read puis agenda.event.create en state unverified, reason typed_host_admission_required ; owner_read avait été jugé passé sur la phrase générique « Je n'ai pas de résultat vérifié… ». Aucune écriture.",
+  "summary": "Revert du code de la PR #516 (hooks de profil via api.runtime) : chargé par la Gateway 2026.10.9, chaque appel d'outil typé samantha_* était refusé (typed_host_admission_required), comme avec #510. La recette de déploiement échoue désormais sur ce refus au lieu de juger la phrase. Le retour arrière de companion-deploy ramène désormais toujours le plugin de la Gateway et la release Tier0 au commit précédent, même si la santé du Companion n'est pas prête.",
+  "reason": "S24 02/11 09:44 UTC, déploiement 20e36415 : write_recap failed (not_stopped_at_recap) et rollback automatique vers 0c5a9b46. Le transcript agent:main:recette-deploy:20261102t084441z montre samantha_agenda agenda.event.read puis agenda.event.create en state unverified, reason typed_host_admission_required ; owner_read avait été jugé passé sur la phrase générique « Je n'ai pas de résultat vérifié… ». Aucune écriture. Après ce rollback, la santé du Companion n'était pas prête à temps : runtime-sync, placé en fin de chaîne &&, n'a pas tourné et la Gateway a gardé le plugin #516 en mémoire et sur disque ; outils typés refusés en production environ 50 min, jusqu'au runtime-sync manuel de 10:25 (ok:true, plugin synced, gateway restarted).",
   "rollback": "Ré-appliquer #516 (revert de ce revert) seulement avec une preuve que le hook before_tool_call et les outils typés partagent la même instance de module sous la Gateway 2026.10.9.",
   "files": [
     ".github/workflows/ci.yml",
@@ -17,6 +17,8 @@
     "openclaw-plugin-mobile-ui/src/companion/ownerTurnGateway.ts",
     "installer/termux-lite/deploy-parcours.py",
     "installer/termux-lite/test-deploy-parcours.py",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/test-companion-rollback-identity.py",
     "docs/changes/revert-model-profile-host-session-20261102.json",
     "docs/changes/revert-model-profile-host-session-20261102.md"
   ],
@@ -26,6 +28,11 @@
       "name": "Recette de déploiement",
       "status": "passed",
       "evidence": "python3 installer/termux-lite/test-deploy-parcours.py : 13 tests verts, dont le refus d'admission typé du 02/11 (owner_read et write_recap → failed typed_admission_refused)."
+    },
+    {
+      "name": "Retour arrière companion-deploy",
+      "status": "passed",
+      "evidence": "python3 installer/termux-lite/test-companion-rollback-identity.py : 6 tests verts ; santé jamais prête → runtime-sync quand même appelé sur le commit précédent (runtime_restored) ; runtime-sync en échec → rollback_failed + alerte."
     },
     {
       "name": "CI locale complète (ci.yml)",
@@ -43,7 +50,7 @@
   },
   "architecture": {
     "changed": false,
-    "reason": "Revert vers les propriétaires précédents ; la recette garde son lecteur de transcript en lecture seule."
+    "reason": "Revert vers les propriétaires précédents ; la recette garde son lecteur de transcript en lecture seule ; le rollback réutilise runtime-sync.sh (propriétaire existant) sans nouvel ordre ni nouveau service."
   },
   "fixtures": [
     "Transcript de recette S24 agent:main:recette-deploy:20261102t084441z (résultats d'outils seulement, cités dans le .md ; aucun texte utilisateur)"

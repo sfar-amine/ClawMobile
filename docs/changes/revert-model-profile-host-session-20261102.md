@@ -12,6 +12,10 @@ Transcript de recette `agent:main:recette-deploy:20261102t084441z` (résultats d
 ## Changement
 - Revert du code de #516 ; la note et les fixtures de #516 restent.
 - `deploy-parcours.py` : un résultat d'outil typé `typed_host_admission_required` dans le tour fait échouer le parcours (`typed_admission_refused`), quelle que soit la phrase.
+- `companion-deploy.sh` `rollback()` : une fois l'identité du checkout prouvée (HEAD = précédent, dist = sauvegarde), `runtime-sync.sh <précédent>` tourne toujours, même si la santé du Companion n'est pas prête ; nouveau contrôle `runtime_restored` dans `rollback_acceptance`.
+
+## Incident du 02/11
+La santé du Companion n'était pas prête à temps après le rollback : `runtime-sync` (fin de chaîne `&&`) n'a pas tourné. L'extension de la Gateway est restée en #516 (et la Gateway avec), outils typés refusés en production jusqu'au `runtime-sync.sh 0c5a9b46` manuel de 10:25 (`ok:true`, plugin synced, gateway restarted).
 
 ## Limite
 #126 reste ouvert. #510 et #516 cassent tous deux l'admission typée ; la cause exacte n'est pas établie.
