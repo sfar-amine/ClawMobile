@@ -223,6 +223,11 @@ check_whatsapp_effect(){
   if [ "$prev" = human_required ]; then "$ROOT/incident-orchestrator.py" recover whatsapp runtime --source health-manager --reason "WhatsApp channel verified connected after relink" >/dev/null 2>&1 || true; "$ROOT/incident-close.sh" WhatsApp "Samantha — WhatsApp est de nouveau connecté et vérifié." || true; fi
   put whatsapp unready_since 0; put whatsapp terminal_notified 0; healthy whatsapp; return
  fi
+ # `channel_status_unreadable`: the status CLI did not answer within its budget, which says nothing about
+ # the channel (S24 28/10-02/11: 97 % of the `channel_not_connected` episodes were this, 24 false
+ # incidents). It neither opens, resets nor escalates an outage; an outage already being measured keeps its
+ # start, so the next real reading that is not connected escalates without a new grace.
+ [ "$st" = unverified ] && [ "$reason" = channel_status_unreadable ] && return
  # WhatsApp is an external readiness dependency, not process liveness. A
  # transient channel flap is observed as degraded and cannot trigger a repair
  # or incident. Only a continuous 120 s outage may enter the existing
@@ -260,7 +265,38 @@ EOF
   fi
   if [ "$lock_rc" -eq 30 ]; then log "service=whatsapp state=lock_recovery_refused detail=$lock_out"; fail whatsapp; return; fi
  fi
+ [ "$reason" = channel_stopped ] && whatsapp_channel_start "$unavailable_for"
  fail whatsapp
+}
+# Safe reconnect for a stopped WhatsApp account: OpenClaw's own `channels.start` (what `channels login` calls
+# after a relink). It starts whatsapp/default only when no task owns it; a running or reconnecting channel
+# answers retry/task-owned and is left alone. No Gateway restart, no session or QR change. The caller's
+# `fail` paces it (15 s .. 8 min) and still opens the incident at the 3rd failure if it does not come back.
+whatsapp_channel_start_effect(){
+ timeout --kill-after=2 25 openclaw gateway call channels.start --timeout 20000 --json \
+   --params '{"channel":"whatsapp","accountId":"default"}' 9>&- 2>/dev/null
+}
+whatsapp_channel_start(){
+ local out rc mode outcome
+ mode=$(canonical_mode)
+ if [ "$mode" != normal ]; then log "service=whatsapp state=${mode:-canonical_mode_unknown} action=skip_channel_start"; return 0; fi
+ out=$(IMMUNE_OBSERVATION="openclaw channels status reports WhatsApp default enabled but stopped for ${1:-0} s: no OpenClaw task owns its reconnection. The bounded operation calls the Gateway method channels.start for whatsapp/default only; a running or reconnecting channel is left untouched; no Gateway restart." immune_action whatsapp bounded-channel-start whatsapp_channel_start_effect); rc=$?
+ if [ "$rc" -eq 75 ]; then
+  # Same rule as the Companion repair: the AI gate is reached through the Companion; without it the
+  # idempotent start runs directly. With a live Companion a refusal waits for the next paced attempt.
+  if proc 'dist/companion/[s]erver.js'; then log "service=whatsapp state=ai_gate_refused action=wait_channel_start"; return 0; fi
+  log "service=whatsapp action=direct_repair reason=ai_gate_unreachable"
+  out=$(whatsapp_channel_start_effect); rc=$?
+ fi
+ outcome=$(printf '%s' "$out" | python3 -c 'import json,re,sys
+try:
+ o=json.load(sys.stdin); oc=(o.get("outcome") or {}) if isinstance(o,dict) else {}
+ ok=lambda v:isinstance(v,str) and re.fullmatch(r"[a-z-]{1,24}",v)
+ v=oc.get("status") if isinstance(oc,dict) else None; r=oc.get("reason") if isinstance(oc,dict) else None
+ print((v+(":"+r if ok(r) else "")) if ok(v) else ("error" if isinstance(o,dict) and o.get("ok") is False else "unknown"))
+except Exception: print("unreadable")' 2>/dev/null)
+ log "service=whatsapp action=channel_start rc=$rc outcome=${outcome:-unreadable}"
+ return 0
 }
 # P0-4: Gateway memory guard (measured thresholds, sustained 10 min, idle proof, 6 h cooldown,
 # receipt health/gateway-memory-guard.json). Graceful restart through the existing Companion route.

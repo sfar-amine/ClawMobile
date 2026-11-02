@@ -23,6 +23,16 @@ GEMINI_BOOTSTRAP_TOTAL = 2600
 # path exists: catalogMode is owned by core, and a per-turn toolsAllow cannot remove skills_read while `read` stays
 # allowed. Merged into any existing main policy, never replacing it.
 MAIN_DENIED_SKILL_TOOLS = ("skills_read", "skills_search")
+# Session open (S24 31/10-02/11, OpenClaw 2026.10.9): the first main run after a Gateway start or a config hot reload
+# builds its plugin tool registry, and the whatsapp channel plugin is its only module that is not shared: it is
+# re-imported synchronously (Baileys) for two tools the owner turn never gets (whatsapp_call: factory returns null;
+# whatsapp_login: QR channel login, a human step). Measured 6.9 to 29.7 s on the main thread before the session opens
+# (Gateway heartbeat frozen up to 46 s), longer under concurrent load. OpenClaw 2026.10.9 selects a plugin for that
+# registry only if one of its manifest tools survives agents.entries.<id>.tools.deny (tools-DQdRObqo.mjs,
+# resolvePluginToolPluginIds), so denying both names keeps the module out. The channel itself is loaded by the Gateway
+# and is unchanged. Merged into any existing main policy, never replacing it.
+MAIN_DENIED_CHANNEL_TOOLS = ("whatsapp_call", "whatsapp_login")
+MAIN_DENIED_TOOLS = MAIN_DENIED_SKILL_TOOLS + MAIN_DENIED_CHANNEL_TOOLS
 
 GEMINI_AGENTS = """# Claw Gemini channel
 
@@ -129,7 +139,7 @@ def _patch_config(value: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
             if main.get(key) != val:
                 main[key] = val
                 changes.append(f"agents.entries.main.{key}")
-        if _merge_tool_deny(main, MAIN_DENIED_SKILL_TOOLS):
+        if _merge_tool_deny(main, MAIN_DENIED_TOOLS):
             changes.append("agents.entries.main.tools.deny")
 
     gemini = entries.get("gemini")
@@ -203,7 +213,7 @@ def apply_efficiency(*, config_path: Path = CONFIG, apply: bool = False) -> dict
         "file_paths": file_changes,
         "gemini_present": gemini_present,
         "main_bootstrap": {"per_file": MAIN_BOOTSTRAP_MAX, "total": MAIN_BOOTSTRAP_TOTAL},
-        "main_denied_tools": list(MAIN_DENIED_SKILL_TOOLS),
+        "main_denied_tools": list(MAIN_DENIED_TOOLS),
         "gemini_bootstrap": {"per_file": GEMINI_BOOTSTRAP_MAX, "total": GEMINI_BOOTSTRAP_TOTAL},
         "retry": {
             "main": {"maxRetries": 1, "maxRetryDelayMs": 3000},
