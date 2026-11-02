@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "id": "brain-everywhere-rule-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applicable",
+  "summary": "AGENTS.md : règle courte « Le cerveau partout » (décision globale d'Amine du 02/11), qui renvoie à l'ADR des playbooks ADR-20261102-brain-everywhere. Une seule boucle du cerveau sur toutes les surfaces, contacts des pièces compris, sans interrupteur ni repli natif ; le déterministe devient outils et skills ; aucun hook ni réponse handled:true ne décide de l'intention à la place du cerveau ; la sécurité reste au code ; l'amélioration continue passe par PR, CI et recette. Renvois de remplacement partiel dans les ADR core du 25/10 et du 26/10.",
+  "reason": "Décision d'Amine dans le chat du 02/11/2026 (« c'est très important cette notion ») : le modèle est le cerveau sur toutes les surfaces, « un autorisé sur une pièce peut tout faire dedans », et les contacts des pièces suivent le même chemin qu'Amine. La règle doit s'appliquer aux agents de ce dépôt comme à ceux des playbooks.",
+  "files": [
+    "AGENTS.md",
+    "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
+    "docs/08-decisions/ADR-20261026-pulse-scoped-brain.md",
+    "docs/changes/brain-everywhere-rule-20261102.json",
+    "docs/changes/brain-everywhere-rule-20261102.md"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "Contrat de livraison v2 et git diff --check",
+      "status": "passed",
+      "evidence": "validate_range(base 653b39422bdd362daa2736564acaabd53d5e9986, head du commit) avec le propriétaire skill_intelligence.delivery_contract des playbooks, puis validate_note(require_v2=True) sur la note : ok ; git diff --check : propre. Documentation seule, aucun test de code concerné."
+    }
+  ],
+  "documentation": [
+    "docs/changes/brain-everywhere-rule-20261102.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Règles d'agent et renvois d'ADR seulement ; aucune route, capability ni outil ne change.",
+    "ids": []
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "La décision d'architecture est enregistrée dans les playbooks (docs/08-decisions/ADR-20261102-brain-everywhere.md, commit jumeau). Ici, seuls AGENTS.md et deux renvois de remplacement partiel changent ; aucun code runtime."
+  },
+  "fixtures": [],
+  "rollback": "Revert de ce commit (documentation seule) ; aucun déploiement ni état S24 à restaurer.",
+  "limitations": [
+    "Aucune implémentation, activation ni recette n'est revendiquée.",
+    "La conversion de la pièce Pulse est en cours sur la branche claude/room-brain, non touchée par ce changement.",
+    "L'inventaire des voies à convertir est dans l'annexe des playbooks ADR-20261102-brain-everywhere-inventory.md, complétée dans un commit suivant."
+  ]
+}
