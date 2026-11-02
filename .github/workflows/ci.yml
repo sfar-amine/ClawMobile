@@ -337,7 +337,7 @@ jobs:
           peer=$(mktemp -d "${TMPDIR:-/tmp}/room-brain-playbooks.XXXXXX")
           trap 'rm -rf -- "$peer"' EXIT
           git init "$peer"
-          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git 30a92b19821bfc93078f89891bdb5c6dc09d1c54
+          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git ad9f41a78b026028ef1420b71f6ccdb750587b26
           git -C "$peer" checkout --detach FETCH_HEAD
           ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-pulse-room-brain.cjs
 

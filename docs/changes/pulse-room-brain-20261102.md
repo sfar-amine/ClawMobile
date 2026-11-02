@@ -113,7 +113,7 @@ reçu, comme dans les tours typés d'Amine. Sinon le contact recevrait « Le ré
 1. Avant `companion-deploy.sh` : `python3 installer/termux-lite/pulse-room.py provision`, depuis le commit candidat.
    Il ajoute `samantha_pulse` aux deux agents de pièce et ferme le reste. Sans cela, la recette `room_tools` échoue
    et le déploiement revient en arrière.
-2. `companion-deploy.sh <commit>`, après activation du commit playbooks apparié `30a92b19`
+2. `companion-deploy.sh <commit>`, après activation du commit playbooks apparié `ad9f41a7` (PR playbooks #383)
    (`activate-ui-playbooks.sh <sha>`, branche `claude/room-brain`), car `room_tool_turn` doit exister côté playbooks.
    L'étape CI appariée récupère ce SHA sur GitHub : la branche playbooks doit être poussée avant la CI de ce lot.
 
