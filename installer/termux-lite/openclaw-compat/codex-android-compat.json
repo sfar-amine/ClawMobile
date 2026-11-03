@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "package_version": "2026.10.9",
+  "purpose": "Codex hosted web search on the S24 (OpenClaw 2026.10.9, @openclaw/codex 2026.10.9). (1) fs-safe refuses every temp workspace on Android: /data and /data/data are owned by the platform uid 1000 (not root) and, like /data/data/<app>/files, are group-writable 0771 without sticky bit; on Android only (ANDROID_ROOT, TERMUX_VERSION or a Termux PREFIX) the system owner is trusted like root and group write on non-private ancestors owned by the system or by this app with its own per-app group is admitted, while the leaf root and child stay strictly private. (2) The bounded Codex turn caps model/list at 5 s, which the phone app-server exceeds after ChatGPT auth; the cap becomes 20 s within the same overall deadline. (3) The hosted search worker always takes the live default model; OPENCLAW_CODEX_WEB_SEARCH_MODEL selects an explicit model (gateway-start exports the measured fastest correct one) and OPENCLAW_CODEX_WEB_SEARCH_TIMEOUT_S optionally overrides the search timeout. Unset, both behave exactly as shipped. Network reachability of the musl Codex binary (no /etc/resolv.conf on Android) is handled by the codex-termux.sh launcher, not by this set.",
+  "files": [
+    {
+      "root": "openclaw",
+      "path": "node_modules/@openclaw/fs-safe/dist/temp-workspace-ownership.js",
+      "original": "dc3f7d3be66ae6102ab1802445b2038995eb20f04fc1320aa6876fc15b8f863f",
+      "patched": "5e8ebc2f27d5f629771132a6bf75918e2bf5470ae29d79f40ae07e04d1ae0a68",
+      "replacements": [
+        [
+          "    if (stat.uid === 0 || stat.uid === 0n)\n        return \"root\";\n",
+          "    if (stat.uid === 0 || stat.uid === 0n)\n        return \"root\";\n    // Samantha codex-android-compat: every Android path sits under /data, owned by the platform \"system\"\n    // uid 1000. On Android that owner is the platform itself, trusted like root for ancestors.\n    if ((stat.uid === 1000 || stat.uid === 1000n) &&\n        (process.env.ANDROID_ROOT || process.env.TERMUX_VERSION || String(process.env.PREFIX || \"\").includes(\"/com.termux/\")))\n        return \"root\";\n"
+        ]
+      ]
+    },
+    {
+      "root": "openclaw",
+      "path": "node_modules/@openclaw/fs-safe/dist/temp-workspace-child-admission.js",
+      "original": "81d4eb437db0992c90d72b3722ae1d7b0407a9488cff91779ad2701d1eac8391",
+      "patched": "94d51c12f4aa5763d7f94b0c9caa62d6c257d207cb97314cc0b842bb5b774efb",
+      "replacements": [
+        [
+          "    const writable = typeof stat.mode === \"bigint\"\n        ? (stat.mode & 18n) !== 0n\n        : Number.isSafeInteger(stat.mode) && stat.mode >= 0 && (stat.mode & 0o022) !== 0;\n",
+          "    // Samantha codex-android-compat: Android ancestors are group-writable by design (/data and /data/data are\n    // system:system 0771, /data/data/<app>/files is <app>:<app> 0771 with a per-app group). For those\n    // non-private ancestors only world write counts; the leaf root and child stay strictly private.\n    const ownGid = typeof process.getgid === \"function\" ? process.getgid() : -1;\n    const androidGroupAncestor = !privateDirectory &&\n        (stat.uid === 1000 || stat.uid === 1000n || stat.uid === uid || stat.uid === BigInt(uid)) &&\n        (stat.gid === 1000 || stat.gid === 1000n || stat.gid === ownGid || stat.gid === BigInt(ownGid)) &&\n        Boolean(process.env.ANDROID_ROOT || process.env.TERMUX_VERSION || String(process.env.PREFIX || \"\").includes(\"/com.termux/\"));\n    const writable = typeof stat.mode === \"bigint\"\n        ? (stat.mode & (androidGroupAncestor ? 2n : 18n)) !== 0n\n        : Number.isSafeInteger(stat.mode) && stat.mode >= 0 && (stat.mode & (androidGroupAncestor ? 0o002 : 0o022)) !== 0;\n"
+        ]
+      ]
+    },
+    {
+      "root": "codex",
+      "path": "dist/.setup/bounded-turn-B91suzbV.mjs",
+      "original": "4075c99704da09604a067e4cfe26a17093afd3af5deb298854bea4ae772f1faa",
+      "patched": "d63430276988b9f75eebf86179440bca3b0b9372f6f05b1896a5113c467b001d",
+      "replacements": [
+        [
+          "\t\ttimeoutMs: Math.min(params.timeoutMs, 5e3),\n\t\tsignal: params.signal,",
+          "\t\ttimeoutMs: Math.min(params.timeoutMs, 2e4), // Samantha codex-android-compat: model/list exceeds 5 s on the S24\n\t\tsignal: params.signal,"
+        ]
+      ]
+    },
+    {
+      "root": "codex",
+      "path": "dist/.setup/web-search-provider.runtime-DEBVJch2.mjs",
+      "original": "73e09af8e9807c7076f1e108f800f3c93766aabe19d3e69c87a45e223f43225f",
+      "patched": "69e1f5b4660945cf5a98cde036c0041d7a62f494c53bc9c4b9a0e3f944f0e6f9",
+      "replacements": [
+        [
+          "\t\tmodel: { mode: \"live-default\" },",
+          "\t\tmodel: process.env.OPENCLAW_CODEX_WEB_SEARCH_MODEL ? { mode: \"required\", id: process.env.OPENCLAW_CODEX_WEB_SEARCH_MODEL } : { mode: \"live-default\" }, // Samantha codex-android-compat"
+        ],
+        [
+          "\t\ttimeoutMs: resolveSearchTimeoutSeconds(ctx.searchConfig) * 1e3,",
+          "\t\ttimeoutMs: (Number(process.env.OPENCLAW_CODEX_WEB_SEARCH_TIMEOUT_S) || resolveSearchTimeoutSeconds(ctx.searchConfig)) * 1e3,"
+        ]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "version": 2,
+  "id": "openclaw-codex-android-compat-20261103",
+  "date": "2026-11-03",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Codex hosted web search works on the S24: new pinned set codex-android-compat (fs-safe temp workspace trusts Android's platform-owned, group-writable ancestors; model/list cap 5 s -> 20 s; explicit search model by OPENCLAW_CODEX_WEB_SEARCH_MODEL) plus the codex-termux.sh launcher that gives the musl Codex binary Termux DNS and CA bundle through proot. gateway-start.sh exports the launcher and gpt-5.6-luna only after the set is applied and verified; runtime-sync checks and applies it; deploy rollback undoes it.",
+  "reason": "Since tools.web.search.provider=codex (03/11 12:09), every native web search on the S24 failed (live check 19:14: 'La recherche web a échoué côté fournisseur'). Four causes found in order on the S24: fs-safe rejects /data (uid 1000, mode 0771) as temp ancestor; then /data/data/com.termux/files (0771); then model/list exceeds the hard-coded 5 s; then the musl Codex binary cannot resolve DNS (no /etc/resolv.conf on Android): 'Reconnecting... workspace routing discovery failed'. With all four fixed, a hosted search turn takes about 6 s and the provider 14-20 s end to end.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/openclaw-codex-android-compat-20261103.json",
+    "docs/changes/openclaw-codex-android-compat-20261103.md",
+    "installer/termux-lite/codex-termux.sh",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/gateway-start.sh",
+    "installer/termux-lite/openclaw-compat/codex-android-compat.json",
+    "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
+    "installer/termux-lite/runtime-sync.sh",
+    "installer/termux-lite/test-codex-android-compat.py",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/bounded-turn-B91suzbV.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/temp-workspace-child-admission.js.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/temp-workspace-ownership.js.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/web-search-provider.runtime-DEBVJch2.mjs.gz"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-codex-android-compat.py",
+      "status": "passed",
+      "evidence": "10 tests: pinned originals equal the S24 modules; apply/check/re-apply/rollback exact across the openclaw and codex roots; single codex package discovered, ambiguity refused; unknown hash or version refused before any write; real classifyTempWorkspaceOwner trusts uid 1000 only with an Android environment; node --check of every patched module; private leaf stays strict and unset variables keep shipped search; exports only after a verified apply; sync/deploy wiring; launcher binds Termux resolv.conf through proot and passes arguments; set disjoint from the other sets. Registered in ci.yml."
+    },
+    {
+      "name": "test-openclaw-compat-imports.py, test-openclaw-compat-variants.py, test-startup-triage-optout.py, test-whatsapp-network-recovery.py, test-runtime-sync.py, test-companion-deploy-preflight.py, test-companion-deploy-root.py, test-companion-rollback-identity.py, test-gateway-preflight.py, test-no-hardcoded-clawmobile.py, test-runtime-start-command.py, test-ci-registration.py, test-memory-retrieval-warm.py, test-agent-exec-auth-scope.py",
+      "status": "passed",
+      "evidence": "Patch owner and every test reading gateway-start.sh, runtime-sync.sh or companion-deploy.sh green on this head."
+    },
+    {
+      "name": "S24 manual equivalent (03/11, before this PR)",
+      "status": "passed",
+      "evidence": "Same four changes applied by hand with backups, then openclaw infer web search --provider codex: gpt-6-luna 13.6 s (wrong answer), gpt-5.6-luna 16.6 s, gpt-6-astra 17.3 s, gpt-6.1-sol 20.4 s (provider tookMs, same question, correct answers sourced)."
+    }
+  ],
+  "documentation": [
+    "docs/changes/openclaw-codex-android-compat-20261103.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Compatibility set, launcher, startup wiring and tests; no route, action or capability (NO_CAPABILITY). The native web_search tool keeps its contract."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same patch owner, manifest format and ownership pattern as the other pinned sets; the owner learns a second plugin root like the WhatsApp one. No new store, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "Gateway start environment, OpenClaw/Codex plugin modules and a launcher; no MCP tool or schema touched."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The S24 currently carries the hand-applied equivalent; activation restores the saved originals, then the owner applies this set and the Gateway restarts once.",
+    "One measurement per model on 03/11; the model choice (gpt-5.6-luna) is exported with an override and can be revisited.",
+    "Each search still starts a fresh Codex app-server (8-14 s of the total on the phone); a warm app-server is out of scope.",
+    "The app capability samantha.app.web.* (parallel-free) is unchanged here; Codex-first with Parallel fallback there is a follow-up."
+  ],
+  "rollback": "Revert this commit: runtime-sync and deploy rollback undo the set and the launcher is no longer exported; by hand, --patch-set codex-android-compat --rollback then restart through the Gateway owner."
+}

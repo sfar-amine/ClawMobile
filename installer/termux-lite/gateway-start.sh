@@ -129,5 +129,25 @@ if [ -f "$TRIAGE_PATCH_DIR/startup-triage-optout.json" ]; then
   fi
 fi
 
+# Codex hosted web search on Android (OpenClaw 2026.10.9 + @openclaw/codex 2026.10.9). Same ownership. The launcher
+# and the explicit search model are exported only once the pinned set is verified, so an unpatched install keeps
+# the shipped behaviour instead of a half-configured one.
+CODEX_PATCH_DIR="${CLAW_CORE_REPO:-$HOME/ClawMobile}/installer/termux-lite/openclaw-compat"
+CODEX_PATCH_MODE=--apply
+if [ ! -f "$CODEX_PATCH_DIR/codex-android-compat.json" ]; then
+  CODEX_PATCH_DIR="$SCRIPT_DIR/openclaw-compat"
+  CODEX_PATCH_MODE=--rollback
+fi
+if [ -f "$CODEX_PATCH_DIR/codex-android-compat.json" ]; then
+  python3 "$CODEX_PATCH_DIR/whatsapp-network-recovery.py" --patch-set codex-android-compat "$CODEX_PATCH_MODE" >&2 ||
+    echo "[lite] WARNING: Codex Android compatibility patch unsupported; Codex hosted search stays as shipped." >&2
+  if [ "$CODEX_PATCH_MODE" = --apply ] &&
+     python3 "$CODEX_PATCH_DIR/whatsapp-network-recovery.py" --patch-set codex-android-compat --check >/dev/null 2>&1; then
+    export OPENCLAW_CODEX_APP_SERVER_BIN="$(dirname "$CODEX_PATCH_DIR")/codex-termux.sh"
+    # Measured 03/11 on the S24: fastest model that answered correctly (gpt-6-luna was faster but wrong).
+    export OPENCLAW_CODEX_WEB_SEARCH_MODEL="${OPENCLAW_CODEX_WEB_SEARCH_MODEL:-gpt-5.6-luna}"
+  fi
+fi
+
 echo "[lite] Starting OpenClaw Gateway through fast recovery path..."
 exec openclaw gateway --bind "$GATEWAY_BIND" --port "$GATEWAY_PORT" --verbose
