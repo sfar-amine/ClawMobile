@@ -24,7 +24,9 @@ def row(reply="", state="", reason="", facts=False, error=None, granted=False, h
 
 
 # The room brain's own sentences (roomBrain.ts) and the playbooks room owner's question for a creation.
-REFUSAL = "Ici je ne traite que Pulse : projets, offres, congés de l'équipe et solde de congés. Pour le reste, vois directement avec Amine."
+# Recette 03/11: the Pulse subjects are derived from the room's actions (roomBrain.ts pulseSubjects); the verdict reads the prefix.
+REFUSAL = ("Ici je ne traite que Pulse : projets, offres, chiffre d'affaires, évaluations, CRA, congés de l'équipe et solde de "
+           "congés. Pour le reste, vois directement avec Amine.")
 LEAVE = ("Désolé, je ne peux pas prendre en compte les demandes de congé : j’utilise le compte Pulse d’Amine, donc un congé "
          "posé ici serait enregistré au nom d’Amine. Merci de poser ta demande de congé directement dans Pulse, avec ton propre compte.")
 ACCESS = "L’accès à la pièce Pulse n’est pas confirmé. Rien n’a été exécuté."

@@ -51,6 +51,23 @@ export function actionParamShapes(actions: Action[]) {
   return [...new Set(actions.map(a => JSON.stringify(publicSchema(a.params))))].map(encoded => JSON.parse(encoded));
 }
 
+/**
+ * Recette 03/11 (S24): the shared schema offers every action's parameters at once, so the brain passed parameters of
+ * another action to cra.status / finance.ca, the owner refused the whole call (parameter_fields) and the brain retried
+ * (+15 s). The action's own declaration says which top-level parameters it accepts; nothing else is decided here.
+ * `missing`: declared required parameters that are absent, null or blank.
+ */
+export function fitActionParams(action: Action, params: Record<string, any>) {
+  const declared = action.params?.properties && typeof action.params.properties === "object" ? action.params.properties : {};
+  const ignored = Object.keys(params).filter(key => !Object.prototype.hasOwnProperty.call(declared, key));
+  const kept = Object.fromEntries(Object.entries(params).filter(([key]) => !ignored.includes(key)));
+  const required: string[] = Array.isArray(action.params?.required) ? action.params.required : [];
+  const missing = required.filter(key => kept[key] === undefined || kept[key] === null ||
+    typeof kept[key] === "string" && !kept[key].trim());
+  return {params: kept, ignored, missing};
+}
+export const IGNORED_PARAMS_NOTE = "Paramètres non déclarés par cette action, ignorés avant l'appel : ne les présente pas comme appliqués.";
+
 function toolSchema(tool: DomainTool) {
   const shapes = actionParamShapes(tool.actions);
   const confirmation = {type: "object", properties: {
@@ -87,6 +104,15 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
               !args.params || typeof args.params !== "object" || Array.isArray(args.params)) throw Error("typed_input_invalid");
           const operation = ["confirm", "cancel"].includes(args.action) ? args.action : "call";
           const action = tool.actions.find(a => a.action === args.action);
+          // A read ignores the parameters its action does not declare (traced in the result); a write never runs
+          // with a parameter dropped: nothing is executed and the brain gets the action's own parameters.
+          const fitted = operation === "call" && action ? fitActionParams(action, args.params) : null;
+          if (fitted?.ignored.length && action!.risk !== "read")
+            return {content: [{type: "text", text: JSON.stringify({state: "not_executed", reason: "typed_params_not_accepted",
+              notAccepted: fitted.ignored, accepted: Object.keys(action!.params?.properties || {}),
+              answer: "Rien n'a été exécuté : ces paramètres n'appartiennent pas à l'action choisie. Rappelle-la avec ses seuls paramètres."})}], isError: true};
+          const params = fitted ? fitted.params : args.params;
+          const ignored = fitted?.ignored.length ? {ignoredParams: fitted.ignored, ignoredParamsNote: IGNORED_PARAMS_NOTE} : {};
           if(operation==='call'&&nativeWhatsApp&&action?.action==='samantha.app.conversation.active_generations'){
             if(Object.keys(args.params).length!==1||args.params.conversationId!=='current')throw Error('typed_target_not_current_conversation');
             const result=await activeNativeWhatsAppGenerations(bound.conversationKey,bound.userRunId,()=>context.assertInvocationCurrent!());
@@ -94,14 +120,14 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
           }
           if (operation === "call" && action?.nativeOwner && action.risk === "read") {
             const resolved:any = await capabilityBridge("typed owner handoff", {execute:true,readOnly:true,caller:"owner",surface:"external_mcp",
-              requestId:bound.invocationId,typedSelection:{domain:tool.domain,action:args.action,params:args.params},
+              requestId:bound.invocationId,typedSelection:{domain:tool.domain,action:args.action,params},
               helperPath:options.helperPath,timeoutSeconds:6});
             if (resolved?.decision?.type !== "EXECUTE" || resolved?.selected?.intent !== args.action ||
                 resolved?.selected?.target !== tool.domain) throw Error("typed_owner_unavailable");
             if(resolved.execution?.state!=='native_handoff')return {content:[{type:'text',text:JSON.stringify({state:'unavailable',facts:null,
               reason:resolved.execution?.state||'typed_owner_unavailable',answer:resolved.execution?.message||"Cette lecture n’a pas encore de résultat vérifié."})}]};
             return {content:[{type:"text",text:JSON.stringify({state:"owner_handoff",facts:null,verified:false,
-              owner:resolved.selected.execution_contract?.native_owner_handoff,parameters:args.params,
+              owner:resolved.selected.execution_contract?.native_owner_handoff,parameters:params,...ignored,
               answer:"Poursuis cette lecture avec le propriétaire navigateur existant et son contrat canonique. Aucun fait métier n’est encore vérifié. Conserve tout résultat partiel et les reçus ; ne promeus pas de rejeu HTTP direct."})}]};
           }
           if (operation === "call" && action?.action === "samantha.app.conversation.interrupt" && action.execution?.control === "generation_only") {
@@ -128,7 +154,7 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
               facts:result.artifact||{},answer:result.artifact?.message||"Le statut de l’arrêt reste incertain ; vérifie ce reçu avant tout nouvel essai.",receipt:result.receipt})}]};
           }
           const command = operation === "call"
-            ? {operation, domain: tool.domain, action: args.action, params: args.params, ...(args.relation ? {relation: args.relation} : {})}
+            ? {operation, domain: tool.domain, action: args.action, params, ...(args.relation ? {relation: args.relation} : {})}
             : {operation, domain: tool.domain, confirmationId: args.params.confirmationId, payloadHash: args.params.payloadHash};
           const whatsapp = context.messageChannel === "whatsapp";
           const privateInput = JSON.stringify({command, host: {...bound,
@@ -139,7 +165,8 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
             "typed-tool", "--host-input-stdin", "--timeout", "30"],
             {timeoutMs: 38000, maxBuffer: 128 * 1024, env: {...process.env}, privateInput});
           const result = JSON.parse(typeof raw === "string" ? raw : String(raw?.stdout || "{}"));
-          return {content: [{type: "text", text: JSON.stringify(result)}]};
+          return {content: [{type: "text", text: JSON.stringify(result && typeof result === "object" && !Array.isArray(result)
+            ? {...result, ...ignored} : result)}]};
         } catch (error: any) {
           const reason = typeof error?.message === "string" && /^typed_[a-z_]+$/.test(error.message)
             ? error.message : "typed_outcome_unverified";
