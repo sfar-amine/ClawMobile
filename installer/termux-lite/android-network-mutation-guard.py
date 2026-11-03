@@ -70,6 +70,15 @@ WIFI_TTL_EXIT = 4
 WIFI_GUARD_BUSY_EXIT = 5
 WIFI_RESTORER_UNAVAILABLE_EXIT = 6
 WIFI_UNMANAGED_WARNING = "wifi_disabled_without_lease"
+# S24 26/10, 28/10, 29/10 (fixtures/s24-2026-11-02-wifi-night-offline) : vers 23:05-23:40, Wi-Fi ET données
+# mobiles coupés à moins d'une seconde d'intervalle depuis l'interface Android (com.android.systemui,
+# reason=USER, écran allumé), rallumés ensemble vers 07:46-09:09. Aucun bail Samantha, aucun `svc` (uid shell).
+# Le S24 était alors hors ligne 8 à 10 h : SMTP et 621 des 625 envois WhatsApp propriétaire en échec.
+# Le Wi-Fi seul coupé (Wi-Fi automatique Samsung en journée) laisse la 4G : reçu seulement, pas d'alerte.
+# Jamais de réactivation automatique (choix d'Amine) : détection, reçu, une notification par épisode.
+DEVICE_OFFLINE_WARNING = "device_offline_wifi_and_mobile_data_off"
+OFFLINE_SETTINGS_KEYS = ("mobile_data", "airplane_mode_on")
+WIFI_OFFLINE_ALERT_S = 15 * 60
 
 def wifi_off_ttl(purpose: str) -> int:
     budget = int(PURPOSE_BUDGET_S.get(purpose, DEFAULT_PURPOSE_BUDGET_S))
@@ -914,6 +923,72 @@ def write_receipt(state: str, reason: str, **extra) -> None:
         **extra,
     })
 
+def wifi_episode_path() -> Path:
+    return ROOT / "wifi-unmanaged-episode.json"
+
+def offline_settings(values: dict) -> dict:
+    """`settings list global` (mobile_data, airplane_mode_on) -> état réseau choisi côté Android, lecture seule."""
+    mobile = (values.get("mobile_data") or {}).get("value")
+    airplane = (values.get("airplane_mode_on") or {}).get("value")
+    mobile_state = {"1": "on", "0": "off"}.get(mobile, "unknown")
+    airplane_state = {"1": "on", "0": "off"}.get(airplane, "unknown")
+    return {"mobile_data": mobile_state, "airplane_mode": airplane_state,
+            "offline": mobile_state == "off" or airplane_state == "on"}
+
+def _offline_message(offline_since: float) -> str:
+    stamp = time.strftime("%d/%m %H:%M", time.localtime(offline_since))
+    return (f"Samantha — S24 hors ligne depuis le {stamp} : Wi-Fi et données mobiles coupés côté Android "
+            "(panneau rapide ou mode/routine Samsung), sans action de Samantha. WhatsApp et e-mail ne partent "
+            "plus tant que l'un des deux reste coupé. Samantha ne les réactive jamais d'elle-même ; "
+            "vérifier Réglages > Modes et routines (mode Sommeil) si ce n'était pas voulu.")
+
+def notify_offline(offline_since: float) -> bool:
+    """File de notification existante (incident-notify.sh) : livrée dès que le réseau revient."""
+    helper = Path(__file__).resolve().with_name("incident-notify.sh")
+    if not helper.exists():
+        return False
+    try:
+        done = subprocess.run([str(helper), "info", _offline_message(offline_since)], stdin=subprocess.DEVNULL,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return done.returncode == 0
+
+def track_unmanaged_wifi(disabled: bool, now: float) -> dict | None:
+    """Épisode « Wi-Fi coupé sans bail » borné à un seul fichier. Lecture seule côté Android."""
+    path = wifi_episode_path()
+    if not disabled:
+        path.unlink(missing_ok=True)
+        return None
+    try:
+        row = json.loads(path.read_text()) if not path.is_symlink() else {}
+        if not isinstance(row, dict):
+            row = {}
+    except (OSError, ValueError):
+        row = {}
+    since = row.get("since")
+    since = float(since) if isinstance(since, (int, float)) and 0 < since <= now else now
+    state = offline_settings(settings_state(OFFLINE_SETTINGS_KEYS))
+    offline_since = row.get("offline_since")
+    if not state["offline"]:
+        offline_since, notified = None, False
+    else:
+        offline_since = float(offline_since) if isinstance(offline_since, (int, float)) and 0 < offline_since <= now else now
+        notified = row.get("notified") is True
+    offline_for = int(now - offline_since) if offline_since is not None else 0
+    attempts = row.get("notify_attempts") if state["offline"] and type(row.get("notify_attempts")) is int else 0
+    if state["offline"] and not notified and offline_for >= WIFI_OFFLINE_ALERT_S:
+        notified = notify_offline(offline_since)
+        attempts += 1
+        if notified or attempts == 1:  # une ligne par épisode, pas une par cycle
+            log_line(f"service=network_safety state=warning reason={DEVICE_OFFLINE_WARNING} offline_for_s={offline_for} "
+                     f"mobile_data={state['mobile_data']} airplane_mode={state['airplane_mode']} "
+                     f"action={'notify_queued' if notified else 'notify_failed'} wifi_reenable=never")
+    episode = {"since": since, "offline_since": offline_since, "notified": notified, "notify_attempts": attempts}
+    write_json(path, episode)
+    return {**episode, **state, "duration_s": int(now - since), "offline_for_s": offline_for,
+            "alert_after_s": WIFI_OFFLINE_ALERT_S}
+
 def check_and_reconcile(reconcile_background: bool = True) -> int:
     active = []
     active_proxy = []
@@ -974,20 +1049,29 @@ def check_and_reconcile(reconcile_background: bool = True) -> int:
     current = settings_state()
     unmanaged = proxy_active(current) and not active_proxy
     warnings = []
+    wifi_episode = None
     if not active_wifi:
         # Wi-Fi coupé sans bail : peut être le choix d'Amine. Jamais de réactivation automatique,
         # seulement un avertissement exposé dans le reçu (et le verdict santé).
         try:
-            if wifi_enabled() is False:
-                warnings.append(WIFI_UNMANAGED_WARNING)
+            disabled = wifi_enabled() is False
         except Exception:
-            pass
+            disabled = None
+        if disabled:
+            warnings.append(WIFI_UNMANAGED_WARNING)
+        if disabled is not None:
+            try:
+                wifi_episode = track_unmanaged_wifi(disabled, now)
+            except Exception:
+                wifi_episode = None
+            if wifi_episode and wifi_episode.get("offline"):
+                warnings.append(DEVICE_OFFLINE_WARNING)
     if errors:
         write_receipt("degraded", "stale_lease_restore_failed", active_leases=active, errors=errors,
-                      forward_leases=forward_results, unmanaged_global_proxy=unmanaged, warnings=warnings)
+                      forward_leases=forward_results, unmanaged_global_proxy=unmanaged, warnings=warnings, wifi_unmanaged=wifi_episode)
         return 2
     if unmanaged:
-        write_receipt("degraded", "unmanaged_global_proxy_detected", active_leases=active, warnings=warnings)
+        write_receipt("degraded", "unmanaged_global_proxy_detected", active_leases=active, warnings=warnings, wifi_unmanaged=wifi_episode)
         return 2
     background = {"state": "skipped", "mutation": "none", "details": {}}
     if reconcile_background:
@@ -1001,7 +1085,7 @@ def check_and_reconcile(reconcile_background: bool = True) -> int:
     else:
         reason = "temporary_lease_active" if active else ("stale_lease_restored" if recovered else "network_settings_clean")
     write_receipt("healthy", reason, active_leases=active, recovered_leases=recovered,
-                  forward_leases=forward_results, termux_background=background, warnings=warnings)
+                  forward_leases=forward_results, termux_background=background, warnings=warnings, wifi_unmanaged=wifi_episode)
     return 0
 
 def with_global_proxy(endpoint: str, purpose: str, command: list[str]) -> int:

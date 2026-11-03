@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "id": "wifi-night-offline-gateway-log-append-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Deux fiabilités S24. (1) Le garde réseau (check, déjà lancé par le cycle santé) suit l'épisode « Wi-Fi coupé sans bail » : durée, état des données mobiles et du mode avion dans le reçu, avertissement device_offline_wifi_and_mobile_data_off, et une seule notification par épisode via incident-notify.sh après 15 min hors ligne ; jamais de réactivation. (2) Le démarrage de la Gateway ouvre son journal en ajout seul (O_APPEND, 0600) au lieu de le vider ; la borne reste gateway-log-retention.py (4 Mio, 3 archives).",
+  "reason": "S24 02/11 (lecture seule) : les nuits du 26/10, 28/10 et 29/10, Wi-Fi et données mobiles ont été coupés ensemble par com.android.systemui (reason=USER, écran allumé, moins d'une seconde d'écart), sans aucune bascule shell de Samantha ; le téléphone est resté hors ligne 8 à 10 h (SMTP, 621/625 échecs WhatsApp) avec un simple avertissement sans durée ni notification. Le journal Gateway était vidé par fs.writeFileSync à chaque démarrage : le redémarrage du déploiement de 20:22 a effacé 16:13–19:24 UTC, et les redémarrages précédents 08:01–16:13 UTC (02/11) et 10:55–23:19 UTC (01/11).",
+  "files": [
+    "installer/termux-lite/android-network-mutation-guard.py",
+    "installer/termux-lite/test-wifi-night-offline.py",
+    "openclaw-plugin-mobile-ui/src/companion/openclawGatewayClient.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-gateway-log-append.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-wifi-night-offline/capture.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-gateway-log-truncation/capture.json",
+    ".github/workflows/ci.yml",
+    "docs/changes/wifi-night-offline-gateway-log-append-20261102.json",
+    "docs/changes/wifi-night-offline-gateway-log-append-20261102.md"
+  ],
+  "tests": [
+    {"name": "installer/termux-lite/test-wifi-night-offline.py", "status": "passed",
+     "evidence": "10 tests OK. Preuves S24 rejouées : chaque coupure de données mobiles de nuit a une bascule Wi-Fi systemui à moins d'1 s, aucune source uid 2000/shell. Nuit du 29/10 avec les réglages réels (mobile_data=0) : avertissements wifi + offline, aucune notification à 14 min, une seule à 15 min, une seule ligne de journal sur 9 h, aucun svc ni settings put ; matin = épisode clos, nuit suivante = nouvelle notification. Jour (mobile_data=1) : reçu seulement. Données mobiles rallumées = horloge remise à zéro. File en échec = nouvel essai sans ligne répétée. Réglages illisibles = avertissement existant seul. health-verdict et le gestionnaire de santé lisent toujours le reçu. Inscrit dans ci.yml."},
+    {"name": "installer/termux-lite/test-android-network-mutation-guard.py", "status": "passed", "evidence": "78 tests OK, inchangés (dont l'avertissement sans réactivation)."},
+    {"name": "openclaw-plugin-mobile-ui/scripts/test-gateway-log-append.cjs", "status": "passed",
+     "evidence": "Fixture S24 : en-tête de démarrage en tête du journal actif à l'heure du redémarrage de 20:22. Trois startRuntime réels (Gateway TCP synthétique) gardent l'exécution précédente octet pour octet, même inode, 0600, un en-tête par démarrage ; gateway-log-retention.py garde 3 archives sous le plafond et le démarrage suivant ajoute au même inode. Échoue sur l'ancien code (writeFileSync). Inscrit dans ci.yml."},
+    {"name": "installer/termux-lite/test-gateway-log-retention.py", "status": "passed", "evidence": "Inchangé, vert."},
+    {"name": "openclaw-plugin-mobile-ui/scripts/test-gateway-adopt-restart.cjs + test-qa-deploy-gateway-restart.cjs + test-gateway-maintenance-recovery.cjs + test-diagnostic.cjs", "status": "passed", "evidence": "Chemins de démarrage/redémarrage Gateway inchangés, verts."},
+    {"name": "installer/termux-lite/test-consultation-*.py + test-payment-guard-invariance.py + test-ci-registration.py", "status": "passed", "evidence": "with_wifi_off et le parcours de paiement inchangés (empreintes vertes) ; nouveaux tests inscrits."}
+  ],
+  "documentation": ["docs/changes/wifi-night-offline-gateway-log-append-20261102.md"],
+  "capabilities": {"impact": "none", "reason": "Supervision interne et journal : aucune route, aucun réglage ni action de l'app."},
+  "architecture": {"changed": false, "reason": "Propriétaires existants : le garde réseau (check du cycle santé) et la file incident-notify.sh ; la rotation reste gateway-log-retention.py. Aucun nouveau service, store, scheduler ni rotateur ; un seul fichier d'état borné."},
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "CI canonique (localci.py) sur le head GitHub exact encore requise.",
+    "La cause Android (mode/routine Samsung ou appuis manuels) est déduite des journaux systemui : la configuration des Modes n'est pas lisible par adb ; Amine doit la vérifier.",
+    "La notification est en file pendant la coupure : elle arrive au retour du réseau, pas pendant la nuit.",
+    "Les octets écrits au-delà de 4 Mio entre deux balayages de rotation restent perdus en tête (comportement existant, faible)."
+  ],
+  "rollback": "Revert de ce commit puis companion-deploy.sh <commit> : le garde revient à l'avertissement seul, wifi-unmanaged-episode.json peut être supprimé, la Gateway reprend l'ancien démarrage. Aucun réglage Android modifié, rien à restaurer sur le S24."
+}
