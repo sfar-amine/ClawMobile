@@ -29,31 +29,20 @@ const invoke=(action,thread,text)=>{
 };
 (async()=>{
  try{
+  // ADR 02/11 « le cerveau partout », step 3 (S24: SAMANTHA_BRAIN_ONLY=1 since 28/10, now unconditional): the owner's
+  // MCP free text is never interpreted before the brain. The read is refused by the actual owners after the canonical
+  // Node claim, before any interpretation, private source or business executor. Typed MCP selection replaces it (step 7).
   const text='  Lis huwaei\n';
   const first=await invoke('pair-one','thread-one',text);
-  assert.equal(first.state,'completed',JSON.stringify(first));
-  assert.equal(first.result.items[0].label,'Fixture result');
+  assert.equal(first.state,'failed',JSON.stringify(first));assert.equal(first.reason,'INTERPRETATION_HOST_UNAVAILABLE',JSON.stringify(first));
   const replay=await invoke('pair-one','thread-one',text);
-  assert.equal(replay.state,'completed');assert.equal(helperCalls,1);
-  const two=await invoke('pair-two','thread-two',text);assert.equal(two.state,'completed');
-  const beforeWrite=fs.readFileSync(path.join(root,'audit.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
-  assert.equal(beforeWrite.filter(row=>row.kind==='executor').length,2);
-  const write=await invoke('pair-write','thread-write','démarre le projet huwaei');
-  assert.equal(write.state,'failed');
-  const afterWrite=fs.readFileSync(path.join(root,'audit.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
-  assert.equal(afterWrite.filter(row=>row.kind==='executor').length,2,'canonical write proposal never reaches a business executor');
-  process.env.PAIR_DATA_DENIAL='1';
-  const denied=await invoke('pair-data','thread-data','Lis huwaei');
-  assert.equal(denied.state,'failed');
-  assert.equal(denied.reason,'DATA_PROFILE_UNVERIFIED',JSON.stringify(denied));
-  const log=fs.readFileSync(path.join(root,'audit.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
-  const interpretations=log.filter(row=>row.kind==='interpretation');
-  assert.equal(interpretations.length,3,'DATA unknown invokes neither metadata nor fake generation');
-  assert.equal(interpretations[0].original_exact,text);
-  assert.equal(interpretations[0].provenance,'client_reported');
-  assert.notEqual(interpretations[0].conversation_ref,interpretations[1].conversation_ref);
-  assert.equal(log.filter(row=>row.kind==='graph_write_guard').length,4,'independent Graph guard is exercised separately from upstream write refusal');
-  const output={core_sha:coreSha,playbooks_sha:pbSha,qualification:'MOCK_ONLY',external_provider_calls:0,real_business_effects:0,canonical_claim_before_generation:true,helper_calls:helperCalls,positive_reads:2,duplicate_additional_helper_calls:0,independent_threads:true,original_text_exact:true,client_provenance_preserved:true,canonical_write_executor_calls:0,data_unknown_reason:denied.reason,fake_interpretations:interpretations.length,fake_business_read_executions:2,separate_graph_write_boundary_probe:{qualification:'SYNTHETIC_BOUNDARY_ONLY',state:'blocked',reason:'read_only_policy',executor_calls:0,checks:log.filter(row=>row.kind==='graph_write_guard').length}};
+  assert.equal(replay.state,'failed');assert.equal(helperCalls,1,'one canonical claim, no second Python call on replay');
+  const write=await invoke('pair-write','thread-write','démarre le projet huwaei');assert.equal(write.state,'failed');
+  const log=(fs.existsSync(path.join(root,'audit.jsonl'))?fs.readFileSync(path.join(root,'audit.jsonl'),'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[]);
+  assert.equal(log.filter(row=>row.kind==='interpretation').length,0,'no owner interpretation');
+  assert.equal(log.filter(row=>row.kind==='executor').length,0,'no business executor');
+  const output={core_sha:coreSha,playbooks_sha:pbSha,qualification:'MOCK_ONLY',external_provider_calls:0,real_business_effects:0,canonical_claim_before_generation:true,helper_calls:helperCalls,
+   owner_free_text_reads:0,owner_free_text_reason:first.reason,interpretations:0,executor_calls:0};
   if(outputPath)fs.writeFileSync(outputPath,JSON.stringify(output,null,2)+'\n');
   console.log(JSON.stringify(output));
  }finally{fs.rmSync(root,{recursive:true,force:true});}

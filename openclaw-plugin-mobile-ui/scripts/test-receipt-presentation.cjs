@@ -15,13 +15,16 @@ const r11=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-1
 const storedDecision={...r11,parameters:{amountTnd:'5',beneficiary:'+21600000001',raw:'private'},plan:{private:'private'},selected:{entrypoint:'private'}};
 assert.deepEqual(reader.publicDecision(storedDecision),{type:'EXECUTE',capability:'payment.owner_native',intent:'telecom.orange.topup_own_number',target:'maxit-tunisie',risk:'transaction',confirmationRequired:true,parameters:{amountTnd:'5'}});
 for(const bad of [null,[],{type:'RUN',risk:'read'},{type:'EXECUTE',risk:'private'}])assert.equal(reader.publicDecision(bad),undefined);
-const helper=path.join(root,'helper.py');fs.writeFileSync(helper,`import sys,json\np=json.loads(${JSON.stringify(JSON.stringify(closed))})\nd=json.loads(${JSON.stringify(JSON.stringify(storedDecision))})\nm=sys.argv[sys.argv.index('--dialogue')+1]\nprint(json.dumps({'outcome':'READY','handled':True,'goalRef':'goal-dddddddddddddddddddd','pendingHandoff':{'goalRef':'goal-dddddddddddddddddddd','klass':'DURABLE'},'decision':d} if m=='turn' else {'outcome':'FAILED','text':p['spoken'],'handled':True,'metadata':{'presentation':p}}))\n`);process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;
-const {submitIntent}=require('../dist/companion/intent'),runs=require('../dist/companion/runs'),{route}=require('../dist/companion/server');
+// ADR 02/11 step 3: no coordinator run is created by the app any more; a retained run written by the canonical owner
+// keeps its closed presentation and public decision through the receipt API.
+const runs=require('../dist/companion/runs'),{route}=require('../dist/companion/server');
 const request=(port,runId)=>new Promise((resolve,reject)=>{http.get({host:'127.0.0.1',port,path:'/v1/runs/'+runId},res=>{let body='';res.on('data',chunk=>body+=chunk);res.on('end',()=>{try{resolve({status:res.statusCode,body:JSON.parse(body)})}catch(e){reject(e)}})}).on('error',reject)});
 (async()=>{const server=http.createServer((req,res)=>route(req,res).catch(()=>{res.writeHead(500);res.end('{}')}));await new Promise(r=>server.listen(0,'127.0.0.1',r));try{
- const accepted=await submitIntent('test generic metadata','hs3-session',[],{clientRunId:'hs3-terminal-error'});
+ const reserve=()=>runs.reserveSubmittedRun('test generic metadata','hs3-session','hs3-terminal-error',{userText:'test generic metadata',attachments:[],requestText:'test generic metadata',executionSource:'capability_first',decision:storedDecision});
+ const reservation=await reserve();await runs.settleSubmittedRun(reservation.status.runId,'failed',closed.spoken,{presentation:closed});
+ const accepted=await runs.getRunStatus(reservation.status.runId);
  assert.equal(accepted.state,'failed');assert.deepEqual(accepted.presentation,closed);assert.deepEqual(accepted.failure,closed.failure);
- const duplicate=await submitIntent('test generic metadata','hs3-session',[],{clientRunId:'hs3-terminal-error'});assert.equal(duplicate.duplicate,true);assert.deepEqual(duplicate.presentation,closed);
+ const duplicate=await runs.findSubmittedRunByClientRunId('hs3-terminal-error',{text:'test generic metadata',sessionId:'hs3-session',userText:'test generic metadata',attachments:[]});assert.equal(duplicate.runId,accepted.runId);assert.deepEqual(duplicate.presentation,closed);
  assert.equal(accepted.decision.risk,'transaction');assert.deepEqual(duplicate.decision,accepted.decision);assert.ok(!JSON.stringify(accepted).includes('private'));
  const started=performance.now(),response=await request(server.address().port,accepted.runId);assert.equal(response.status,200);assert.deepEqual(response.body.presentation,closed);assert.deepEqual(response.body.understood,closed.understood);assert.ok(performance.now()-started<4000);
  const publicDecision={type:'EXECUTE',capability:'payment.owner_native',intent:'telecom.orange.topup_own_number',target:'maxit-tunisie',risk:'transaction',confirmationRequired:true,parameters:{amountTnd:'5'}};
@@ -33,4 +36,4 @@ const request=(port,runId)=>new Promise((resolve,reject)=>{http.get({host:'127.0
  state.runs[0].presentation={...closed,label:'ghp_abcdefghijklmnop'};fs.writeFileSync(file,JSON.stringify(state));
  const invalid=cp.spawnSync(process.execPath,['-e',`require(${JSON.stringify(path.resolve(__dirname,'../dist/companion/runs'))}).getRunStatus(${JSON.stringify(accepted.runId)}).then(s=>{if(s.presentation)process.exit(2);process.stdout.write('rejected-ok')})`],{env:{...process.env},encoding:'utf8',timeout:5000});assert.equal(invalid.status,0);assert.equal(invalid.stdout,'rejected-ok');
  console.log(JSON.stringify({suite:'hs3-run-transport',captureMetadata:true,httpResponses:1,persisted:true}));
-}finally{await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true});}})().catch(()=>{console.error('hs3_run_transport_failed');process.exit(1)});
+}finally{await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true});}})().catch(e=>{console.error('hs3_run_transport_failed',e);process.exit(1)});

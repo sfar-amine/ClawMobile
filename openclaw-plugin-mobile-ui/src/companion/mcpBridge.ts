@@ -519,7 +519,6 @@ export function typedMcpSelection(args: Record<string, unknown>): Record<string,
   const envelope = args.decision && typeof args.decision === "object" && !Array.isArray(args.decision) &&
     (args.decision as any).kind === "samantha.typed-selection.v1" ? args.decision as Record<string, unknown> : undefined;
   if (args.typed === undefined && !envelope) return undefined;
-  if (process.env.SAMANTHA_BRAIN_ONLY !== "1") throw new Error("typed_path_not_active");
   if ((envelope && (Object.keys(envelope).length !== 2 || !Object.prototype.hasOwnProperty.call(envelope, "selection") || args.typed !== undefined)) ||
       ["client_context", "service_scope", "target_hint"].some(key => args[key] !== undefined) ||
       (!envelope && args.decision !== undefined)) throw new Error("typed_input_conflict");

@@ -6,7 +6,6 @@
 // timeout, provider/runtime failure, rejected or unparsable output. An authorization or policy
 // refusal is never a technical failure and never reaches the fallback.
 
-import {brainOnlyEnabled} from "./brainOnly";
 export const SOL = "openai/gpt-5.6-sol";
 export const LUNA = "openai/gpt-5.6-luna";
 export const GEMINI = "google/gemini-3.5-flash-lite@google:claw-gemini-free";
@@ -209,7 +208,8 @@ export function createInterpretHandler(getComplete: () => LlmComplete | undefine
       // no third lease here (S24 28-29/10, every room message refused). Only the Pulse catalogue is served.
       if(!nativePulseRequest(params?.message))return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse request required'});
     }
-    if (brainOnlyEnabled() && params?.purpose !== IMMUNE_PURPOSE && params?.purpose !== NATIVE_PULSE_PURPOSE)
+    // Owner turns go to the brain (ADR 02/11, step 3): only these two purposes still reach the interpreter.
+    if (params?.purpose !== IMMUNE_PURPOSE && params?.purpose !== NATIVE_PULSE_PURPOSE)
       return respond(false, undefined, {code: "INVALID_REQUEST", message: "dedicated intent interpreter retired"});
     const complete = getComplete();
     if (!complete) return respond(false, undefined, { code: "UNAVAILABLE", message: "llm runtime unavailable" });

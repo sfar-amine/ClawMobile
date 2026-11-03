@@ -2,12 +2,11 @@
 // Real S24 captures: fixtures/s24-2026-10-25-voice-brain (SOUL, voice file, operating rules, claw_live resolutions).
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const live=require('../dist/companion/clawLive');
-const {clawLiveDecision,clawLiveCapability,VoiceUnderstandingState}=require('../dist/companion/clawLiveUnderstanding');
+const {clawLiveDecision,clawLiveCapability}=require('../dist/companion/clawLiveUnderstanding');
 const brain=require('../dist/companion/voiceBrainDelegation');
 
 const FIX=path.join(__dirname,'../fixtures/s24-2026-10-25-voice-brain');
 const resolutions=JSON.parse(fs.readFileSync(path.join(FIX,'resolve-claw_live.json'),'utf8'));
-const deterministic=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-11/o7-o8-orange-20261010-0941.json'),'utf8'));
 let passed=0;
 async function test(name,run){await run();passed++;console.log('PASS '+name);}
 
@@ -19,7 +18,7 @@ fs.writeFileSync(path.join(work,'USER.md'),'USER_MARKER_PRIVATE');
 fs.writeFileSync(path.join(work,'context','HYBRID_CONTEXT.md'),'# Claw Hybrid Conversation Context — Amine\nHYBRID_MARKER_MEMORY_VIEW\n');
 const voiceRaw=fs.readFileSync(path.join(work,'memory','voice','amine.md'),'utf8');
 
-function owner(){return {understanding:new VoiceUnderstandingState(),sessionLocale:()=>'fr',executeVoiceCapability:(_m,_r,run)=>run()};}
+function owner(){return {executeVoiceCapability:(_m,_r,run)=>run()};}
 const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resolution;
 
 (async()=>{
@@ -71,50 +70,32 @@ const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resol
    assert.equal(live.voiceStyleView('# Contexte\n## Autre\nx'),'');assert.equal(live.voiceStyleView(''),'');
   });
 
-  // --- /claw-live/decision: the voice never releases an answer of its own, outside the closed reflex list ---
-  await test('a model-only turn (real S24 resolution) is Companion-owned: immediate local waiting phrase, brain answer',async()=>{
-   const text="Qu'est-ce que tu as ajusté récemment ?";const raw=resolution(text);
-   const d=await clawLiveDecision(owner(),text,async()=>JSON.parse(JSON.stringify(raw)));
-   assert.equal(d.harness.tool_policy,'required');assert.equal(d.harness.voice_policy,'brain_delegation');assert.equal(d.harness.model_tool_policy,'optional');
-   assert.equal(d.harness.reason,'model_only_framing');assert.equal(d.decision.type,'REASON');
-   // Android VoiceOptionAPolicy.deterministic(): success === true and voiceFastPath {version:1, execute:true} play the waiting clip.
-   assert.equal(d.success,true);assert.deepEqual(d.voiceFastPath,{version:1,execute:true,owner:'samantha_brain'});
+  // --- /claw-live/decision: every turn goes to the brain (ADR 02/11, step 3), outside the closed reflex list ---
+  const pay=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-11/hs3-resolution-slots-shortlist.json'),'utf8')).resolutions.r11;
+  await test('every non-reflex turn is Companion-owned and goes to the brain, with no resolver call',()=>{
+   // Real S24 requests: model-only framing, a Graph capability, the payment r11 and a deterministic balance read alike.
+   for(const text of ["Qu'est-ce que tu as ajusté récemment ?",'Montre-moi ce que tu sais faire',pay.text,'Quel est mon solde ?','raconte-moi une blague']){
+    const d=clawLiveDecision(text);
+    assert.equal(d.harness.tool_policy,'required');assert.equal(d.harness.evidence_required,true);assert.equal(d.harness.allow_model_only,false);
+    // Android VoiceOptionAPolicy.deterministic(): success === true and voiceFastPath {version:1, execute:true} play the waiting clip.
+    assert.equal(d.success,true);assert.deepEqual(d.voiceFastPath,{version:1,execute:true,owner:'samantha_brain'});assert.equal(d.decision,undefined,text);
+   }
+   assert.ok(resolution("Qu'est-ce que tu as ajusté récemment ?"),'real S24 capture still present');
   });
-  await test('a REASON decision with a Graph capability is Companion-owned too (real S24 resolution)',async()=>{
-   const d=await clawLiveDecision(owner(),'Montre-moi ce que tu sais faire',async()=>JSON.parse(JSON.stringify(resolution('Bonjour Samantha'))));
-   assert.equal(d.harness.tool_policy,'required');assert.equal(d.harness.voice_policy,'brain_delegation');assert.equal(Object.hasOwn(d.harness,'model_tool_policy'),false);
-   assert.deepEqual(d.voiceFastPath,{version:1,execute:true,owner:'samantha_brain'});
-  });
-  await test('a non-deterministic executable decision keeps the voice tool path (payment r11 untouched)',async()=>{
-   const pay=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-11/hs3-resolution-slots-shortlist.json'),'utf8')).resolutions.r11;
-   const d=await clawLiveDecision(owner(),pay.text,async()=>({success:true,decision:pay.decision,harness:pay.harness}));
-   assert.equal(d.harness.tool_policy,'required');assert.deepEqual(d.voiceFastPath,{version:1,execute:false});
-  });
-  await test('social reflexes are decided by code, answered by the voice itself, with no resolver call',async()=>{
+  await test('social reflexes (kept, Amine 25/10) are decided by code and answered by the voice itself',()=>{
    const {voiceReflex}=require('../dist/companion/voiceReflex');
    for(const [text,kind] of [['Bonjour Samantha','greeting'],['Merci beaucoup !','thanks'],['Sam, tu m’entends ?','presence'],['Répète s’il te plaît','repeat'],
      ['Attends une seconde','wait'],['Au revoir Samantha','goodbye'],['Bonsoir, ça va ?','greeting'],['merci, au revoir','thanks'],['Aslema','greeting'],['Thank you','thanks']]){
     assert.equal(voiceReflex(text),kind,text);
-    let resolves=0;const d=await clawLiveDecision(owner(),text,async()=>{resolves++;return {};});
-    assert.equal(resolves,0,text);assert.equal(d.harness.tool_policy,'optional');assert.equal(d.harness.voice_policy,'reflex');assert.deepEqual(d.voiceFastPath,{version:1,execute:false});
+    const d=clawLiveDecision(text);
+    assert.equal(d.harness.tool_policy,'optional');assert.equal(d.harness.voice_policy,'reflex');assert.deepEqual(d.voiceFastPath,{version:1,execute:false});
    }
    for(const text of ['oui','non',"d'accord",'ok','ok merci','la première','bonjour quel est mon solde orange','merci de vérifier mes factures',
      'répète mes rendez-vous','tu peux me rappeler demain','attends que je te dise','comment va mon compte','',null,'x'.repeat(200)])
     assert.equal(voiceReflex(text),null,String(text));
   });
-  await test('a deterministic route is untouched and still executes without a model',async()=>{
-   const canonical={success:true,decision:deterministic.decision_envelope,harness:{tool_policy:'required'}};
-   const d=await clawLiveDecision(owner(),'Quel est mon solde ?',async()=>canonical);
-   assert.deepEqual(d.voiceFastPath,{version:1,execute:true});assert.equal(Object.hasOwn(d.harness,'voice_policy'),false);
-  });
-  await test('an unavailable or malformed resolution fails closed to required',async()=>{
-   for(const raw of [{success:false,error:'helper_failed'},{harness:'x'},{harness:[]}]){
-    const d=await clawLiveDecision(owner(),'raconte-moi une blague',async()=>raw);
-    assert.equal(d.harness.tool_policy,'required');assert.equal(d.voiceFastPath.execute,false);
-   }
-  });
 
-  // --- Rescue path: what the coordinator leaves unresolved goes to the brain ---
+  // --- Brain delegation of the admitted voice turn ---
   const ticket=Object.freeze({keyId:'k',epoch:'e',clientRunId:'voice-cap-t1',sessionId:'s1',admittedAt:1,expiresAt:2});
   const ctx=(over={})=>({sessionId:'s1',clientRunId:'voice-cap-t1',admission:ticket,assertCurrent:()=>{},...over});
   function clock(){let t=0;return {now:()=>t,sleep:async(ms)=>{t+=ms;}};}
@@ -175,8 +156,8 @@ const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resol
   await test('the capability receipt template never rewrites a brain receipt',async()=>{
    for(const state of ['done','failed']){
     const receipt=await brain.delegateVoiceTurnToBrain('Bonjour',ctx(),{...clock(),submit:async()=>({success:true,accepted:true,runId:'r6',state,result:'Bonjour Amine.'}),status:async()=>{}});
-    const spoken=await clawLiveCapability(owner(),{request:'Bonjour'},async()=>receipt,{capture:async()=>({state:'skipped'})});
-    assert.equal(spoken.voice.verbatim,receipt.text);assert.ok(!/J'ai compris|Ça n'a pas abouti/.test(spoken.voice.verbatim));
+    const spoken=await clawLiveCapability(owner(),{request:'Bonjour'},async()=>receipt);
+    assert.deepEqual(spoken,receipt);assert.equal(spoken.voice.verbatim,receipt.text);assert.ok(!/J'ai compris|Ça n'a pas abouti/.test(spoken.voice.verbatim));
    }
   });
 
@@ -191,56 +172,36 @@ const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resol
    assert.ok(Buffer.byteLength(voice)<=65536);
    assert.equal(live.compactOwnerAgentContext({voiceDelegation:true,home}),'','never without owner authority');
   });
-  // --- Unresolved turn routing: executable decisions keep their executor, model-only framing goes to the brain ---
-  const payment=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-11/hs3-resolution-slots-shortlist.json'),'utf8')).resolutions.r11;
-  function router(resolutionValue){
-   const seen={executed:0,submitted:0};
-   return {seen,deps:{...clock(),resolve:async()=>{if(resolutionValue instanceof Error)throw resolutionValue;return JSON.parse(JSON.stringify(resolutionValue));},
-    execute:async()=>{seen.executed++;return {success:true,source:'capability'};},
-    submit:async()=>{seen.submitted++;return {success:true,accepted:true,runId:'rb',state:'done',result:'Réponse du cerveau.'};},status:async()=>{}}};
+  // --- Routing: every admitted voice turn goes to the brain, the payment request included (ADR 02/11, step 3) ---
+  function router(){
+   const seen={submitted:0};
+   return {seen,deps:{...clock(),submit:async()=>{seen.submitted++;return {success:true,accepted:true,runId:'rb',state:'done',result:'Réponse du cerveau.'};},status:async()=>{}}};
   }
-  await test('a model-only turn (real S24 REASON) goes to the brain, never to a Graph execution',async()=>{
-   for(const text of ["Qu'est-ce que tu as ajusté récemment ?",'Bonjour Samantha']){
-    const {seen,deps}=router(resolution(text));const r=await brain.routeUnresolvedVoiceTurn(text,ctx(),deps);
-    assert.deepEqual(seen,{executed:0,submitted:1});assert.equal(r.source,'samantha_brain');
-   }
-   const noDecision=router({harness:{tool_policy:'optional',reason:'conversation_or_unknown'}});
-   await brain.routeUnresolvedVoiceTurn('raconte-moi une blague',ctx(),noDecision.deps);assert.deepEqual(noDecision.seen,{executed:0,submitted:1});
-   const required=router({harness:{tool_policy:'required'}});
-   await brain.routeUnresolvedVoiceTurn('mon solde',ctx(),required.deps);assert.deepEqual(required.seen,{executed:1,submitted:0});
-  });
-  await test('routing records its route and measured durations (resolution, brain)',async()=>{
-   let t=0;const deps={now:()=>t,sleep:async(ms)=>{t+=ms;},resolve:async()=>{t+=300;return resolution("Qu'est-ce que tu as ajusté récemment ?");},
-    execute:async()=>({success:true,source:'capability'}),
-    submit:async()=>{t+=1200;return {success:true,accepted:true,runId:'rt',state:'done',result:'Rien.'};},status:async()=>{}};
-   const r=await brain.routeUnresolvedVoiceTurn('x',ctx(),deps);
-   assert.deepEqual(r.timing,{route:'brain',resolveMs:300,brainMs:1200});
-   const c=await brain.routeUnresolvedVoiceTurn('x',ctx(),{...deps,resolve:async()=>({harness:{tool_policy:'required'}})});
-   assert.equal(c.timing.route,'capability');assert.equal(c.source,'capability');
-  });
-  await test('the payment path and every executable decision keep the existing executor (real S24 r11)',async()=>{
-   const pay={success:true,text:payment.text,capability:payment.capability,decision:payment.decision,harness:payment.harness};
+  await test('every voice turn goes to the brain, never to a Graph execution (real S24 r11 payment included)',async()=>{
    assert.equal(pay.decision.type,'EXECUTE');assert.equal(pay.decision.risk,'transaction');
-   for(const value of [pay,{...pay,decision:{...pay.decision,type:'CLARIFY'}},{...pay,decision:{...pay.decision,type:'STOP'}},{success:true,decision:deterministic.decision_envelope}]){
-    const {seen,deps}=router(value);const r=await brain.routeUnresolvedVoiceTurn(payment.text,ctx(),deps);
-    assert.deepEqual(seen,{executed:1,submitted:0});assert.equal(r.source,'capability');
+   for(const text of ["Qu'est-ce que tu as ajusté récemment ?",'Bonjour Samantha',pay.text,'mon solde']){
+    const {seen,deps}=router();const r=await brain.routeVoiceTurnToBrain(text,ctx(),deps);
+    assert.deepEqual(seen,{submitted:1});assert.equal(r.source,'samantha_brain');
    }
+   assert.equal(brain.routeUnresolvedVoiceTurn,undefined);assert.equal(brain.brainTerritory,undefined);
   });
-  await test('an unavailable resolver keeps the existing executor and admission is checked before any effect',async()=>{
-   for(const value of [new Error('helper_failed'),{success:false,error:'helper_failed'},null,[]]){
-    const {seen,deps}=router(value);await brain.routeUnresolvedVoiceTurn('Bonjour',ctx(),deps);assert.deepEqual(seen,{executed:1,submitted:0});
-   }
-   const {seen,deps}=router(resolution("Qu'est-ce que tu as ajusté récemment ?"));
-   await assert.rejects(brain.routeUnresolvedVoiceTurn('x',ctx({assertCurrent:()=>{throw new Error('owner_admission_required');}}),deps),/owner_admission_required/);
-   assert.deepEqual(seen,{executed:0,submitted:0});
+  await test('routing records its route and measured brain duration, with no resolution',async()=>{
+   let t=0;const deps={now:()=>t,sleep:async(ms)=>{t+=ms;},submit:async()=>{t+=1200;return {success:true,accepted:true,runId:'rt',state:'done',result:'Rien.'};},status:async()=>{}};
+   const r=await brain.routeVoiceTurnToBrain('x',ctx(),deps);
+   assert.deepEqual(r.timing,{route:'brain',resolveMs:0,brainMs:1200});
   });
-  await test('wiring: /claw-live/capability routes unresolved turns, the agent client forwards voice delegation',()=>{
+  await test('admission is checked before any effect',async()=>{
+   const {seen,deps}=router();
+   await assert.rejects(brain.routeVoiceTurnToBrain('x',ctx({assertCurrent:()=>{throw new Error('owner_admission_required');}}),deps),/owner_admission_required/);
+   assert.deepEqual(seen,{submitted:0});
+  });
+  await test('wiring: /claw-live/capability routes every turn to the brain, the agent client forwards voice delegation',()=>{
    const server=fs.readFileSync(path.join(__dirname,'../src/companion/server.ts'),'utf8');
    const start=server.indexOf('routePath === "/claw-live/capability"'),end=server.indexOf('routePath === "/owner-admission"',start);
    assert.ok(start>0&&end>start);const block=server.slice(start,end);
-   assert.match(block,/routeUnresolvedVoiceTurn\(text, \{sessionId, clientRunId: String\(body\.clientRunId \|\| ""\), admission: admission\.ticket, assertCurrent\}/);
-   assert.match(block,/resolve: \(unresolved\) => capabilityBridge\(unresolved, \{execute:false,surface:"claw_live",caller:"owner",timeoutSeconds:5\}\)/);
-   assert.match(block,/execute: \(unresolved\) => capabilityBridge\(unresolved, \{execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35\}\)/);
+   assert.match(block,/routeVoiceTurnToBrain\(text, \{sessionId, clientRunId: String\(body\.clientRunId \|\| ""\), admission: admission\.ticket, assertCurrent\}/);
+   assert.doesNotMatch(block,/capabilityBridge|clawLiveCapabilityTurn/);
+   const decision=server.slice(server.indexOf('routePath === "/claw-live/decision"'),start);assert.doesNotMatch(decision,/capabilityBridge/);
    assert.match(block,/submit: submitIntent, status: voiceRunStatus, pollMs: VOICE_RUN_POLL_MS/);
    assert.match(block,/console\.log\(voiceTurnLogLine\(result, Date\.now\(\) - turnStarted\)\);/);
    const agent=fs.readFileSync(path.join(__dirname,'../src/companion/openclawAgentClient.ts'),'utf8');

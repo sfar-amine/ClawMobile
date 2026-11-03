@@ -85,8 +85,9 @@ async function main() {
     assert(result.argv.includes('--selection-stdin'));
   }
   const mcp=require('../dist/companion/mcpBridge');
+  // ADR 02/11 step 3: the typed MCP selection is always active (no host switch), whatever the environment says.
   const previousFlag=process.env.SAMANTHA_BRAIN_ONLY;
-  process.env.SAMANTHA_BRAIN_ONLY='1';
+  process.env.SAMANTHA_BRAIN_ONLY='0';
   const envelope={kind:'samantha.typed-selection.v1',selection};
   assert.deepEqual(mcp.typedMcpSelection({decision:envelope}),selection);
   assert.deepEqual(mcp.typedMcpSelection({typed:selection}),selection);
@@ -101,8 +102,6 @@ async function main() {
   assert.equal(preview.state,'resolved');assert.equal(preview.result.mode,'typed-resolve');
   assert.deepEqual(preview.result.selection,selection);
   delete process.env.CLAW_CAPABILITY_HELPER;
-  process.env.SAMANTHA_BRAIN_ONLY='0';
-  assert.throws(()=>mcp.typedMcpSelection({decision:envelope}),/typed_path_not_active/);
   if(previousFlag===undefined)delete process.env.SAMANTHA_BRAIN_ONLY;else process.env.SAMANTHA_BRAIN_ONLY=previousFlag;
   console.log('typed-capability-tools: PASS (pinned canonical projection, exact host invocation, owner isolation, no replay, canonical app invocation)');
 }

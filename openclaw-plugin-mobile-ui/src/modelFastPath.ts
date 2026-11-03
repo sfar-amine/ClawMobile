@@ -7,14 +7,10 @@ import {runCapabilityHelperProcess} from "./companion/capabilityBridge";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { admittedAtMs, dialogueTurn, dialogueTurnUntilReady, STILL_RESTARTING_TEXT, transportEventRef } from "./dialogueSurface";
 import { PUBLIC_WEB_BUDGET_MS } from "./companion/runWeb";
-import {brainOnlyEnabled} from "./brainOnly";
 
 export const INTENT_INPUT_PROTOCOL = "mcp-input.v1";
 export const INTENT_READ_PROTOCOL = "mcp-read.v1";
-const MAX_MESSAGE_CHARS = 12000;
-const LOCAL_COMPANION_SESSION = /^agent:main:companion-chat-[A-Za-z0-9-]{1,96}$/;
 
 export type FastPathResult = {
   status?: string;
@@ -42,27 +38,6 @@ export type FastPathResult = {
   alternatives?: unknown;
   clarification?: Record<string, unknown>;
   resolution?: Record<string, unknown>;
-};
-
-type InboundEvent = {
-  id?: string;
-  runId?: string;
-  idempotencyKey?: string;
-  content?: string;
-  bodyForAgent?: string;
-  isGroup?: boolean;
-  senderIsOwner?: boolean;
-  media?: unknown[];
-  originalMedia?: unknown[];
-  sessionKey?: string;
-};
-
-type InboundContext = {
-  runId?: string;
-  agentId?: string;
-  sessionKey?: string;
-  channel?: string;
-  messageProvider?: string;
 };
 
 export type RunnerOptions = {
@@ -127,42 +102,6 @@ function helperCandidates(home = os.homedir()): string[] {
     process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER || "",
     runtimeFile("model-fast-path.py", home),
   ].filter(Boolean);
-}
-
-function isMainSession(event: InboundEvent, ctx: InboundContext): boolean {
-  if (ctx.agentId) return ctx.agentId === "main";
-  const key = ctx.sessionKey ?? event.sessionKey ?? "";
-  return key.startsWith("agent:main:");
-}
-
-export function isTrustedLocalCompanionSession(
-  event: InboundEvent,
-  ctx: InboundContext,
-): boolean {
-  if (!isMainSession(event, ctx) || event.isGroup === true) return false;
-  const key = String(ctx.sessionKey ?? event.sessionKey ?? "");
-  if (!LOCAL_COMPANION_SESSION.test(key)) return false;
-  const channel = String(ctx.channel || ctx.messageProvider || "").toLowerCase();
-  return !channel || channel === "openclaw" || channel === "companion" || channel === "android";
-}
-
-export function isOwnerFastPathEligible(
-  event: InboundEvent,
-  ctx: InboundContext,
-): boolean {
-  const owner = event.senderIsOwner === true || isTrustedLocalCompanionSession(event, ctx);
-  if (!owner || event.isGroup === true) return false;
-  if (!isMainSession(event, ctx)) return false;
-  if ((event.media?.length ?? 0) > 0 || (event.originalMedia?.length ?? 0) > 0) {
-    return false;
-  }
-  const message = (event.bodyForAgent ?? event.content ?? "").trim();
-  return message.length > 0 && message.length <= MAX_MESSAGE_CHARS;
-}
-
-function surfaceFor(ctx: InboundContext): string {
-  const channel = String(ctx.channel || ctx.messageProvider || "").toLowerCase();
-  return channel === "whatsapp" ? "whatsapp" : "claw_live";
 }
 
 /** O6 (fichier 37) : a guarded operator read holds Wi-Fi off for at most 60 s; the helper waits up to 70 s for it.
@@ -381,12 +320,6 @@ export async function runModelFastPath(
   return { status: "error", reason: lastError };
 }
 
-function conversationKey(event: InboundEvent, ctx: InboundContext): string {
-  return String(ctx.sessionKey || event.sessionKey || ctx.channel || "inbound").slice(0, 240);
-}
-
-const OWNER_WHATSAPP_SESSION = /^agent:main:whatsapp:direct:(\+?[1-9][0-9]{7,14})$/;
-
 /** Owner WhatsApp numbers from the Gateway's canonical config (commands.ownerAllowFrom « whatsapp:+… »). */
 export function ownerWhatsAppNumbers(configPath = path.join(process.env.OPENCLAW_STATE_DIR || path.join(os.homedir(), ".openclaw"), "openclaw.json")): Set<string> {
   try {
@@ -396,65 +329,4 @@ export function ownerWhatsAppNumbers(configPath = path.join(process.env.OPENCLAW
   } catch {
     return new Set();
   }
-}
-
-/**
- * S24 12/10: the Gateway runs inbound_claim only for plugin-bound conversations, so the owner's WhatsApp turns
- * never reached the capability-first path (Amine: « même pour moi il ne faut pas passer par le modèle »).
- * before_dispatch runs for every inbound message but carries no senderIsOwner: the owner is proved by the routed
- * main session key AND the number listed in commands.ownerAllowFrom. WhatsApp only: app turns already run the
- * fast path in the Companion and must never execute twice.
- */
-export async function handleOwnerBeforeDispatch(
-  event: { messageId?: string; content?: string; body?: string; channel?: string; sessionKey?: string; isGroup?: boolean; timestamp?: number },
-  ctx: { messageId?: string; channelId?: string; sessionKey?: string },
-  runner: (message: string, options?: RunnerOptions) => Promise<FastPathResult> = runModelFastPath,
-  owners: () => Set<string> = ownerWhatsAppNumbers,
-): Promise<{ handled: boolean; text?: string }> {
-  const sessionKey = String(ctx?.sessionKey ?? event?.sessionKey ?? "");
-  const channel = String(event?.channel ?? ctx?.channelId ?? "").toLowerCase();
-  const match = OWNER_WHATSAPP_SESSION.exec(sessionKey);
-  if (channel !== "whatsapp" || !match || event?.isGroup === true) return { handled: false };
-  const number = match[1].startsWith("+") ? match[1] : "+" + match[1];
-  if (!owners().has(number)) return { handled: false };
-  if (brainOnlyEnabled()) return {handled: false};
-  const out = await handleOwnerFastPath(
-    // content is the sender's text; body may carry the channel envelope.
-    { content: event?.content || event?.body, senderIsOwner: true, isGroup: false, sessionKey, timestamp: event?.timestamp },
-    { agentId: "main", sessionKey, channel: "whatsapp", runId: event?.messageId ?? ctx?.messageId },
-    runner,
-  );
-  return out.handled ? { handled: true, text: out.reply?.text } : { handled: false };
-}
-
-/**
- * Owner WhatsApp / plugin-bound turn (SAM-MIG V2.2): one admitted event for the dialogue coordinator, which owns
- * the pending question (no in-process copy here). The reply text goes back as the hook `text`, which OpenClaw
- * delivers through its durable queue (L0: outbound-prepared-v1) — never a direct send from the plugin.
- * Not handled (UNRESOLVED outside a question, D-G): the agent continues as before.
- */
-export async function handleOwnerFastPath(
-  event: InboundEvent & { timestamp?: number },
-  ctx: InboundContext,
-  runner: (message: string, options?: RunnerOptions) => Promise<FastPathResult> = runModelFastPath,
-): Promise<{ handled: boolean; reply?: { text: string } }> {
-  if (!isOwnerFastPathEligible(event, ctx)) return { handled: false };
-  if (brainOnlyEnabled()) return {handled: false};
-  const message = (event.bodyForAgent ?? event.content ?? "").trim();
-  const graphSurface = surfaceFor(ctx);
-  // Amine 28/10 (replaces D-B): a message received while Samantha restarts is kept and answered once she is ready.
-  const reply = await dialogueTurnUntilReady(runner, {
-    surface: graphSurface === "whatsapp" ? "whatsapp" : "claw_live",
-    graphSurface,
-    conversationKey: conversationKey(event, ctx),
-    eventRef: transportEventRef(ctx.runId, event.runId, event.idempotencyKey, event.id),
-    text: message,
-    caller: "owner",
-    admittedAt: admittedAtMs(event.timestamp),
-    policy: { modelAllowed: true },
-    timeoutSeconds: 75,
-  });
-  if (reply.retryable === true) return { handled: true, reply: { text: STILL_RESTARTING_TEXT } };
-  if (!reply.handled) return { handled: false };
-  return { handled: true, reply: { text: String(reply.text || "").trim() || "Claw n'a pas pu traiter la demande." } };
 }

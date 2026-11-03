@@ -70,8 +70,8 @@ const budget = require('../dist/companion/turnBudget.js');
     assert.equal(projected.windows['24h'].surfaces[0].usefulSamples,1);
     assert.equal(projected.windows['24h'].surfaces[0].firstSignSamples,0,'unknown sign is never counted as a <1s success');
     const nativeBody={operation:'native_active',sessionKey:'agent:main:whatsapp:direct:+15550123456'};
-    assert.equal((await request(nativeBody,owner,'11111111-1111-4111-8111-111111111111')).status,409,'host feature gate is enforced on the actual route');
-    process.env.SAMANTHA_BRAIN_ONLY='1';
+    // No host switch any more (ADR 02/11, step 3): the owner number from ownerAllowFrom is still required.
+    assert.equal((await request(nativeBody,owner,'11111111-1111-4111-8111-111111111111')).status,403,'owner WhatsApp number is enforced on the actual route');
     await fs.writeFile(path.join(root,'openclaw.json'),JSON.stringify({commands:{ownerAllowFrom:['whatsapp:+15550123456']}}));
     const native={operation:'native_ingress',sessionKey:nativeBody.sessionKey,accountId:'default',observedMonoMs:Number(process.hrtime.bigint()/1000000n)};
     assert.equal((await request({...native,ownerAdmitted:true},owner,'11111111-1111-4111-8111-111111111111')).status,400,'telemetry cannot submit admission bits');
@@ -83,7 +83,6 @@ const budget = require('../dist/companion/turnBudget.js');
       assert.equal(await require('../dist/nativeTurnProgress').activeObservedNativeWhatsAppRun(nativeBody.sessionKey,{excludeRunId:'11111111-1111-4111-8111-111111111111'}),null);
     }finally{if(previousPort===undefined)delete process.env.CLAWMOBILE_COMPANION_PORT;else process.env.CLAWMOBILE_COMPANION_PORT=previousPort;}
     assert.equal((await request({operation:'native_end',sessionKey:nativeBody.sessionKey,success:true},owner,'11111111-1111-4111-8111-111111111111')).status,200);
-    delete process.env.SAMANTHA_BRAIN_ONLY;
 
   } finally {
     console.log=originalLog;if(server)await new Promise(r=>server.close(r));await fs.rm(root,{recursive:true,force:true});

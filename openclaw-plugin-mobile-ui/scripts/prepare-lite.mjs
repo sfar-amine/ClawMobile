@@ -16,6 +16,11 @@ const removeTargets = [
   // SAM-MIG V2.2 (L5): the former clarification authority is removed; a stale build copy must never be loaded.
   path.join(distDir, "capabilityClarification.js"),
   path.join(distDir, "capabilityClarification.d.ts"),
+  // ADR 02/11 « le cerveau partout », step 3: the retired switch and owner pre-brain paths must not survive in a stale build.
+  path.join(distDir, "brainOnly.js"),
+  path.join(distDir, "capabilityTool.js"),
+  path.join(distDir, "companion", "phoneDateTime.js"),
+  path.join(distDir, "companion", "voiceRoundLearning.js"),
 ];
 
 for (const target of removeTargets) {

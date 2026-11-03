@@ -1,29 +1,44 @@
 const assert=require('node:assert/strict');
-process.env.SAMANTHA_BRAIN_ONLY='1';
+// ADR 02/11 « le cerveau partout », step 3: brain-only is unconditional; it must hold with no environment switch.
+// A leftover value in the host environment changes nothing (the S24 still carries SAMANTHA_BRAIN_ONLY=1).
+process.env.SAMANTHA_BRAIN_ONLY='0';
+const fs=require('node:fs'),path=require('node:path');
 const live=require('../dist/companion/clawLiveUnderstanding');
 const brain=require('../dist/companion/voiceBrainDelegation');
 const fast=require('../dist/modelFastPath');
 const port=require('../dist/intentInterpreterPort');
 (async()=>{
- const owner={understanding:new live.VoiceUnderstandingState(),sessionLocale:()=>'fr',executeVoiceCapability:(_m,_r,run)=>run()};
- let resolves=0,executions=0,submits=0;
+ let submits=0;
  for(const text of ['Quel est mon solde Orange ?','Bonjour Samantha quel est mon solde ?','Oui','La première','Stop, laisse tomber']){
-  const result=await live.clawLiveDecision(owner,text,async()=>{resolves++;throw Error('no resolver')});
+  const result=live.clawLiveDecision(text);
   assert.deepEqual(result.voiceFastPath,{version:1,execute:true,owner:'samantha_brain'});
+  assert.equal(result.harness.tool_policy,'required');
  }
- assert.equal(resolves,0);
- const reflex=await live.clawLiveDecision(owner,'Bonjour Samantha',async()=>{resolves++});
- assert.equal(reflex.voiceFastPath.execute,false);assert.equal(resolves,0);
+ // Kept by Amine's decision (25/10): the closed social reflexes stay with the voice interface.
+ const reflex=live.clawLiveDecision('Bonjour Samantha');
+ assert.equal(reflex.voiceFastPath.execute,false);
  const ticket={},context={sessionId:'demo',clientRunId:'voice-cap-1',admission:ticket,assertCurrent(){}};
- const result=await brain.routeUnresolvedVoiceTurn('Quel est mon solde Orange ?',context,{
-  resolve:async()=>{resolves++;throw Error('no resolver')},execute:async()=>{executions++;throw Error('no pre-brain effect')},
+ const result=await brain.routeVoiceTurnToBrain('Quel est mon solde Orange ?',context,{
   submit:async()=>{submits++;return{success:true,accepted:true,runId:'run-1',state:'done',result:'Réponse vérifiée du cerveau.'}},
   status:async()=>{throw Error('no poll for terminal')},
  });
- assert.equal(result.state,'done');assert.equal(result.text,'Réponse vérifiée du cerveau.');assert.equal(submits,1);assert.equal(resolves,0);assert.equal(executions,0);
+ assert.equal(result.state,'done');assert.equal(result.text,'Réponse vérifiée du cerveau.');assert.equal(submits,1);assert.equal(result.timing.route,'brain');assert.equal(result.timing.resolveMs,0);
+ let capability=0;
+ const executed=await live.clawLiveCapability({executeVoiceCapability:()=>{throw Error('no voice turn')}},{request:'Quel est mon solde Orange ?'},async text=>{capability++;return{state:'done',source:'samantha_brain',text}});
+ assert.equal(executed.text,'Quel est mon solde Orange ?');assert.equal(capability,1);
+ // Owner WhatsApp: no coordinator hook before the agent any more, and no free-text capability tool.
+ for(const name of ['handleOwnerBeforeDispatch','handleOwnerFastPath','isOwnerFastPathEligible'])assert.equal(fast[name],undefined,name);
+ const hooks=[],tools=[];
+ require('../dist/index.js').register({on:(name,fn)=>hooks.push([name,fn]),logger:{},registerTool:(tool,opts)=>tools.push(opts),registerGatewayMethod(){},runtime:{}});
+ assert(!hooks.some(([name])=>name==='inbound_claim'),'no owner inbound_claim coordinator');
+ assert(!tools.some(opts=>opts?.name==='clawmobile_capability'||opts?.names?.includes?.('clawmobile_capability')),'free-text capability tool retired');
+ assert(tools.some(opts=>Array.isArray(opts?.names)&&opts.names.includes('samantha_catalogue')),'typed tools registered without any switch');
  const number='+21620000000',sessionKey='agent:main:whatsapp:direct:'+number;
- const wa=await fast.handleOwnerBeforeDispatch({channel:'whatsapp',content:'solde orange',sessionKey},{sessionKey},async()=>{resolves++;throw Error('no interpreter')},()=>new Set([number]));
- assert.equal(wa.handled,false);assert.equal(resolves,0);
+ const before=hooks.filter(([name])=>name==='before_dispatch');
+ for(const [,fn] of before)assert.equal(await fn({channel:'whatsapp',content:'solde orange',sessionKey},{sessionKey}),undefined,'owner WhatsApp turn reaches the brain');
+ const src=fs.readdirSync(path.join(__dirname,'../src'),{recursive:true}).filter(f=>/\.ts$/.test(f));
+ for(const f of src)assert(!fs.readFileSync(path.join(__dirname,'../src',f),'utf8').includes('SAMANTHA_BRAIN_ONLY'),f+' reads the retired switch');
+ assert(!fs.readFileSync(path.join(__dirname,'../../installer/termux-lite/model-fast-path.py'),'utf8').includes('SAMANTHA_BRAIN_ONLY'),'model-fast-path.py reads the retired switch');
  const replies=[];let completions=0;
  const handler=port.createInterpretHandler(()=>async()=>{completions++;return{text:'{"ok":true}'}});
  await handler({params:{systemPrompt:'x',message:'y'},respond:(...args)=>replies.push(args)});

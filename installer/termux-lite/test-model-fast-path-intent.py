@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Host opt-in semantic port, opaque in-process objects and private context, no inference."""
+"""Host opt-in semantic port, opaque in-process objects and private context, no inference.
+
+ADR 02/11 « le cerveau partout », step 3: an owner turn never starts this interpreter (the brain reads it), with no
+host switch; only the native Pulse room keeps it for the owner caller. The port mechanics below are therefore
+exercised with a non-owner caller, the one that can still reach them."""
 import importlib.util
 import json
 import os
@@ -17,8 +21,18 @@ ROOT=Path(__file__).resolve().parents[2]
 
 
 class IntentPortTests(unittest.TestCase):
-    def ports(self, surface='whatsapp', **kwargs):
-        return m.FastPathPorts(ROOT,surface=surface,caller='owner',timeout=15,**kwargs)
+    def ports(self, surface='whatsapp', caller='other', **kwargs):
+        return m.FastPathPorts(ROOT,surface=surface,caller=caller,timeout=15,**kwargs)
+
+    def test_owner_turns_never_start_the_interpreter_whatever_the_environment(self):
+        for leftover in ({}, {'SAMANTHA_BRAIN_ONLY':'0'}, {'SAMANTHA_BRAIN_ONLY':'1'}):
+            env={'SAMANTHA_INTENT_INTERPRETER':'1',**leftover}
+            with self.subTest(env=env), patch.dict(m.os.environ,env):
+                if 'SAMANTHA_BRAIN_ONLY' not in leftover: m.os.environ.pop('SAMANTHA_BRAIN_ONLY',None)
+                for surface in ('whatsapp','voice','mcp','claw_live'):
+                    self.assertFalse(hasattr(self.ports(surface,caller='owner'),'interpret_turn'),surface)
+                self.assertFalse(hasattr(self.ports('claw_live',caller='owner',dialogue_surface='app'),'interpret_turn'))
+                self.assertTrue(callable(self.ports('whatsapp',caller='owner',dialogue_surface='pulse_room').interpret_turn))
 
     def test_only_strict_host_opt_in_enables_hook(self):
         for value in ('', '0','true','yes'):
@@ -27,7 +41,7 @@ class IntentPortTests(unittest.TestCase):
         with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}):
             self.assertTrue(callable(self.ports().interpret_turn))
 
-    def test_voice_uses_the_interpreter_live_session_and_private_qa_keep_their_owners(self):
+    def test_non_owner_voice_uses_the_interpreter_live_session_and_private_qa_keep_their_owners(self):
         with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}):
             self.assertTrue(callable(self.ports('voice').interpret_turn))
             self.assertTrue(callable(self.ports(web_host={'voice_delegation':True}).interpret_turn))
@@ -66,20 +80,12 @@ class IntentPortTests(unittest.TestCase):
             with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}), patch.object(m,'_intent_dialogue_backend',return_value=backend):
                 self.assertEqual(self.ports().execute('x',{},'o','FAST',{}),kept)
 
-    def test_s24_app_graph_alias_uses_app_interpreter_and_keeps_executor_surface(self):
+    def test_s24_app_graph_alias_keeps_its_host_surface_and_the_owner_app_goes_to_the_brain(self):
         fixture=json.loads((ROOT/'openclaw-plugin-mobile-ui/fixtures/foundations/app-intent-surface-s24-20261024.json').read_text())
-        backend=SimpleNamespace(interpret_turn=lambda text,state,ctx:{'text':text})
-        seen=[]
-        def admitted(event,ports,policy):
-            seen.append(ports)
-            self.assertTrue(callable(ports.interpret_turn))
-            return ports.interpret_turn('  exact message  ',{}, {})
-        coordinator=SimpleNamespace(handle_admitted_event=admitted)
-        with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}), patch.object(m,'_dialogue_coordinator',return_value=coordinator), patch.object(m,'_intent_dialogue_backend',return_value=backend) as factory:
-            out=m.run_dialogue('  exact message  ',mode='turn',ui_root=ROOT,surface=fixture['graphSurface'],caller='owner',timeout=15,event=fixture['event'])
-        self.assertEqual(out,{'text':'  exact message  '})
-        self.assertEqual(seen[0].surface,'claw_live')
-        self.assertEqual(factory.call_args.kwargs['surface'],'app')
+        with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}), patch.object(m,'_intent_dialogue_backend',side_effect=AssertionError('owner app interpreter')):
+            ports=self.ports(fixture['graphSurface'],caller='owner',dialogue_surface=m._intent_surface(fixture['graphSurface'],fixture['event']))
+            self.assertEqual(ports.surface,'claw_live');self.assertEqual(ports.intent_surface,'app')
+            self.assertFalse(hasattr(ports,'interpret_turn'))
         for switch in ('0',''):
             with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':switch}):
                 self.assertFalse(hasattr(self.ports('claw_live',dialogue_surface='app'),'interpret_turn'))
@@ -186,18 +192,24 @@ class IntentPortTests(unittest.TestCase):
         with (patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}),patch.object(m,'_INTENT_CLIENT_CONTEXT',{'schema_version':'mcp-input.v1'}),
              patch.object(m,'_intent_dialogue_backend',return_value=backend),patch.object(m,'_dialogue_coordinator',return_value=owner),
              patch.object(m,'run_dialogue',side_effect=AssertionError('no dialogue state or second interpretation'))):
-            out=m.run_intent_mcp_read('  exact  ',ui_root=ROOT,caller='owner',timeout=15,
+            out=m.run_intent_mcp_read('  exact  ',ui_root=ROOT,caller='trusted',timeout=15,
                 event={'conversationKey':'external_mcp:client:thread','eventRef':'request-id'})
         self.assertEqual(out['intentInputProtocol'],'mcp-input.v1')
         self.assertEqual(out['intentReadProtocol'],'mcp-read.v1')
         self.assertEqual(len(seen),1);self.assertEqual(seen[0][0],'  exact  ')
         self.assertEqual(seen[0][1]['conversationRef'],'host:external_mcp:client:thread')
         self.assertEqual(seen[0][1]['messageProvenance'],'client_reported')
+        # The owner's MCP free text is not interpreted here any more (brain everywhere, step 3): refused before any backend.
+        with (patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}),patch.object(m,'_INTENT_CLIENT_CONTEXT',{'schema_version':'mcp-input.v1'}),
+             patch.object(m,'_intent_dialogue_backend',side_effect=AssertionError('no owner interpreter'))):
+            owner=m.run_intent_mcp_read('  exact  ',ui_root=ROOT,caller='owner',timeout=15,
+                event={'conversationKey':'external_mcp:client:thread','eventRef':'request-id'})
+        self.assertEqual(owner['reason'],'INTERPRETATION_HOST_UNAVAILABLE')
 
     def test_stateless_mcp_read_refuses_missing_host_event_before_backend_call(self):
         with (patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}),patch.object(m,'_INTENT_CLIENT_CONTEXT',{}),
              patch.object(m,'_intent_dialogue_backend',side_effect=AssertionError('no backend'))):
-            out=m.run_intent_mcp_read('request',ui_root=ROOT,caller='owner',timeout=15,event={})
+            out=m.run_intent_mcp_read('request',ui_root=ROOT,caller='trusted',timeout=15,event={})
         self.assertEqual(out['reason'],'INTERPRETATION_HOST_UNAVAILABLE')
 
     def test_private_stream_rejects_local_datagram_without_reading_it(self):

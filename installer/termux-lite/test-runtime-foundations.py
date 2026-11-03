@@ -156,7 +156,7 @@ class RuntimeFoundations(unittest.TestCase):
 
     def test_helper_consumers_do_not_reconstruct_current_link(self):
         repo = HERE.parent.parent
-        for relative in ('openclaw-plugin-mobile-ui/src/capabilityTool.ts', 'openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts', 'openclaw-plugin-mobile-ui/src/companion/clawLive.ts', 'openclaw-plugin-mobile-ui/src/modelFastPath.ts', 'openclaw-plugin-mobile-ui/src/companion/control.ts', 'openclaw-plugin-mobile-ui/src/companion/memoryControl.ts', 'openclaw-plugin-mobile-ui/src/contactTools.ts'):
+        for relative in ('openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts', 'openclaw-plugin-mobile-ui/src/companion/clawLive.ts', 'openclaw-plugin-mobile-ui/src/modelFastPath.ts', 'openclaw-plugin-mobile-ui/src/companion/control.ts', 'openclaw-plugin-mobile-ui/src/companion/memoryControl.ts', 'openclaw-plugin-mobile-ui/src/contactTools.ts'):
             source = (repo/relative).read_text()
             self.assertNotIn('releases/current', source, relative)
             self.assertIn('runtimeFile(', source, relative)

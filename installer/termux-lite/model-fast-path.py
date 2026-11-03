@@ -1468,8 +1468,10 @@ class FastPathPorts:
         # Host deployment switch only. No natural word or client field toggles it.
         # Doc 71: voice uses the same interpreter; Claude's own live session
         # (claw_live) and private QA ingress keep their existing owners.
+        # Owner turns belong to the brain (ADR 02/11, step 3): the Gateway port refuses the owner interpreter purpose,
+        # so an owner caller never starts it here; the native Pulse room keeps its own.
         self._semantic_enabled = (os.environ.get("SAMANTHA_INTENT_INTERPRETER") == "1" and
-            not (os.environ.get("SAMANTHA_BRAIN_ONLY") == "1" and self.caller == "owner" and self.intent_surface != "pulse_room") and
+            not (self.caller == "owner" and self.intent_surface != "pulse_room") and
             self.intent_surface != "claw_live" and _QA_INGRESS_CONTEXT is None)
         if self._semantic_enabled:
             self.interpret_turn = self._interpret_semantic_turn

@@ -6,10 +6,6 @@ import os from "os";
 import path from "path";
 import { promisify } from "util";
 
-import { DialogueSurface, isDialogueConversationId } from "../dialogueSurface";
-import { runModelFastPath } from "../modelFastPath";
-import { publicDecision, publicReceiptMetadata, readReceiptPresentation } from "./receiptPresentation";
-
 const execFileAsync = promisify(execFile);
 export const CLAW_LIVE_MODEL = "gemini-3.8-live";
 const TOKEN_URL = "https://generativelanguage.googleapis.com/v1beta/auth_tokens";
@@ -186,54 +182,6 @@ export function compactVoiceOperatingRules(raw: string, maxChars = 12000) {
   }
   const head = text.slice(0, Math.min(heading.index, maxChars - section.length - separator.length)).trimEnd();
   return head + separator + section;
-}
-
-// SAM-MIG V2.2: Gemini Live is one surface of the dialogue coordinator (single owner of the pending question).
-export const clawLiveDialogue = new DialogueSurface(runModelFastPath, "claw_live", "claw_live", { modelAllowed: true }, { voice: true });
-
-/** Public decision plus the Graph confidence (0..1). The receipt speaker says « J'ai compris : … » only below the trust
- * threshold; without it every confident read was announced (banc voix S24 18/10, « mon solde Orange »). */
-function liveDecision(raw: unknown) {
-  const d = publicDecision(raw);
-  const confidence = raw && typeof raw === "object" ? (raw as { confidence?: unknown }).confidence : undefined;
-  return d && typeof confidence === "number" && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? { ...d, confidence } : d;
-}
-
-/** One Gemini Live tool turn. `request` is the user's original transcription for this turn
- * (Android v2 already enforces request == ASR final; the browser page sends its input transcription).
- * A CLARIFY question is returned with a `clarificationId`; the answer comes back with it and is
- * resolved by resolve-clarification. Otherwise the existing executor runs on the original/resolved text.
- */
-export async function clawLiveCapabilityTurn(
-  body: { request?: unknown; clarificationId?: unknown; originId?: string; sessionId?: string; assertCurrent?: () => void },
-  execute: (text: string) => Promise<any>,
-  dialogue: DialogueSurface = clawLiveDialogue,
-) {
-  const request = String(body?.request || "").trim();
-  if (!request || request.length > 12000) return { success: false, error: "request_required" };
-  const id = isDialogueConversationId(body?.clarificationId) ? body.clarificationId : undefined;
-  // W4: host-only session/run identities for a Web hand-off; the G6 voice gate is enforced before dispatch.
-  const coordinatorStarted = Date.now();
-  const turn = await dialogue.turn(request, { id, originId: String(body?.originId || "claw-live").slice(0, 120), sessionId: body.sessionId, runId: body.originId, assertCurrent: body.assertCurrent });
-  const coordinatorMs = Math.max(0, Math.min(600_000, Date.now() - coordinatorStarted));
-  if (turn.state === "needs_clarification") {
-    return {
-      success: true, state: "needs_clarification", source: "capability",
-      clarificationId: turn.clarificationId, question: turn.question, choices: turn.choices,
-      decision: liveDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)),
-      execution: { state: "needs_clarification", question: turn.question, choices: turn.choices },
-      instruction: "Read the question aloud verbatim. Send the user's spoken answer verbatim with this clarificationId.",
-    };
-  }
-  if (turn.state === "done" || turn.state === "failed") {
-    return { success: turn.state === "done", state: turn.state, source: "capability", text: turn.text, decision: liveDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)), ...(turn.web?{web:turn.web}:{}), execution: { state: turn.state === "done" ? "completed" : "failed",...(turn.web?{result:{web:turn.web}}:{}) } };
-  }
-  body.assertCurrent?.();
-  const executed = await execute(turn.text);
-  // Measured coordinator time joins the executor's own timing (voice turn log line); a non-object result is untouched.
-  if (!executed || typeof executed !== "object" || Array.isArray(executed)) return executed;
-  const timing = executed.timing && typeof executed.timing === "object" && !Array.isArray(executed.timing) ? executed.timing : {};
-  return { ...executed, timing: { ...timing, coordinatorMs } };
 }
 
 export function buildClawLiveSetup(

@@ -11,7 +11,7 @@ const clone=value=>JSON.parse(JSON.stringify(value));
 (async()=>{
  assert.equal(routing.provenance.runtimeCapture,true);assert.equal(captured.provenance.runtimeCapture,true);
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'model-flows-policy-'));
- process.env.OPENCLAW_STATE_DIR=root;process.env.SAMANTHA_CONTROL_PLAYBOOKS=root;delete process.env.SAMANTHA_BRAIN_ONLY;
+ process.env.OPENCLAW_STATE_DIR=root;process.env.SAMANTHA_CONTROL_PLAYBOOKS=root;
  await fs.mkdir(path.join(root,'clawmobile-companion'));await fs.mkdir(path.join(root,'skill_intelligence'));
  await fs.writeFile(path.join(root,'clawmobile-companion/runs.json'),JSON.stringify({version:1,runs:[],archivedSessionIds:[],paymentRequests:[],ownerConfirmations:[]}));
  await fs.writeFile(path.join(root,'skill_intelligence/model_policy.json'),JSON.stringify(routing.policy));
