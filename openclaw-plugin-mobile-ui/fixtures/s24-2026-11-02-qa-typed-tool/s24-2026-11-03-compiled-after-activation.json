@@ -1,0 +1,16 @@
+{
+  "captured_at": "2026-11-03",
+  "device": "S24",
+  "access": "Claw MCP claw_exec, profile chat-owner, read only (qa530-cap-a, qa530-cap-b, qa530-cap-c)",
+  "source_file": "~/.openclaw/capability-views/agent-tools.json",
+  "source_sha256": "64262186c16b2a283d0ecedf57ec140bec60062873840c3b0ce04c3f660c03e2",
+  "playbooks_active": "8863a801dbfabb394831fc044b3672836eb4268a",
+  "core_deployed": "bfa6521ab272cf855e2a2e121e264e886d1b98e2",
+  "capabilityRevision": "23ba6f3528cc4c3a",
+  "digest": "43285b8e9d56e16c2afacfdd3d1ba281dcc4d46fe6f26009efa5ed8fc915fe8b",
+  "tools": ["samantha_agenda", "samantha_device_assistance", "samantha_laptop_s24_termux", "samantha_maxit_tunisie", "samantha_pulse", "samantha_qa", "samantha_sonede", "samantha_steg", "samantha_topnet", "samantha_tunisie_telecom", "samantha_utility_billing", "samantha_whatsapp", "samantha_zain_bahrain", "samantha_app"],
+  "samantha_qa_sha256": "b12a22de6938d89902db5fb46c087c8f39633f07a138ab7352b4f8d17ea3b9b4",
+  "qa_test_campaign_sha256": "05b23c45f2508034dc4b63c6cd21806c2a194142790b81d26facd78462b5bb77",
+  "hash": "sha256 of json.dumps(entry, sort_keys=True, ensure_ascii=False) in UTF-8",
+  "secrets": "none; hashes and tool names only"
+}
