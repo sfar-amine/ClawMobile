@@ -101,7 +101,8 @@ def main():
         group.add_argument("--" + mode, dest="mode", action="store_const", const=mode)
     ap.add_argument("--openclaw-root", type=Path, default=Path(os.environ.get("PREFIX", "/data/data/com.termux/files/usr")) / "lib/node_modules/openclaw")
     ap.add_argument("--whatsapp-root", type=Path)
-    ap.add_argument("--patch-set", choices=("whatsapp-network-recovery", "agent-exec-auth-scope", "native-turn-provenance", "model-flow-selection", "gateway-prep-stages", "memory-retrieval-warm", "android-fs-compat", "startup-triage-optout"), default="whatsapp-network-recovery")
+    ap.add_argument("--codex-root", type=Path)
+    ap.add_argument("--patch-set", choices=("whatsapp-network-recovery", "agent-exec-auth-scope", "native-turn-provenance", "model-flow-selection", "gateway-prep-stages", "memory-retrieval-warm", "android-fs-compat", "startup-triage-optout", "codex-android-compat"), default="whatsapp-network-recovery")
     args = ap.parse_args()
     try:
         manifest_path = MANIFEST.with_name(args.patch_set + ".json")
@@ -115,9 +116,20 @@ def main():
             if len(candidates) != 1:
                 raise ValueError("whatsapp_package_missing_or_ambiguous")
             wa = candidates[0]
+        needs_codex = any(entry["root"] == "codex" for entry in files)
+        codex = args.codex_root
+        if needs_codex and codex is None:
+            # The Codex plugin package lives in its own npm project, like the WhatsApp channel.
+            state = Path(os.environ.get("OPENCLAW_STATE_DIR", str(Path.home() / ".openclaw")))
+            candidates = list((state / "npm/projects").glob("*/node_modules/@openclaw/codex"))
+            if len(candidates) != 1:
+                raise ValueError("codex_package_missing_or_ambiguous")
+            codex = candidates[0]
         roots = {"openclaw": args.openclaw_root.resolve()}
         if needs_whatsapp:
             roots["whatsapp"] = wa.resolve()
+        if needs_codex:
+            roots["codex"] = codex.resolve()
         _, expected = variant(manifest, roots)
         for name, root in roots.items():
             if package_version(root) != expected[name]:

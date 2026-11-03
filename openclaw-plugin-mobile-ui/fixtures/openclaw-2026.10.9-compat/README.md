@@ -82,3 +82,10 @@ production du S24 relevée le 02/11). `plugin-tool-selection-harness.cjs` n'est 
 écrit pour `installer/termux-lite/test-session-open-plugin-tools.py`, qui exécute dans une VM ces corps originaux
 (choix des plugins du registre d'outils d'un tour) ; seuls les prédicats installé/activé/plan de contrôle sont inertes
 (tout plugin disponible, comme sur le S24 où les deux plugins se chargent).
+
+Recherche web Codex sur Android (03/11/2026, jeu `codex-android-compat`) : `temp-workspace-ownership.js.gz` (sha256
+`dc3f7d3b…63f`) et `temp-workspace-child-admission.js.gz` (sha256 `81d4eb43…391`) viennent de `@openclaw/fs-safe@0.26.0`
+(archive npm, conteneur Claude Code), la version embarquée par `openclaw@2026.10.9` ; `bounded-turn-B91suzbV.mjs.gz`
+(sha256 `4075c997…faa`) et `web-search-provider.runtime-DEBVJch2.mjs.gz` (sha256 `73e09af8…25f`) viennent de
+`@openclaw/codex@2026.10.9` (archive npm). Les quatre empreintes sont identiques à l'octet aux fichiers du S24 relevés le
+03/11 avant toute modification.
