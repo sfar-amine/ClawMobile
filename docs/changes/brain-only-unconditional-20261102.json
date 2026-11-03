@@ -42,6 +42,7 @@
     "openclaw-plugin-mobile-ui/scripts/test-native-turn-progress.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-owner-turn-admission.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-phone-datetime.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-contact-media-owner.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-reason-class-conversation-cause.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-receipt-presentation.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-request-language-transport.cjs",
@@ -122,6 +123,7 @@
     "CI canonique tools/localci.py non lancée (file du conteneur occupée).",
     "Les playbooks lisent encore SAMANTHA_BRAIN_ONLY (interpretation_gateway.py) : la variable reste sur le S24 jusqu'à leur étape.",
     "Conflits attendus avec claude/room-brain (#522) dans index.ts (imports, registerTool), sans conflit de fond.",
-    "Diagnostic CI p1 (Gateway public isolé) : le cas « clarification » vérifiait l'ancien coordinateur de l'app avant le cerveau ; il vérifie désormais que les deux tours atteignent le vrai Gateway (signé = propriétaire, non signé = non-propriétaire) sans appel au helper de dialogue."
+    "Diagnostic CI p1 (Gateway public isolé) : le cas « clarification » vérifiait l'ancien coordinateur de l'app avant le cerveau ; il vérifie désormais que les deux tours atteignent le vrai Gateway (signé = propriétaire, non signé = non-propriétaire) sans appel au helper de dialogue.",
+    "Avec #529 (pièces contacts), le plugin n'enregistre plus aucun hook before_dispatch. Aucun tour propriétaire ni aucune pièce de contact n'est intercepté avant le cerveau."
   ]
 }

@@ -45,6 +45,7 @@ Core ne lit plus `SAMANTHA_BRAIN_ONLY`, ni en TypeScript ni en Python. Les branc
 
 - **Réflexes vocaux sociaux** (`voiceReflex.ts` et sa liste fermée) : décision d'Amine. Gemini Live y répond seul.
 - **Pièces des contacts** : la pièce Pulse et les autres pièces gardent leur chemin. Elles relèvent de la PR core #522 (branche `claude/room-brain`) et des étapes suivantes. `test-pulse-room-fast-path.cjs` n'est pas modifié, car cette branche le supprime.
+- **Après fusion de #529 (pièces contacts)** : #529 retire l'interception des pièces, et ce lot retire la branche owner. Le plugin n'enregistre donc plus aucun hook `before_dispatch`, et `test-qa-contact-media-owner.cjs` vérifie ce zéro.
 - **Hors périmètre** : `/capability-bridge`, le canal Gemini (`gemini-request.py`, allowlist `clawmobile_capability` de l'agent `gemini`) et la déclaration Gemini Live `clawmobile_capability` côté app. La route correspondante, `/claw-live/capability`, va désormais au cerveau.
 - **Manifeste** : `openclaw.plugin.json` déclare encore `clawmobile_capability`. Les listes `deny` des agents contacts et l'allowlist de l'agent `gemini` citent ce nom. Le retirer du manifeste pourrait faire refuser ces configurations au chargement. Ce nom sera retiré avec l'étape 7.
 - **Bibliothèque de rendu vocal** (`voiceUnderstanding.ts`) et les fonctions de présentation des reçus : leurs tests propres restent. Les surfaces owner ne les appellent plus, et l'étape 5 (« des faits au lieu de textes ») les traitera.
