@@ -26,8 +26,8 @@ class LearningGateTests(unittest.TestCase):
         lg.STATE=self.state; lg.RECEIPTS=self.state/"receipts"; lg.LEDGERS=self.state/"capabilities"
         lg.REGISTRY_CANDIDATES=self.state/"registry-candidates"; lg.LOCK=self.state/"gate.lock"
         lg.WORKSPACE=self.workspace; lg.REGISTRY=reg
-        lg.HOWTO_ROOT=self.workspace/"ui-playbooks"/"capabilities"/"howto"
-        lg.JOURNAL=self.workspace/"context"/"DEVELOPMENT_JOURNAL.md"
+        lg.HOWTO_ROOT=self.state/"howto"
+        lg.JOURNAL=self.state/"journal"/"DEVELOPMENT_JOURNAL.md"
         lg.INCIDENT_DB=self.base/"missing.db"
 
     def tearDown(self):
@@ -65,11 +65,18 @@ class LearningGateTests(unittest.TestCase):
         self.assertEqual(payload["learning_type"],"closure_learning")
         self.assertEqual(payload["capability"],"device.remote_bridge")
         self.assertTrue(first["howto_updated"])
-        self.assertTrue(first["registry_updated"])
-        self.assertFalse(first["registry_update_required"])
-        registry=json.loads(lg.REGISTRY.read_text())
-        item=next(x for x in registry["capabilities"] if x["id"]=="device.remote_bridge")
-        self.assertIn("capabilities/howto/device.remote_bridge.md",item["evidence"])
+        # Single code root (02/11): the registry of a checkout is never edited; the change is a candidate only.
+        registry_before=lg.REGISTRY.read_text()
+        self.assertFalse(first["registry_updated"])
+        self.assertTrue(first["registry_update_required"])
+        self.assertEqual(registry_before,lg.REGISTRY.read_text())
+        self.assertNotIn("evidence",json.loads(registry_before)["capabilities"][0])
+        candidate=json.loads(Path(first["registry_candidate"]).read_text())
+        self.assertEqual(candidate["capability_id"],"device.remote_bridge")
+        self.assertEqual(candidate["proposal"]["evidence_append"],"capabilities/howto/device.remote_bridge.md")
+        self.assertEqual(candidate["proposal"]["notes_append"],"Remote Bridge health is an end-to-end chain.")
+        self.assertTrue(Path(first["registry_candidate"]).is_relative_to(lg.REGISTRY_CANDIDATES))
+        self.assertFalse((self.workspace/"ui-playbooks"/"capabilities"/"howto").exists())
         howto=(lg.HOWTO_ROOT/"device.remote_bridge.md").read_text()
         self.assertIn("probe Companion before restarting Slack",howto)
         second=self.run_close(learning_file=str(learning))
@@ -80,6 +87,26 @@ class LearningGateTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.run_close(learning_file=str(learning),summary="different")
 
+    def test_default_capture_paths_are_gate_data_outside_any_checkout(self):
+        self.assertEqual(P.parent/"learning-gate.py",P)
+        env={k:v for k,v in os.environ.items() if k not in ("CLAW_WORKSPACE","CLAW_UI_PLAYBOOKS_ROOT","CLAW_LEARNING_GATE_ROOT")}
+        home=self.base/"home"
+        pin=home/".openclaw/runtime-ui-playbooks/current/capabilities"; pin.mkdir(parents=True)
+        (pin/"registry.json").write_text('{"capabilities":[]}')
+        work=home/".openclaw/workspace/ui-playbooks/capabilities"; work.mkdir(parents=True)
+        (work/"registry.json").write_text('{"capabilities":[]}')
+        code="import importlib.util,sys,json;s=importlib.util.spec_from_file_location('g',sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);print(json.dumps([str(m.REGISTRY),str(m.HOWTO_ROOT),str(m.JOURNAL)]))"
+        out=json.loads(subprocess.run([sys.executable,"-c",code,str(P)],env={**env,"HOME":str(home)},capture_output=True,text=True,check=True).stdout)
+        state=home/".openclaw/learning-gate"
+        self.assertEqual(out,[str(pin/"registry.json"),str(state/"howto"),str(state/"journal/DEVELOPMENT_JOURNAL.md")])
+        self.assertFalse((home/".openclaw/health/code-root/events/learning_gate.json").exists())
+        # Pin missing: the workspace registry is still read (never blocking) and the fallback is recorded.
+        (pin/"registry.json").unlink()
+        out=json.loads(subprocess.run([sys.executable,"-c",code,str(P)],env={**env,"HOME":str(home)},capture_output=True,text=True,check=True).stdout)
+        self.assertEqual(out[0],str(work/"registry.json"))
+        event=json.loads((home/".openclaw/health/code-root/events/learning_gate.json").read_text())
+        self.assertEqual((event["component"],event["event"]),("learning_gate","fallback"))
+
     def test_no_learning_is_provisional_observation(self):
         out=self.run_close(closure_id="no-learning")
         self.assertEqual(out["confidence"],"provisional")
@@ -89,6 +116,7 @@ class LearningGateTests(unittest.TestCase):
 
     def test_development_journal_rotates_on_month_boundary(self):
         journal=lg.JOURNAL
+        journal.parent.mkdir(parents=True,exist_ok=True)
         journal.write_text('# Development Journal\n\nold month\n')
         old=dt.datetime(2026,9,30,12,tzinfo=dt.timezone.utc).timestamp()
         os.utime(journal,(old,old))

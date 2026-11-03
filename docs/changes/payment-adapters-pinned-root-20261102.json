@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "id": "payment-adapters-pinned-root-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "Les adaptateurs Maxit et ClicToPay chargent leurs CLI depuis l'épingle playbooks activée par le résolveur commun ; repli alerté sur la copie de travail si l'épingle manque ; overrides conservés. Aucune logique de paiement modifiée.",
+  "reason": "Approbation d'Amine du 02/11/2026 d'inclure les adaptateurs de paiement dans le lot racine de code unique, en commit séparé et minimal. Les fichiers de paiement sont identiques (sha256) dans l'épingle 47fdcca5 et la copie 68fd7b02 : seul le lieu de chargement change.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/payment-adapters-pinned-root-20261102.json",
+    "docs/changes/payment-adapters-pinned-root-20261102.md",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-adapter-root.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/clicToPayLivePaymentAdapter.ts",
+    "openclaw-plugin-mobile-ui/src/companion/maxitTopupLivePaymentAdapter.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-payment-adapter-root.cjs",
+      "status": "passed",
+      "evidence": "11 vérifications : épingle présente vers épingle sans alerte, épingle absente vers copie de travail avec un événement par adaptateur, overrides conservés, GATE_FILE et GATE_VALUE inchangés ; lectures seules, aucune exécution."
+    },
+    {
+      "name": "existing payment suite",
+      "status": "passed",
+      "evidence": "test-maxit-topup-payment-adapter, test-clictopay-provider-adapter, test-topnet-live-payment-adapter, test-maxit-quote-real-shape, test-payment-core (68), test-payment-api, test-payment-budgets, test-payment-steps, test-payment-handoff, test-local-payment-intent, test-payment-pattern-boundary, test-run-payment-presentation, test-payment-guard-invariance.py."
+    }
+  ],
+  "documentation": [
+    "docs/changes/payment-adapters-pinned-root-20261102.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Aucune route, capability ni règle de paiement modifiée ; seul le dossier de chargement des CLI change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Réutilise playbooksRoot.ts du lot single-code-root-20261102 ; aucun nouveau propriétaire."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Recette prévue en démo seulement (demo.confirmation, lecture de factures sans transaction) ; jamais de paiement réel.",
+    "CI canonique complète sur le head GitHub exact à faire avant fusion."
+  ],
+  "rollback": "Revert de ce seul commit puis companion-deploy.sh sur le commit obtenu : les adaptateurs relisent la copie de travail."
+}

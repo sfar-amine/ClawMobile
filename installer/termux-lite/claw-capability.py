@@ -26,8 +26,20 @@ def ui_root() -> Path:
     ]
     for path in candidates:
         if path and (path / "skill_intelligence/capability_graph.py").is_file():
+            if path == DEFAULT_UI and (not configured or Path(configured).expanduser() != DEFAULT_UI):
+                code_root_event("claw_capability", path)
             return path
     raise SystemExit("capability_graph_unavailable")
+
+
+def code_root_event(component: str, root: Path) -> None:
+    """Single code root (02/11): a fallback to the working copy keeps working and is reported (never blocking)."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from code_root import record_event
+        record_event(component, "fallback", root, "pin_missing", HOME)
+    except Exception:
+        pass
 
 
 def _graph(args: list[str], timeout_s: int = 35, input_text: str | None = None) -> subprocess.CompletedProcess:

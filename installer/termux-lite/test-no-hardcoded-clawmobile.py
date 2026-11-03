@@ -46,6 +46,7 @@ ALLOWLIST = {
     "installer/termux-lite/runtime-sync.sh": "depuis une release (health manager), retrouve le checkout déployé (plugin, outils de déploiement) ; CLAW_CORE_REPO prioritaire.",
     "installer/termux-lite/project-room.py": "copie le dépôt samantha-core complet (docs, plugin, git) dans la salle projet, pas termux-lite ; CLAW_PROJECT_CORE prioritaire.",
     "installer/termux-lite/gateway-start.sh": "#277 : suit le patch WhatsApp du checkout déployé pour qu'une release Tier0 plus ancienne ne réapplique jamais un patch retiré par un retour arrière ; CLAW_CORE_REPO prioritaire, repli --rollback sur la release.",
+    "installer/termux-lite/job_code_root.py": "migration unique (racine de code, 02/11) : reconnaît les jobs planifiés encore lancés depuis la copie de travail pour les déplacer vers la release courante, sans jamais l'utiliser.",
     "installer/termux-lite/test-slack-runtime-contract.py": "lit la source du plugin (absente de la release) en dernier recours et vérifie le contrat de lib.sh ci-dessus.",
 }
 

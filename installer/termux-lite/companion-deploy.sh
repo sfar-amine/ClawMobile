@@ -223,7 +223,7 @@ PY
 health(){ for _ in $(seq 1 60); do curl -fsS -m 3 http://127.0.0.1:8765/v1/health >/dev/null 2>&1 && return 0; sleep 2; done; return 1; }
 # The Companion is started with the lock fd closed: otherwise it inherits it and holds the deploy lock forever.
 restart(){ pkill -f 'dist/companion/server.js' 2>/dev/null; sleep 3
-  pgrep -f 'dist/companion/server.js' >/dev/null || { nohup "$ROOT/companion-server.sh" >>"$log" 2>&1 </dev/null & } 9>&-
+  pgrep -f 'dist/companion/server.js' >/dev/null || { CLAWMOBILE_DEPLOY_CANDIDATE="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)" nohup "$ROOT/companion-server.sh" >>"$log" 2>&1 </dev/null & } 9>&-
   health || return 1
   # Settle before judging: Gateway session ready and load back under the preflight ceiling (bounded, 3 min).
   gateway_ready || echo "settle: gateway_not_ready" >>"$log"

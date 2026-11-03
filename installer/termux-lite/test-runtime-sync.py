@@ -363,6 +363,29 @@ class RuntimeSync(unittest.TestCase):
         rc, out, _ = self.sync(check=True)
         self.assertEqual(1, rc); self.assertEqual(["rules:contacts", "rules:operating", "openclaw:before_dispatch_missing"], out["drift"])
 
+    def test_single_code_root_drift_is_reported_and_the_deploy_records_the_skills_baseline(self):
+        # 02/11: code_root.py/job_code_root.py extend the check; without them (older checkout) nothing changes.
+        for name in ("code_root.py", "job_code_root.py"):
+            shutil.copy2(HERE / name, self.root / name)
+        self.sync()
+        rc, out, err = self.sync(check=True)
+        self.assertEqual(1, rc, err)
+        self.assertEqual(["code_root:playbooks_pin_missing"], out["drift"])
+        self.assertNotIn("skills:no_activation_baseline", out.get("advisory", []), "the deploy recorded the baseline")
+        baseline = json.loads((self.home / ".openclaw/health/code-root/baseline.json").read_text())
+        self.assertEqual((baseline["source"], baseline["core"]), ("deploy", self.commit))
+        graph = self.home / ".openclaw/runtime-ui-playbooks/current/skill_intelligence/capability_graph.py"
+        graph.write_text("")
+        rc, out, err = self.sync(check=True)
+        self.assertEqual((0, {"ok": True, "commit": self.commit, "drift": []}), (rc, out), err)
+        skills = self.home / ".openclaw/workspace/skills/samantha-x"; skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text("hand edit\n")
+        (self.home / ".openclaw/health/code-root/events").mkdir(parents=True)
+        (self.home / ".openclaw/health/code-root/events/model_fast_path.json").write_text(json.dumps({"component": "model_fast_path", "event": "fallback"}))
+        rc, out, _ = self.sync(check=True)
+        self.assertEqual(1, rc)
+        self.assertEqual(["code_root:model_fast_path:fallback", "skills:changed_since_activation"], out["drift"])
+
     def test_a_gateway_without_before_dispatch_fails_the_deploy_sync(self):
         (self.dist / "dispatch-from-config-X.mjs").write_text("// gone")
         rc, out, _ = self.sync()

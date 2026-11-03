@@ -80,8 +80,26 @@ if [ "$mode" = check ]; then
   python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set memory-retrieval-warm --check >/dev/null 2>&1 || drift+=(openclaw:memory_retrieval_warm)
   python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set android-fs-compat --check >/dev/null 2>&1 || drift+=(openclaw:android_fs_compat)
   python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set startup-triage-optout --check >/dev/null 2>&1 || drift+=(openclaw:startup_triage_optout)
+  # Single code root (02/11): recent pin fallbacks, a dirty core checkout, skills changed since the last
+  # activation/deploy and jobs still started from a working copy are drift; dev-only copies are advisory.
+  advisory=()
+  if [ -f "$SRC/code_root.py" ]; then
+    if code_root=$(python3 "$SRC/code_root.py" check --core-repo "$REPO" 2>/dev/null) && items=$(python3 -c 'import json,sys
+d=json.loads(sys.argv[1])
+for kind in ("drift","advisory"):
+    for v in d.get(kind) or []:
+        if isinstance(v,str) and v and "\"" not in v and "\\" not in v: print(kind, v)' "$code_root" 2>/dev/null); then
+      while read -r kind item; do
+        [ -n "$item" ] || continue
+        if [ "$kind" = drift ]; then drift+=("$item"); else advisory+=("$item"); fi
+      done <<< "$items"
+    else
+      drift+=(code_root:unreadable)
+    fi
+  fi
   list=$(printf '"%s",' "${drift[@]}"); list="[${list%,}]"; [ "${#drift[@]}" -eq 0 ] && list='[]'
-  printf '{"ok":%s,"commit":"%s","drift":%s}\n' "$([ "${#drift[@]}" -eq 0 ] && echo true || echo false)" "$commit" "$list"
+  extra=""; if [ "${#advisory[@]}" -gt 0 ]; then extra=$(printf '"%s",' "${advisory[@]}"); extra=",\"advisory\":[${extra%,}]"; fi
+  printf '{"ok":%s,"commit":"%s","drift":%s%s}\n' "$([ "${#drift[@]}" -eq 0 ] && echo true || echo false)" "$commit" "$list" "$extra"
   [ "${#drift[@]}" -eq 0 ]; exit $?
 fi
 
@@ -169,6 +187,15 @@ done
 if contacts_stale; then
   cp "$SRC/contacts-agent.md" "$CONTACTS/.AGENTS.md.next" && chmod 600 "$CONTACTS/.AGENTS.md.next" && mv -f "$CONTACTS/.AGENTS.md.next" "$CONTACTS/AGENTS.md" || fail rules_failed:contacts
   rules=synced
+fi
+
+# 6. Single code root (02/11): scheduled jobs follow the pins (idempotent, read back, never fatal: a job left on a
+# working copy stays as it ran and is reported by --check), and the skills baseline follows this deploy.
+if [ -f "$SRC/job_code_root.py" ]; then
+  python3 "$SRC/job_code_root.py" --apply >&2 || echo '{"component":"job-code-root","state":"attention_required"}' >&2
+fi
+if [ -f "$SRC/code_root.py" ]; then
+  python3 "$SRC/code_root.py" baseline --source deploy --core "$commit" >/dev/null 2>&1 || echo '{"component":"code-root","state":"baseline_failed"}' >&2
 fi
 
 same_plugin || fail plugin_copy_differs

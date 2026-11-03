@@ -9,6 +9,7 @@ import { runModelFastPath } from "../modelFastPath";
 import * as modelFastPathHost from "../modelFastPath";
 import { readMaintenanceGate } from "./maintenanceMarker";
 import { PUBLIC_WEB_BUDGET_MS } from "./runWeb";
+import { playbooksRootFor } from "./playbooksRoot";
 
 const MCP_MAINTENANCE_TEXT = "Samantha est en maintenance pour quelques minutes : la demande n'a pas été traitée et ne le sera pas plus tard. Renvoie-la après la maintenance.";
 const MCP_MARKER_INVALID_TEXT = "Le verrou de maintenance de Samantha est illisible : par sécurité, aucune demande n'est exécutée.";
@@ -33,12 +34,14 @@ const STEP_ID_RE = /^[A-Za-z0-9._-]{1,24}$/;
 const REQUEST_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 const ARTIFACT_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 const WORKSPACE = path.join(os.homedir(), ".openclaw", "workspace");
-const UI_PLAYBOOKS = process.env.CLAW_UI_PLAYBOOKS_ROOT || path.join(WORKSPACE, "ui-playbooks");
-const REQUEST_CONTEXT = path.join(
-  UI_PLAYBOOKS,
-  "tools",
-  "request_context.py",
-);
+// Single code root (02/11): explicit CLAW_UI_PLAYBOOKS_ROOT, then the activated pin, then the workspace copy
+// (fallback recorded and alerted by runtime-sync.sh --check). Resolved per call, never at module load.
+function uiPlaybooks(required: string) {
+  return playbooksRootFor("mcp_bridge", required, { overrides: [process.env.CLAW_UI_PLAYBOOKS_ROOT] });
+}
+function requestContextScript() {
+  return path.join(uiPlaybooks("tools/request_context.py"), "tools", "request_context.py");
+}
 type McpRelayMessage = {
   requestId?: unknown;
   clientId?: unknown;
@@ -165,9 +168,10 @@ function bridgeParamsHash(method: string, params: Record<string, unknown>) {
 
 async function continuumIngress(args: string[]) {
   const env = { ...process.env } as Record<string, string>;
-  env.PYTHONPATH = UI_PLAYBOOKS + (env.PYTHONPATH ? path.delimiter + env.PYTHONPATH : "");
+  const root = uiPlaybooks("skill_intelligence/continuum_ingress.py");
+  env.PYTHONPATH = root + (env.PYTHONPATH ? path.delimiter + env.PYTHONPATH : "");
   const run: any = await execFileAsync("python3", ["-B", "-m", "skill_intelligence.continuum_ingress", ...args], {
-    cwd: UI_PLAYBOOKS,
+    cwd: root,
     timeout: 12_000,
     maxBuffer: 1024 * 1024,
     env,
@@ -226,7 +230,8 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
   // independent conversations may use it. Only the caller's explicitly supplied
   // base describes what this consumer has received. Legacy callers reconstruct
   // conservatively instead of inheriting another conversation's server cursor.
-  const argv = [REQUEST_CONTEXT, "--query", query, '--surface', surface];
+  const requestContext = requestContextScript();
+  const argv = [requestContext, "--query", query, '--surface', surface];
   const scopes=contextScopes(args.scopes);
   if(scopes.length)argv.push('--scopes',scopes.join(','));
 
@@ -257,7 +262,7 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
   if (args.uncertain === true) argv.push("--uncertain");
 
   const run: any = await execFileAsync("python3", argv, {
-    cwd: path.dirname(REQUEST_CONTEXT),
+    cwd: path.dirname(requestContext),
     timeout: 12_000,
     maxBuffer: 4 * 1024 * 1024,
     env: { ...process.env },

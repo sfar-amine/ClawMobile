@@ -219,8 +219,11 @@ jobs:
           python3 ../installer/termux-lite/test-maintenance-epoch-cas.py
           python3 ../installer/termux-lite/test-qa-deploy-protection.py
           python3 ../installer/termux-lite/test-runtime-sync.py
+          python3 ../installer/termux-lite/test-code-root.py
+          python3 ../installer/termux-lite/test-job-code-root.py
           python3 ../installer/termux-lite/test-runtime-foundations.py
           node scripts/test-runtime-root.cjs
+          node scripts/test-playbooks-root.cjs
           python3 ../installer/termux-lite/test-companion-rollback-identity.py
           python3 ../installer/termux-lite/test-context-review-plan.py
       - name: Playbooks activation links ignored runtime dependencies
@@ -407,6 +410,7 @@ jobs:
       - name: Maxit top-up payment path (blocked proof, precise reasons, step receipts, nested budgets) — lot 11/10
         run: |
           node scripts/test-maxit-topup-payment-adapter.cjs
+          node scripts/test-payment-adapter-root.cjs
           node scripts/test-payment-budgets.cjs
           node scripts/test-payment-steps.cjs
           node scripts/test-payment-api.cjs
