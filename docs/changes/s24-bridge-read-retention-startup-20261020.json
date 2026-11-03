@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "id": "s24-bridge-read-retention-startup-20261020",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Prepare an exact opt-in read receipt retention pass in the existing Remote Bridge startup maintenance, with bounded inventory and no deletion after incomplete inventory.",
+  "reason": "The receipt owner already defines a 50000 terminal read retention policy but has no startup caller; qualification and activation remain with Claude.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-retention.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-retention-startup.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "docs/work/samantha-runtime/contracts/p0-4-5.md",
+    "docs/changes/s24-bridge-read-retention-startup-20261020.md",
+    "docs/changes/s24-bridge-read-retention-startup-20261020.json"
+  ],
+  "tests": [
+    {
+      "name": "Prepared retention test syntax",
+      "status": "passed",
+      "evidence": "node --check scripts/test-remote-bridge-retention.cjs and node --check scripts/test-remote-bridge-retention-startup.cjs return 0; behavioral execution awaits the canonical CI slot."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p0-4-5.md",
+    "docs/changes/s24-bridge-read-retention-startup-20261020.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Internal owner maintenance only; no route or agent action added."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuse the receipt owner, existing F6 startup callback and structured server sink without a new timer or storage."
+  },
+  "rollback": "Disable the opt-in variable and revert this PR for future passes; a revert cannot recover terminal read receipts deleted after a future qualified activation.",
+  "limitations": [
+    "Default off pending Claude qualification of the S24 receipt directory and replay guarantee.",
+    "One startup pass only; no periodic retention schedule is added.",
+    "The deadline is cooperative around filesystem operations, not an interprocess atomic deletion guarantee.",
+    "Compilation, behavioral tests and full local CI on the exact PR head remain pending in this draft."
+  ]
+}
