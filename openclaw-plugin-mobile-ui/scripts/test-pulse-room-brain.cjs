@@ -138,8 +138,11 @@ async function call(h,args,runId=`run-${++runSeq}`,callId=`call-${runSeq}-${Math
   eq(brain.roomToolReply({state:'DENIED',reasonCode:'scope_leave_request',answer:'x'}).details.sourceReply.text,brain.LEAVE_REQUEST_REFUSAL);
 
   // ---- 5. Outside the room's domain: refused, nothing read or run ---------------------------------------------
+  // Recette 03/11: the subjects named are the room's actions (this capture has no finance.ca: no « chiffre d'affaires »).
+  const roomRefusal=brain.roomRefusal(['pulse'],toolFixture.tools);
+  ok(roomRefusal.startsWith('Ici je ne traite que Pulse : projets, offres, évaluations, CRA, ')&&!roomRefusal.includes('chiffre'));
   h=harness();r=await call(h,{action:'agenda.read',params:{}});
-  eq([r.reply,r.body.state,h.reads.length,h.payloads.length],[brain.PULSE_ROOM_REFUSAL,'OUTSIDE_SCOPE',0,0]);
+  eq([r.reply,r.body.state,h.reads.length,h.payloads.length],[roomRefusal,'OUTSIDE_SCOPE',0,0]);
   eq(brain.roomToolReply({state:'OUTSIDE_SCOPE',reasonCode:'scope_outside'}).details.sourceReply.text,brain.PULSE_ROOM_REFUSAL);
   eq(brain.roomToolReply({state:'DENIED',reasonCode:'scope_forbidden'}).details.sourceReply.text,brain.PULSE_ROOM_REFUSAL);
 

@@ -357,6 +357,7 @@ jobs:
           ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-contact-room-brain.cjs
           ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-room-send-approval.cjs
           ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-pulse-room-brain.cjs
+          ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-recette-formulations.cjs
 
       - name: Run composed read and model fast path contracts
         run: |
@@ -632,6 +633,7 @@ jobs:
           node scripts/test-typed-tools-direct-visible.cjs
           node scripts/test-typed-device-direct.cjs
           node scripts/test-typed-qa-tool.cjs
+          node scripts/test-recette-formulations.cjs
           node scripts/test-typed-direct-call-id.cjs
           node scripts/test-typed-admission-shared-instances.cjs
           node scripts/test-voice-turn-stages.cjs

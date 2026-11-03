@@ -182,7 +182,8 @@ const SEND={action:'messaging.send',params:{recipient:'Sadok',message:'J’arriv
   r=await call(h,'samantha_pulse',{action:'leave.request',params:{start_at:'2026-11-10',end_at:'2026-11-12'}},undefined,undefined,'contacts-pulse-agenda',combined);
   eq([r.reply,r.body.reasonCode],[brain.LEAVE_REQUEST_REFUSAL,'scope_leave_request']);
   r=await call(h,'samantha_pulse',{action:'device.torch.set',params:{}},undefined,undefined,'contacts-pulse-agenda',combined);
-  eq(r.reply,'Ici je ne traite que Pulse (projets, offres, congés de l\'équipe et solde de congés) et l’agenda d’Amine. Pour le reste, vois directement avec Amine.');
+  // Recette 03/11: the Pulse subjects are those of the room's actions (this capture: no finance.ca).
+  eq(r.reply,'Ici je ne traite que Pulse (projets, offres, évaluations, CRA, congés de l\'équipe et solde de congés) et l’agenda d’Amine. Pour le reste, vois directement avec Amine.');
 
   // ---- 6. Writes: prepared, grant re-read, then handed off; stopped when the grant is gone; never replayed ---------
   h=harness({replies:[{state:'READY',prepared:{goalRef:'goal-1'}},{state:'COMPLETED',answer:'Torche allumée.'}]});

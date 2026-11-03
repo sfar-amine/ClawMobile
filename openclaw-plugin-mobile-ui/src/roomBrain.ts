@@ -35,11 +35,39 @@ import {contactRoomPrincipal, contactRoomSession, PULSE_ROOM_AGENTS, ROOM_TOOLS,
   TYPED_ROOMS, type RoomPrincipal, type TypedRoom} from "./contactRoomProfile";
 import {createHash} from "node:crypto";
 import {NATIVE_PULSE_PROTOCOL} from "./nativePulseAdmission";
-import {actionParamShapes, readTypedToolCatalogue, type Action, type DomainTool} from "./typedCapabilityTools";
+import {actionParamShapes, fitActionParams, IGNORED_PARAMS_NOTE, readTypedToolCatalogue, type Action,
+  type DomainTool} from "./typedCapabilityTools";
 import {runtimeFile} from "./runtimeRoot";
 
 export {PULSE_ROOM_AGENTS, ROOM_TOOLS};
-export const PULSE_ROOM_REFUSAL = "Ici je ne traite que Pulse : projets, offres, congés de l'équipe et solde de congés. Pour le reste, vois directement avec Amine.";
+/**
+ * Recette 03/11: the room serves every qualified Pulse command (Amine: the private Pulse reads stay open in the room),
+ * but its sentences named only projects, offers and leave. The subjects named are now those of the room's actions
+ * (roomActions): a label per action family, named only when the room exposes one of its actions. A family without a
+ * label is still served; it is simply not named.
+ */
+const PULSE_SUBJECTS: ReadonlyArray<readonly [string, string]> = [["project", "projets"], ["offer", "offres"],
+  ["finance", "chiffre d'affaires"], ["evaluations", "évaluations"], ["cra", "CRA"], ["leave.calendar", "congés de l'équipe"],
+  ["leave.balance", "solde de congés"]];
+/** The Pulse subjects of these room actions, in the room's order (all of them without a catalogue). */
+export function pulseSubjects(actions?: readonly Action[]): string[] {
+  return PULSE_SUBJECTS.filter(([prefix]) => !actions || actions.some(a => a.action === prefix || a.action.startsWith(prefix + ".")))
+    .map(([, label]) => label);
+}
+const listed = (items: readonly string[], last = " et ") =>
+  items.length > 1 ? items.slice(0, -1).join(", ") + last + items[items.length - 1] : items[0] || "";
+const pulseScope = (subjects: readonly string[]) => subjects.length ? `Pulse (${listed(subjects)})` : "Pulse";
+const pulseRefusal = (subjects: readonly string[]) =>
+  `Ici je ne traite que Pulse${subjects.length ? " : " + listed(subjects) : ""}. Pour le reste, vois directement avec Amine.`;
+const pulseRules = (subjects: readonly string[]) =>
+  "Outil unique de la pièce Pulse d'un contact autorisé d'Amine. Pour toute demande sur Pulse (" +
+  (subjects.length ? listed(subjects, ", ") + ", avec " : "") + "phases, équipes, consommations et forecasts) : appelle cet outil, " +
+  "jamais de réponse de mémoire. Choisis l'action et ses paramètres typés à partir des mots du contact ; n'invente aucune valeur " +
+  "(nom, client, date, montant) : laisse vide ce qui n'est pas dit, l'outil pose lui-même la question. Les réponses prêtes de " +
+  "l'outil sont remises telles quelles au contact. Quand une question de cet outil attend une réponse, indique relation : " +
+  "answer si le contact y répond, new_request s'il fait une nouvelle demande. Hors de Pulse, rien n'est possible dans cette pièce.";
+/** The Pulse-only room refusal for the full qualified Pulse room (createRoomTools derives it from the live catalogue). */
+export const PULSE_ROOM_REFUSAL = pulseRefusal(pulseSubjects());
 // Amine 26/10: a constraint, not a refusal. The room acts with Amine's Pulse account, so a leave
 // request posted here would be recorded as Amine's leave.
 export const LEAVE_REQUEST_REFUSAL = "Désolé, je ne peux pas prendre en compte les demandes de congé : j’utilise le compte Pulse d’Amine, donc un congé posé ici serait enregistré au nom d’Amine. Merci de poser ta demande de congé directement dans Pulse, avec ton propre compte.";
@@ -72,16 +100,11 @@ function roomTexts(name: string, of: string, to: string, scope: string, subjects
       "contact, rien n'est possible."};
 }
 const TEXTS: Record<TypedRoom, RoomTexts> = {
-  pulse: {label: "Pulse", scope: "Pulse (projets, offres, congés de l'équipe et solde de congés)", access: ROOM_ACCESS_REFUSED,
+  pulse: {label: "Pulse", scope: pulseScope(pulseSubjects()), access: ROOM_ACCESS_REFUSED,
     unverified: ROOM_UNVERIFIED, stopped: ROOM_WRITE_STOPPED,
     noDetail: "Pulse n’a renvoyé aucun détail vérifié pour cette demande.",
     facts: "Faits vérifiés renvoyés par Pulse. Réponds au contact uniquement avec ces faits, en français, sans rien ajouter, déduire ni compléter de mémoire.",
-    rules: "Outil unique de la pièce Pulse d'un contact autorisé d'Amine. Pour toute demande sur les projets, offres, " +
-      "phases, équipes, consommations, forecasts, congés de l'équipe ou solde de congés : appelle cet outil, jamais de réponse de " +
-      "mémoire. Choisis l'action et ses paramètres typés à partir des mots du contact ; n'invente aucune valeur (nom, client, " +
-      "date, montant) : laisse vide ce qui n'est pas dit, l'outil pose lui-même la question. Les réponses prêtes de l'outil sont " +
-      "remises telles quelles au contact. Quand une question de cet outil attend une réponse, indique relation : answer si le " +
-      "contact y répond, new_request s'il fait une nouvelle demande. Hors de Pulse, rien n'est possible dans cette pièce."},
+    rules: pulseRules(pulseSubjects())},
   agenda: roomTexts("Agenda", "de l’agenda", "à l’agenda", "l’agenda d’Amine",
     "l'agenda d'Amine (consulter ses rendez-vous, en créer, en déplacer ou en modifier, programmer un rappel)"),
   actions: roomTexts("Actions", "du téléphone", "au téléphone", "les réglages et actions courantes de son téléphone",
@@ -117,12 +140,21 @@ export const ROOM_SEND_TEXTS = {
 /** Rooms without a typed owner yet: no tool, so nothing runs there (named reason, not a fallback). */
 export const UNTYPED_ROOMS: Readonly<Record<string, string>> = {qa: "room_domain_not_typed"};
 
-/** The refusal of a request outside the contact's rooms: the Pulse sentence in a Pulse-only room (#522). */
-export function roomRefusal(rooms: readonly TypedRoom[]) {
-  if (rooms.length === 1 && rooms[0] === "pulse") return PULSE_ROOM_REFUSAL;
-  const scopes = rooms.map(room => TEXTS[room].scope);
-  const listed = scopes.length > 1 ? scopes.slice(0, -1).join(", ") + " et " + scopes[scopes.length - 1] : scopes[0] || "";
-  return `Ici je ne traite que ${listed}. Pour le reste, vois directement avec Amine.`;
+/** The room's Pulse actions in this catalogue (undefined without the Pulse tool: every subject is named). */
+function pulseRoomActions(catalogue?: readonly DomainTool[]) {
+  const tool = catalogue?.find(t => t.domain === ROOM_TYPED.pulse.domain && t.name === ROOM_TYPED.pulse.tool);
+  return tool ? roomActions(tool) : undefined;
+}
+
+/**
+ * The refusal of a request outside the contact's rooms: the Pulse sentence in a Pulse-only room (#522). With the
+ * catalogue, the Pulse subjects are those of the room's actions.
+ */
+export function roomRefusal(rooms: readonly TypedRoom[], catalogue?: readonly DomainTool[]) {
+  const subjects = rooms.includes("pulse") ? pulseSubjects(pulseRoomActions(catalogue)) : [];
+  if (rooms.length === 1 && rooms[0] === "pulse") return pulseRefusal(subjects);
+  const scopes = rooms.map(room => room === "pulse" ? pulseScope(subjects) : TEXTS[room].scope);
+  return `Ici je ne traite que ${listed(scopes)}. Pour le reste, vois directement avec Amine.`;
 }
 
 type GrantRead = (contactId: string) => Promise<any>;
@@ -238,6 +270,26 @@ function roomSchema(actions: Action[]) {
   }, required: ["action", "params"], additionalProperties: false};
 }
 
+/**
+ * A typed call the room did not send: a required value is empty, or a write named a parameter its action does not
+ * declare. Nothing was read or run. The contact's brain gets the action's own declaration and asks the contact itself
+ * (never a value invented or proposed); a search of the same tool may first find a value from the contact's words.
+ */
+const MISSING_INSTRUCTION = "Rien n'a été exécuté : il manque une valeur que cette action exige. Si les mots du contact " +
+  "permettent de la retrouver avec une autre action de cet outil (une recherche par exemple), fais-le d'abord ; sinon pose " +
+  "au contact une seule question courte pour l'obtenir, sans proposer ni inventer de valeur, puis rappelle l'action avec sa réponse.";
+const NOT_ACCEPTED_INSTRUCTION = "Rien n'a été exécuté : ces paramètres n'appartiennent pas à l'action choisie. Rappelle-la " +
+  "avec ses seuls paramètres, ou choisis l'action qui les déclare ; s'il manque une valeur, pose la question au contact.";
+function needsInput(action: Action, reasonCode: string, detail: Record<string, any>) {
+  return {content: [{type: "text", text: JSON.stringify({state: "NEEDS_INPUT", reasonCode, action: action.action, ...detail})}],
+    details: {needsInput: true}};
+}
+/** The room reply with the trace of the parameters ignored before the call (same reply otherwise). */
+function traced(reply: any, trace: Record<string, any> | null) {
+  if (!trace) return reply;
+  return {...reply, content: [{type: "text", text: JSON.stringify({...JSON.parse(reply.content[0].text), ...trace})}]};
+}
+
 function delivered(text: string, state: string, reasonCode = "") {
   return {content: [{type: "text", text: JSON.stringify({state, reasonCode, answer: text})}],
     details: {sourceReply: {text}}};
@@ -295,7 +347,8 @@ function createRoomTool(context: RoomContext, room: RoomPrincipal, tool: DomainT
   const texts = TEXTS[room.room], domain = ROOM_TYPED[room.room].domain, refused = ROOM_REFUSED[room.room] || {};
   const parameters = roomSchema(actions);
   const list = actions.map(a => `${a.action}: ${a.description}`).join("\n");
-  return {name: tool.name, description: `${texts.rules}\n${list}`,
+  const rules = room.room === "pulse" ? pulseRules(pulseSubjects(actions)) : texts.rules;
+  return {name: tool.name, description: `${rules}\n${list}`,
     schema: parameters, inputSchema: parameters, parameters, catalogMode: "direct-only" as const, canDeliverSourceReply: true,
     async execute(toolCallId: unknown, args: any) {
       let reached = "admission";
@@ -311,6 +364,19 @@ function createRoomTool(context: RoomContext, room: RoomPrincipal, tool: DomainT
         // Same constraint as the room policy, before any read (Pulse: Amine's account; actions: his SMS and photos).
         const constraint = refused[action.action];
         if (constraint) return delivered(constraint.text, "DENIED", constraint.reason);
+        // Recette 03/11: the action's own declaration, before any read. A read ignores what it does not declare
+        // (traced); a write is never run with a parameter dropped. A required value left empty becomes a question
+        // to the contact instead of the owner's generic failure (offer.team without its offer).
+        const fitted = fitActionParams(action, args.params);
+        if (fitted.ignored.length && action.risk !== "read")
+          return needsInput(action, "parameter_not_accepted", {notAccepted: fitted.ignored,
+            accepted: Object.keys(action.params?.properties || {}), instruction: NOT_ACCEPTED_INSTRUCTION});
+        if (fitted.missing.length)
+          return needsInput(action, "parameter_missing", {missing: fitted.missing.map(name => ({name,
+            ...(typeof action.params?.properties?.[name]?.description === "string"
+              ? {description: action.params.properties[name].description} : {})})), instruction: MISSING_INSTRUCTION});
+        const params = fitted.params;
+        const trace = fitted.ignored.length ? {ignoredParams: fitted.ignored, ignoredParamsNote: IGNORED_PARAMS_NOTE} : null;
         const eventRef = bound.userRunId + ":" + bound.invocationId;
         if (eventRef.length > MAX_EVENT_REF) throw Error("typed_input_invalid");
         reached = "grant";
@@ -320,7 +386,7 @@ function createRoomTool(context: RoomContext, room: RoomPrincipal, tool: DomainT
         try { packet = roomGrantPacket(room, eventRef, grant); }
         catch { return delivered(texts.access, "DENIED", "room_grant_revoked"); }
         const host = roomHost(room, bound.userRunId, bound.invocationId);
-        const command = {operation: "call", domain, action: action.action, params: args.params,
+        const command = {operation: "call", domain, action: action.action, params,
           ...(args.relation ? {relation: args.relation} : {})};
         context.assertInvocationCurrent!();
         reached = "turn";
@@ -344,7 +410,7 @@ function createRoomTool(context: RoomContext, room: RoomPrincipal, tool: DomainT
             reached = "owner_confirmation";
             const parameters = result?.prepared?.parameters;
             let reason = "owner_confirmation_unavailable";
-            if (flat(parameters) !== null && flat(parameters) === flat(args.params)) {
+            if (flat(parameters) !== null && flat(parameters) === flat(params)) {
               try {
                 const asked = await approval({schemaVersion: 1, goalRef, agentId: room.agent, sessionKey: room.sessionKey,
                   userRunId: bound.userRunId, invocationId: bound.invocationId,
@@ -365,7 +431,7 @@ function createRoomTool(context: RoomContext, room: RoomPrincipal, tool: DomainT
           result = await typed(JSON.stringify({command: {operation: "handoff", domain, goalRef}, host,
             roomAdmission: fresh}));
         }
-        return roomToolReply(result, room.room, refusal);
+        return traced(roomToolReply(result, room.room, refusal), trace);
       } catch (error: any) {
         // After the hand-off started the outcome is unknown: never replayed, the contact is told to check first.
         const reason = typeof error?.message === "string" && /^typed_[a-z_]+$/.test(error.message) ? error.message
@@ -383,7 +449,7 @@ export function createRoomTools(context: RoomContext, options: RoomToolOptions =
   const read: GrantRead = options.readGrant || (contactId => allowlistRead("get", contactId));
   const typed = options.runTyped || roomTypedHelper(options);
   const approval = options.requestOwnerApproval || requestRoomSendApproval;
-  const refusal = roomRefusal(session.rooms);
+  const refusal = roomRefusal(session.rooms, catalogue);
   const tools = session.rooms.flatMap(name => {
     const room = contactRoomPrincipal(context.agentId, context.sessionKey, name);
     const tool = catalogue.find(t => t.domain === ROOM_TYPED[name].domain && t.name === ROOM_TYPED[name].tool);

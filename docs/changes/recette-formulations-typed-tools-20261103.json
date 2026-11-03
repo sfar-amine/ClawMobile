@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "id": "recette-formulations-typed-tools-20261103",
+  "date": "2026-11-03",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Trois écarts de la recette de formulations du 03/11 corrigés côté plugin, sans nouvelle règle de décision. (1) Outils typés (propriétaire et pièce) : une lecture ignore, avant l'appel hôte, les paramètres que son action ne déclare pas (dérivé de action.params.properties) et le trace dans le résultat (ignoredParams) ; une écriture n'est jamais lancée avec un paramètre retiré : rien n'est exécuté et le cerveau reçoit les paramètres de l'action. (3) Pièces : une action appelée sans valeur requise (offer.team sans offre) revient au cerveau du contact en NEEDS_INPUT (paramètre manquant, consigne : une recherche du même outil ou une seule question au contact, sans inventer), au lieu de l'échec générique ; rien n'est lu ni exécuté. (4) Pièce Pulse : la phrase de refus, la portée combinée et la consigne de l'outil nomment les sujets réellement servis (projets, offres, chiffre d'affaires, évaluations, CRA, congés de l'équipe, solde de congés), dérivés de roomActions() ; aucun droit retiré. samantha_qa reste hors DIRECT_TYPED_TOOLS (choix documenté du 02/11).",
+  "reason": "Recette de formulations du 03/11 sur le S24 : le schéma partagé présente les paramètres de toutes les actions ; le cerveau a passé à cra.status et finance.ca des paramètres d'une autre action, le propriétaire a refusé l'appel entier (owner_input.validate_value : parameter_fields), réponse « l'erreur vient de moi » puis second essai (+15 s). Dans la pièce Pulse, offer.team sans identifiant d'offre finissait en « pas de résultat vérifié ». Les phrases de la pièce Pulse annonçaient « projets, offres, congés de l'équipe et solde de congés » alors que la pièce sert aussi CA, évaluations et CRA (décision d'Amine : les lectures privées Pulse restent ouvertes dans la pièce).",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts",
+    "openclaw-plugin-mobile-ui/src/roomBrain.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-recette-formulations.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-brain.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-contact-room-brain.cjs",
+    "installer/termux-lite/pulse-room.py",
+    "installer/termux-lite/test-deploy-parcours.py",
+    ".github/workflows/ci.yml",
+    "docs/changes/recette-formulations-typed-tools-20261103.json",
+    "docs/changes/recette-formulations-typed-tools-20261103.md"
+  ],
+  "tests": [
+    {"name": "openclaw-plugin-mobile-ui/scripts/test-recette-formulations.cjs", "status": "passed",
+     "evidence": "70 contrôles (71 apparié). Propriétaire : cra.status et finance.ca avec paramètres d'une autre action réussissent au premier appel, une seule invocation, params {} envoyés, ignoredParams tracé ; leave.calendar garde month ; offer.set_status avec un paramètre en trop : not_executed, aucun processus. Pièce : même tolérance tracée à côté de la réponse remise ; écriture avec paramètre en trop : NEEDS_INPUT, rien lu ni exécuté ; offer.team sans offre (absent, vide, blanc) : NEEDS_INPUT parameter_missing rendu au cerveau, aucune lecture du droit ni appel ; project.create garde la question du propriétaire. Pulse : finance.ca, évaluations, CRA toujours dans l'enum ; refus et consigne dérivés des actions (capture 02/11 sans finance.ca : pas de « chiffre d'affaires »). Apparié (ROOM_PLAYBOOKS_ROOT) : validate_value du propriétaire refuse les paramètres mélangés et accepte les paramètres ajustés. Échoue sur l'ancien code. Inscrit dans ci.yml (deux étapes)."},
+    {"name": "test-pulse-room-brain.cjs + test-contact-room-brain.cjs + test-room-send-approval.cjs (seuls et appariés aux playbooks épinglés de ci.yml)", "status": "passed",
+     "evidence": "80/89, 98/108, 52/65 contrôles ; attentes du refus Pulse dérivées de la capture S24 du 02/11."},
+    {"name": "test-typed-capability-tools.cjs, test-typed-qa-tool.cjs, test-typed-tools-direct-visible.cjs, test-typed-device-direct.cjs, test-typed-direct-call-id.cjs", "status": "passed",
+     "evidence": "Inchangés, verts ; surface directe inchangée (27 850 / 32 725 caractères)."},
+    {"name": "test-typed-admission-shared-instances, test-google-typed-schema, test-qa-private-ingress, test-voice-relay-brain-only, test-native-pulse-handoff", "status": "passed",
+     "evidence": "Inchangés, verts ; test-whatsapp-rooms-paired.cjs également vert."},
+    {"name": "installer/termux-lite/test-deploy-parcours.py + test-pulse-room.py + test-ci-registration.py", "status": "passed",
+     "evidence": "Le verdict room_outside lit toujours le préfixe « Ici je ne traite que Pulse » ; nouveau test inscrit."}
+  ],
+  "documentation": ["docs/changes/recette-formulations-typed-tools-20261103.md"],
+  "capabilities": {"impact": "none", "reason": "Aucune capability ajoutée, retirée ni élargie : les actions, risques et confirmations restent ceux du Capability Graph ; seuls la tolérance aux paramètres non déclarés d'une lecture et les textes de la pièce changent."},
+  "architecture": {"changed": false, "reason": "Propriétaires existants : la déclaration des actions compilée par le Capability Graph, la fabrique des outils typés et le cerveau des pièces. Aucune nouvelle table de paramètres, aucun store, routeur ni hook ; aucun before_dispatch."},
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "CI canonique (localci.py) sur le head GitHub exact encore requise ; recette réelle sur le S24 à refaire après déploiement.",
+    "Les schémas de finance.ca et offer.team viennent de la projection compilée du 25/10 (fixture s24-2026-10-25-typed-tools) ; la capture S24 du 02/11 n'en garde que les noms et risques. À reconfirmer sur le S24 lors de la recette.",
+    "Le paramètre requis manquant est posé par le cerveau du contact (consigne de l'outil), pas par une phrase fixe : le catalogue ne porte pas de question par paramètre et la question du propriétaire (project.create) n'existe que pour ses préparations d'écriture côté playbooks.",
+    "Côté propriétaire, un paramètre requis manquant suit encore l'échec du propriétaire (hors périmètre de la recette) ; seule la tolérance aux paramètres non déclarés y est ajoutée.",
+    "samantha_qa reste hors DIRECT_TYPED_TOOLS : choix documenté du 02/11 (brain-qa-typed-tool-20261102, test-typed-qa-tool.cjs) ; le passer en direct coûte de la surface de prompt et relève d'Amine."
+  ],
+  "rollback": "Revert de ce commit puis companion-deploy.sh <commit> : les outils retrouvent l'échec sur paramètre non déclaré, l'échec générique sans valeur requise et l'ancienne phrase de la pièce Pulse ; la consigne de la pièce Pulse revient avec le même commit. Rien à restaurer sur le S24."
+}
