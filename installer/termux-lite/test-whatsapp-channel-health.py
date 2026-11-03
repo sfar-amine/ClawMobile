@@ -13,7 +13,18 @@ stopped='- WhatsApp default: enabled, configured, linked, stopped, health:degrad
 assert hv.whatsapp_health(healthy)==('healthy','channel_connected')
 assert hv.whatsapp_health(healthy,'state=failed')==('degraded','latest_outbound_failed')
 assert hv.whatsapp_health(terminal)==('degraded','terminal_auth_logout')
-assert hv.whatsapp_health(stopped)==('degraded','channel_not_connected')
+# S24 29/10 (numbers removed): the canonical notice failed at 08:48:32 during the network return; the channel
+# itself reported a send 43 min before 09:34:30, i.e. at 08:51:30, so that failure no longer describes it.
+s24='- WhatsApp default: enabled, configured, linked, running, connected, in:12h ago, out:43m ago, transport:1m ago, dm:allowlist'
+failed_0848='2026-10-29T08:48:32+01:00 state=failed reason=gateway_call rc=1 elapsed_s=4 key=recovery-x'
+import datetime as _dt
+at_0934=_dt.datetime.fromisoformat('2026-10-29T09:34:30+01:00').timestamp()
+assert hv.whatsapp_health(s24,failed_0848,now=at_0934)==('healthy','channel_connected')
+# A failure newer than the last channel send still degrades (send at 08:46:30, failure at 08:48:32).
+assert hv.whatsapp_health(s24.replace('out:43m','out:48m'),failed_0848,now=at_0934)==('degraded','latest_outbound_failed')
+assert hv.whatsapp_health(s24.replace('out:43m ago, ',''),failed_0848,now=at_0934)==('degraded','latest_outbound_failed')
+assert hv.whatsapp_health(s24.replace('out:43m','out:<1m'),failed_0848,now=at_0934)==('healthy','channel_connected')
+assert hv.whatsapp_health(stopped)==('degraded','channel_stopped')
 assert hv.item('healthy',probe_kind='liveness')['probe_kind']=='liveness'
 assert hv.item('degraded',probe_kind='readiness')['probe_kind']=='readiness'
 external=hv.external_readiness('down',reason='provider_unavailable')

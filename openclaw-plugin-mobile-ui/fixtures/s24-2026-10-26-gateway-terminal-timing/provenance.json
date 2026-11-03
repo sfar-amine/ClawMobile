@@ -1,0 +1,43 @@
+{
+  "runtimeCapture": true,
+  "source": "S24 read-only SQLite trajectory + canonical runs registry + bounded existing Gateway log",
+  "coreVersionErratum": "D1 ran on9527 (PR430 includes422), notc262; actual deployment receipt companion-20261026T104307. Subsequent13dd rollback started afterD1 and is not its cause.",
+  "captureBoundary": "Original private receipts retained outside Git. Fixture is the sanitized public projection, never a replay or authored runtime event.",
+  "sources": [
+    {
+      "receipt": "L0bis-D1-trajectory-receipt.json",
+      "sha256": "f4e70c2ad6cada188fe35b281a147562aa0e1b75879c65dfc43755438fcf6b28",
+      "projection": "Only run identity, epochs and closed timing/protocol fields; no prompt/result, profile, credentials or config."
+    },
+    {
+      "receipt": "L1-D1-observe-receipt.json",
+      "sha256": "508a2ffdd49e299d68995b51830c711acff6079d69302ecb2b9044dd931508a3",
+      "projection": "Only run identity, epochs and closed timing/protocol fields; no prompt/result, profile, credentials or config."
+    },
+    {
+      "receipt": "perf422-public-lines-receipt.json",
+      "sha256": "500bbca6367993891c8086e62f8ffeebe28ac6b0ddf7326b2a2539125019a7b1",
+      "projection": "Only run identity, epochs and closed timing/protocol fields; no prompt/result, profile, credentials or config."
+    },
+    {
+      "receipt": "runtime-concurrent430-receipt.json",
+      "sha256": "c328ed3fb224c22cdbc8d7eb89ac56031d035cd7bdfbcb9359ddc6ed1ac522c5",
+      "projection": "Deployment chronology only; D1 canonical version is9527, and later13dd reverted to9527 afterD1."
+    },
+    {
+      "receipt": "perf422-D1-rpc-window-receipt.json",
+      "sha256": "07101c4b4a2fb29d0e056d939edab7e6a5aa1fce193c9e3bc36f2f4867559d4b",
+      "projection": "Closed RPC timing/client metadata or hashed public SDK source; no request body, credential or configuration."
+    },
+    {
+      "receipt": "perf422-D1-client-attribution-receipt.json",
+      "sha256": "593a1aca8ec3ca2a7f610e891a3eeaa1a9c9124f933a3a3cfb593218a4cac13d",
+      "projection": "Closed RPC timing/client metadata or hashed public SDK source; no request body, credential or configuration."
+    },
+    {
+      "receipt": "perf422-sdk-client-receipt.json",
+      "sha256": "a738f2defd6fc98f37399f8813da7bf96086dcc22cc41fb629bd151f49be5cba",
+      "projection": "Closed RPC timing/client metadata or hashed public SDK source; no request body, credential or configuration."
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"name":"claw-chatgpt-oauth-staging-check","main":"src/chatgpt-oauth.mjs","compatibility_date":"2026-10-21","compatibility_flags":["global_fetch_strictly_public"]}

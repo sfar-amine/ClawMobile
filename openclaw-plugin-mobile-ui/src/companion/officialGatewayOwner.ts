@@ -7,8 +7,8 @@ import {createRequire} from "module";
 import {createHash} from "crypto";
 import type {Readable} from "stream";
 import type {GatewayClientOwner,GatewayCallbacks} from "./persistentGatewayTransport";
+import {importSurface,openclawSdkVersion,type OpenClawSdkVersion} from "./openclawSdkVersions";
 
-const sdkNames=["gateway-runtime","config-runtime","gateway-config-runtime","secret-ref-runtime"] as const;
 const nativeImport=new Function("specifier","return import(specifier)") as (specifier:string)=>Promise<any>;
 const fixedError=(code:string)=>Object.assign(new Error(code),{code,requestSent:false});
 const plain=(v:any)=>v!==null&&typeof v==="object"&&!Array.isArray(v);
@@ -28,31 +28,44 @@ async function selectedBinaryPath(binary:string):Promise<string>{
 async function ownerPackageRoot(start:string):Promise<string>{
  let current=path.dirname(start);
  for(let depth=0;depth<8;depth++){
-  try{const metadata=JSON.parse(await fs.readFile(path.join(current,"package.json"),"utf8"));if(metadata?.name==="openclaw")return current;}catch{}
+  if(await isOpenClawPackage(current))return current;
   const parent=path.dirname(current);if(parent===current)break;current=parent;
  }
  throw fixedError("ENOENT");
 }
+async function isOpenClawPackage(directory:string):Promise<boolean>{
+ try{return JSON.parse(await fs.readFile(path.join(directory,"package.json"),"utf8"))?.name==="openclaw";}catch{return false;}
+}
+/** The S24 installs `bin/openclaw` as a shell wrapper, not a symlink into the package: realpath stays in `bin`.
+ *  The package is then the standard npm global prefix sibling of that executable, never a parsed script. */
+async function binaryPackageRoot(binary:string):Promise<string>{
+ try{return await ownerPackageRoot(binary);}catch{}
+ const prefixed=path.resolve(path.dirname(binary),"..","lib","node_modules","openclaw");
+ if(await isOpenClawPackage(prefixed))return prefixed;
+ throw fixedError("ENOENT");
+}
 /** Discover only the installed package selected by module resolution or the existing CLI binary. */
-async function officialSdkPackageRoot(binary:string):Promise<string>{
+async function officialSdkPackageRoot(binary:string):Promise<{root:string;pinned:OpenClawSdkVersion}>{
  let entry:string;
  try{entry=require.resolve("openclaw/plugin-sdk/gateway-runtime");}
  catch{
-  let root:string;try{root=await ownerPackageRoot(await selectedBinaryPath(binary));}catch(e:any){if(e?.code==="ENOENT")throw fixedError("ENOENT");throw fixedError("gateway_sdk_unavailable");}
+  let root:string;try{root=await binaryPackageRoot(await selectedBinaryPath(binary));}catch(e:any){if(e?.code==="ENOENT")throw fixedError("ENOENT");throw fixedError("gateway_sdk_unavailable");}
   try{entry=createRequire(path.join(root,"package.json")).resolve("openclaw/plugin-sdk/gateway-runtime");}catch{throw fixedError("ENOENT");}
  }
  const root=await ownerPackageRoot(entry);
  let metadata:any;try{metadata=JSON.parse(await fs.readFile(path.join(root,"package.json"),"utf8"));}catch{throw fixedError("gateway_sdk_unavailable");}
- if(metadata.version!=="2026.9.6")throw fixedError("gateway_sdk_version_unsupported");
- return root;
+ // Version table (openclawSdkVersions): 2026.9.6 keeps its subpaths; any version outside the table is refused.
+ const pinned=openclawSdkVersion(metadata.version);
+ if(!pinned)throw fixedError("gateway_sdk_version_unsupported");
+ return {root,pinned};
 }
 export async function loadOfficialGatewaySdk(binary:string):Promise<any>{
- const root=await officialSdkPackageRoot(binary);
+ const {root,pinned}=await officialSdkPackageRoot(binary);
  try{
-  const modules=await Promise.all(sdkNames.map(name=>nativeImport(pathToFileURL(createRequire(path.join(root,"package.json")).resolve("openclaw/plugin-sdk/"+name)).href)));
-  const [gateway,configuration,ports,secrets]=modules;
-  if(typeof gateway.GatewayClient!=="function"||typeof gateway.resolveGatewayAuth!=="function"||typeof configuration.loadConfig!=="function"||typeof configuration.coerceSecretRef!=="function"||typeof ports.resolveGatewayPort!=="function"||typeof secrets.resolveSecretRefValues!=="function")throw Error();
-  return {GatewayClient:gateway.GatewayClient,resolveGatewayAuth:gateway.resolveGatewayAuth,loadConfig:configuration.loadConfig,coerceSecretRef:configuration.coerceSecretRef,resolveSecretRefValues:secrets.resolveSecretRefValues,resolveGatewayPort:ports.resolveGatewayPort};
+  const resolve=createRequire(path.join(root,"package.json"));
+  const {picked}=await importSurface(pinned.officialGateway,specifier=>resolve.resolve(specifier),file=>nativeImport(pathToFileURL(file).href));
+  for(const name of ["GatewayClient","resolveGatewayAuth","loadConfig","coerceSecretRef","resolveSecretRefValues","resolveGatewayPort"])if(typeof picked[name]!=="function")throw Error();
+  return {GatewayClient:picked.GatewayClient,resolveGatewayAuth:picked.resolveGatewayAuth,loadConfig:picked.loadConfig,coerceSecretRef:picked.coerceSecretRef,resolveSecretRefValues:picked.resolveSecretRefValues,resolveGatewayPort:picked.resolveGatewayPort};
  }catch{throw fixedError("gateway_sdk_unavailable");}
 }
 
@@ -147,11 +160,13 @@ const qaDocumentTypes:Record<string,string>={
  "Claw_QA_Livrables.zip":"application/zip"
 };
 export async function loadOfficialMediaStore(binary:string):Promise<any>{
- const root=await officialSdkPackageRoot(binary);
+ const {root,pinned}=await officialSdkPackageRoot(binary);
+ if(!pinned.mediaStore)throw fixedError("qa_document_sdk_unavailable");
  try{
-  const media=await nativeImport(pathToFileURL(createRequire(path.join(root,"package.json")).resolve("openclaw/plugin-sdk/media-store")).href);
-  if(typeof media.saveMediaBuffer!=="function"||typeof media.resolveMediaBufferPath!=="function")throw Error();
-  return media;
+  const resolve=createRequire(path.join(root,"package.json"));
+  const {modules,picked}=await importSurface(pinned.mediaStore,specifier=>resolve.resolve(specifier),file=>nativeImport(pathToFileURL(file).href));
+  if(typeof picked.saveMediaBuffer!=="function"||typeof picked.resolveMediaBufferPath!=="function")throw Error();
+  return modules.get(pinned.mediaStore.saveMediaBuffer[0]);
  }catch{throw fixedError("qa_document_sdk_unavailable");}
 }
 function validQaDocumentMeta(meta:any,cleanup=false){

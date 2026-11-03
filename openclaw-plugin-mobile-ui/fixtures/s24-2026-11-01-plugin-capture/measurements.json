@@ -1,0 +1,26 @@
+{
+  "source": "S24, OpenClaw 2026.9.6, core 361df3ff. Gateway restarted 2026-11-01 12:55:37 Tunis (SIGTERM, core-services-watchdog restart), inspector opened on 127.0.0.1 after « gateway ready », CPU profile (2 ms sampling) of the first owner turn « Réponds seulement : OK. » on a new session.",
+  "profile": "~/.openclaw/tmp/prof/agent_main_prof126_125656.cpuprofile (95.7 s, 36424 samples; main thread busy >= 95 % for 90 s)",
+  "gateway_log": {
+    "turn_requested": "11:56:56Z",
+    "liveness_warning": "11:58:06Z eventLoopDelayMaxMs=46607.1 eventLoopUtilization=1",
+    "whatsapp": "11:58:06Z WhatsApp Web connection closed (status 408), retry 1/12",
+    "run_lifecycle_start": "11:58:27Z (91 s after the request)"
+  },
+  "inclusive_seconds": {
+    "loadInstalledSessionStoreSdk (ownerTurnGateway.js:116, via conversationModelProfile.resolve hook)": 44.2,
+    "capturePluginDependencies (plugin-generation-artifact)": 27.4,
+    "verifyPluginSourceInputs": 13.9,
+    "capturePluginGenerationArtifact under loadOpenClawPlugins": 12.5,
+    "loadOpenClawPlugins (lazy agent-runtime registry)": 15.3
+  },
+  "self_seconds_top": {"lstat": 14.44, "read": 8.84, "open": 4.55, "existsSync": 3.86, "realpath": 2.88},
+  "declared_dependency_files": {
+    "nostr-tools": 295, "@noble/ciphers": 53, "@noble/curves": 108, "@noble/hashes": 98,
+    "@scure/base": 8, "@scure/bip32": 8, "@scure/bip39": 26, "nostr-wasm": 20, "ws": 19
+  },
+  "capture_rule": "OpenClaw capturePluginDependencies copies every package named in the plugin manifest's dependencies, optionalDependencies and peerDependencies (devDependencies are not read); a whole dependency is copied, the plugin package only by reached entries.",
+  "nostr_usage": "0 lines mentioning nostr in openclaw-2026-11-01.log and companion.stderr.log on 01/11",
+  "install": "installer/termux-lite/lib.sh: npm install --include=dev (dev dependencies stay installed on the S24)",
+  "openclaw_2026_10_9": "same mechanism (dist/plugin-generation-artifact-C4KkV4pn.mjs)"
+}

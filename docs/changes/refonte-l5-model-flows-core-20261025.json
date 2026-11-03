@@ -1,0 +1,91 @@
+{
+  "version": 2,
+  "id": "refonte-l5-model-flows-core-20261025",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "Écrire et projeter les modèles par flux dans les propriétaires R6 et R21 existants.",
+  "reason": "Le parcours unique doit conserver coût inclus, isolation Contacts, sessions précédentes et reçus vérifiables.",
+  "rollback": "Retour à la version précédente par les propriétaires existants Companion et APK, sans effacement de données ni de reçus.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/08-decisions/ADR-20261025-model-flows-native-session-preservation.md",
+    "docs/changes/refonte-l5-model-flows-core-20261025.json",
+    "docs/changes/refonte-l5-model-flows-core-20261025.md",
+    "docs/work/samantha-refonte/L1-historical-note-audit-20261025.md",
+    "docs/work/samantha-refonte/L5-model-flows-owner.md",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/fixtures/refonte-model-flows/s24-model-owner-whitelist-20261025.json",
+    "openclaw-plugin-mobile-ui/fixtures/refonte-model-flows/s24-policy-voice-memory-whitelist-20261025.json",
+    "openclaw-plugin-mobile-ui/openclaw.plugin.json",
+    "openclaw-plugin-mobile-ui/scripts/test-model-flows.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-model-roles.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
+    "openclaw-plugin-mobile-ui/src/companion/conversationMetadata.ts",
+    "openclaw-plugin-mobile-ui/src/companion/modelOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/providers.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runWeb.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "documentation": [
+    "docs/changes/refonte-l5-model-flows-core-20261025.md",
+    "docs/08-decisions/ADR-20261025-model-flows-native-session-preservation.md",
+    "docs/work/samantha-refonte/L5-model-flows-owner.md",
+    "docs/work/samantha-refonte/L1-historical-note-audit-20261025.md"
+  ],
+  "tests": [
+    {
+      "name": "model-flows-targeted",
+      "status": "passed",
+      "evidence": "Ciblés du 26/10 : npm run build, test-model-flows.cjs, test-agent-config.cjs et test-conversation-model-profile.cjs PASS, après corrections ES2021 et isolation des scénarios rédigés ; union provenance R6/SDK couverte. test-model-roles.cjs PASS dans les logs v2 antérieurs, sa projection inchangée par cette jonction. CI canonique exacte et recette S24 encore requises."
+    },
+    {
+      "name": "static-contracts",
+      "status": "passed",
+      "evidence": "git diff --check, node --check des deux scripts L5, JSON plugin/fixtures et Python py_compile companion-acceptance PASS."
+    },
+    {
+      "name": "current-base-native-account-identity",
+      "status": "passed",
+      "evidence": "26/10 : npm run build && test-model-flows.cjs && test-conversation-model-profile.cjs exit0 après fusion425de267f64 ; journal durable l5-union-account-focused-20261026.log. Nouveau primaire avec suffixe natif @ complet exige la biométrie même si préfixe identique, profils/pins451 et CAS couverts. Aucun modèle natif ni CI complète revendiqués."
+    },
+    {
+      "name": "R6-checkpoint-reconciliation-and-summary-contract",
+      "status": "passed",
+      "evidence": "26/10 : build TS + test-model-flows.cjs + test-conversation-model-profile.cjs exit0 sur source184206b0 ; log l5-concurrency-checkpoint-focused-20261026.log. Checkpoint running/dispatching, ledger propriétaire exact, absence de retry, prepared/non-match/faux propriétaire et résumé fastModeSetting:null couverts. CI complète et recette native non revendiquées."
+    }
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "R6 et le geste learning restent interfaces propriétaires déjà couvertes par NO_CAPABILITY ; aucune admission agent ou voix ni primitive MCP ajoutée."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "R6/R21 et persistance native des sessions restent les propriétaires, avec qualification SDK nécessaire avant activation.",
+    "documents": [
+      "docs/08-decisions/ADR-20261025-model-flows-native-session-preservation.md"
+    ]
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Diff source : aucun schéma ni adaptateur des six primitives Claw modifié, aucune capability agent/voix nouvelle. Évaluation de parité des interfaces ; aucune recette MCP native nouvelle revendiquée."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied"
+}

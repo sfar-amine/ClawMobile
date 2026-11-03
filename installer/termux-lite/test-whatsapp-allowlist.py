@@ -14,6 +14,16 @@ MODULE=Path(__file__).with_name('people-trusted.py')
 spec=importlib.util.spec_from_file_location('r17_people',MODULE);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 OWNER='+21610000001';OTHER='+21610000002';NEW='+21610000003'
 
+def merge_patch(base,patch):
+    """The S24 Gateway's config.patch (OpenClaw 2026.9.6 applyMergePatch, RFC 7396): objects merge
+    recursively and only an explicit null removes a key; replacePaths only replaces arrays."""
+    if not isinstance(patch,dict):return copy.deepcopy(patch)
+    out=copy.deepcopy(base) if isinstance(base,dict) else {}
+    for key,value in patch.items():
+        if value is None:out.pop(key,None)
+        else:out[key]=merge_patch(out.get(key),value)
+    return out
+
 class AllowlistTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name);self.now=1800000000
@@ -30,10 +40,9 @@ class AllowlistTests(unittest.TestCase):
         self.calls.append((method,params))
         if method=='config.get':return {'config':copy.deepcopy(self.cfg),'hash':'HASH'}
         if method=='config.patch':
-            self.assertEqual(params['baseHash'],'HASH');raw=json.loads(params['raw']);fields=raw['channels']['whatsapp']
-            self.cfg['channels']['whatsapp'].update(fields)
-            if 'agents' in raw:self.cfg.setdefault('agents',{}).setdefault('entries',{}).update(raw['agents']['entries'])
-            if 'bindings' in raw:self.assertIn('bindings',params['replacePaths']);self.cfg['bindings']=raw['bindings']
+            self.assertEqual(params['baseHash'],'HASH');raw=json.loads(params['raw'])
+            if 'bindings' in raw:self.assertIn('bindings',params['replacePaths'])
+            self.cfg=merge_patch(self.cfg,raw)
             self.save();return {'config':copy.deepcopy(self.cfg)}
         raise AssertionError(method)
     def body(self,action,**fields):
@@ -87,6 +96,20 @@ class AllowlistTests(unittest.TestCase):
         self.cfg['bindings']=[{'agentId':'main','match':{'channel':'whatsapp','accountId':'*','peer':{'kind':'direct','id':OWNER}}},
                               {'agentId':'contacts','match':{'channel':'whatsapp','accountId':'*','peer':{'kind':'direct','id':'*'}}},
                               {'agentId':'main','match':{'channel':'whatsapp','accountId':'*'}}];self.save()
+    def test_lowering_custom_scope_removes_only_the_prompt_with_an_explicit_null(self):
+        # S24 26/10 (Sadok, operation sadok-scope-standard-20261026): custom -> standard sent the whole
+        # direct map under replacePaths; the Gateway merged it (no changed paths) and the receipt was indeterminate.
+        self.cfg['channels']['whatsapp']['allowFrom'].append(NEW)
+        self.cfg['channels']['whatsapp']['direct'][NEW]={'systemPrompt':m.scope_prompt('Authorized contact','custom','Zain Bahrain only'),'other':'stay'}
+        self.save();identity=m.contact_id(NEW);start=len(self.calls)
+        low=self.body('scope',operationId='lower-custom',contactId=identity,scope='standard',scopeText=None)
+        self.assertEqual(self.service.call('scope',low)['state'],'updated')
+        self.assertEqual(self.cfg['channels']['whatsapp']['direct'][NEW],{'other':'stay'})
+        self.assertEqual(self.cfg['channels']['whatsapp']['direct'][OTHER],{'systemPrompt':'KEEP','other':'stay'})
+        sent=[params for method,params in self.calls[start:] if method=='config.patch']
+        self.assertEqual(len(sent),1);self.assertNotIn('channels.whatsapp.direct',sent[0]['replacePaths'])
+        self.assertEqual(json.loads(sent[0]['raw'])['channels']['whatsapp']['direct'],{NEW:{'systemPrompt':None}})
+        self.assertEqual(self.service.metadata(NEW)['scope'],'standard')
     def test_project_room_routes_before_wildcard_with_confirmation_and_narrowing_is_free(self):
         self.add();self.with_rooms_config()
         with self.assertRaises(m.Refused) as e:self.rooms(['projet'],'rooms-unconfirmed',confirm=False)
@@ -118,6 +141,11 @@ class AllowlistTests(unittest.TestCase):
         self.assertEqual(out['receipt']['rooms'],['conversation','agenda','actions','messages'])
         agent='contacts-agenda-actions-messages';entry=self.cfg['agents']['entries'][agent]
         self.assertEqual(entry['workspace'],'/contacts');self.assertIn('clawmobile_capability',entry['tools']['deny'])
+        # Amine 02/11: the room brain gets the typed tool of each granted room, the contact tools, nothing else.
+        self.assertEqual(entry['tools']['allow'],['transmettre_a_amine','noter_contact','samantha_agenda',
+                                                  'samantha_device_assistance','samantha_whatsapp'])
+        self.assertFalse(set(entry['tools']['allow'])&set(entry['tools']['deny']))
+        self.assertTrue({'exec','message','read','web_search'}.issubset(entry['tools']['deny']))
         peer=[b for b in self.cfg['bindings'] if b['match'].get('peer',{}).get('id')==NEW]
         self.assertEqual([b['agentId'] for b in peer],[agent])
         # Narrowing removes the binding but keeps the inert profile for other contacts/reuse.
@@ -222,6 +250,20 @@ class AllowlistTests(unittest.TestCase):
         second=self.service.call('history',{'limit':2,'before':result['nextBefore']});self.assertEqual(len(second['items']),2)
         self.assertNotIn('secret',json.dumps(result));self.assertNotIn(NEW,json.dumps(second))
         self.assertEqual(self.service.call('get',{'contactId':identity})['historyCount'],4)
+    def test_get_reads_the_persisted_config_without_a_gateway_spawn(self):
+        identity=m.contact_id(OTHER);self.calls.clear()
+        contact=self.service.call('get',{'contactId':identity})['contact']
+        self.assertEqual(contact['state'],'active');self.assertEqual(self.calls,[])
+        self.assertEqual(contact,self.service.find(identity))
+        # A revocation persisted by config.patch is visible to the very next read.
+        self.cfg['channels']['whatsapp']['allowFrom']=[OWNER];self.save();self.calls.clear()
+        with self.assertRaises(m.Refused) as gone:self.service.call('get',{'contactId':identity})
+        self.assertEqual(gone.exception.args[0],'unknown_contact');self.assertEqual(self.calls,[])
+        # Same file checks as the native Pulse room reader: a link or an oversized file grants nothing.
+        real=self.root/'real.json';real.write_text(json.dumps(self.cfg));m.CONFIG.unlink();m.CONFIG.symlink_to(real)
+        with self.assertRaises(m.Refused):self.service.call('get',{'contactId':identity})
+        m.CONFIG.unlink();m.CONFIG.write_text(' '*2097153)
+        with self.assertRaises(m.Refused):self.service.call('get',{'contactId':identity})
     def test_sweep_capacity_and_metadata_read_budget(self):
         m.CONTACTS.mkdir()
         for i in range(201):(m.CONTACTS/('wa_216'+str(i).zfill(8)+'.md')).write_text('not R17')

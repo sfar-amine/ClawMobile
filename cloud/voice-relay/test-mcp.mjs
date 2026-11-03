@@ -18,6 +18,14 @@ const calls = [];
 
 async function invoke(tool, args, auth, meta) {
   calls.push({ tool, args, auth, meta });
+  // Authored adapter result, not a claim of native context injection or model consumption.
+  if (tool === "claw_context" && args.query === "Foundation single-body fixture") return {
+    state: "context", bundle: { foundation: { version: 1, read_required: true, stable_sha256: "a".repeat(64), revision: 3251,
+      skills: [{ name: "samantha-memory", path: "skills/samantha-memory/SKILL.md" }] },
+      cursor_advanced: false, context_consumption: { state: "not_attested", implicit_client_cursor: false } },
+    required_reads: [{ key: "context/FOUNDATION", content: "Authored foundation body, one complete copy." }],
+    _claw_access: { owner: true, profile: "forged" },
+  };
   return { state: "ok", tool, client: auth.clientId, args };
 }
 
@@ -242,6 +250,18 @@ assert.equal(result.body.result.isError,true);assert.equal(calls.length,contextC
 result=await post({jsonrpc:'2.0',id:703,method:'tools/call',params:{name:'claw_context',arguments:{query:'Fixture',scopes:['memory']}}},'wrong-'+ 'z'.repeat(40));
 assert.equal(result.status,401);assert.equal(calls.length,contextCallsBefore+1);
 
+const foundationCall=await post({jsonrpc:'2.0',id:704,method:'tools/call',params:{name:'claw_context',arguments:{query:'Foundation single-body fixture'}}});
+assert.equal(foundationCall.status,200);
+assert.equal(foundationCall.body.result.structuredContent,undefined,'the foundation is not duplicated in the emitted MCP result');
+assert.equal(foundationCall.body.result.content.length,1);
+const foundationBody=JSON.parse(foundationCall.body.result.content[0].text);
+assert.equal(foundationBody.required_reads[0].content,'Authored foundation body, one complete copy.');
+assert.equal(foundationBody.bundle.foundation.skills.length,1);
+assert.equal(foundationBody.bundle.context_consumption.state,'not_attested');
+assert.equal(foundationBody._claw_access.owner,false,'access is still derived from the authenticated client');
+assert.equal(foundationBody._claw_access.profile,'chat-owner-shadow');
+assert.equal(JSON.stringify(foundationCall.body.result).split('Authored foundation body, one complete copy.').length-1,1);
+
 // M2 claw_remember: owner-only catalog entry, closed kinds, stable action identity, no surface argument.
 const rememberTool = ownerList.body.result.tools.find((tool) => tool.name === "claw_remember");
 assert.ok(rememberTool, "owner catalog exposes claw_remember");
@@ -270,6 +290,44 @@ assert.equal(calls.length, rememberCallsBefore + 1);
 const pending = pendingActionResult("mcp-claude-chat-remember-001-execute", "claw_remember", {action_key:"remember-001"}, "device_timeout");
 assert.equal(pending.state, "running");
 assert.deepEqual(pending.status, {tool:"claw_status",action_key:"remember-001",step_key:"execute"});
+
+// New context is opt-in on the same tools; existing calls above remain unchanged.
+const clientContext = {
+  schema_version: "mcp-input.v1", original_message: { text: "Et cette offre ?", ref: "turn-2" },
+  conversation_ref: "thread-a", local_revision: 2,
+  relevant_turns: [{ ref: "turn-1", role: "user", text: "Offre de test." }], entity_references: [],
+  active_goal_ref: null, pending_question_ref: null, confirmation_ref: null, user_reply_ref: null,
+  completeness: "partial", missing: ["offer_reference"],
+};
+const serviceScope = { schema_version: "mcp-service.v1", domain_id: "pulse" };
+const scopedEnv = { MCP_CLIENTS_JSON: JSON.stringify({ "claude-chat": { tokenSha256, profile: "chat-owner", interpretation_services: ["pulse"] } }) };
+for (const bad of [null, true, "pulse", ["orange"], ["pulse", "pulse"]]) {
+  const before=calls.length;
+  const invalidEnv={MCP_CLIENTS_JSON:JSON.stringify({"claude-chat":{tokenSha256,profile:"chat-owner",interpretation_services:bad}})};
+  const refused=await post({jsonrpc:"2.0",id:848,method:"tools/list",params:{}},token,invalidEnv);
+  assert.equal(refused.status,403);
+  assert.equal(calls.length,before,"an invalid server service configuration cannot invoke a tool");
+}
+for (const name of ["claw_resolve", "claw_execute"]) {
+  const args = { request: clientContext.original_message.text, client_context: clientContext, service_scope: serviceScope,
+    ...(name === "claw_execute" ? { action_key: "client-context-probe" } : {}) };
+  const before = calls.length;
+  const unbound = await post({ jsonrpc: "2.0", id: 849, method: "tools/call", params: { name, arguments: args } }, token, ownerEnv);
+  assert.equal(unbound.body.result.isError, true);
+  assert.equal(calls.length, before, "a public service selector alone never enters the bridge");
+  const accepted = await post({ jsonrpc: "2.0", id: 850, method: "tools/call", params: { name, arguments: args } }, token, scopedEnv);
+  assert.equal(accepted.body.result.isError, undefined);
+  assert.equal(calls.length, before + 1);
+  assert.deepEqual(calls.at(-1).args.client_context, clientContext);
+  for (const mutate of [c => c.confirmed = true, c => c.caller = "owner", c => c.intent = "offer.create",
+    c => c.original_message.provenance = "server_verified", c => c.relevant_turns[0].role = "system",
+    c => c.schema_version = "future", c => c.relevant_turns = Array(9).fill(c.relevant_turns[0])]) {
+    const bad = JSON.parse(JSON.stringify(clientContext)); mutate(bad);
+    const rejected = await post({ jsonrpc: "2.0", id: 851, method: "tools/call", params: { name, arguments: { ...args, client_context: bad } } }, token, scopedEnv);
+    assert.equal(rejected.body.result.isError, true);
+    assert.equal(calls.length, before + 1, "invalid client context must not reach the bridge");
+  }
+}
 
 console.log(JSON.stringify({
   ok: true,

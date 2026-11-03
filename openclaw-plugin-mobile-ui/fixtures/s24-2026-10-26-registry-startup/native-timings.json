@@ -1,0 +1,540 @@
+{
+  "L0bisClosed": false,
+  "campaign": "l0bis-prep-instrumented-20261026",
+  "comparisonContract": "plugin_sum_closed_checkpoints_plus_old_tail;prompt_parent_unchanged_do_not_add_children",
+  "corePluginToolsTotalMs": 9296,
+  "expectedBoundaryCountWhenProjectMemoryRuns": 19,
+  "gatewayPid": 16912,
+  "logWindowTruncated": false,
+  "newBoundaryCountObserved": 19,
+  "optionalProjectMemoryObserved": true,
+  "pluginBoundaries": [
+    {
+      "durationMs": 5,
+      "elapsedMs": 378,
+      "stage": "plugin-tools:input-context"
+    },
+    {
+      "durationMs": 1,
+      "elapsedMs": 379,
+      "stage": "plugin-tools:delivery-context"
+    },
+    {
+      "durationMs": 1,
+      "elapsedMs": 380,
+      "stage": "plugin-tools:auth-lookup"
+    },
+    {
+      "durationMs": 0,
+      "elapsedMs": 380,
+      "stage": "plugin-tools:prepared-context"
+    },
+    {
+      "durationMs": 2,
+      "elapsedMs": 382,
+      "stage": "plugin-tools:load-state"
+    },
+    {
+      "durationMs": 1,
+      "elapsedMs": 383,
+      "stage": "plugin-tools:registry-context"
+    },
+    {
+      "durationMs": 2,
+      "elapsedMs": 385,
+      "stage": "plugin-tools:runtime-owners"
+    },
+    {
+      "durationMs": 8843,
+      "elapsedMs": 9228,
+      "stage": "plugin-tools:registry-loaded"
+    },
+    {
+      "durationMs": 0,
+      "elapsedMs": 9228,
+      "stage": "plugin-tools:registrations"
+    },
+    {
+      "durationMs": 23,
+      "elapsedMs": 9251,
+      "stage": "plugin-tools:factories"
+    },
+    {
+      "durationMs": 0,
+      "elapsedMs": 9251,
+      "stage": "plugin-tools:resolved"
+    }
+  ],
+  "pluginSpanReconstructedMs": 8879,
+  "prepTotalMs": 16305,
+  "rejectedSummaries": 0,
+  "runId": "run_1793036763689_b99bd18b",
+  "stageClock": "existing_SDK_Date_now_durations_not_monotonic",
+  "state": "closed_numeric_projection_complete",
+  "summaries": [
+    {
+      "invalidStageTokens": 0,
+      "phase": "auth",
+      "sdkSessionId": "a0052a8c-f3b9-4492-b62a-969d3d89ca34",
+      "stageTokens": 6,
+      "stages": [
+        {
+          "durationMs": 0,
+          "elapsedMs": 0,
+          "stage": "scope"
+        },
+        {
+          "durationMs": 4,
+          "elapsedMs": 4,
+          "stage": "store"
+        },
+        {
+          "durationMs": 97,
+          "elapsedMs": 101,
+          "stage": "prepare-plan"
+        },
+        {
+          "durationMs": 5,
+          "elapsedMs": 106,
+          "stage": "harness"
+        },
+        {
+          "durationMs": 18,
+          "elapsedMs": 124,
+          "stage": "controller"
+        },
+        {
+          "durationMs": 27,
+          "elapsedMs": 151,
+          "stage": "initialize"
+        }
+      ],
+      "time": "2026-10-26T17:46:11.752+00:00",
+      "totalMs": 151
+    },
+    {
+      "invalidStageTokens": 0,
+      "phase": "attempt-dispatch",
+      "sdkSessionId": "a0052a8c-f3b9-4492-b62a-969d3d89ca34",
+      "stageTokens": 13,
+      "stages": [
+        {
+          "durationMs": 0,
+          "elapsedMs": 0,
+          "stage": "workspace"
+        },
+        {
+          "durationMs": 6,
+          "elapsedMs": 6,
+          "stage": "harness-selection"
+        },
+        {
+          "durationMs": 2,
+          "elapsedMs": 8,
+          "stage": "prepared-runtime"
+        },
+        {
+          "durationMs": 375,
+          "elapsedMs": 383,
+          "stage": "runtime-context"
+        },
+        {
+          "durationMs": 0,
+          "elapsedMs": 383,
+          "stage": "runtime-plugins"
+        },
+        {
+          "durationMs": 14,
+          "elapsedMs": 397,
+          "stage": "hooks"
+        },
+        {
+          "durationMs": 1280,
+          "elapsedMs": 1677,
+          "stage": "model-resolution"
+        },
+        {
+          "durationMs": 159,
+          "elapsedMs": 1836,
+          "stage": "auth"
+        },
+        {
+          "durationMs": 19,
+          "elapsedMs": 1855,
+          "stage": "context-engine"
+        },
+        {
+          "durationMs": 15,
+          "elapsedMs": 1870,
+          "stage": "attempt-workspace"
+        },
+        {
+          "durationMs": 1,
+          "elapsedMs": 1871,
+          "stage": "attempt-prompt"
+        },
+        {
+          "durationMs": 3,
+          "elapsedMs": 1874,
+          "stage": "attempt-runtime-plan"
+        },
+        {
+          "durationMs": 0,
+          "elapsedMs": 1874,
+          "stage": "attempt-dispatch"
+        }
+      ],
+      "time": "2026-10-26T17:46:11.798+00:00",
+      "totalMs": 1875
+    },
+    {
+      "invalidStageTokens": 0,
+      "phase": "core-plugin-tools",
+      "sdkSessionId": "a0052a8c-f3b9-4492-b62a-969d3d89ca34",
+      "stageTokens": 38,
+      "stages": [
+        {
+          "durationMs": 133,
+          "elapsedMs": 133,
+          "stage": "tool-policy"
+        },
+        {
+          "durationMs": 17,
+          "elapsedMs": 150,
+          "stage": "workspace-policy"
+        },
+        {
+          "durationMs": 19,
+          "elapsedMs": 169,
+          "stage": "base-coding-tools"
+        },
+        {
+          "durationMs": 2,
+          "elapsedMs": 171,
+          "stage": "shell-tools"
+        },
+        {
+          "durationMs": 19,
+          "elapsedMs": 190,
+          "stage": "openclaw-tools:session-workspace"
+        },
+        {
+          "durationMs": 18,
+          "elapsedMs": 208,
+          "stage": "openclaw-tools:image-tool"
+        },
+        {
+          "durationMs": 24,
+          "elapsedMs": 232,
+          "stage": "openclaw-tools:image-generate-tool"
+        },
+        {
+          "durationMs": 22,
+          "elapsedMs": 254,
+          "stage": "openclaw-tools:video-generate-tool"
+        },
+        {
+          "durationMs": 8,
+          "elapsedMs": 262,
+          "stage": "openclaw-tools:music-generate-tool"
+        },
+        {
+          "durationMs": 2,
+          "elapsedMs": 264,
+          "stage": "openclaw-tools:pdf-tool"
+        },
+        {
+          "durationMs": 0,
+          "elapsedMs": 264,
+          "stage": "openclaw-tools:web-search-tool"
+        },
+        {
+          "durationMs": 2,
+          "elapsedMs": 266,
+          "stage": "openclaw-tools:web-fetch-tool"
+        },
+        {
+          "durationMs": 33,
+          "elapsedMs": 299,
+          "stage": "openclaw-tools:message-tool"
+        },
+        {
+          "durationMs": 2,
+          "elapsedMs": 301,
+          "stage": "openclaw-tools:nodes-tool"
+        },
+        {
+          "durationMs": 72,
+          "elapsedMs": 373,
+          "stage": "openclaw-tools:core-tool-list"
+        },
+        {
+          "durationMs": 5,
+          "elapsedMs": 378,
+          "stage": "plugin-tools:input-context"
+        },
+        {
+          "durationMs": 1,
+          "elapsedMs": 379,
+          "stage": "plugin-tools:delivery-context"
+        },
+        {
+          "durationMs": 1,
+          "elapsedMs": 380,
+          "stage": "plugin-tools:auth-lookup"
+        },
+        {
+          "durationMs": 0,
+          "elapsedMs": 380,
+          "stage": "plugin-tools:prepared-context"
+        },
+        {
+          "durationMs": 2,
+          "elapsedMs": 382,
+          "stage": "plugin-tools:load-state"
+        },
+        {
+          "durationMs": 1,
+          "elapsedMs": 383,
+          "stage": "plugin-tools:registry-context"
+        },
+        {
+          "durationMs": 2,
+          "elapsedMs": 385,
+          "stage": "plugin-tools:runtime-owners"
+        },
+        {
+          "durationMs": 8843,
+          "elapsedMs": 9228,
+          "stage": "plugin-tools:registry-loaded"
+        },
+        {
+          "durationMs": 0,
+          "elapsedMs": 9228,
+          "stage": "plugin-tools:registrations"
+        },
+        {
+          "durationMs": 23,
+          "elapsedMs": 9251,
+          "stage": "plugin-tools:factories"
+        },
+        {
+          "durationMs": 0,
+          "elapsedMs": 9251,
+          "stage": "plugin-tools:resolved"
+        },
+        {
+          "durationMs": 1,
+          "elapsedMs": 9252,
+          "stage": "openclaw-tools:plugin-tools"
+        },
+        {
+          "durationMs": 2,
+          "elapsedMs": 9254,
+          "stage": "openclaw-tools:client-capabilities"
+        },
+        {
+          "durationMs": 5,
+          "elapsedMs": 9259,
+          "stage": "openclaw-tools"
+        },
+        {
+          "durationMs": 0,
+          "elapsedMs": 9259,
+          "stage": "message-provider-policy"
+        },
+        {
+          "durationMs": 2,
+          "elapsedMs": 9261,
+          "stage": "model-provider-policy"
+        },
+        {
+          "durationMs": 5,
+          "elapsedMs": 9266,
+          "stage": "authorization-policy"
+        },
+        {
+          "durationMs": 21,
+          "elapsedMs": 9287,
+          "stage": "schema-normalization"
+        },
+        {
+          "durationMs": 4,
+          "elapsedMs": 9291,
+          "stage": "tool-hooks"
+        },
+        {
+          "durationMs": 1,
+          "elapsedMs": 9292,
+          "stage": "abort-wrappers"
+        },
+        {
+          "durationMs": 2,
+          "elapsedMs": 9294,
+          "stage": "deferred-followup-descriptions"
+        },
+        {
+          "durationMs": 1,
+          "elapsedMs": 9295,
+          "stage": "attempt:create-openclaw-coding-tools"
+        },
+        {
+          "durationMs": 0,
+          "elapsedMs": 9295,
+          "stage": "attempt:tools-allow"
+        }
+      ],
+      "time": "2026-10-26T17:46:21.326+00:00",
+      "totalMs": 9296
+    },
+    {
+      "invalidStageTokens": 0,
+      "phase": "stream-ready",
+      "sdkSessionId": "a0052a8c-f3b9-4492-b62a-969d3d89ca34",
+      "stageTokens": 19,
+      "stages": [
+        {
+          "durationMs": 5,
+          "elapsedMs": 5,
+          "stage": "workspace-sandbox"
+        },
+        {
+          "durationMs": 6,
+          "elapsedMs": 11,
+          "stage": "skills"
+        },
+        {
+          "durationMs": 9296,
+          "elapsedMs": 9307,
+          "stage": "core-plugin-tools"
+        },
+        {
+          "durationMs": 256,
+          "elapsedMs": 9563,
+          "stage": "bootstrap-context"
+        },
+        {
+          "durationMs": 720,
+          "elapsedMs": 10283,
+          "stage": "bundle-tools"
+        },
+        {
+          "durationMs": 26,
+          "elapsedMs": 10319,
+          "stage": "tool-catalog"
+        },
+        {
+          "durationMs": 756,
+          "elapsedMs": 10319,
+          "stage": "tool-preparation"
+        },
+        {
+          "durationMs": 3,
+          "elapsedMs": 10351,
+          "stage": "system-prompt:tool-directory"
+        },
+        {
+          "durationMs": 3,
+          "elapsedMs": 10354,
+          "stage": "system-prompt:runtime-context"
+        },
+        {
+          "durationMs": 3,
+          "elapsedMs": 10357,
+          "stage": "system-prompt:references"
+        },
+        {
+          "durationMs": 3,
+          "elapsedMs": 10360,
+          "stage": "system-prompt:provider-contribution"
+        },
+        {
+          "durationMs": 3,
+          "elapsedMs": 10363,
+          "stage": "system-prompt:memory-context"
+        },
+        {
+          "durationMs": 4951,
+          "elapsedMs": 15314,
+          "stage": "system-prompt:project-memory"
+        },
+        {
+          "durationMs": 67,
+          "elapsedMs": 15388,
+          "stage": "system-prompt:assembly"
+        },
+        {
+          "durationMs": 7,
+          "elapsedMs": 15397,
+          "stage": "system-prompt:report"
+        },
+        {
+          "durationMs": 5078,
+          "elapsedMs": 15397,
+          "stage": "system-prompt"
+        },
+        {
+          "durationMs": 173,
+          "elapsedMs": 15570,
+          "stage": "session-resource-loader"
+        },
+        {
+          "durationMs": 638,
+          "elapsedMs": 16208,
+          "stage": "agent-session"
+        },
+        {
+          "durationMs": 97,
+          "elapsedMs": 16305,
+          "stage": "stream-setup"
+        }
+      ],
+      "time": "2026-10-26T17:46:28.323+00:00",
+      "totalMs": 16305
+    }
+  ],
+  "systemPromptAggregateMs": 5078,
+  "systemPromptSubspans": [
+    {
+      "durationMs": 3,
+      "elapsedMs": 10351,
+      "stage": "system-prompt:tool-directory"
+    },
+    {
+      "durationMs": 3,
+      "elapsedMs": 10354,
+      "stage": "system-prompt:runtime-context"
+    },
+    {
+      "durationMs": 3,
+      "elapsedMs": 10357,
+      "stage": "system-prompt:references"
+    },
+    {
+      "durationMs": 3,
+      "elapsedMs": 10360,
+      "stage": "system-prompt:provider-contribution"
+    },
+    {
+      "durationMs": 3,
+      "elapsedMs": 10363,
+      "stage": "system-prompt:memory-context"
+    },
+    {
+      "durationMs": 4951,
+      "elapsedMs": 15314,
+      "stage": "system-prompt:project-memory"
+    },
+    {
+      "durationMs": 67,
+      "elapsedMs": 15388,
+      "stage": "system-prompt:assembly"
+    },
+    {
+      "durationMs": 7,
+      "elapsedMs": 15397,
+      "stage": "system-prompt:report"
+    }
+  ],
+  "workerResultBasename": "l0bis-prep-instrumented-20261026-recovery1-worker-result.json"
+}

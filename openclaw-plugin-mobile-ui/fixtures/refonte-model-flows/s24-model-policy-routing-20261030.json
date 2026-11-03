@@ -1,0 +1,154 @@
+{
+ "provenance": {
+  "runtimeCapture": true,
+  "capturedAt": "2026-10-30",
+  "source": "S24 ~/.openclaw/runtime-ui-playbooks/current/skill_intelligence/model_policy.json (pinned release a24dd27a1a8dd6815ef4a3bc787e3dc7bb625daf), whitelisted keys only: no auth store, no account e-mail, no token",
+  "sourceSha256": "2df7393873de939c88191778ac764d7c91dbc1793a2c55dbd0b9d32c003d15dc",
+  "sourceBytes": 7381,
+  "gatewayConfig": "S24 ~/.openclaw/openclaw.json 2026-10-30: memory.search={provider:gemini, model absent}; talk.realtime={provider:google, model absent}; agents.entries.engineering-lite.model is overridden per call by the governor (--model)",
+  "pluginLlm": "S24 ~/.openclaw/openclaw.json plugins.entries.openclaw-plugin-mobile-ui.llm (Gateway LLM policy of the interpretation port), 2026-10-30; plugin config holds only voiceBargeIn, no executor flow key yet",
+  "brainOnly": "S24 2026-10-30: SAMANTHA_BRAIN_ONLY=1 in the Gateway and playbooks processes; the port serves native Pulse rooms and the immune purpose"
+ },
+ "policy": {
+  "version": 5,
+  "authentication": "subscription_only",
+  "primary": "openai/gpt-5.6-sol",
+  "fallback": "openai/gpt-5.6-luna",
+  "provider_fallback": "google/gemini-3.5-flash-lite@google:claw-gemini-free",
+  "interpretation": {
+   "profile": "INTENT_INTERPRETATION",
+   "primary": "openai/gpt-5.6-sol",
+   "fallback": "google/gemini-3.5-flash-lite@google:claw-gemini-free",
+   "qualification_state": "local_contract_only_live_pending"
+  },
+  "immune": {
+   "profile": "IMMUNE_ENGINEERING",
+   "primary": "openai/gpt-5.6-sol",
+   "fallback": "openai/gpt-5.6-luna",
+   "last_resort": "google/gemini-3.5-flash-lite@google:claw-gemini-free",
+   "fallback_policy": "technical_only"
+  },
+  "routing_profiles": {
+   "ENGINEERING": [
+    "sol",
+    "luna",
+    "claude_subscription",
+    "gemini_free"
+   ],
+   "FAST": [
+    "luna",
+    "gemini_free"
+   ],
+   "BALANCED": [
+    "luna",
+    "claude_subscription",
+    "gemini_free"
+   ],
+   "QUALITY": [
+    "sol",
+    "claude_subscription",
+    "luna",
+    "gemini_free"
+   ],
+   "ZERO_ONLY": [
+    "gemini_free"
+   ],
+   "INTENT_INTERPRETATION": [
+    "sol",
+    "gemini_free"
+   ],
+   "INTENT_INTERPRETATION_NATIVE": [
+    "gemini_free",
+    "luna"
+   ],
+   "IMMUNE_ENGINEERING": [
+    "sol",
+    "luna",
+    "gemini_free"
+   ]
+  },
+  "model_slots": {
+   "sol": {
+    "enabled": true,
+    "provider": "openai",
+    "model": "openai/gpt-5.6-sol",
+    "cost_policy": "subscription",
+    "executor": "native_agent_exec",
+    "qualification_ref": "docs/07-engineering/sol-luna-repair-acceptance.md"
+   },
+   "luna": {
+    "enabled": true,
+    "provider": "openai",
+    "model": "openai/gpt-5.6-luna",
+    "cost_policy": "subscription",
+    "executor": "native_agent_exec",
+    "qualification_ref": "docs/07-engineering/sol-luna-repair-acceptance.md"
+   },
+   "gemini_free": {
+    "enabled": true,
+    "provider": "google",
+    "model": "google/gemini-3.5-flash-lite@google:claw-gemini-free",
+    "cost_policy": "free_only",
+    "executor": "native_agent_exec",
+    "qualification_ref": "docs/changes/provider-fallback-engineering-20261003.json"
+   },
+   "deepseek": {
+    "enabled": false,
+    "provider": "deepseek",
+    "model": null,
+    "cost_policy": null,
+    "executor": null,
+    "qualification_ref": null
+   },
+   "qwen": {
+    "enabled": false,
+    "provider": "qwen",
+    "model": null,
+    "cost_policy": null,
+    "executor": null,
+    "qualification_ref": null
+   },
+   "cerebras": {
+    "enabled": false,
+    "provider": "cerebras",
+    "model": null,
+    "cost_policy": null,
+    "executor": null,
+    "qualification_ref": null
+   },
+   "claude_subscription": {
+    "enabled": true,
+    "provider": "anthropic",
+    "model": "anthropic/claude-sonnet-5-5",
+    "cost_policy": "subscription",
+    "executor": "claude_cli",
+    "qualification_ref": "docs/changes/vector-claude-pro-governor-20261007.md"
+   },
+   "copilot_free": {
+    "enabled": false,
+    "provider": "github-copilot",
+    "model": null,
+    "cost_policy": null,
+    "executor": null,
+    "qualification_ref": null
+   }
+  },
+  "default_profile": "ENGINEERING"
+ },
+ "pluginLlm": {
+  "allowModelOverride": true,
+  "allowedModels": [
+   "google/gemini-3.5-flash-lite",
+   "openai/gpt-5.6-luna",
+   "openai/gpt-5.6-sol"
+  ],
+  "allowedCompletionModels": [
+   "google/gemini-3.5-flash-lite",
+   "openai/gpt-5.6-luna",
+   "openai/gpt-5.6-sol"
+  ]
+ },
+ "pluginConfigKeys": [
+  "voiceBargeIn"
+ ]
+}

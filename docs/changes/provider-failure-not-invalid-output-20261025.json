@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "provider-failure-not-invalid-output-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "An empty completion ending on a provider error is classified as a technical failure, not as an invalid decision.",
+  "reason": "S24 25/10 since 16:32 UTC: gpt-5.6-sol 429 usage_limit_reached was reported as invalid_output, so Sol never cooled down and the immune Sol->Luna technical fallback never ran; supervisors could not be restored and the Tier0 SOAK rolled back.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
+    "docs/changes/provider-failure-not-invalid-output-20261025.json",
+    "docs/changes/provider-failure-not-invalid-output-20261025.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
+      "status": "passed",
+      "evidence": "Observed S24 provider-error shape (empty text, stopReason error, zero usage, Gateway 429 usage_limit_reached 18:24Z) for interpretation and both immune models, plus completed-empty control; new assertion fails without the fix. No device effect."
+    }
+  ],
+  "documentation": [
+    "docs/changes/provider-failure-not-invalid-output-20261025.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Error classification inside the existing interpreter port; no route, model set or capability change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same port and mapping owner; Gemini remains excluded from the immune purpose."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: no MCP schema, adapter or endpoint changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final head remains required.",
+    "If Luna is limited too, the immune decision still waits correctly classified; a non-OpenAI immune decider is a separate design decision."
+  ],
+  "rollback": "Revert this commit normally; no S24 configuration is changed by the patch."
+}

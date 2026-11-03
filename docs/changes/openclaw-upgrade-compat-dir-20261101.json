@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "id": "openclaw-upgrade-compat-dir-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "openclaw-upgrade.py reads the compatibility manifests next to itself first; CLAW_RUNTIME_ROOT is only a fallback when the script's folder has no openclaw-compat.",
+  "reason": "S24 01/11 20:46: the production dry run refused (compat owner absent, egress fix not seen) because the Claw bridge carried CLAW_RUNTIME_ROOT pinned to the replaced 31/10 release; supervisors pin the physical release path on purpose, so a long-lived caller can hold a stale one. The switch ran only after forcing the variable.",
+  "files": [
+    "docs/changes/openclaw-upgrade-compat-dir-20261101.json",
+    "docs/changes/openclaw-upgrade-compat-dir-20261101.md",
+    "installer/termux-lite/openclaw-upgrade.py",
+    "installer/termux-lite/test-openclaw-upgrade.py"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-openclaw-upgrade.py",
+      "status": "passed",
+      "evidence": "Full file OK, including the new unit test: with CLAW_RUNTIME_ROOT set to a nonexistent old release, _compat_dir() returns the openclaw-compat folder next to the script."
+    },
+    {
+      "name": "installer/termux-lite/test-no-hardcoded-clawmobile.py",
+      "status": "passed",
+      "evidence": "No hard-coded working copy path introduced."
+    }
+  ],
+  "documentation": [
+    "docs/changes/openclaw-upgrade-compat-dir-20261101.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Upgrade script path resolution and a test only; no route, action or capability (NO_CAPABILITY)."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same owner script; no new store, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "Only openclaw-upgrade.py manifest path resolution; no MCP tool or schema touched."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": "The 2026.10.9 switch is already done (receipt openclaw-upgrade-20261101T204745, deployed); this matters for status, rehearsal and later upgrades.",
+  "rollback": "Revert this commit; then pass CLAW_RUNTIME_ROOT explicitly when calling openclaw-upgrade.sh."
+}

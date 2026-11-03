@@ -1,3 +1,4 @@
+import {NativePulseContact,NATIVE_PULSE_PROTOCOL} from '../nativePulseAdmission';
 import {PUBLIC_WEB_BUDGET_MS, readRunWebResult} from "./runWeb";
 import crypto from "crypto";
 import fs from "fs";
@@ -532,6 +533,7 @@ export function getRemoteBridgeTask(taskId: string, rawLimit = 50) {
 function mutationRisk(method: string, params?: Record<string, unknown>): "read" | "write" | "unknown" {
   if (["ping", "request_status", "task_status", "read_file", "read_binary_file", "artifact_read", "process_status", "mcp_capability_execute_readonly", "capability_execute_readonly"].includes(method)) return "read";
   if (["write_file", "patch_file", "write_binary_file", "process_input", "process_stop", "context_remember"].includes(method)) return "write";
+  if(method==="capability_execute_owner"&&params?.nativePulseProtocol===NATIVE_PULSE_PROTOCOL)return "write";
   if (["mcp_capability_execute_owner", "capability_execute_owner"].includes(method)) {
     const decision = params?.decision && typeof params.decision === "object" ? params.decision as Record<string, unknown> : undefined;
     const risk = String(decision?.risk || "").trim();
@@ -740,8 +742,8 @@ async function runCapabilityAtSurface(
   trustedSessionId?: string,
   webBounds?: {startedMonotonic:number;deadlineEpochMs:number},
 ) {
-  const request = String(params.request || "").trim();
-  if (!request || request.length > 12000) throw new Error("invalid_capability_request");
+  const request = params.dialogueReadHandoff!==undefined?String(params.request||""):String(params.request || "").trim();
+  if (!request.trim() || request.length > 12000) throw new Error("invalid_capability_request");
   const rawTargetHint = String(params.targetHint || "").trim();
   if (rawTargetHint && !/^[A-Za-z0-9._-]{1,128}$/.test(rawTargetHint)) {
     throw new Error("invalid_target_hint");
@@ -769,6 +771,8 @@ async function runCapabilityAtSurface(
     timeoutSeconds: 30,
     targetHint,
     decision,
+    ...(params.typedSelection ? {typedSelection: params.typedSelection as Record<string, unknown>, requestId} : {}),
+    ...(params.dialogueReadHandoff!==undefined?{dialogueReadHandoff:params.dialogueReadHandoff as Record<string,unknown>}:{}),
     ...(isWeb ? {requestId:String(decision!.requestId),runId:requestId,sessionId:trustedSessionId,remainingBudgetMs:remaining,deadlineEpochMs:bounds.deadlineEpochMs} : {}),
   });
   if(isWeb){
@@ -800,6 +804,32 @@ async function runMcpCapability(
 
 async function dispatch(request: RemoteBridgeRequest, webBounds?: {startedMonotonic:number;deadlineEpochMs:number}) {
   const params = (request.params || {}) as Record<string, unknown>;
+  if(params.nativePulseProtocol!==undefined){
+    const access=nativeAccess(request);
+    if(request.method!=='capability_execute_owner'||params.nativePulseProtocol!==NATIVE_PULSE_PROTOCOL||
+       Object.keys(params).sort().join(',')!=='acceptedEventKey,commandDigest,conversationRef,goalRef,nativePulseProtocol'||
+       !access)throw Error('native_pulse_admission_required');
+    await access.native.packet(access.event,access.text);
+    try {
+      const result:any=await access.execute(webBounds!);
+      if(result?.nativePulseProtocol!==NATIVE_PULSE_PROTOCOL)throw Error('native_pulse_execution_unknown');
+      return result;
+    }catch{throw Error('native_pulse_execution_unknown');}
+  }
+  if(params.intentInputProtocol!==undefined){
+    const access=mcpAccess(request);
+    if(request.method!=="mcp_capability_execute_readonly" || params.intentInputProtocol!=="mcp-input.v1" ||
+       Object.keys(params).length!==2 || typeof params.inputDigest!=="string" || !/^[a-f0-9]{64}$/.test(params.inputDigest) ||
+       !access?.readExecution || !request._claw_access)throw new Error("mcp_read_owner_binding_required");
+    // The durable received/running claim already exists. Only this process-local
+    // function can enter the read-only host; JSON never provides an executor.
+    try{return await access.readExecution(webBounds!);}
+    catch(error:any){
+      const code=["mcp_read_protocol_required","mcp_read_deadline_exceeded","mcp_read_execution_failed"].includes(error?.message)
+        ?error.message:"mcp_read_execution_failed";
+      throw new Error(code);
+    }
+  }
   switch (request.method) {
     case "ping":
       return { pong: true, at: Date.now(), instanceId: INSTANCE_ID };
@@ -848,12 +878,71 @@ async function dispatch(request: RemoteBridgeRequest, webBounds?: {startedMonoto
 }
 
 // Process-local provenance cannot be supplied through HTTP or serialized JSON.
-const authenticatedMcpAccess = new WeakMap<object, ClawAccess>();
-export async function submitAuthenticatedMcpRequest(body: RemoteBridgeRequest, webBounds?: {startedMonotonic:number;deadlineEpochMs:number}): Promise<RemoteBridgeReceipt> {
+type McpReadExecution = (bounds:{startedMonotonic:number;deadlineEpochMs:number})=>Promise<unknown>;
+export type McpServiceScope = Readonly<{schema_version:"mcp-service.v1";domain_id:"pulse"}>;
+export function mcpServiceScope(value:unknown):McpServiceScope|null {
+  if(!value || typeof value!=="object" || Array.isArray(value) || Object.keys(value).length!==2 ||
+     Object.keys(value).some(key=>!["schema_version","domain_id"].includes(key)) ||
+     (value as any).schema_version!=="mcp-service.v1" || (value as any).domain_id!=="pulse")return null;
+  return Object.freeze({schema_version:"mcp-service.v1",domain_id:"pulse"});
+}
+type McpAccess=ClawAccess & {readExecution?:McpReadExecution;
+  relayAdmission?:{requestId:string;observedAt:number;validUntil:number;service?:McpServiceScope}};
+type NativeAccess={native:NativePulseContact;execute:McpReadExecution;event:Record<string,unknown>;text:string;afterReceipt?:()=>Promise<unknown>};
+const authenticatedMcpAccess = new WeakMap<object, McpAccess|NativeAccess>();// existing admission owner, no second registry
+function mcpAccess(value:object):McpAccess|undefined {
+  const access=authenticatedMcpAccess.get(value);return access&&!('native' in access)?access:undefined;
+}
+function nativeAccess(value:object):NativeAccess|undefined {
+  const access=authenticatedMcpAccess.get(value);return access&&'native' in access?access:undefined;
+}
+
+/** Host-only native hook: the JSON body is correlation, never execution authority. */
+export async function submitNativePulseRequest(body:RemoteBridgeRequest, admission:NativePulseContact,
+  event:Record<string,unknown>,text:string,execute:McpReadExecution,afterReceipt?:()=>Promise<unknown>):Promise<RemoteBridgeReceipt> {
+  if(!(admission instanceof NativePulseContact)||typeof execute!=='function'||
+     (afterReceipt!==undefined&&typeof afterReceipt!=='function')||
+     body.method!=='capability_execute_owner'||body.params?.nativePulseProtocol!==NATIVE_PULSE_PROTOCOL||
+     body.sessionId!=='native-pulse:'+admission.contactId||!body.taskId||!body.stepId||!body.continuumFence)
+    throw statusError(403,'native_pulse_admission_required');
+  await admission.packet(event,text);
+  const trusted={...body};authenticatedMcpAccess.set(trusted,{native:admission,execute,event,text,afterReceipt});
+  return submitRemoteBridgeRequest(trusted);
+}
+
+/** Called only for a frame on the existing authenticated device relay. Public MCP arguments never invoke this. */
+export function registerAuthenticatedMcpRelayMessage(message:Record<string,any>) {
+  if(!message || message.type!=="mcp_request" || typeof message.clientId!=="string" || !/^[A-Za-z0-9._-]{1,24}$/.test(message.clientId) ||
+     !["chat-owner","chat-owner-shadow"].includes(message.profile) || typeof message.requestId!=="string" || !/^[A-Za-z0-9._:-]{1,128}$/.test(message.requestId)) {
+    throw new Error("invalid_authenticated_mcp_frame");
+  }
+  const now=Date.now();
+  const service=mcpServiceScope(message.interpretationService);
+  if(message.interpretationService!==undefined&&!service)throw new Error("invalid_authenticated_mcp_service");
+  authenticatedMcpAccess.set(message,{client_id:message.clientId,profile:message.profile,
+    owner:message.profile==="chat-owner",read_only:message.profile!=="chat-owner",
+    relayAdmission:{requestId:message.requestId,observedAt:now,validUntil:now+30000,...(service?{service}:{})}});
+}
+
+/** Minimal authenticated service metadata; no executor, token, DATA grant or client-supplied authority. */
+export function authenticatedMcpContextMetadata(message:unknown) {
+  if(!message || typeof message!=="object")return null;
+  const admitted=mcpAccess(message),frame=message as Record<string,any>;
+  const relay=admitted?.relayAdmission;
+  if(!admitted||!relay||admitted.profile!=="chat-owner"||frame.clientId!==admitted.client_id||
+     frame.profile!==admitted.profile||frame.requestId!==relay.requestId||Date.now()<relay.observedAt||Date.now()>=relay.validUntil)return null;
+  return Object.freeze({client_id:admitted.client_id,authenticated_profile:admitted.profile,
+    request_id:relay.requestId,observed_at:relay.observedAt/1000,valid_until:relay.validUntil/1000,
+    ...(relay.service&&mcpServiceScope(frame.interpretationService)&&frame.interpretationService.domain_id===relay.service.domain_id
+      ?{service_scope:relay.service}:{})});
+}
+export async function submitAuthenticatedMcpRequest(body: RemoteBridgeRequest, webBounds?: {startedMonotonic:number;deadlineEpochMs:number}, readExecution?:McpReadExecution): Promise<RemoteBridgeReceipt> {
   const access = body._claw_access;
   if (!access) throw statusError(400,"invalid_claw_access");
+  if(readExecution && (typeof readExecution!=="function" || body.method!=="mcp_capability_execute_readonly" ||
+     body.params?.intentInputProtocol!=="mcp-input.v1"))throw statusError(400,"invalid_mcp_read_binding");
   const trusted = {...body}; delete trusted._claw_access;
-  authenticatedMcpAccess.set(trusted, {...access});
+  authenticatedMcpAccess.set(trusted, {...access,...(readExecution?{readExecution}:{})});
   return submitRemoteBridgeRequest(trusted,webBounds);
 }
 function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
@@ -871,14 +960,15 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
     validateCorrelationId(stepId, "step");
   }
   if (body?._claw_access) throw statusError(400,"invalid_claw_access");
-  const access = authenticatedMcpAccess.get(body);
+  if(Object.prototype.hasOwnProperty.call(body,"readExecution") || Object.prototype.hasOwnProperty.call(body,"privateExecution"))throw statusError(400,"invalid_mcp_read_binding");
+  const access = mcpAccess(body);
   if (access && (!/^[A-Za-z0-9._-]{1,24}$/.test(access.client_id) ||
       !["chat-owner","chat-owner-shadow"].includes(access.profile) ||
       body.sessionId !== `external_mcp:${access.client_id}` ||
       access.owner !== (access.profile === "chat-owner") || access.read_only !== (access.profile !== "chat-owner"))) {
     throw statusError(400,"invalid_claw_access");
   }
-  return {
+  const normalized:RemoteBridgeRequest = {
     requestId,
     taskId,
     stepId,
@@ -890,6 +980,11 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
       : {},
     continuumFence: body?.continuumFence,
   };
+  const native=nativeAccess(body);
+  if(body.params?.nativePulseProtocol!==undefined&&!native)throw statusError(403,"native_pulse_admission_required");
+  if(access)authenticatedMcpAccess.set(normalized,access);
+  if(native)authenticatedMcpAccess.set(normalized,native);
+  return normalized;
 }export async function submitRemoteBridgeRequest(
   body: RemoteBridgeRequest,
   webBounds?: {startedMonotonic:number;deadlineEpochMs:number},
@@ -925,7 +1020,11 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
     }
   }
 
+  const native=nativeAccess(request);
+  if(native&&(!request.taskId||!request.stepId||!request.continuumFence||!readContinuumState(request.taskId)))
+    throw statusError(409,"continuum_fence_required");
   const continuumFence = validateContinuumFence(request, paramsHash);
+  if(native&&!continuumFence)throw statusError(409,"continuum_fence_required");
 
   let receipt: RemoteBridgeReceipt = {
     requestId: request.requestId,
@@ -968,9 +1067,21 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
     };
   }
   writeReceipt(receipt);
+  // T2 delivery follows the durable terminal receipt. It is deliberately outside
+  // dispatch's catch: a failed observation must never overwrite the execution
+  // outcome or re-enter its executor. The existing pending DialogueStore handoff
+  // remains recoverable by the same receipt on the next observation.
+  if(native?.afterReceipt){
+    try{
+      await native.native.packet(native.event,native.text);
+      await native.afterReceipt();
+    }catch{
+      console.warn(`native_pulse_t2_pending:${request.requestId}`);
+    }
+  }
   return receipt;
   })();
-  if (request.method !== "exec_wait") return completion;
+  if (request.method !== "exec_wait" && !mcpAccess(request)?.readExecution && !nativeAccess(request)) return completion;
   // The relay stops waiting after 28 seconds. Keep execution owned by this
   // receipt, but acknowledge within the public 15-second response budget.
   // Polling the existing status route never dispatches the command again.

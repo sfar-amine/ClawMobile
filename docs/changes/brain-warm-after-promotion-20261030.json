@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "id": "brain-warm-after-promotion-20261030",
+  "date": "2026-10-30",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "brain-warm.py is no longer launched by gateway-start.sh: only companion-deploy.sh runs it, after the Tier0 promotion and before the five paths.",
+  "reason": "Deploy of 986187b7 on the S24, 30/10 10:50: Tier0 promotion failed twice (activation_readiness_failed, critical_readiness_unverified) and the deploy rolled back to 730ff3e1. Gateway log: « gateway ready » 09:53:25 UTC, then the start-time brain-warm turn, « liveness heartbeat delayed: elapsed=61395ms »; the health manager restarted at 10:55:15 local, after the 120 s activation readiness window (ACTIVATION_READINESS_S) opened at 10:53:23.",
+  "files": [
+    "installer/termux-lite/brain-warm.py",
+    "installer/termux-lite/test-brain-warm.py",
+    "installer/termux-lite/gateway-start.sh",
+    "docs/changes/brain-warm-after-promotion-20261030.json",
+    "docs/changes/brain-warm-after-promotion-20261030.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-brain-warm.py",
+      "status": "passed",
+      "evidence": "gateway-start.sh never names brain-warm; companion-deploy.sh calls it after sync_runtime (the Tier0 promotion); one turn per Gateway process, no retry, no Gateway runs nothing; the --after-start mode is gone (usage error)."
+    },
+    {
+      "name": "bash -n installer/termux-lite/gateway-start.sh",
+      "status": "passed",
+      "evidence": "Syntax OK after removing the detached launch."
+    }
+  ],
+  "documentation": [
+    "docs/changes/brain-warm-after-promotion-20261030.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No capability or route changes."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Removes a launch point; the deploy call that already existed is kept."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Gateway start/deploy scripts, typed tool description and room failure phrase."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Outside deploys, the first owner-brain turn after a Gateway restart is cold again (41-62 s), as before 986187b7.",
+    "Full canonical CI on the final head remains required."
+  ],
+  "rollback": "Revert this commit and redeploy the core with companion-deploy.sh."
+}

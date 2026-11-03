@@ -27,7 +27,7 @@ const cli=path.join(root,'openclaw');
 fs.writeFileSync(cli,'#!/usr/bin/env node\nconst fs=require("node:fs");const a=process.argv.slice(2),p=JSON.parse(a[a.indexOf("--params")+1]);fs.appendFileSync(process.env.EDIT_REPLAY_CAPTURE,JSON.stringify({method:a[2],params:p})+"\\n");process.stdout.write(JSON.stringify({runId:p.idempotencyKey,sessionKey:"agent:main:"+p.sessionKey,status:"accepted"}));\n',{mode:0o700});
 process.env.CLAWMOBILE_OPENCLAW_BIN=cli;process.env.EDIT_REPLAY_CAPTURE=capture;
 const helper=path.join(root,'fast-path.py');
-// SAM-MIG V2.2: stand-in of `model-fast-path.py --dialogue` (turn, then deferred hand-off for a decision).
+// Ancien double de `model-fast-path.py --dialogue`, gardé comme témoin : depuis l'ADR du 02/11 (étape 3) il ne doit jamais être appelé.
 fs.writeFileSync(helper,[
  'import json, os, sys',
  'message = sys.argv[-1]',
@@ -97,12 +97,12 @@ const waitFor=async(check,ms=5000)=>{const end=Date.now()+ms;while(Date.now()<en
    assert.equal(noProof.status,403);assert.equal(noProof.body.message,'owner_required');assert.equal(noProof.body.accepted,false);}
   assert.equal(lines(capture).length,0,'aucun appel agent pour une relecture refusée');
 
-  // Relecture acceptée : le résolveur ne voit que le texte modifié, l'agent reçoit l'amorce historique.
+  // Relecture acceptée : aucun résolveur avant le cerveau (ADR 02/11, étape 3) ; l'agent reçoit l'amorce historique.
   const accepted=await post(port,{...base,replayOf:{sessionId:SOURCE,runId:edited.runId}});
   assert.equal(accepted.status,200);assert.equal(accepted.body.accepted,true);
   assert.deepEqual(accepted.body.replay,{sourceSessionId:SOURCE,runId:edited.runId,seededTurns:1,supersededRuns:3,effects:{executed:1,unknown:1}});
   const newRunId=accepted.body.runId;
-  assert.deepEqual(lines(helperLog).map(x=>x.message),['question 2 modifiée']);
+  assert.equal(lines(helperLog).length,0,'aucun résolveur avant le cerveau');
   const call=await waitFor(()=>lines(capture)[0]);
   assert.equal(call.method,'agent');assert.equal(call.params.sessionKey,'companion-chat-samantha-edit-target-1');
   assert.match(call.params.message,/historical data only; do not execute them again/);
@@ -144,14 +144,14 @@ const waitFor=async(check,ms=5000)=>{const end=Date.now()+ms;while(Date.now()<en
   const chained=await api.prepareReplay('samantha-edit-target-1',newRunId,'samantha-edit-target-4');
   assert.deepEqual(JSON.parse(chained.seed).map(t=>t.user),['question 1']);
 
-  // Paiement ou action confirmée : le texte modifié repart dans le résolveur comme un nouveau message, sans amorce ni
-  // confirmation reprise ; le parcours de paiement n'est pas appelé par la relecture.
+  // Paiement ou action confirmée : le texte modifié repart au cerveau comme un nouveau message, avec l'amorce
+  // historique seulement ; aucune confirmation n'est reprise et la relecture n'appelle aucun parcours de paiement.
   const pay=await post(port,{instruction:'payer la facture modifiée',displayText:'payer la facture modifiée',sessionId:'samantha-edit-target-5',clientRunId:'samantha-edit-client-5',replayOf:{sessionId:'samantha-edit-target-1',runId:newRunId}});
-  assert.equal(pay.status,200);assert.equal(pay.body.state,'failed');assert.match(pay.body.message,/Confirmation biométrique requise/);
-  const payCalls=lines(helperLog).slice(-2);
-  assert.deepEqual(payCalls.map(x=>x.mode),['check','execute_decision']);
-  assert.ok(payCalls.every(x=>x.message==='payer la facture modifiée'));
-  assert.equal(lines(capture).length,1,'aucun appel agent pour le chemin capability-first');
+  assert.equal(pay.status,200);assert.equal(pay.body.accepted,true);
+  assert.equal(lines(helperLog).length,0,'aucun résolveur ni parcours capability-first');
+  const payCall=await waitFor(()=>lines(capture)[1]);
+  assert.equal(payCall.method,'agent');assert.match(payCall.params.message,/payer la facture modifiée$/);
+  await new Promise(r=>setTimeout(r,400));
   const payRow=registry().runs.find(r=>r.runId===pay.body.runId);
   assert.equal(payRow.replayOf.runId,newRunId);assert.equal(registry().paymentRequests.length,0);assert.equal(registry().ownerConfirmations.length,0);
 
@@ -161,6 +161,6 @@ const waitFor=async(check,ms=5000)=>{const end=Date.now()+ms;while(Date.now()<en
   assert.ok(bounded.seededTurns<=20&&bounded.seededTurns>0);assert.ok(Buffer.byteLength(bounded.seed)<=24*1024);
   assert.ok(JSON.parse(bounded.seed).every(t=>t.user.length===2000));
   assert.equal(api.replaySeed([]).seed,'');
-  console.log('edit-replay: refus fermés, résolveur sur le seul texte modifié, amorce bornée, audit sans suppression, idempotence, chaîne et paiement sans reprise passés');
+  console.log('edit-replay: refus fermés, cerveau sur le texte modifié sans résolveur, amorce bornée, audit sans suppression, idempotence, chaîne et paiement sans reprise passés');
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));gateway.close();fs.rmSync(root,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -1,0 +1,212 @@
+{
+  "version": 1,
+  "package_version": "2026.9.6",
+  "files": [],
+  "purpose": "Android app sandboxes refuse hard links and clones with EACCES and offer no /proc/self/ns/pid. OpenClaw 2026.10 publishes files link-or-copy, falls back from a native clone only on its listed codes, moves migration artifacts by link, and reads the pid namespace inode for its gateway lock: each fails on the S24. Adapted from openclaw-android (MIT, platforms/openclaw/patches/openclaw-patch-hardlink.sh): EACCES joins the copy fallbacks, migration artifacts move by rename when the link is refused, the namespace reads as unavailable, and the guarded synchronous copy (plugin loader, clone \"auto\" above 64 KiB) copies instead of attempting a clone it has no fallback for. Android has no /usr/bin: OpenClaw 2026.10 looks for openssl only in fixed system directories, so the secret egress proxy Worker cannot create its CA and the Gateway refuses to start with secrets.egressProxy; the CA module also searches the Termux binary directory (fixed path, never PATH), as the 2026.9.6 production install was patched by hand on 25/09. Nothing on 2026.9.6.",
+  "packages": {
+    "2026.10.9": {
+      "files": [
+        {
+          "root": "openclaw",
+          "path": "dist/backup-create-NzaeFxuD.mjs",
+          "original": "52694fbac6bddfeed88162102322edeaa0a5f150404fb0860f7d55de7bb088bc",
+          "patched": "97147834736aa8ad7d93852e619f9369e0816b78bc2806836cc4a20df9230b59",
+          "replacements": [
+            [
+              "\t\t\t\tparentReceipt: plan.parentReceipt,\n\t\t\t\tstrategy: \"link-required\",\n\t\t\t\tonSyncFailure: \"preserve\"\n",
+              "\t\t\t\tparentReceipt: plan.parentReceipt,\n\t\t\t\tstrategy: \"link-or-copy\",\n\t\t\t\tonSyncFailure: \"preserve\"\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/ca-D3c9PAvv.mjs",
+          "original": "63687cc6c1536a323997ccd455e09908f4dd69d2d40bfce23ad0d783a3605f5f",
+          "patched": "5b1fd3ecdfae563cca56a9f9424f6afe72f4b7a1699699aa89c7b78f134abd2f",
+          "replacements": [
+            [
+              "\t\tconst openssl = resolveSystemBin(\"openssl\");\n\t\tif (!openssl) throw new Error(`openssl is required to generate ${options.purpose} certificates`);\n",
+              "\t\tconst openssl = resolveSystemBin(\"openssl\", { extraDirs: [\"/data/data/com.termux/files/usr/bin\"] });\n\t\tif (!openssl) throw new Error(`openssl is required to generate ${options.purpose} certificates`);\n"
+            ],
+            [
+              "\tconst openssl = resolveSystemBin(\"openssl\");\n\tif (!openssl) throw new Error(\"openssl is required to generate local proxy certificates\");\n",
+              "\tconst openssl = resolveSystemBin(\"openssl\", { extraDirs: [\"/data/data/com.termux/files/usr/bin\"] });\n\tif (!openssl) throw new Error(\"openssl is required to generate local proxy certificates\");\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/gateway-state-owner-eDtEELE9.mjs",
+          "original": "02922fdf188e95d6eed820622ad321261f2926364b0a4a9e41258333383f71b9",
+          "patched": "ece020a505d49816236e9e6d13bf7bac81ea3e7b20fc92255b95b5959b15466c",
+          "replacements": [
+            [
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: fs.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString() } : {}\n\t\t});\n",
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: (() => { try { return fs.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString(); } catch { return \"unavailable\"; } })() } : {}\n\t\t});\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/infra/sqlite-readonly-location.worker.js",
+          "original": "90fc740869dfddbb063148fc3fdab1eaa31b11c0fa74c0658c795aac5aa6186c",
+          "patched": "9ad83abcd7897eeb1e0dd10773f13e032d210fe232c67b9164f61470c7d407fb",
+          "replacements": [
+            [
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: fs.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString() } : {}\n\t\t});\n",
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: (() => { try { return fs.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString(); } catch { return \"unavailable\"; } })() } : {}\n\t\t});\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/managed-handoff-runtime.mjs",
+          "original": "c6992e36d624b55ea4c75621201ff378b1de83c93fcbafb62a31a634ef1b702c",
+          "patched": "f1b8d8ba5ece3f68a80a4802aef4534095f5ce11fc47b52de7f458fdd7f7b6e5",
+          "replacements": [
+            [
+              "\t\tif (code === \"too-large\") throw new FsSafeError(\"too-large\", `file exceeds limit of ${maxBytes} bytes`, { cause: error });\n\t\tif (code === \"ENOTSUP\" && input.clone !== \"always\") return void 0;\n\t\tif (code === \"ENOTSUP\") throw new FsSafeError(\"unsupported-platform\", \"native file cloning is unsupported\", { cause: error });\n",
+              "\t\tif (code === \"too-large\") throw new FsSafeError(\"too-large\", `file exceeds limit of ${maxBytes} bytes`, { cause: error });\n\t\tif ((code === \"ENOTSUP\" || code === \"EACCES\") && input.clone !== \"always\") return void 0;\n\t\tif (code === \"ENOTSUP\") throw new FsSafeError(\"unsupported-platform\", \"native file cloning is unsupported\", { cause: error });\n"
+            ],
+            [
+              "\t\t\t\"EXDEV\",\n\t\t\t\"EINVAL\"\n\t\t].includes(copied.errorCode);\n",
+              "\t\t\t\"EXDEV\",\n\t\t\t\"EINVAL\", \"EACCES\"\n\t\t].includes(copied.errorCode);\n"
+            ],
+            [
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: fs.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString() } : {}\n\t\t});\n",
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: (() => { try { return fs.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString(); } catch { return \"unavailable\"; } })() } : {}\n\t\t});\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/native-hook-relay/sqlite-snapshot-staging-owner-fZYx7l2t.mjs",
+          "original": "79d288f174e37ce55e61f4bff3237ebda85275ba5d48aab656b1f6f02f2d7361",
+          "patched": "8aa9e8da3afbf61e8eecd17c5cdc1b73abbb92c7c4bc6cc647ca1d16271ff4c3",
+          "replacements": [
+            [
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: fsSync.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString() } : {}\n\t\t});\n",
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: (() => { try { return fsSync.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString(); } catch { return \"unavailable\"; } })() } : {}\n\t\t});\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/package-update-activation-recovery.mjs",
+          "original": "44390692c3a963efb222befbe270563bb0098981cac60073bad1ec66039764b0",
+          "patched": "4a1179179a66b161f3db269a9ee2d504d21480eabdc7571b49c61733fdec4769",
+          "replacements": [
+            [
+              "\t\tif (code === \"too-large\") throw new FsSafeError(\"too-large\", `file exceeds limit of ${maxBytes} bytes`, { cause: error });\n\t\tif (code === \"ENOTSUP\" && input.clone !== \"always\") return void 0;\n\t\tif (code === \"ENOTSUP\") throw new FsSafeError(\"unsupported-platform\", \"native file cloning is unsupported\", { cause: error });\n",
+              "\t\tif (code === \"too-large\") throw new FsSafeError(\"too-large\", `file exceeds limit of ${maxBytes} bytes`, { cause: error });\n\t\tif ((code === \"ENOTSUP\" || code === \"EACCES\") && input.clone !== \"always\") return void 0;\n\t\tif (code === \"ENOTSUP\") throw new FsSafeError(\"unsupported-platform\", \"native file cloning is unsupported\", { cause: error });\n"
+            ],
+            [
+              "\t\t\t\"EXDEV\",\n\t\t\t\"EINVAL\"\n\t\t].includes(copied.errorCode);\n",
+              "\t\t\t\"EXDEV\",\n\t\t\t\"EINVAL\", \"EACCES\"\n\t\t].includes(copied.errorCode);\n"
+            ],
+            [
+              "\tNATIVE_COPY_FALLBACK_CODES = /* @__PURE__ */ new Set([\n\t\t\"EINVAL\",\n\t\t\"ENOSYS\",\n",
+              "\tNATIVE_COPY_FALLBACK_CODES = /* @__PURE__ */ new Set([\n\t\t\"EACCES\",\"EINVAL\",\n\t\t\"ENOSYS\",\n"
+            ],
+            [
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: fs.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString() } : {}\n\t\t});\n",
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: (() => { try { return fs.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString(); } catch { return \"unavailable\"; } })() } : {}\n\t\t});\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/process/supervisor/service-child-group-anchor.js",
+          "original": "dfc19cd049a0f89701083781b993e02088adc33dd4f0dcc812ffe5d15475e4e0",
+          "patched": "6290c1554c69f131cbd2ceae012c33ba6c7d8a508342130a140f88e5c8ec8905",
+          "replacements": [
+            [
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: fs.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString() } : {}\n\t\t});\n",
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: (() => { try { return fs.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString(); } catch { return \"unavailable\"; } })() } : {}\n\t\t});\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/session-sqlite-migration-manifest-DJRPZECe.mjs",
+          "original": "d5a4ea0350a65a54e3e5e1b26bf72308b5cd9f4a740c4d541b38f4cfd1b33875",
+          "patched": "f4581657de431f4b0f98b32c9395ecab30cb036fe93b3ea7fe6729483faffa11",
+          "replacements": [
+            [
+              "/** Exclusive same-filesystem link publication, then unlink; never copies raw history. */\nasync function moveMigrationArtifact(sourcePath, targetPath, expected, onPublished, publishSourceRemoval) {\n",
+              "/** Exclusive same-filesystem link publication, then unlink; never copies raw history. */\n/* B3_SESSION_ARCHIVE_PATCH v2 (OpenClaw on Android): hard links are refused, archive by rename */\nasync function __oaMoveByRename(sourcePath, targetPath, expected, onPublished, publishSourceRemoval) {\n\tconst sourceThere = !!fs.lstatSync(sourcePath, { bigint: true, throwIfNoEntry: false });\n\tconst targetThere = !!fs.lstatSync(targetPath, { bigint: true, throwIfNoEntry: false });\n\tif (sourceThere && targetThere) throw new Error(\"artifact archive path already exists\");\n\tlet movedHere = false;\n\tif (sourceThere) {\n\t\tif (!sameMigrationArtifact(readMigrationArtifactIdentity(sourcePath), expected)) throw new Error(\"artifact changed before publication\");\n\t\tfs.renameSync(sourcePath, targetPath);\n\t\tmovedHere = true;\n\t}\n\trequireDirectorySync(await syncDirectory(path.dirname(targetPath)), \"Recovery artifact publication\");\n\tconst verifyMoved = () => {\n\t\tif (fs.lstatSync(sourcePath, { bigint: true, throwIfNoEntry: false }) || !sameMigrationArtifact(readMigrationArtifactIdentity(targetPath), expected)) throw new Error(\"artifact changed during publication\");\n\t};\n\tlet published = false;\n\tconst removeSource = () => {\n\t\tverifyMoved();\n\t\tif (onPublished) {\n\t\t\tonPublished();\n\t\t\tpublished = true;\n\t\t\tverifyMoved();\n\t\t}\n\t\tpublished = true;\n\t};\n\tlet retainedSource = false;\n\tconst retainSource = () => {\n\t\t// as in OpenClaw's own code: a publication made by an earlier run cannot be discarded\n\t\tif (!movedHere) throw new Error(\"Cannot discard a recovery publication created by an earlier run.\");\n\t\tverifyMoved();\n\t\tfs.renameSync(targetPath, sourcePath);\n\t\tretainedSource = true;\n\t};\n\ttry {\n\t\tif (publishSourceRemoval) publishSourceRemoval(removeSource, retainSource);\n\t\telse removeSource();\n\t} catch (error) {\n\t\t// failed before the move was final: put the file back under its own name (OpenClaw's own code\n\t\t// keeps both names then), so that a rerun sees the same state as after a refused hard link\n\t\tif (movedHere && !published && !retainedSource) {\n\t\t\ttry {\n\t\t\t\tif (!fs.lstatSync(sourcePath, { bigint: true, throwIfNoEntry: false }) && sameMigrationArtifact(readMigrationArtifactIdentity(targetPath), expected)) fs.renameSync(targetPath, sourcePath);\n\t\t\t} catch (restoreError) { /* keep the original error */ }\n\t\t}\n\t\tthrow error;\n\t} finally {\n\t\tif (retainedSource) requireDirectorySync(await syncDirectory(path.dirname(targetPath)), \"Recovery artifact deferral\");\n\t}\n\trequireDirectorySync(await syncDirectory(path.dirname(sourcePath)), \"Recovery artifact source\");\n\tif (!sameMigrationArtifact(readMigrationArtifactIdentity(targetPath), expected)) throw new Error(\"artifact changed during publication\");\n}\nasync function moveMigrationArtifact(sourcePath, targetPath, expected, onPublished, publishSourceRemoval) {\n"
+            ],
+            [
+              "async function moveMigrationArtifact(sourcePath, targetPath, expected, onPublished, publishSourceRemoval) {\n\tlet createdPublication = false;\n",
+              "async function moveMigrationArtifact(sourcePath, targetPath, expected, onPublished, publishSourceRemoval) {\n\tconst missing = (p) => !fs.lstatSync(p, { bigint: true, throwIfNoEntry: false });\n\t// an interrupted rename-based move: the source is gone, the archive copy is there\n\tif (missing(sourcePath) && !missing(targetPath)) return __oaMoveByRename(sourcePath, targetPath, expected, onPublished, publishSourceRemoval);\n\ttry {\n\t\treturn await __oaMoveMigrationArtifactOrig(sourcePath, targetPath, expected, onPublished, publishSourceRemoval);\n\t} catch (error) {\n\t\t// only a refused hard link (the codes of the B2 fallback list), before anything was published\n\t\tif (error && [\"EACCES\", \"EPERM\", \"ENOTSUP\", \"EOPNOTSUPP\", \"ENOSYS\"].includes(error.code) && !missing(sourcePath) && missing(targetPath)) return __oaMoveByRename(sourcePath, targetPath, expected, onPublished, publishSourceRemoval);\n\t\tthrow error;\n\t}\n}\nasync function __oaMoveMigrationArtifactOrig(sourcePath, targetPath, expected, onPublished, publishSourceRemoval) {\n\tlet createdPublication = false;\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/state/openclaw-state-lease-heartbeat.worker.js",
+          "original": "ca7b340199ce26c0679646dd36b40fbad611f6de0dd02b938d3cde056aca1362",
+          "patched": "ff2a47167baaef44a926ee3b59db9fb90dda5a540e61505948b70066ac33ae1e",
+          "replacements": [
+            [
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: fs.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString() } : {}\n\t\t});\n",
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: (() => { try { return fs.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString(); } catch { return \"unavailable\"; } })() } : {}\n\t\t});\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "dist/state/openclaw-state-read.worker.js",
+          "original": "7198f55e4b8587aa413348d5ed37565aa56832571f4d2857aa7754fc94aa261f",
+          "patched": "a9a1a4445a031cdb6469260fb6ed9b0de24061f8836e02e795b1aaf481054772",
+          "replacements": [
+            [
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: fs.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString() } : {}\n\t\t});\n",
+              "\t\t\t...boot,\n\t\t\t...boot.platform === \"linux\" ? { pidNsInode: (() => { try { return fs.statSync(\"/proc/self/ns/pid\", { bigint: true }).ino.toString(); } catch { return \"unavailable\"; } })() } : {}\n\t\t});\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "node_modules/@openclaw/fs-safe/dist/copy-file-input.js",
+          "original": "cdb5724cadc40693ce22e3bf622a52f6507769323f10a590b444ba6625a692d8",
+          "patched": "2caf016beb8bf59438897798469fc0f6cfed0d7363cd1c36c4526a356c1486f4",
+          "replacements": [
+            [
+              "        }\n        if (code === \"ENOTSUP\" && input.clone !== \"always\")\n            return undefined;\n",
+              "        }\n        if ((code === \"ENOTSUP\" || code === \"EACCES\") && input.clone !== \"always\")\n            return undefined;\n"
+            ],
+            [
+              "            input.signal?.throwIfAborted();\n        const unsupported = [\"ENOTSUP\", \"EOPNOTSUPP\", \"ENOSYS\", \"EXDEV\", \"EINVAL\"].includes(copied.errorCode);\n        throw new FsSafeError(copied.errorCode === \"too-large\" ? \"too-large\" : unsupported ? \"unsupported-platform\" : \"helper-failed\", copied.errorMessage ?? \"native file copy failed\", { cause: Object.assign(new Error(copied.errorMessage ?? \"native file copy failed\"), { code: copied.errorCode }) });\n",
+              "            input.signal?.throwIfAborted();\n        const unsupported = [\"ENOTSUP\", \"EOPNOTSUPP\", \"ENOSYS\", \"EXDEV\", \"EINVAL\", \"EACCES\"].includes(copied.errorCode);\n        throw new FsSafeError(copied.errorCode === \"too-large\" ? \"too-large\" : unsupported ? \"unsupported-platform\" : \"helper-failed\", copied.errorMessage ?? \"native file copy failed\", { cause: Object.assign(new Error(copied.errorMessage ?? \"native file copy failed\"), { code: copied.errorCode }) });\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "node_modules/@openclaw/fs-safe/dist/copy-root-file-sync.js",
+          "original": "995884a1fca211fe18b8332dbc422c4be6e0cd2b53cb6bd3697c265414868786",
+          "patched": "bd72128fef4ba7f76c2df04526d1d0d6e1253167b5a044295ca53fa254229e86",
+          "replacements": [
+            [
+              "    const clone = resolveCopyCloneMode(options.clone, \"never\");\n",
+              "    const clone = resolveCopyCloneMode(options.clone === \"auto\" ? \"never\" : options.clone, \"never\");\n"
+            ]
+          ]
+        },
+        {
+          "root": "openclaw",
+          "path": "node_modules/@openclaw/fs-safe/dist/publish-file.js",
+          "original": "1082f05f8c3de3e9878391ebeb0da3dba9d178d9b4c17efe90ccd2b8a39ee17f",
+          "patched": "96a862ea7637e2024279517a645c1b5edb51b903d0fbe9e57575cf7c52d5de78",
+          "replacements": [
+            [
+              "export { isHardlinkFallbackError } from \"./hardlink-fallback.js\";\nconst NATIVE_COPY_FALLBACK_CODES = new Set([\"EINVAL\", \"ENOSYS\", \"ENOTSUP\", \"EOPNOTSUPP\", \"EPERM\", \"EXDEV\"]);\nfunction directoryOpenFlags() {\n",
+              "export { isHardlinkFallbackError } from \"./hardlink-fallback.js\";\nconst NATIVE_COPY_FALLBACK_CODES = new Set([\"EACCES\",\"EINVAL\", \"ENOSYS\", \"ENOTSUP\", \"EOPNOTSUPP\", \"EPERM\", \"EXDEV\"]);\nfunction directoryOpenFlags() {\n"
+            ]
+          ]
+        }
+      ]
+    }
+  }
+}

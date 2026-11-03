@@ -6,8 +6,10 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { capabilityBridge, validateCapabilityDecision } from "./capabilityBridge";
 import { runModelFastPath } from "../modelFastPath";
+import * as modelFastPathHost from "../modelFastPath";
 import { readMaintenanceGate } from "./maintenanceMarker";
 import { PUBLIC_WEB_BUDGET_MS } from "./runWeb";
+import { playbooksRootFor } from "./playbooksRoot";
 
 const MCP_MAINTENANCE_TEXT = "Samantha est en maintenance pour quelques minutes : la demande n'a pas été traitée et ne le sera pas plus tard. Renvoie-la après la maintenance.";
 const MCP_MARKER_INVALID_TEXT = "Le verrou de maintenance de Samantha est illisible : par sécurité, aucune demande n'est exécutée.";
@@ -16,6 +18,8 @@ import {
   getRemoteBridgeRequest,
   hasContinuumTask,
   submitAuthenticatedMcpRequest,
+  authenticatedMcpContextMetadata,
+  mcpServiceScope,
 } from "./remoteBridge";
 
 const execFileAsync = promisify(execFile);
@@ -30,18 +34,14 @@ const STEP_ID_RE = /^[A-Za-z0-9._-]{1,24}$/;
 const REQUEST_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 const ARTIFACT_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 const WORKSPACE = path.join(os.homedir(), ".openclaw", "workspace");
-const UI_PLAYBOOKS = process.env.CLAW_UI_PLAYBOOKS_ROOT || path.join(WORKSPACE, "ui-playbooks");
-const REQUEST_CONTEXT = path.join(
-  UI_PLAYBOOKS,
-  "tools",
-  "request_context.py",
-);
-function memoryOwner(){
-  const candidates=[process.env.SAMANTHA_MEMORY_OWNER,
-    path.join(os.homedir(),'.openclaw','releases','current','termux-lite','context-store.py')].filter(Boolean) as string[];
-  return candidates.find(candidate=>fs.existsSync(candidate));
+// Single code root (02/11): explicit CLAW_UI_PLAYBOOKS_ROOT, then the activated pin, then the workspace copy
+// (fallback recorded and alerted by runtime-sync.sh --check). Resolved per call, never at module load.
+function uiPlaybooks(required: string) {
+  return playbooksRootFor("mcp_bridge", required, { overrides: [process.env.CLAW_UI_PLAYBOOKS_ROOT] });
 }
-
+function requestContextScript() {
+  return path.join(uiPlaybooks("tools/request_context.py"), "tools", "request_context.py");
+}
 type McpRelayMessage = {
   requestId?: unknown;
   clientId?: unknown;
@@ -85,7 +85,9 @@ function projectReceipt(receipt: any) {
     };
   }
   if (receipt.state !== "completed") {
-    return { ...base, state: receipt.state, error: receipt.error ? "claw_execution_failed" : undefined };
+    return { ...base, state: receipt.state, error: receipt.error ? "claw_execution_failed" : undefined,
+      ...(["mcp_read_protocol_required","mcp_read_deadline_exceeded","mcp_read_execution_failed"].includes(receipt.error)
+        ? {reason:receipt.error} : {}) };
   }
   const value = receipt.result;
   if (receipt.method === "context_remember") {
@@ -116,10 +118,12 @@ function projectReceipt(receipt: any) {
       state,
       capability: value?.capability,
       route: value?.selected?.route,
-      reason: state === "blocked" ? (execution.reason || execution.state) : undefined,
+      reason: state === "blocked" ? (execution.reason || execution.state)
+        : state === "failed" && value?.intentReadProtocol === "mcp-read.v1" ? readReason(execution.reason || domain?.reason) : undefined,
       result: safeValue(domain),
       question: domain?.question,
       choices: safeValue(domain?.choices),
+      ...(value?.interpretationReceipt ? {interpretation_receipt:safeValue(value.interpretationReceipt)} : {}),
     };
   }
   return { ...base, state: "completed", result: safeValue(value) };
@@ -164,9 +168,10 @@ function bridgeParamsHash(method: string, params: Record<string, unknown>) {
 
 async function continuumIngress(args: string[]) {
   const env = { ...process.env } as Record<string, string>;
-  env.PYTHONPATH = UI_PLAYBOOKS + (env.PYTHONPATH ? path.delimiter + env.PYTHONPATH : "");
+  const root = uiPlaybooks("skill_intelligence/continuum_ingress.py");
+  env.PYTHONPATH = root + (env.PYTHONPATH ? path.delimiter + env.PYTHONPATH : "");
   const run: any = await execFileAsync("python3", ["-B", "-m", "skill_intelligence.continuum_ingress", ...args], {
-    cwd: UI_PLAYBOOKS,
+    cwd: root,
     timeout: 12_000,
     maxBuffer: 1024 * 1024,
     env,
@@ -221,8 +226,12 @@ function contextScopes(value:unknown) {
 async function contextBundle(args: Record<string, unknown>,clientId:string) {
   const query = requiredString(args.query, "query", 2000);
   const surface=contextSurface(clientId);
-  const session=`mcp-${clientId}`;
-  const argv = [REQUEST_CONTEXT, "--query", query, '--surface', surface,'--session',session];
+  // The authenticated client is an access principal, not a context consumer: two
+  // independent conversations may use it. Only the caller's explicitly supplied
+  // base describes what this consumer has received. Legacy callers reconstruct
+  // conservatively instead of inheriting another conversation's server cursor.
+  const requestContext = requestContextScript();
+  const argv = [requestContext, "--query", query, '--surface', surface];
   const scopes=contextScopes(args.scopes);
   if(scopes.length)argv.push('--scopes',scopes.join(','));
 
@@ -253,7 +262,7 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
   if (args.uncertain === true) argv.push("--uncertain");
 
   const run: any = await execFileAsync("python3", argv, {
-    cwd: path.dirname(REQUEST_CONTEXT),
+    cwd: path.dirname(requestContext),
     timeout: 12_000,
     maxBuffer: 4 * 1024 * 1024,
     env: { ...process.env },
@@ -290,30 +299,24 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
     }
   }
 
-  const owner=memoryOwner();
-  const context=raw?.context && typeof raw.context==='object'?raw.context:{};
-  const revision=Number(context.truncated?context.lastReturnedRevision:context.toRevision);
-  if(owner&&raw?.readiness?.state!=='blocked'&&Number.isInteger(revision)&&revision>=0){
-    const knownContracts=Object.fromEntries((Array.isArray(raw.contracts)?raw.contracts:[])
-      .filter((row:any)=>typeof row?.key==='string'&&/^[a-f0-9]{64}$/.test(String(row?.sha256||'')))
-      .map((row:any)=>[row.key,row.sha256]));
-    const globalBaseline=raw?.global?.baseline_after_verified_read||{};
-    const state=JSON.stringify({knownContracts,globalBaseline});
-    try{
-      await execFileAsync('python3',[owner,'cursor-ack',session,surface,String(revision),state],{
-        cwd:path.dirname(owner),timeout:4000,maxBuffer:128*1024,env:{...process.env},
-      });
-      raw.cursor_advanced=true;
-      if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=true;
-    }catch{
-      // Context is already complete. Cursor optimization must fail open without
-      // leaking helper stderr or claiming an acknowledgement that did not occur.
-      raw.cursor_advanced=false;
-      raw.cursor_error='cursor_ack_unavailable';
-      if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=false;
-    }
+  if(raw?.foundation?.read_required===true){
+    if(typeof raw.foundation.content!=='string'||!raw.foundation.content.trim())throw new Error('foundation_mcp_content_required');
+    // Deliver the source text once, without JSON-inside-JSON escaping. The stable digest,
+    // memory revision and complete skill index remain beside it in the existing bundle.
+    const content=raw.foundation.content;
+    reads.push({key:'context/FOUNDATION',sha256:crypto.createHash('sha256').update(content).digest('hex'),content});
+    // Per-file diagnostic digests are already bound by foundation.sha256; the consumer uses
+    // stable_sha256 plus the canonical memory baseline for freshness, not seven startup reads.
+    const {content:_content,sources:_sources,...metadata}=raw.foundation;
+    raw.foundation=metadata;
   }
-  return {
+  // Building a response does not attest its delivery or the client's integration.
+  // A lost response is replayable from the same explicit base; no new cursor
+  // store, thread identifier, or acknowledgement endpoint is needed.
+  raw.cursor_advanced=false;
+  if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=false;
+  raw.context_consumption={state:'not_attested',basis:'caller_supplied_state',implicit_client_cursor:false};
+  const response = {
     state: "context",
     bundle: sanitizeRequestContext(raw),
     required_reads: reads,
@@ -321,6 +324,181 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
       ? "Read and integrate every required_reads item before reusing its hash/baseline."
       : "No additional contract read is required for this delta.",
   };
+  // The owner relay appends bounded access metadata. Reserve it explicitly, never trim a rule
+  // or thread to fit the transport. Legacy context responses keep their established contract.
+  // 32000 bytes = the 8000-token L2 ceiling (UTF-8/4) raised by Amine on 28/10/2026 (playbooks #330):
+  // at 24000 bytes every foundation claw_context was refused once the memory index grew (6171 tokens).
+  if(raw?.foundation?.read_required===true&&Buffer.byteLength(JSON.stringify(response),'utf8')+256>32000)
+    throw new Error('foundation_mcp_response_budget_exceeded');
+  return response;
+}
+
+// Versioned opt-in transport, not a second interpreter, dialogue owner or authorization API.
+const MCP_INPUT_PROTOCOL = "mcp-input.v1";
+const CLIENT_REF_RE = /^[A-Za-z0-9._:-]{1,128}$/;
+const CLIENT_CONTEXT_FIELDS = ["schema_version", "original_message", "conversation_ref", "local_revision", "relevant_turns",
+  "entity_references", "active_goal_ref", "pending_question_ref", "confirmation_ref", "user_reply_ref", "completeness", "missing"];
+
+function clientObject(value:unknown, keys:string[]) {
+  if(!value || typeof value!=="object" || Array.isArray(value) ||
+     Object.keys(value).length!==keys.length || Object.keys(value).some(key=>!keys.includes(key))) {
+    throw new Error("invalid_client_context");
+  }
+  return value as Record<string,any>;
+}
+function clientText(value:unknown,max:number,ref=false) {
+  if(typeof value!=="string" || !value.length || value.length>max || (ref&&!CLIENT_REF_RE.test(value))) {
+    throw new Error("invalid_client_context");
+  }
+}
+function clientRef(value:unknown) { if(value!==null)clientText(value,128,true); }
+
+/** All fields are external claims. Never upgrade a hash, client reference or narrative into server authority. */
+export function validateMcpClientContext(request:unknown,value:unknown) {
+  clientText(request,12000);
+  const context=clientObject(value,CLIENT_CONTEXT_FIELDS);
+  if(context.schema_version!==MCP_INPUT_PROTOCOL)throw new Error("invalid_client_context_version");
+  const message=clientObject(context.original_message,["text","ref"]);
+  clientText(message.text,12000);clientRef(message.ref);
+  if(message.text!==request)throw new Error("original_message_mismatch");
+  clientText(context.conversation_ref,128,true);
+  if(context.local_revision!==null && !(typeof context.local_revision==='string'&&context.local_revision.length>0&&context.local_revision.length<=128) &&
+     !(Number.isSafeInteger(context.local_revision)&&context.local_revision>=0))throw new Error("invalid_client_context");
+  if(!Array.isArray(context.relevant_turns)||context.relevant_turns.length>8)throw new Error("invalid_client_context");
+  for(const item of context.relevant_turns){
+    const turn=clientObject(item,["ref","role","text"]);clientRef(turn.ref);clientText(turn.text,2000);
+    if(!["user","assistant"].includes(turn.role))throw new Error("invalid_client_context");
+  }
+  if(!Array.isArray(context.entity_references)||context.entity_references.length>16)throw new Error("invalid_client_context");
+  for(const item of context.entity_references){
+    const reference=clientObject(item,["mention","turn_ref","server_ref"]);clientText(reference.mention,256);clientRef(reference.turn_ref);
+    if(reference.server_ref!==null){
+      const server=clientObject(reference.server_ref,["kind","request_id"]);
+      if(server.kind!=="remote_bridge_receipt")throw new Error("invalid_client_context");
+      clientText(server.request_id,128,true);
+    }
+  }
+  for(const key of ["active_goal_ref","pending_question_ref","confirmation_ref","user_reply_ref"])clientRef(context[key]);
+  if(!["complete","partial","unknown"].includes(context.completeness)||!Array.isArray(context.missing)||context.missing.length>16)throw new Error("invalid_client_context");
+  for(const item of context.missing)clientText(item,128);
+  const encoded=JSON.stringify({request,client_context:context});
+  if(Buffer.byteLength(encoded,"utf8")>32768)throw new Error("client_context_too_large");
+  // Copy data across the boundary; no caller objects or accessors survive it.
+  return JSON.parse(encoded).client_context as Record<string,any>;
+}
+
+function mcpInputFailure(reason:string,outcome="TECHNICAL_FAILURE") {
+  return {state:"failed",outcome,reason,retry_allowed:false,input_protocol:MCP_INPUT_PROTOCOL};
+}
+
+function stableMcpInput(value:any):any {
+  if(Array.isArray(value))return value.map(stableMcpInput);
+  if(value&&typeof value==="object")return Object.fromEntries(Object.keys(value).sort().map(key=>[key,stableMcpInput(value[key])]));
+  return value;
+}
+function readReason(value:unknown) {
+  return typeof value==="string"&&/^[A-Za-z0-9_.:-]{1,128}$/.test(value)?value:"interpretation_read_failed";
+}
+async function executeMigratedMcpRead(requestId:string,clientId:string,profile:string,args:Record<string,unknown>,context:Record<string,any>,actionKey:string,stepKey:string,admission?:object) {
+  const input={request:args.request,client_context:context,service_scope:mcpServiceScope(args.service_scope)!};
+  const inputDigest=crypto.createHash("sha256").update(JSON.stringify(stableMcpInput(input))).digest("hex");
+  const receipt=await submitAuthenticatedMcpRequest({
+    requestId,taskId:actionTaskId(clientId,actionKey),stepId:stepKey,sessionId:`external_mcp:${clientId}`,
+    _claw_access:accessMetadata(clientId,profile),method:"mcp_capability_execute_readonly",
+    params:{intentInputProtocol:MCP_INPUT_PROTOCOL,inputDigest},
+  },undefined,async bounds=>{
+    const remaining=Math.floor(bounds.deadlineEpochMs-Date.now());
+    if(remaining<1)throw new Error("mcp_read_deadline_exceeded");
+    const out:any=await runModelFastPath(args.request as string,{
+      surface:"mcp",caller:profile==="chat-owner"?"owner":"other",originId:requestId,
+      requestId,runId:requestId,sessionId:`external_mcp:${clientId}`,timeoutSeconds:15,
+      remainingBudgetMs:remaining,deadlineEpochMs:bounds.deadlineEpochMs,
+      intentContext:input,intentReadOnly:true,intentContextAdmission:admission,
+      dialogue:{mode:"preview",event:{conversationKey:`external_mcp:${clientId}:${context.conversation_ref}`,eventRef:requestId}},
+    } as any);
+    if(out?.intentInputProtocol!==MCP_INPUT_PROTOCOL || out?.intentReadProtocol!=="mcp-read.v1")throw new Error("mcp_read_protocol_required");
+    const completed=out.status==="hit"&&["completed","partial"].includes(out.execution_state);
+    const clarification=out.status==="clarification" && typeof out.clarification?.question==="string";
+    const execution={state:completed?out.execution_state:clarification?"low_confidence":["running","indeterminate"].includes(out.execution_state)?out.execution_state:"failed",
+      reason:completed?undefined:readReason(out.reason),
+      result:completed?safeValue(out.result):clarification?{state:"needs_clarification",question:out.clarification.question,choices:safeValue(out.clarification.choices)}:{ok:false,state:"failed",reason:readReason(out.reason)}};
+    // The host already projects this metadata; copy only its receipt fields,
+    // never a generated output, full resolution, prompt or transcript.
+    const receiptKeys=["schema_version","adapter_version","prompt_version","request_id","turn_id","generation_id",
+      "conversation_ref","conversation_revision","context_digest","catalogue_digest","prompt_digest","status","model","actual_model","usage","inference_mode"];
+    const interpretationReceipt=out.interpretationReceipt&&typeof out.interpretationReceipt==="object"
+      ? Object.fromEntries(receiptKeys.filter(key=>out.interpretationReceipt[key]!==undefined).map(key=>[key,safeValue(out.interpretationReceipt[key])])):undefined;
+    // C9 v2 adds only bounded source metadata, never source bodies or host authority.
+    const shared=out.interpretationReceipt?.shared_source_refs;
+    const sharedDigest=out.interpretationReceipt?.shared_context_digest;
+    if(interpretationReceipt && Array.isArray(shared) && shared.length<=64 &&
+       ((shared.length===0 && sharedDigest===null) || (shared.length>0 && typeof sharedDigest==="string" && /^sha256:[0-9a-f]{64}$/.test(sharedDigest))) &&
+       shared.every(row=>row&&typeof row.ref==="string"&&row.ref.length>0&&row.ref.length<=200&&
+         typeof row.sha256==="string"&&/^sha256:[0-9a-f]{64}$/.test(row.sha256)&&
+         (row.revision===null||(Number.isSafeInteger(row.revision)&&row.revision>=0))&&
+         Number.isSafeInteger(row.bytes)&&row.bytes>=0&&row.bytes<=96000)) {
+      interpretationReceipt.shared_context_digest=sharedDigest;
+      interpretationReceipt.shared_source_refs=shared.map(({ref,sha256,revision,bytes})=>({ref,sha256,revision,bytes}));
+    }
+    return {intentReadProtocol:"mcp-read.v1",execution,interpretationReceipt,capability:typeof out.capability==="string"?out.capability:undefined,
+      selected:{route:typeof out.route==="string"?out.route:undefined}};
+  });
+  return projectReceipt(receipt);
+}
+
+async function migratedMcpInput(requestId:string,clientId:string,profile:string,args:Record<string,unknown>,execute:boolean,admission?:object) {
+  if(args.decision!==undefined||args.target_hint!==undefined)return mcpInputFailure("client_semantic_authority_not_admitted");
+  const service=mcpServiceScope(args.service_scope);
+  if(!service)return mcpInputFailure("MCP_INTERPRETATION_SERVICE_REQUIRED");
+  const host=authenticatedMcpContextMetadata(admission);
+  if(!host?.service_scope || host.client_id!==clientId || host.request_id!==requestId || profile!=="chat-owner")
+    return mcpInputFailure("MCP_INTERPRETATION_SERVICE_UNVERIFIED");
+  let context:Record<string,any>;
+  try {context=validateMcpClientContext(args.request,args.client_context);}
+  catch(error:any){return mcpInputFailure(error?.message||"invalid_client_context");}
+  if(execute){
+    const actionKey=requiredString(args.action_key,"action_key",40,ACTION_ID_RE);
+    const stepKey=optionalString(args.step_key,"step_key",24,STEP_ID_RE)||"execute";
+    if(requestId!==actionRequestId(clientId,actionKey,stepKey))throw new Error("action_request_id_mismatch");
+    // A settled/uncertain receipt is not a new interpretation. Delegate all hash,
+    // access and step checks to the same owner even if the model port is down.
+    if(getRemoteBridgeRequest(requestId))return executeMigratedMcpRead(requestId,clientId,profile,args,context,actionKey,stepKey,admission);
+  }
+  // Never let a new envelope fall through to a runner/helper that ignores it.
+  if(process.env.SAMANTHA_INTENT_INTERPRETER!=="1" ||
+     (modelFastPathHost as any).INTENT_INPUT_PROTOCOL!==MCP_INPUT_PROTOCOL) {
+    return mcpInputFailure("INTERPRETATION_HOST_UNAVAILABLE");
+  }
+  const lock=readMaintenanceGate(clientId);
+  if(lock.state==="closed")return {state:"refused",outcome:"MAINTENANCE",reason:lock.reason,retry_allowed:false};
+  // A receipt identifier is not an entity resolver or a confirmation attestation.
+  // Its admission must come from the existing receipt/entity owner, not JSON or a checksum.
+  if(context.entity_references.some((ref:any)=>ref.server_ref!==null)) {
+    return mcpInputFailure("server_reference_admission_unavailable","CLIENT_CONTEXT_INCOMPLETE");
+  }
+  if(execute){
+    const actionKey=requiredString(args.action_key,"action_key",40,ACTION_ID_RE);
+    const stepKey=optionalString(args.step_key,"step_key",24,STEP_ID_RE)||"execute";
+    if(requestId!==actionRequestId(clientId,actionKey,stepKey))throw new Error("action_request_id_mismatch");
+    if((modelFastPathHost as any).INTENT_READ_PROTOCOL!=="mcp-read.v1") {
+      return {...mcpInputFailure("INTERPRETATION_OWNER_RECEIPT_REQUIRED"),request_id:requestId,task_id:actionTaskId(clientId,actionKey)};
+    }
+    return executeMigratedMcpRead(requestId,clientId,profile,args,context,actionKey,stepKey,admission);
+  }
+  const conversationKey=`external_mcp:${clientId}:${context.conversation_ref}`;
+  try {
+    const out:any=await runModelFastPath(args.request as string,{
+      surface:"mcp",caller:profile==="chat-owner"?"owner":"other",originId:requestId,
+      requestId,sessionId:`external_mcp:${clientId}`,timeoutSeconds:15,checkOnly:true,
+      intentContext:{request:args.request,client_context:context,service_scope:service},intentContextAdmission:admission,
+      dialogue:{mode:"preview",event:{conversationKey,eventRef:requestId}},
+    } as any);
+    if(out?.intentInputProtocol!==MCP_INPUT_PROTOCOL)return mcpInputFailure("INTERPRETATION_HOST_UNAVAILABLE");
+    // Return the native preview/diagnostic. Nothing here produces a business success
+    // or copies client transcripts into durable Bridge params or receipts.
+    return {state:"resolved",input_protocol:MCP_INPUT_PROTOCOL,input_provenance:"client_reported",
+      context_consumption:"not_attested",result:safeValue(out)};
+  } catch {return mcpInputFailure("interpretation_transport_error");}
 }
 
 /** SAM-MIG V2.2 §5.5: MCP keeps no server-side dialogue state. `claw_resolve` is the coordinator's
@@ -340,8 +518,29 @@ export async function dialoguePreview(request: string, clientId?: string, runner
   return { outcome: "TECHNICAL_FAILURE", reasonCode: "coordinator_unavailable" };
 }
 
-async function resolveCapability(args: Record<string, unknown>, clientId?: string) {
+export function typedMcpSelection(args: Record<string, unknown>): Record<string, unknown> | undefined {
+  // The already published connector exposes decision:{} but may cache an older tools/list without typed.
+  // This closed envelope transports selection only: it never grants authority or user confirmation.
+  const envelope = args.decision && typeof args.decision === "object" && !Array.isArray(args.decision) &&
+    (args.decision as any).kind === "samantha.typed-selection.v1" ? args.decision as Record<string, unknown> : undefined;
+  if (args.typed === undefined && !envelope) return undefined;
+  if ((envelope && (Object.keys(envelope).length !== 2 || !Object.prototype.hasOwnProperty.call(envelope, "selection") || args.typed !== undefined)) ||
+      ["client_context", "service_scope", "target_hint"].some(key => args[key] !== undefined) ||
+      (!envelope && args.decision !== undefined)) throw new Error("typed_input_conflict");
+  const value = (envelope ? envelope.selection : args.typed) as any;
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length !== 3 ||
+      Object.keys(value).some(k => !["domain", "action", "params"].includes(k)) ||
+      !/^[a-z][a-z0-9_.-]{0,127}$/.test(value.domain) || !/^[a-z][a-z0-9_.-]{0,127}$/.test(value.action) ||
+      !value.params || typeof value.params !== "object" || Array.isArray(value.params) || Buffer.byteLength(JSON.stringify(value)) > 32768)
+    throw new Error("typed_input_invalid");
+  return JSON.parse(JSON.stringify(value));
+}
+
+async function resolveCapability(args: Record<string, unknown>, clientId?: string, requestId?: string) {
   const request = requiredString(args.request, "request", 12000);
+  const typedSelection = typedMcpSelection(args);
+  if (typedSelection) return capabilityBridge(request, {execute: false, surface: "external_mcp", caller: "owner",
+    timeoutSeconds: 20, typedSelection, requestId: requestId || "typed-preview"});
   const targetHint = optionalString(args.target_hint, "target_hint", 128, /^[A-Za-z0-9._-]+$/);
   const [resolved, dialogue] = await Promise.all([capabilityBridge(request, {
     execute: false,
@@ -361,6 +560,7 @@ async function executeCapability(
 ) {
   const webBounds={startedMonotonic:performance.now(),deadlineEpochMs:Date.now()+PUBLIC_WEB_BUDGET_MS};
   const request = requiredString(args.request, "request", 12000);
+  const typedSelection = typedMcpSelection(args);
   const actionKey = requiredString(args.action_key, "action_key", 40, ACTION_ID_RE);
   const stepKey = optionalString(args.step_key, "step_key", 24, STEP_ID_RE) || "execute";
   const targetHint = optionalString(args.target_hint, "target_hint", 128, /^[A-Za-z0-9._-]+$/);
@@ -376,7 +576,7 @@ async function executeCapability(
     return { state: "refused", request_id: requestId, task_id: taskId, retry_allowed: false, reason: lock.reason,
       outcome: "MAINTENANCE", text: lock.reason === "maintenance" ? MCP_MAINTENANCE_TEXT : MCP_MARKER_INVALID_TEXT };
   }
-  const gate = await dialoguePreview(request, clientId);
+  const gate = typedSelection ? {outcome: "UNRESOLVED", reasonCode: undefined} : await dialoguePreview(request, clientId);
   if (gate.outcome === "MAINTENANCE") {
     return { state: "refused", request_id: requestId, task_id: taskId, retry_allowed: false, reason: "maintenance",
       text: (gate as any).text || MCP_MAINTENANCE_TEXT, outcome: "MAINTENANCE" };
@@ -387,7 +587,7 @@ async function executeCapability(
       reason: "coordinator_unavailable", outcome: "TECHNICAL_FAILURE" };
   }
   const method = profile === "chat-owner" ? "mcp_capability_execute_owner" : "mcp_capability_execute_readonly";
-  const suppliedDecision = args.decision && typeof args.decision === "object" && !Array.isArray(args.decision)
+  const suppliedDecision = !typedSelection && args.decision && typeof args.decision === "object" && !Array.isArray(args.decision)
     ? args.decision as Record<string, unknown>
     : undefined;
   let resolved: any = undefined;
@@ -405,6 +605,7 @@ async function executeCapability(
   } else {
     resolved = await capabilityBridge(request, {
       execute: false, surface: "external_mcp", caller: "owner", timeoutSeconds: 20, targetHint,requestId,checkBudgetMs:Math.max(1,Math.min(10000,webBounds.deadlineEpochMs-Date.now())),
+      ...(typedSelection ? {typedSelection} : {}),
     });
     preparedDecision = resolved?.decision && typeof resolved.decision === "object" ? resolved.decision : undefined;
     if(resolved?.success===false){
@@ -418,6 +619,7 @@ async function executeCapability(
   const durable = continuumDecision?.mode === "durable";
   const params = {
     request, targetHint: targetHint || "",
+    ...(typedSelection ? {typedSelection} : {}),
     ...(preparedDecision ? { decision: preparedDecision } : {}),
   };
 
@@ -681,8 +883,14 @@ export async function handleMcpRelayRequest(message: McpRelayMessage) {
     case "claw_context":
       return contextBundle(args,clientId);
     case "claw_resolve":
-      return { state: "resolved", result: await resolveCapability(args, clientId) };
+      typedMcpSelection(args);
+      if(args.service_scope!==undefined&&!Object.prototype.hasOwnProperty.call(args,"client_context"))return mcpInputFailure("client_context_required_for_service_scope");
+      if(Object.prototype.hasOwnProperty.call(args,"client_context"))return migratedMcpInput(requestId,clientId,profile,args,false,message);
+      return { state: "resolved", result: await resolveCapability(args, clientId, requestId) };
     case "claw_execute":
+      typedMcpSelection(args);
+      if(args.service_scope!==undefined&&!Object.prototype.hasOwnProperty.call(args,"client_context"))return mcpInputFailure("client_context_required_for_service_scope");
+      if(Object.prototype.hasOwnProperty.call(args,"client_context"))return migratedMcpInput(requestId,clientId,profile,args,true,message);
       return executeCapability(requestId, clientId, profile, args);
     case "claw_exec":
       return executeRawCommand(requestId, clientId, profile, args);

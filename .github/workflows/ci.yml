@@ -44,6 +44,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Chantier 2 AI decision before deterministic recovery
+        run: python3 ../installer/termux-lite/test-immune-action.py
+
       - name: Build Termux runtime plugin
         run: npm run build
 
@@ -68,6 +71,14 @@ jobs:
           python3 -m pip install --disable-pip-version-check --target "$peer/.qa-fixture-deps" -r "$peer/qa_testing/requirements.txt"
           CLAW_QA_PYTHON_LIB="$peer/.qa-fixture-deps" node scripts/test-qa-contact-media-paired.cjs "$peer"
           CLAW_QA_PYTHON_LIB="$peer/.qa-fixture-deps" python3 ../installer/termux-lite/test-qa-contact-renderer.py "$peer"
+          # L1 validates only the authored plan, against its exact canonical contract source. No live request.
+          plan_peer="$peer/refonte-plan-source"
+          git init "$plan_peer"
+          git -C "$plan_peer" remote add origin https://github.com/sfar-amine/samantha-ui-playbooks.git
+          plan_sha=$(python3 -c 'import json; print(json.load(open("fixtures/refonte-parcours-unique/L1-scenarios.json"))["provenance"]["contractSource"]["commit"])')
+          git -C "$plan_peer" fetch --depth 1 origin "$plan_sha"
+          git -C "$plan_peer" checkout --detach FETCH_HEAD
+          CLAW_QA_PYTHON_LIB="$peer/.qa-fixture-deps" python3 ../installer/termux-lite/test-companion-acceptance-journey-plan.py "$plan_peer"
 
       - name: F1 web budget and context coverage match the current owners
         run: |
@@ -85,13 +96,50 @@ jobs:
 
       - name: WhatsApp survives extended network outages without retry storms
         run: |
+          python3 ../installer/termux-lite/test-model-flow-selection.py
+          node ../installer/termux-lite/test-model-flow-compaction.cjs
+          node ../installer/termux-lite/test-model-flow-setup.cjs
           python3 ../installer/termux-lite/test-whatsapp-network-recovery.py
           node ../installer/termux-lite/test-whatsapp-network-recovery.cjs
+
+      - name: Model flow setup and compaction on OpenClaw 2026.10.9 (candidate) public SDK functions
+        run: |
+          node ../installer/termux-lite/test-model-flow-setup.cjs 2026.10.9
+          node ../installer/termux-lite/test-model-flow-compaction.cjs 2026.10.9
+
+      - name: Native agent exec resolves auth secrets in its existing scoped owner
+        run: |
+          python3 ../installer/termux-lite/test-agent-exec-auth-scope.py
+          python3 ../installer/termux-lite/test-native-turn-provenance.py
+          node ../installer/termux-lite/test-agent-exec-auth-scope.cjs
+
+      - name: Gateway preparation splits reuse the pinned existing stage owner
+        run: |
+          python3 ../installer/termux-lite/test-gateway-prep-stages.py
+          python3 ../installer/termux-lite/test-gateway-prep-stages-1009.py
+          python3 ../installer/termux-lite/test-session-open-plugin-tools.py
+
+      - name: Gateway startup triage opt-out is explicit, pinned and verified before export
+        run: python3 ../installer/termux-lite/test-startup-triage-optout.py
+
+      - name: Memory recall worker stays warm through the pinned existing compatibility owner
+        run: python3 ../installer/termux-lite/test-memory-retrieval-warm.py
+
+      - name: One checkout owns each compatibility patch for OpenClaw 2026.9.6 and 2026.10.9
+        run: python3 ../installer/termux-lite/test-openclaw-compat-variants.py
+
+      - name: Every compatibility replacement imports a real module and export of its own OpenClaw build
+        run: python3 ../installer/termux-lite/test-openclaw-compat-imports.py
+
+      - name: OpenClaw 2026.10.9 upgrade switch gates and rolls back automatically (openclaw-upgrade.py)
+        run: python3 ../installer/termux-lite/test-openclaw-upgrade.py
 
       - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
         run: python3 ../installer/termux-lite/test-project-room.py
       - name: Pulse room agents (fichier 52 §5)
         run: python3 ../installer/termux-lite/test-pulse-room.py
+      - name: Native room owner readers stop before private notes and reject special files
+        run: python3 ../installer/termux-lite/test-native-room-owner-readers.py
       - name: Fast path shows any deterministic result as readable text (Amine 12/10)
         run: python3 ../installer/termux-lite/test-model-fast-path-generic-display.py
       - name: SAM-MIG V2.2 dialogue coordinator in model-fast-path, maintenance lock writer, S24 runs inventory
@@ -102,8 +150,12 @@ jobs:
           python3 ../installer/termux-lite/test-qa-restart-protection.py
           node scripts/test-qa-runtime-repair-lease.cjs
           node scripts/test-qa-deploy-gateway-restart.cjs
+          node scripts/test-gateway-adopt-restart.cjs
+          node scripts/test-gateway-tools-metadata-preparation.cjs
           node scripts/test-gateway-maintenance-recovery.cjs
           python3 ../installer/termux-lite/test-health-deploy-lock.py
+          python3 ../installer/termux-lite/test-health-boot-reset.py
+          python3 ../installer/termux-lite/test-root-guardian-gate.py
       - name: I5 bounded restart escalation, Tier0 rollback and notification dedupe
         run: python3 ../installer/termux-lite/test-health-restart-escalation.py
       - name: Runtime scripts resolve the Tier0 release root, never the working copy (R10/R12)
@@ -126,8 +178,10 @@ jobs:
           python3 ../installer/termux-lite/test-context-integration.py
           python3 ../installer/termux-lite/test-context-memory.py
           python3 ../installer/termux-lite/test-context-rule-installers.py
+          bash ../installer/termux-lite/test-core-services-watchdog.sh
           python3 ../installer/termux-lite/test-engineering-runtime-bridge.py
           python3 ../installer/termux-lite/test-gateway-preflight.py
+          python3 ../installer/termux-lite/test-health-gateway-fallback-owner.py
           node ../installer/termux-lite/test-gemini-live-client.mjs
           python3 ../installer/termux-lite/test-incident-continuation.py
           python3 ../installer/termux-lite/test-incident-correlation.py
@@ -147,11 +201,14 @@ jobs:
           python3 ../installer/termux-lite/test-whatsapp-channel-health.py
           python3 ../installer/termux-lite/test-whatsapp-lock-recovery.py
           bash ../installer/termux-lite/test-whatsapp-owner-send.sh
+          python3 ../installer/termux-lite/test-owner-notify-retry.py
+          python3 ../installer/termux-lite/test-whatsapp-listener.py
 
       - name: Run immune I1/I2/I3/I8 contracts (deterministic recovery, handler gate, LKG hold, ingress root)
         run: |
           python3 ../installer/termux-lite/test-tier0-lkg-hold.py
           python3 ../installer/termux-lite/test-tier0-distinct-health.py
+          python3 ../installer/termux-lite/test-tier0-activation-readiness.py
           python3 ../installer/termux-lite/test-incident-orchestrator.py
           python3 ../installer/termux-lite/test-incident-deterministic-recovery.py
           python3 ../installer/termux-lite/test-incident-ingress.py
@@ -159,10 +216,14 @@ jobs:
           python3 ../installer/termux-lite/test-companion-acceptance-web-recipe.py
           python3 ../installer/termux-lite/test-companion-deploy-preflight.py
           python3 ../installer/termux-lite/test-companion-deploy-root.py
+          python3 ../installer/termux-lite/test-maintenance-epoch-cas.py
           python3 ../installer/termux-lite/test-qa-deploy-protection.py
           python3 ../installer/termux-lite/test-runtime-sync.py
+          python3 ../installer/termux-lite/test-code-root.py
+          python3 ../installer/termux-lite/test-job-code-root.py
           python3 ../installer/termux-lite/test-runtime-foundations.py
           node scripts/test-runtime-root.cjs
+          node scripts/test-playbooks-root.cjs
           python3 ../installer/termux-lite/test-companion-rollback-identity.py
           python3 ../installer/termux-lite/test-context-review-plan.py
       - name: Playbooks activation links ignored runtime dependencies
@@ -177,20 +238,40 @@ jobs:
       - name: Context ingest is idempotent across pending to processed race
         run: python3 ../installer/termux-lite/test-context-ingest-race.py
       - name: Test canonical app and authenticated Bixby bootstrap
-        run: node scripts/test-canonical-agent-bootstrap.cjs
+        run: |
+          node scripts/test-canonical-agent-bootstrap.cjs
+          node scripts/test-owner-foundation.cjs
+          node scripts/test-mcp-foundation.cjs
+      - name: Préchargement par tour du skill d'un domaine typé clair (#126)
+        run: node scripts/test-owner-skill-preload.cjs
       - name: N4 request language transport
         run: node scripts/test-request-language-transport.cjs
 
       - name: Native OpenClaw provider fallback stays pinned to the free Gemini profile
         run: node scripts/test-native-provider-fallback.cjs
 
+      - name: Chantier 1 warm interpreter, Gemini then Luna on technical failure only (doc 71)
+        run: node scripts/test-intent-interpreter-port.cjs
+
       - name: Parallel Free Web run contract, MCP identity and voice readback (offline)
         run: |
           node scripts/test-run-web.cjs
           node scripts/test-run-web-mcp.cjs
           node scripts/test-run-web-voice.cjs
-          node scripts/test-run-web-agent.cjs
           python3 ../installer/termux-lite/test-model-fast-path-web.py
+          python3 ../installer/termux-lite/test-model-fast-path-intent.py
+
+      - name: Interpreted durable read paired with immutable PB310 admission owner (offline)
+        run: |
+          node scripts/test-capability-bridge.cjs
+          node scripts/test-helper-process-termux-shim.cjs
+          peer=$(mktemp -d "${TMPDIR:-/tmp}/intent-durable-pb310.XXXXXX")
+          trap 'rm -rf -- "$peer"' EXIT
+          git init "$peer"
+          git -C "$peer" remote add origin https://github.com/sfar-amine/samantha-ui-playbooks.git
+          git -C "$peer" fetch --depth 1 origin 633d4516d2f658f369d18382d24793efa7172c8c
+          git -C "$peer" checkout --detach FETCH_HEAD
+          python3 ../installer/termux-lite/test-intent-durable-read-paired.py "$peer"
 
       - name: Run trace induction tests
         run: npm run test:trace-induction
@@ -219,6 +300,7 @@ jobs:
 
       - name: Run Claw relay reconnect contract
         run: |
+          node scripts/test-voice-relay-brain-only.cjs
           node scripts/test-voice-relay.cjs
           node scripts/test-voice-relay-reconnect.cjs
 
@@ -226,6 +308,14 @@ jobs:
         run: node scripts/test-voice-understanding.cjs
       - name: Voice option A canonical admission
         run: node scripts/test-voice-option-a.cjs
+      - name: Samantha Voix délègue tout au cerveau (contrat Gemini Live, décision, secours, contexte agent) sur fixtures S24
+        run: node scripts/test-voice-brain-delegation.cjs
+      - name: Avancement en direct rédigé pour Amine (carte de progression de l'agent) sur capture S24
+        run: node scripts/test-run-progress-card.cjs
+      - name: Étapes lisibles sans carte (titres de l'agent, une ligne de préparation, aucun nom d'outil) sur capture S24
+        run: |
+          node scripts/test-run-progress-titles.cjs
+          node scripts/test-run-progress-terminal.cjs
       - name: HS3 closed presentation and existing run transport
         run: |
           python3 scripts/test-receipt-presentation-read.py
@@ -242,12 +332,40 @@ jobs:
       - name: HS3 payment handoff run reflects its payment request (S24 capture core 176)
         run: node scripts/test-run-payment-presentation.cjs && node scripts/test-hs3-initial-failure.cjs
 
+      - name: C16 native Pulse host admission, durable claim and private IPC (MOCK only)
+        run: |
+          node scripts/test-native-pulse-handoff.cjs
+          python3 ../installer/termux-lite/test-native-pulse-private-input.py
+
+      - name: Pulse room brain paired with the playbooks room owner (Amine 02/11, MOCK Pulse processes only)
+        run: |
+          peer=$(mktemp -d "${TMPDIR:-/tmp}/room-brain-playbooks.XXXXXX")
+          trap 'rm -rf -- "$peer"' EXIT
+          git init "$peer"
+          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git ad9f41a78b026028ef1420b71f6ccdb750587b26
+          git -C "$peer" checkout --detach FETCH_HEAD
+          ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-pulse-room-brain.cjs
+
+      - name: Contact rooms brain and Amine-confirmed room sends paired with the playbooks room owner (Amine 02/11, step 4, owners mocked)
+        run: |
+          peer=$(mktemp -d "${TMPDIR:-/tmp}/contact-rooms-playbooks.XXXXXX")
+          trap 'rm -rf -- "$peer"' EXIT
+          git init "$peer"
+          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git 284da97f8e08e5a3b3387bc913bc593c4608422a
+          git -C "$peer" checkout --detach FETCH_HEAD
+          ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-contact-room-brain.cjs
+          ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-room-send-approval.cjs
+          ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-pulse-room-brain.cjs
+
       - name: Run composed read and model fast path contracts
         run: |
           python3 scripts/test-composed-read-result.py
           node scripts/test-model-fast-path.cjs
-          node scripts/test-pulse-room-fast-path.cjs
-          node scripts/test-contact-room-fast-path.cjs
+          node scripts/test-model-fast-path-intent.cjs
+          node scripts/test-model-fast-path-mcp-read.cjs
+          node scripts/test-pulse-room-brain.cjs
+          node scripts/test-contact-room-brain.cjs
+          node scripts/test-room-send-approval.cjs
 
       - name: Qualify Companion M1 contracts and telemetry offline
         run: |
@@ -257,15 +375,23 @@ jobs:
           node scripts/test-claw-live-warm-detach.cjs
           python3 scripts/test-voice-m1-corpus.py
           node scripts/test-voice-turn-protocol.cjs
+          node scripts/test-voice-async-readback.cjs
+          node scripts/test-voice-deferred-readback.cjs
+          node scripts/test-voice-waiting-cues.cjs
+          node scripts/test-voice-readback-persistence.cjs
+          node scripts/test-turn-budget.cjs
           node scripts/test-claw-live-token-failure.cjs
           node scripts/test-warm-v2-ownership.cjs
-          node scripts/test-phone-datetime.cjs
           node scripts/test-claw-live-warm.cjs
           node scripts/test-claw-live-warm-cancellation.cjs
           node scripts/test-voice-latency-budget.cjs
+          node scripts/test-turn-measurement.cjs
+          node scripts/test-native-turn-progress.cjs
+          node scripts/test-runtime-notices.cjs
           python3 scripts/test-voice-latency-report.py
           TMPDIR=/tmp node scripts/test-claw-live.cjs
           node scripts/test-companion-runs.cjs
+          node scripts/test-plugin-capture-size.cjs
           node scripts/test-run-diagnostics.cjs
 
       - name: Test attachment storage
@@ -284,6 +410,7 @@ jobs:
       - name: Maxit top-up payment path (blocked proof, precise reasons, step receipts, nested budgets) — lot 11/10
         run: |
           node scripts/test-maxit-topup-payment-adapter.cjs
+          node scripts/test-payment-adapter-root.cjs
           node scripts/test-payment-budgets.cjs
           node scripts/test-payment-steps.cjs
           node scripts/test-payment-api.cjs
@@ -297,6 +424,8 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-android-network-mutation-guard.py WifiRestorerTests DetachedRestorerProcessTest HealthManagerSweepContractTest CellularDefaultTests -v
           python3 ../installer/termux-lite/test-health-verdict.py
+      - name: S24 26-29/10 night offline (Wi-Fi and mobile data cut by Android UI) detected, one notification, never re-enabled
+        run: python3 ../installer/termux-lite/test-wifi-night-offline.py
       - name: Run request cancellation owner contract
         run: node scripts/test-control-request-cancel.cjs
       - name: Run Control pinned runtime snapshot regression
@@ -305,8 +434,9 @@ jobs:
         run: node scripts/test-automation-detail.cjs
       - name: Test laptop owner pairing and biometric scope
         run: node scripts/test-laptop-access.cjs
+      # L0bis: observation regression also covers the native D1 timing anchors, blocked owner read and independent monotonic waits.
       - name: P1 admission native des tours owner (preuve Keystore, anti-rejeu, connexion admin dédiée, révocation)
-        run: node scripts/test-owner-turn-admission.cjs
+        run: node scripts/test-owner-turn-admission.cjs && node scripts/test-gateway-run-observation.cjs
       - name: P1 recette — alerte transport owner indisponible et gardes d'admission
         run: python3 ../installer/termux-lite/test-companion-acceptance-owner-transport.py
       - name: Run read-only notification source contract
@@ -317,11 +447,13 @@ jobs:
 
       - name: Test persistent Gateway owner transport preparation
         run: node scripts/test-persistent-gateway-transport.cjs && node scripts/test-gateway-entrypoint.cjs && node scripts/test-official-gateway-owner.cjs && node scripts/test-qa-media-stage.cjs
+      - name: OpenClaw SDK version table (2026.9.6 production rows unchanged, 2026.10.9 candidate) on npm export fixtures
+        run: node scripts/test-openclaw-sdk-versions.cjs
       - name: Test automation SQLite revision latency and cache
         run: node scripts/test-control-automations-latency.cjs
 
       - name: Run agent configuration owner contract
-        run: node scripts/test-agent-config.cjs
+        run: node scripts/test-agent-config.cjs && node scripts/test-model-flows.cjs && node scripts/test-conversation-model-profile.cjs && node scripts/test-model-profile-host-session.cjs
       - name: Agent config concurrent owner reads
         working-directory: openclaw-plugin-mobile-ui
         run: node scripts/test-agent-config-flight.cjs
@@ -350,6 +482,15 @@ jobs:
         run: |
           node scripts/test-conversation-origin.cjs
           python3 ../installer/termux-lite/test-context-session-origin.py
+
+      - name: Deployment acceptance — five representative paths (Amine 29/10)
+        run: |
+          python3 ../installer/termux-lite/test-deploy-parcours.py
+          python3 ../installer/termux-lite/test-brain-warm.py
+          bash -n ../installer/termux-lite/gateway-start.sh
+          node --check ../installer/termux-lite/deploy-parcours-room.cjs
+          bash -n ../installer/termux-lite/companion-deploy.sh
+          bash -n ../installer/termux-lite/activate-ui-playbooks.sh
 
       - name: Run WhatsApp allowlist owner and HTTP contracts
         run: |
@@ -443,17 +584,63 @@ jobs:
       - name: MCP context scopes and admitted client provenance
         run: |
           node scripts/test-mcp-context-provenance.cjs
+          node scripts/test-mcp-context-consumers.cjs
+          node scripts/test-mcp-client-input.cjs
+          node scripts/test-mcp-read-owner.cjs
+          node scripts/test-mcp-private-context.cjs
+          node scripts/test-mcp-service-scope.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
 
           node ../cloud/voice-relay/test-long-action.mjs
+          node ../cloud/voice-relay/test-voice-brain-budget.mjs
+      - name: MCP private read paired with immutable PB263 context owners (MOCK only)
+        run: |
+          peer=$(mktemp -d "${TMPDIR:-/tmp}/c8-mcp-playbooks.XXXXXX")
+          trap 'rm -rf -- "$peer"' EXIT
+          git init "$peer"
+          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git 24cb837b9aa966af6f2ab15294179108a4f107d7
+          git -C "$peer" checkout --detach FETCH_HEAD
+          node scripts/test-mcp-read-paired.cjs "$peer" 24cb837b9aa966af6f2ab15294179108a4f107d7 "$RUNNER_TEMP/c8-mcp-paired-result.json"
+
+      - name: MCP private owner context paired with immutable C9 owners (MOCK only)
+        run: |
+          peer=$(mktemp -d "${TMPDIR:-/tmp}/c12-mcp-playbooks.XXXXXX")
+          trap 'rm -rf -- "$peer"' EXIT
+          git init "$peer"
+          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git 24cb837b9aa966af6f2ab15294179108a4f107d7
+          git -C "$peer" checkout --detach FETCH_HEAD
+          node scripts/test-mcp-context-paired.cjs "$peer" 24cb837b9aa966af6f2ab15294179108a4f107d7 "$RUNNER_TEMP/c12-mcp-context-paired-result.json"
+
+      - name: ChatGPT OAuth RPC service binding regression
+        run: |
+          npm ci --prefix ../cloud/voice-relay --ignore-scripts
+          cd ../cloud/voice-relay
+          node test-chatgpt-oauth-rpc.mjs
+          node test-mcp-routing.mjs
+          node test-google-oidc.mjs
+          node test-chatgpt-oauth.mjs
       - name: M2 claw_remember MCP owner capture through canonical context-event writer (200k events)
         run: node scripts/test-mcp-remember.cjs
 
       - name: Verify host-bound capability owner admission (P1)
         run: |
-          node scripts/test-capability-tool.cjs
-          node scripts/test-capability-admission.cjs
+          node scripts/test-typed-capability-tools.cjs
+          node scripts/test-typed-tools-direct-visible.cjs
+          node scripts/test-typed-device-direct.cjs
+          node scripts/test-typed-qa-tool.cjs
+          node scripts/test-typed-direct-call-id.cjs
+          node scripts/test-typed-admission-shared-instances.cjs
+          node scripts/test-voice-turn-stages.cjs
+          node scripts/test-owner-turn-clock.cjs
+          node scripts/test-voice-run-poll.cjs
+          node scripts/test-brain-only-entry.cjs
+          node scripts/test-generation-interrupt.cjs
+          node scripts/test-native-turn-observation.cjs
+          node scripts/test-main-comprehension-provenance.cjs
+          node scripts/test-google-typed-schema.cjs
+          node scripts/test-sdk-steering-loop.cjs
+          node scripts/test-native-turn-provenance.cjs
 
       - name: E3 agent cannot run operator or transaction capabilities outside the harness
         run: |
@@ -483,6 +670,7 @@ jobs:
         run: |
           node scripts/test-nightly-health-http.cjs
           python3 ../installer/termux-lite/test-companion-nightly-acceptance.py
+          python3 ../installer/termux-lite/test-nightly-dialogue-replay.py
           python3 ../installer/termux-lite/test-health-verdict.py
           python3 ../installer/termux-lite/test-health-verdict-f5.py
       - name: F6 Remote Bridge stuck receipts become bounded abandoned without replay
@@ -536,16 +724,20 @@ jobs:
           python3 ../installer/termux-lite/test-guarded-operator-wait.py
           node scripts/test-guarded-entry-wait.cjs
 
-      - name: O10 voice admits the low-risk owner decision record, never payment or confirmed paths
-        run: node scripts/test-voice-low-risk-admission.cjs
-
       - name: HS8 memo owner pipeline idempotence and canonical text continuation
         run: node scripts/test-memo-intent-pipeline.cjs && node scripts/test-memo-deferred-retry.cjs && node scripts/test-memo-p1-http.cjs
       - name: R1 model usage roles from canonical config owner
         run: node scripts/test-model-roles.cjs
+      - name: R6 executor model flows (interpreter, web synthesis, memo transcription) through the CAS write path
+        run: node scripts/test-model-flows-executors.cjs
+      - name: R6 policy model flows (immune system, engineering learning) through the CAS write path
+        run: node scripts/test-model-flows-policy.cjs
 
       - name: F7 Gateway append log retention
         run: python3 ../installer/termux-lite/test-gateway-log-retention.py
+
+      - name: S24 02/11 Gateway start appends, never truncates (bounded rotation kept)
+        run: node scripts/test-gateway-log-append.cjs
 
       - name: E3 agent file write (biometric, CAS, privacy lines kept, free vocabulary, five backups)
         run: node scripts/test-agent-file-write-plan.cjs
@@ -590,6 +782,11 @@ jobs:
           node-version: 26.11.1
           cache: npm
           cache-dependency-path: openclaw-plugin-mobile-ui/package-lock.json
+      - name: L5 native SDK session CAS over real SQLite connections
+        run: node ../installer/termux-lite/test-model-flow-native-session.cjs
+      - name: L5 native SDK session CAS on OpenClaw 2026.10.9 (candidate) public patchSessionEntry and writers
+        run: node ../installer/termux-lite/test-model-flow-native-session.cjs 2026.10.9
+
       - name: Install integration plugin dependencies
         run: npm ci
       - name: Build integration plugin
@@ -608,6 +805,34 @@ jobs:
         run: node ../installer/termux-lite/test-gemini-public-native.mjs "$RUNNER_TEMP/p1-sdk/node_modules/openclaw"
       - name: Test actual public Gateway admission revocation cancellation and clarification
         run: node scripts/diagnostics/p1-gateway-isolated.cjs "$RUNNER_TEMP/p1-sdk/node_modules/openclaw" "$(command -v node)" "$RUNNER_TEMP/p1-gateway-proof"
+
+  openclaw-sdk-surface:
+    # One leg per pinned OpenClaw version (CI parameter; localci runs steps in sequence, no matrix). Static: the public
+    # npm tar is checked, partly extracted and patched by model-flow-selection, never installed or run. Production
+    # stays 2026.9.6; the 2026.10.9 leg qualifies the candidate rows of the plugin's SDK version table.
+    name: OpenClaw SDK surface per pinned version (static)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: openclaw-plugin-mobile-ui
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node 26 for the plugin build
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26.11.1
+          cache: npm
+          cache-dependency-path: openclaw-plugin-mobile-ui/package-lock.json
+      - name: Install plugin dependencies
+        run: npm ci
+      - name: Build plugin version table
+        run: npm run build
+      - name: OpenClaw 2026.9.6 (production) SDK surface and model profile contract
+        run: bash scripts/openclaw-sdk-surface-ci.sh 2026.9.6 1a7355691bc0e605222ba818f1f72c1787253c78dfeb0df6be2086ec73b71e63 "$RUNNER_TEMP/openclaw-sdk-surface"
+      - name: OpenClaw 2026.10.9 (candidate) SDK surface and model profile contract
+        run: bash scripts/openclaw-sdk-surface-ci.sh 2026.10.9 43c61a00ef2c73416a072a7216cb3be80555d6740199f07194da2714283b04ab "$RUNNER_TEMP/openclaw-sdk-surface"
 
   parallel-free-transport:
     name: Parallel Free pinned native transport offline

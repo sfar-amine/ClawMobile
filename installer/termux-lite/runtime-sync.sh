@@ -31,6 +31,7 @@ COMPANION="${RUNTIME_SYNC_COMPANION_URL:-http://127.0.0.1:8765}"
 # Same readiness evidence as the health manager's `gateway` capability (health/current.json).
 GATEWAY_HEALTHZ="${RUNTIME_SYNC_GATEWAY_HEALTHZ_URL:-http://127.0.0.1:18789/healthz}"
 KEEP_RELEASES="${RUNTIME_SYNC_KEEP_RELEASES:-5}"
+RESTART_TIMEOUT_S="${RUNTIME_SYNC_RESTART_TIMEOUT_S:-360}"
 head="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)"
 commit="${1:-$head}"; [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || { echo "usage: $0 [--check] <full commit>" >&2; exit 2; }
 [ "$head" = "$commit" ] || { echo '{"ok":false,"reason":"checkout_not_at_commit"}'; exit 3; }
@@ -73,13 +74,44 @@ if [ "$mode" = check ]; then
   fi
   dispatch_contract || drift+=(openclaw:before_dispatch_missing)
   python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --check >/dev/null 2>&1 || drift+=(openclaw:whatsapp_network_recovery)
+  python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set agent-exec-auth-scope --check >/dev/null 2>&1 || drift+=(openclaw:agent_exec_auth_scope)
+  python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set model-flow-selection --check >/dev/null 2>&1 || drift+=(openclaw:model_flow_selection)
+  python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set native-turn-provenance --check >/dev/null 2>&1 || drift+=(openclaw:native_turn_provenance)
+  python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set memory-retrieval-warm --check >/dev/null 2>&1 || drift+=(openclaw:memory_retrieval_warm)
+  python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set android-fs-compat --check >/dev/null 2>&1 || drift+=(openclaw:android_fs_compat)
+  python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set startup-triage-optout --check >/dev/null 2>&1 || drift+=(openclaw:startup_triage_optout)
+  # Single code root (02/11): recent pin fallbacks, a dirty core checkout, skills changed since the last
+  # activation/deploy and jobs still started from a working copy are drift; dev-only copies are advisory.
+  advisory=()
+  if [ -f "$SRC/code_root.py" ]; then
+    if code_root=$(python3 "$SRC/code_root.py" check --core-repo "$REPO" 2>/dev/null) && items=$(python3 -c 'import json,sys
+d=json.loads(sys.argv[1])
+for kind in ("drift","advisory"):
+    for v in d.get(kind) or []:
+        if isinstance(v,str) and v and "\"" not in v and "\\" not in v: print(kind, v)' "$code_root" 2>/dev/null); then
+      while read -r kind item; do
+        [ -n "$item" ] || continue
+        if [ "$kind" = drift ]; then drift+=("$item"); else advisory+=("$item"); fi
+      done <<< "$items"
+    else
+      drift+=(code_root:unreadable)
+    fi
+  fi
   list=$(printf '"%s",' "${drift[@]}"); list="[${list%,}]"; [ "${#drift[@]}" -eq 0 ] && list='[]'
-  printf '{"ok":%s,"commit":"%s","drift":%s}\n' "$([ "${#drift[@]}" -eq 0 ] && echo true || echo false)" "$commit" "$list"
+  extra=""; if [ "${#advisory[@]}" -gt 0 ]; then extra=$(printf '"%s",' "${advisory[@]}"); extra=",\"advisory\":[${extra%,}]"; fi
+  printf '{"ok":%s,"commit":"%s","drift":%s%s}\n' "$([ "${#drift[@]}" -eq 0 ] && echo true || echo false)" "$commit" "$list" "$extra"
   [ "${#drift[@]}" -eq 0 ]; exit $?
 fi
 
 dispatch_contract || fail openclaw_before_dispatch_missing
 wa_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --apply) || fail whatsapp_network_recovery_refused
+auth_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set agent-exec-auth-scope --apply) || fail agent_exec_auth_scope_refused
+native_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set native-turn-provenance --apply) || fail native_turn_provenance_refused
+memory_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set memory-retrieval-warm --apply) || fail memory_retrieval_warm_refused
+android_fs_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set android-fs-compat --apply) || fail android_fs_compat_refused
+triage_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set startup-triage-optout --apply) || fail startup_triage_optout_refused
+
+model_flow_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set model-flow-selection --apply) || fail model_flow_selection_refused
 
 # 1. Gateway plugin. Forced: after a rollback the restored dist is older than the install stamp.
 if ! same_plugin; then
@@ -91,14 +123,18 @@ fi
 # 2. The Gateway loads its plugin at start only: restart it gracefully when the plugin changed, then wait for it.
 # Before the Tier0 promotion: a restart inside the soak window reads as a health regression (S24 12/10, 17:31 —
 # release 5631a6aa rolled back to the 11/10 release after one bad sample).
-if [ "$plugin" = synced ] || [[ "$wa_patch" == *'"applied"'* ]]; then
+if [ "$plugin" = synced ] || [[ "$wa_patch" == *'"applied"'* ]] || [[ "$auth_patch" == *'"applied"'* ]] || [[ "$native_patch" == *'"applied"'* ]] || [[ "$memory_patch" == *'"applied"'* ]] || [[ "$android_fs_patch" == *'"applied"'* ]] || [[ "$triage_patch" == *'"applied"'* ]] || [[ "$model_flow_patch" == *'"applied"'* ]]; then
   if [ -n "${SAMANTHA_DEPLOY_LOCK_FD:-}" ]; then
     # Companion cannot inherit our flock over HTTP. Run its SAME stop/start
     # owner in this process tree, with the verified inherited EX description.
     # The in-checkout Python owner is required before the Tier0 promotion.
-    timeout 240 node "$PLUGIN/dist/companion/openclawGatewayClient.js" --deploy-restart "$SRC/runtime_mode.py" >/dev/null 2>&1 || fail gateway_restart_failed
+    # Its one-line verdict and reason go to stderr, i.e. the deploy log (S24 01/11: the receipt alone said
+    # gateway_restart_failed). Budget: lease 3 s + graceful stop 15 s + stop wait 10 s + start 180 s + catalogue
+    # 20 s, plus the 30 s grace for a Gateway still listed after the stop; OpenClaw 2026.10.9 answered health
+    # 70 s and declared itself ready 92 s after its start on the S24 (switch of 01/11).
+    timeout "$RESTART_TIMEOUT_S" node "$PLUGIN/dist/companion/openclawGatewayClient.js" --deploy-restart "$SRC/runtime_mode.py" >&2 || fail gateway_restart_failed
   else
-    curl -fsS -m 240 -X POST "$COMPANION/v1/runtime/restart" >/dev/null 2>&1 || fail gateway_restart_failed
+    curl -fsS -m "$RESTART_TIMEOUT_S" -X POST "$COMPANION/v1/runtime/restart" >/dev/null 2>&1 || fail gateway_restart_failed
   fi
   gateway=restarted
 fi
@@ -117,6 +153,16 @@ if [ "$gateway" = restarted ] || [ "$(release_commit)" != "$commit" ]; then
     sleep "${RUNTIME_SYNC_POLL_S:-4}"
   done
   [ "$ready" = 1 ] || fail gateway_not_ready
+fi
+
+# Prepare the official read-only tool catalogue once after a real restart and native readiness. The Gateway/SDK
+# retains its own registry/module caches; no model turn, tool.execute, schema injection or parallel cache/poller.
+# A performance preparation failure is explicit but never starts a new recovery/rollback cycle or retries a request.
+# The inherited-EX CLI restart owner prepares before returning; retain this
+# fallback only for the existing HTTP restart path, so each restart warms once.
+if [ "$gateway" = restarted ] && [ -z "${SAMANTHA_DEPLOY_LOCK_FD:-}" ]; then
+  timeout --kill-after=1 25 node "$PLUGIN/dist/companion/openclawGatewayClient.js" --prepare-main-tools >&2 ||
+    echo '{"component":"runtime-preparation","state":"unverified","reason":"tools_catalog_unavailable"}' >&2
 fi
 
 # 3. Tier0 release (serves model-fast-path.py to the Gateway). Same commit already current: nothing to do.
@@ -141,6 +187,15 @@ done
 if contacts_stale; then
   cp "$SRC/contacts-agent.md" "$CONTACTS/.AGENTS.md.next" && chmod 600 "$CONTACTS/.AGENTS.md.next" && mv -f "$CONTACTS/.AGENTS.md.next" "$CONTACTS/AGENTS.md" || fail rules_failed:contacts
   rules=synced
+fi
+
+# 6. Single code root (02/11): scheduled jobs follow the pins (idempotent, read back, never fatal: a job left on a
+# working copy stays as it ran and is reported by --check), and the skills baseline follows this deploy.
+if [ -f "$SRC/job_code_root.py" ]; then
+  python3 "$SRC/job_code_root.py" --apply >&2 || echo '{"component":"job-code-root","state":"attention_required"}' >&2
+fi
+if [ -f "$SRC/code_root.py" ]; then
+  python3 "$SRC/code_root.py" baseline --source deploy --core "$commit" >/dev/null 2>&1 || echo '{"component":"code-root","state":"baseline_failed"}' >&2
 fi
 
 same_plugin || fail plugin_copy_differs

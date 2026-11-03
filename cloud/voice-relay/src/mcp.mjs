@@ -91,7 +91,11 @@ export async function authenticateMcpClient(request, env) {
     if (!SUPPORTED_PROFILES.has(profile)) {
       return { ok: false, status: 403, error: "unsupported_profile" };
     }
-    return { ok: true, clientId, profile };
+    const services = config.interpretation_services === undefined ? [] : config.interpretation_services;
+    if (!Array.isArray(services) || services.length > 1 || services.some(value => value !== "pulse")) {
+      return { ok: false, status: 403, error: "invalid_interpretation_services_config" };
+    }
+    return { ok: true, clientId, profile, ...(services.length ? { interpretationServices: [...services] } : {}) };
   }
   return { ok: false, status: 401, error: "unauthorized" };
 }
@@ -102,7 +106,7 @@ function toolAllowed(profile, tool) {
   return true;
 }
 
-function toolResult(value, auth) {
+function toolResult(value, auth, tool) {
   const base = value && typeof value === "object" ? value : { value };
   const normalized = {
     ...base,
@@ -113,10 +117,13 @@ function toolResult(value, auth) {
       read_only: auth?.profile !== "chat-owner",
     },
   };
-  return {
-    content: [{ type: "text", text: JSON.stringify(normalized) }],
-    structuredContent: normalized,
-  };
+  const content = [{ type: "text", text: JSON.stringify(normalized) }];
+  // L2 has no outputSchema: its complete required text remains readable by every MCP client.
+  // Avoid sending that owner foundation again as structuredContent; the official client already
+  // parses a single JSON text block. Other tools and legacy context keep their established shape.
+  if (tool === "claw_context" && normalized.bundle?.foundation?.version === 1 &&
+      normalized.bundle.foundation.read_required === true) return { content };
+  return { content, structuredContent: normalized };
 }
 
 function toolError(error) {
@@ -146,16 +153,44 @@ function relayRequestId(clientId, tool, args) {
   return `mcp:${clientId}:${crypto.randomUUID()}`;
 }
 
+// Additive client-owned transcript data. It never carries a caller, intent or permission.
+const clientRef = z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/);
+const serviceScopeSchema = z.strictObject({ schema_version: z.literal("mcp-service.v1"), domain_id: z.literal("pulse") })
+  .describe("Declared service selector only. Requires a matching server-configured binding; never grants DATA admission or business permission.");
+const clientContextSchema = z.strictObject({
+  schema_version: z.literal("mcp-input.v1"),
+  original_message: z.strictObject({ text: z.string().min(1).max(12000), ref: clientRef.nullable() }),
+  conversation_ref: clientRef,
+  local_revision: z.union([z.string().min(1).max(128), z.number().int().nonnegative()]).nullable(),
+  relevant_turns: z.array(z.strictObject({ ref: clientRef.nullable(), role: z.enum(["user", "assistant"]),
+    text: z.string().min(1).max(2000) })).max(8),
+  entity_references: z.array(z.strictObject({ mention: z.string().min(1).max(256), turn_ref: clientRef.nullable(),
+    server_ref: z.strictObject({ kind: z.literal("remote_bridge_receipt"), request_id: clientRef }).nullable() })).max(16),
+  active_goal_ref: clientRef.nullable(),
+  pending_question_ref: clientRef.nullable(),
+  confirmation_ref: clientRef.nullable(),
+  user_reply_ref: clientRef.nullable(),
+  completeness: z.enum(["complete", "partial", "unknown"]),
+  missing: z.array(z.string().min(1).max(128)).max(16),
+}).describe("Optional versioned client-reported context. No transcript, reference, JSON intent or confirmed flag grants authority; server validation remains mandatory.");
+
 function registerTools(server, auth, invoke) {
   const run = (tool) => async (args, extra) => {
     if (!toolAllowed(auth.profile, tool)) return toolError("tool_not_allowed");
     try {
+      const migrated = Object.prototype.hasOwnProperty.call(args || {}, "client_context");
+      if ((tool === "claw_resolve" || tool === "claw_execute") && (migrated || args?.service_scope !== undefined)) {
+        if (!migrated) throw new Error("client_context_required_for_service_scope");
+        if (!serviceScopeSchema.safeParse(args.service_scope).success) throw new Error("MCP_INTERPRETATION_SERVICE_REQUIRED");
+        if (auth.profile !== "chat-owner" || !auth.interpretationServices?.includes("pulse"))
+          throw new Error("MCP_INTERPRETATION_SERVICE_UNVERIFIED");
+      }
       const requestId = relayRequestId(auth.clientId, tool, args);
       const value = await invoke(tool, args || {}, auth, {
         requestId,
         mcpRequestId: extra?.requestId ?? null,
       });
-      return toolResult(value, auth);
+      return toolResult(value, auth, tool);
     } catch (error) {
       return toolError(error);
     }
@@ -163,7 +198,7 @@ function registerTools(server, auth, invoke) {
 
   server.registerTool("claw_context", {
     title: "Claw context",
-    description: "Load the canonical S24/Claw context needed for this request. Call at the start of a substantive owner session and use returned revisions/hashes for later delta calls. The returned _claw_access object is authoritative for the currently authenticated MCP profile; do not infer owner/shadow from cached client text or prior tool metadata.",
+    description: "Load the canonical S24/Claw context needed for this request. Call at the start of a substantive owner session and use returned revisions/hashes for later delta calls in that same conversation after actually reading and integrating them. Missing or uncertain consumer state reconstructs conservatively; response construction never acknowledges client consumption. The returned _claw_access object is authoritative for the currently authenticated MCP profile; do not infer owner/shadow from cached client text or prior tool metadata.",
     inputSchema: {
       query: z.string().min(1).max(2000),
       after_revision: z.number().int().nonnegative().optional(),
@@ -183,6 +218,10 @@ function registerTools(server, auth, invoke) {
     description: "Resolve a request against the canonical Claw Capability Harness without executing it. Use only for discovery or material ambiguity; clear known requests should call claw_execute directly.",
     inputSchema: {
       request: z.string().min(1).max(12000),
+      typed: z.object({domain: z.string().regex(/^[a-z][a-z0-9_.-]{0,127}$/), action: z.string().regex(/^[a-z][a-z0-9_.-]{0,127}$/),
+        params: z.record(z.string(), z.unknown())}).strict().optional().describe("Brain-selected canonical domain/action/typed parameters, without resolving request text again. Cannot be mixed with client_context, service_scope, decision or target_hint."),
+      client_context: clientContextSchema.optional(),
+      service_scope: serviceScopeSchema.optional(),
       target_hint: z.string().max(128).optional(),
     },
     annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
@@ -196,10 +235,20 @@ function registerTools(server, auth, invoke) {
       : "Execute a known Claw route in shadow/read-only mode: only deterministic read routes without confirmation are admitted. Reuse action_key for retries; use a new stable step_key only for a materially new clarification/refinement step.",
     inputSchema: {
       request: z.string().min(1).max(12000),
+      typed: z.object({domain: z.string().regex(/^[a-z][a-z0-9_.-]{0,127}$/), action: z.string().regex(/^[a-z][a-z0-9_.-]{0,127}$/),
+        params: z.record(z.string(), z.unknown())}).strict().optional().describe("Typed canonical read. Writes retain native recap and confirmation; external narrative never grants user consent."),
+      client_context: clientContextSchema.optional(),
+      service_scope: serviceScopeSchema.optional(),
       action_key: z.string().regex(ACTION_ID_RE),
       step_key: z.string().regex(STEP_ID_RE).optional(),
       target_hint: z.string().max(128).optional(),
-      decision: z.record(z.string(), z.unknown()).optional(),
+      decision: z.union([
+        z.object({kind: z.literal("samantha.typed-selection.v1"), selection: z.object({
+          domain: z.string().regex(/^[a-z][a-z0-9_.-]{0,127}$/), action: z.string().regex(/^[a-z][a-z0-9_.-]{0,127}$/),
+          params: z.record(z.string(), z.unknown()),
+        }).strict()}).strict(),
+        z.record(z.string(), z.unknown()),
+      ]).optional().describe("Existing prepared decision, or closed compatibility envelope {kind:'samantha.typed-selection.v1',selection:{domain,action,params}} for connectors whose cached schema lacks typed. Selection grants no authority or user confirmation; do not mix with typed/client_context/service_scope/target_hint."),
     },
     annotations: { readOnlyHint: !ownerProfile, idempotentHint: true, openWorldHint: ownerProfile },
   }, run("claw_execute"));
@@ -256,14 +305,14 @@ function registerTools(server, auth, invoke) {
   }, run("claw_artifact_read"));
 }
 
-export async function handleMcpHttp(request, env, invoke) {
+export async function handleMcpHttp(request, env, invoke, verifiedAuth = null) {
   if (request.method !== "POST") {
     return json({ jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed." }, id: null }, 405, { allow: "POST" });
   }
 
   let auth;
   try {
-    auth = await authenticateMcpClient(request, env);
+    auth = verifiedAuth ?? await authenticateMcpClient(request, env);
   } catch (error) {
     return json({ error: String(error?.message || error) }, 500);
   }

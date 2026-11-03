@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "id": "adb-readiness-arm-gate-20261026",
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The ADB watchdog asks the immune gate to arm Wireless Debugging only when the readiness reason is armable (Wireless Debugging disabled); with Wi-Fi off it stays in standby without a model call or an incident.",
+  "reason": "S24 26/10: with Wi-Fi off, readiness was standby/wifi_disabled_recovery_standby. readiness_arm_primary called the immune gate before the effect refused that reason, so each attempt spent model calls and opened incidents a3e972e2 and bab3ce34, escalated to the owner, that no repair could close.",
+  "files": [
+    "installer/termux-lite/adb-recovery-watchdog.sh",
+    "installer/termux-lite/test-adb-recovery-readiness-watchdog.sh",
+    "docs/changes/adb-readiness-arm-gate-20261026.json",
+    "docs/changes/adb-readiness-arm-gate-20261026.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-adb-recovery-readiness-watchdog.sh",
+      "status": "passed",
+      "evidence": "New cases with the S24 readiness row: Wi-Fi off asks no immune gate and arms nothing; Wireless Debugging disabled still goes through the gate. It fails without the fix ('immune gate asked with Wi-Fi off')."
+    },
+    {
+      "name": "incident and immune suites",
+      "status": "passed",
+      "evidence": "test-immune-action.py, test-incident-runtime-hardening.sh, test-incident-orchestrator.py, test-health-verdict.py, test-tier0-control.py, test-supervisor-lock-portability.py pass."
+    }
+  ],
+  "documentation": [
+    "docs/changes/adb-readiness-arm-gate-20261026.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same readiness states and arm effect; only the order of the existing check and the gate."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "The existing reason check moves into a shared readiness_armable used by the caller and the effect."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: no MCP schema, adapter, endpoint or runtime protocol changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Live proof: companion-deploy, then no new device.adb.recovery_readiness immune call while Wi-Fi is off."
+  ],
+  "rollback": "Revert this commit; the watchdog asks the gate again for unarmable reasons."
+}

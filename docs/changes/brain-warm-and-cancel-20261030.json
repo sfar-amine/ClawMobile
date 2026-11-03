@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "id": "brain-warm-and-cancel-20261030",
+  "date": "2026-10-30",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The Gateway's one cold owner-brain turn is paid right after each start (brain-warm.py, launched by gateway-start.sh and awaited by companion-deploy.sh before the five paths), not by Amine's first message. The typed tool description says a refused or cancelled recap is a cancel call with the same values. The Pulse room shows invalid_interpretation as its own phrase instead of the generic « n'a pas abouti ».",
+  "reason": "Deploy acceptance 30/10 on the S24: owner_read took 65.6 s. Gateway logs: after every Gateway start (29/10 16:52, 19:54, 20:23; 30/10 08:23 UTC) the first main-agent run blocked the whole Gateway 41-62 s (« liveness heartbeat delayed », WhatsApp dropped with 408), then loaded plugin tools for 8-10 s; the second run of the same process took 8.2 s. Same run: the owner's « Annule, ne l'ajoute pas. » made no call (recap left AWAITING_CONFIRMATION), and the room's « Annule la demande en cours » refused as invalid_interpretation read « La préparation ou la vérification de cette commande n'a pas abouti ».",
+  "files": [
+    "installer/termux-lite/brain-warm.py",
+    "installer/termux-lite/test-brain-warm.py",
+    "installer/termux-lite/gateway-start.sh",
+    "installer/termux-lite/companion-deploy.sh",
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts",
+    "openclaw-plugin-mobile-ui/src/companion/receiptPresentation.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+    "docs/changes/brain-warm-and-cancel-20261030.json",
+    "docs/changes/brain-warm-and-cancel-20261030.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-brain-warm.py",
+      "status": "passed",
+      "evidence": "One turn per Gateway process (reused for the same pid, new turn for a new pid); a failure is recorded and never retried within the call; no Gateway runs nothing; --after-start waits for the Gateway then settles; the turn is the main agent without delivery."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+      "status": "passed",
+      "evidence": "TECHNICAL_FAILURE invalid_interpretation renders FAILURE_PHRASES.fr.invalid_interpretation, never the producer text."
+    },
+    {
+      "name": "typed-failure-presentation, typed-capability-tools, google-typed-schema, voice-relay-brain-only, gateway/deploy shell tests",
+      "status": "passed",
+      "evidence": "176 presentation checks in 2 locales; test-gateway-preflight, test-runtime-start-command, test-companion-deploy-*, test-health-deploy-lock and the patch-set tests OK; bash -n on gateway-start.sh and companion-deploy.sh."
+    }
+  ],
+  "documentation": [
+    "docs/changes/brain-warm-and-cancel-20261030.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No capability or route changes."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "A one-shot helper started by the existing Gateway start script and called by the existing deploy; no daemon, schedule, store or retry engine. It reuses the Gateway agent command already used by the deploy paths."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Gateway start/deploy scripts, typed tool description and room failure phrase."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The Gateway still blocks once per start; the cost moves to about 20 s after the start, when no one waits. A message arriving in that window still waits for it.",
+    "One included-model turn per Gateway start, in the dedicated session agent:main:brain-warm.",
+    "The cancel wording depends on the brain making the call; live proof is deploy path 4 followed by a journal check (goal CANCELLED)."
+  ],
+  "rollback": "Revert this commit and redeploy the core."
+}

@@ -12,12 +12,16 @@ status=new
 [ -d "$dir" ] && status=$(cat "$dir/status" 2>/dev/null || echo new)
 # The content hash is the alert identity. An active or delivered identical
 # notification is never queued twice. RDC/context alerts may start a new cycle
-# only after their exact component was closed by incident-close.sh.
+# only after their exact component was closed by incident-close.sh. Each new
+# cycle gets its own delivery key (`cycle`, read by incident-manager.sh): an
+# accepted or undeliverable key is never sent again.
 case "$status:$kind" in
-  pending:*|notified:*) exit 0;;
+  pending:*|notified:*|undeliverable:*) exit 0;;
   closed:remote_desktop|closed:context_guardian)
+    cycle=$(cat "$dir/cycle" 2>/dev/null || echo 0); case "$cycle" in ''|*[!0-9]*) cycle=0;; esac
     printf '%s' "$kind" >"$dir/kind"; printf '%s' "$msg" >"$dir/message"; printf '%s' "$action" >"$dir/action"
-    printf '%s' "$kind" >"$dir/component"; printf 0 >"$dir/tries"; printf 0 >"$dir/next"; printf pending >"$dir/status"
+    printf '%s' "$kind" >"$dir/component"; printf 0 >"$dir/tries"; printf 0 >"$dir/next"; printf '%s' $((cycle+1)) >"$dir/cycle"
+    rm -f "$dir/undeliverable"; printf pending >"$dir/status"
     ;;
   closed:*) exit 0;;
   *)

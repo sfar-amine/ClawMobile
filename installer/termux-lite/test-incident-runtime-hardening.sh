@@ -9,7 +9,9 @@ grep -q 'nohup env CLAW_RUNTIME_ROOT=.*9>&-' "$R/samantha-root-guardian.sh"
 ! grep -A2 'flock -n 9' "$R/adb-recovery-watchdog.sh" | grep -q '^exec 9>&-$'
 ! grep -q 'incident-notify.sh.*human_required' "$R/adb-recovery-watchdog.sh"
 ! grep -q 'incident-notify.sh.*human_required' "$R/samantha-health-manager.sh"
-! grep -q 'incident-notify.sh.*human_required' "$R/boot-continuity-recovery.sh"
+# Amine 29/10: no automatic ChatGPT reopening (it brought ChatGPT to the front on every ADB reconnection).
+! grep -q 'chat-continuity\|boot-continuity' "$R/adb-recovery-watchdog.sh" "$R/samantha-health-manager.sh" "$R/tier0-bootstrap.sh"
+! test -e "$R/chat-continuity-restore.sh"
 grep -q 'count.*-ge 2' "$R/incident-orchestrator-worker.sh"
 grep -q 'human-boundary' "$R/incident-orchestrator-worker.sh"
 grep -q 'handler=adb_live_precheck' "$R/incident-orchestrator-worker.sh"

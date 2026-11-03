@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "chantier1-c4-runtime-semantic-port-20261022",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Wire the existing dialogue runtime to a host opt-in in-process semantic backend and bounded private MCP context input.",
+  "reason": "Validated interpretation and consent objects must not be JSON approvals or pass through a second lexical resolver.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-model-fast-path-intent.py",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-model-fast-path-intent.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-client-input.cjs",
+    "docs/changes/chantier1-c4-runtime-semantic-port-20261022.md",
+    "docs/changes/chantier1-c4-runtime-semantic-port-20261022.json"
+  ],
+  "tests": [
+    {
+      "name": "Runtime semantic ports and private pipe",
+      "status": "passed",
+      "evidence": "11/11 Python tests; host opt-in, no lexical DATA fallback, opaque identity, request-local backend, original text, client provenance, FIFO and invalid input."
+    },
+    {
+      "name": "Inherited Web/dialogue guards",
+      "status": "passed",
+      "evidence": "11/11 test-model-fast-path-web.py and existing test-model-fast-path.cjs pass."
+    },
+    {
+      "name": "TypeScript and native private transport",
+      "status": "passed",
+      "evidence": "npm run build exit0; new test-model-fast-path-intent.cjs 10/10 assertions, including legacy helper protocol rejection."
+    },
+    {
+      "name": "Explicit legacy MCP protocol fixture",
+      "status": "passed",
+      "evidence": "The legacy scenario explicitly clears INPUT/READ capability markers before asserting refusal without a host call, then enables only INPUT for preview. The new real C4 export no longer accidentally turns the legacy fixture into a compatible runner; all existing assertions and execution refusal are retained."
+    }
+  ],
+  "documentation": [
+    "docs/changes/chantier1-c4-runtime-semantic-port-20261022.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing FastPathPorts/coordinator/Graph; no business action, route or right added."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing per-request in-process owner and helper private pipe, no new store/router/scheduler/daemon/executor."
+  },
+  "rollback": "Disable host opt-in and revert additive runtime port; no state migration or replay.",
+  "limitations": [
+    "Requires pinned playbook C2/C3/C7 plus B interpreter/Graph backend; unknown DATA evidence remains closed.",
+    "Durable effects and migrated MCP execution await existing Continuum/RemoteBridge private proof and receipt transport.",
+    "No flag activation, provider generation or S24 qualification; canonical exact-head CI pending."
+  ]
+}

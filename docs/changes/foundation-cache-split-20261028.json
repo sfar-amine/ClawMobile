@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "id": "foundation-cache-split-20261028",
+  "date": "2026-10-28",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The owner foundation hook keeps the stable L2 rules in the system prompt (prependSystemContext) and sends the memory view, which changes with every memory event, with the current turn (prependContext, after the conversation history, not persisted in the transcript). On interactive WhatsApp/owner turns it no longer repeats SOUL.md and the AGENTS.md sections, which OpenClaw already injects in full in the Project Context. Companion keeps the full stable part in extraSystemPrompt (lightweight bootstrap has no SOUL.md) and gets the memory view from the hook. With a playbooks producer older than the split layout, the previous single block is used unchanged.",
+  "reason": "S24 28/10, WhatsApp reference measurements after L2 (trajectory usage): one turn re-read 61504 of 122057 input tokens without cache (Orange) and another 60625 of 125152 (Pulse, 52 s later); before L2 the uncached share was 347-11046 tokens per turn. Decide time went from 2-4 s to 6-12 s. The memory view was at the very start of the prompt, so any memory event invalidated the cached prefix of everything after it. Amine 28/10: 'go' on the cache layout.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/ownerBootstrapContext.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-foundation.cjs",
+    "docs/changes/foundation-cache-split-20261028.json",
+    "docs/changes/foundation-cache-split-20261028.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-owner-foundation.cjs",
+      "status": "passed",
+      "evidence": "New: a memory change leaves the system-prompt part byte-identical; WhatsApp turns get stable rules without SOUL/AGENTS plus the memory view as prependContext; cron, subagent and heartbeat keep the full text; Companion gets only the memory view from the hook and the full stable part in extraSystemPrompt; budget and layout checks; older producer keeps the single block. Fails on the base code."
+    },
+    {
+      "name": "test-canonical-agent-bootstrap, test-voice-brain-delegation, test-voice-relay-brain-only, test-edit-replay",
+      "status": "passed",
+      "evidence": "Unchanged, still green."
+    }
+  ],
+  "documentation": [
+    "docs/changes/foundation-cache-split-20261028.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same context text and sources, placed differently in the prompt; no capability, route or tool change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same before_prompt_build hook and Companion extraSystemPrompt path; uses OpenClaw's existing prependContext field. No new store, router or cache."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Gateway hook and Companion prompt only; MCP primitives and claw_context unchanged."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Needs the samantha-ui-playbooks split producer (PR of the same day) active on the S24; until then the single block is used.",
+    "App turns now depend on the before_prompt_build hook for the memory view (grant hooks.allowConversationAccess, set 28/10).",
+    "Full canonical CI on the final GitHub head remains required.",
+    "Live proof: cached share of input tokens per model call and decide time on WhatsApp and the app after activation; the transcript must not contain the memory view."
+  ],
+  "rollback": "Revert this commit and redeploy with companion-deploy.sh; the hook returns to the single block in the system prompt."
+}

@@ -12,6 +12,24 @@ class T(unittest.TestCase):
    w=x['device.network_safety.wifi_unmanaged'];self.assertEqual((w['state'],w['critical'],w['reason']),('degraded',False,'wifi_disabled_without_lease'))
    path.write_text(json.dumps({'checked_at':hv.NOW,'state':'healthy','reason':'network_settings_clean','warnings':[]}))
    self.assertNotIn('device.network_safety.wifi_unmanaged',hv.network_safety_items(path))
+ def test_oauth_health_reports_status_and_expiry_without_identity(self):
+  def raw(*profiles,warn=86400000):return json.dumps({'auth':{'oauth':{'warnAfterMs':warn,'profiles':list(profiles)}}})
+  ok={'provider':'openai','type':'oauth','status':'ok','remainingMs':9*86400000,'label':'openai:someone@example.com'}
+  self.assertEqual(hv.oauth_health(raw(ok,{'provider':'google','type':'api_key','status':'static'})),('healthy','oauth ok, 9 d left'))
+  state,reason=hv.oauth_health(raw({**ok,'remainingMs':3*3600000}))
+  self.assertEqual(state,'degraded');self.assertIn('expires in 3 h',reason);self.assertNotIn('example.com',reason)
+  self.assertEqual(hv.oauth_health(raw({**ok,'status':'expired'}))[0],'degraded')
+  self.assertEqual(hv.oauth_health(raw())[0],'unverified');self.assertEqual(hv.oauth_health('')[0],'unverified')
+  row=hv.external_readiness('degraded',False,reason='x');self.assertFalse(row['restart_allowed'])
+ def test_oauth_probe_is_cached_and_redacted(self):
+  calls=[]
+  def probe():
+   calls.append(1);return json.dumps({'auth':{'oauth':{'profiles':[{'provider':'openai','type':'oauth','status':'ok','remainingMs':5*86400000,'label':'openai:someone@example.com'}]}}})
+  with tempfile.TemporaryDirectory() as td:
+   path=Path(td)/'oauth.json'
+   self.assertEqual(hv.oauth_readiness(path,probe)[:2],('healthy','oauth ok, 5 d left'))
+   self.assertEqual(hv.oauth_readiness(path,probe)[:2],('healthy','oauth ok, 5 d left'))
+   self.assertEqual(len(calls),1);self.assertNotIn('example.com',path.read_text())
  def test_item(self):
   x=hv.item('healthy',True,evidence='x');self.assertEqual(x['state'],'healthy');self.assertTrue(x['critical'])
  def test_continuation_gap(self):
@@ -87,6 +105,22 @@ class T(unittest.TestCase):
     c.execute('insert into incidents values(?,?,?,?,?,?,?,?,?)',('s','slack_bridge','runtime','failed',980,990,0,None,'old slack failure'));c.commit();c.close()
     self.assertEqual(hv.incidents({})[1],[])
   finally: hv.OC,hv.NOW=old_oc,old_now
+ def test_live_mismatch_uses_namespaced_and_slack_resolution(self):
+  # S24 26/10: active incidents for adb_watchdog and slack_bridge stayed open while live.
+  old_live,old_inc,old_cont,old_maint,old_oc,old_now=hv.live,hv.incidents,hv.continuations,hv.maintenance_view,hv.OC,hv.NOW
+  try:
+   with tempfile.TemporaryDirectory() as td:
+    hv.OC=Path(td);hv.NOW=1000
+    health=hv.OC/'remote-bridge/slack';health.mkdir(parents=True)
+    (health/'health.json').write_text(json.dumps({'state':'healthy','connected':True,'heartbeatAt':999000}))
+    active=[{'id':'a','component':'adb_watchdog'},{'id':'s','component':'slack_bridge'},{'id':'r','component':'remote_watchdog'}]
+    hv.live=lambda:{'immune.adb_watchdog':hv.item('healthy',True),'immune.remote_watchdog':hv.item('down',True)}
+    hv.incidents=lambda caps=None:(active,[],[]);hv.continuations=lambda:{'blocked':0,'resuming':0,'stuck':0,'details':[]}
+    hv.maintenance_view=lambda:{'state':'observed','semantic_state':'healthy','checked_at':hv.NOW,'task_health':{}}
+    found={(w['incident_id'],w['component']) for w in hv.build()['consistency_warnings'] if w['type']=='incident_live_mismatch'}
+    self.assertEqual(found,{('a','adb_watchdog'),('s','slack_bridge')})
+  finally:
+   hv.live,hv.incidents,hv.continuations,hv.maintenance_view,hv.OC,hv.NOW=old_live,old_inc,old_cont,old_maint,old_oc,old_now
  def test_marked_test_fixture_is_excluded_from_health_projection(self):
   old=hv.OC
   try:

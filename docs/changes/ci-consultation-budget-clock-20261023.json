@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "id": "ci-consultation-budget-clock-20261023",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Use a deterministic clock origin for exact consultation budget fixture arithmetic",
+  "reason": "Exact core394 f954 retry failed step119: host fractional monotonic uptime yielded43.999999999999545 instead of44.0; previous same-head run passed this test.",
+  "files": [
+    "installer/termux-lite/test-consultation-total-bound.py",
+    "docs/changes/ci-consultation-budget-clock-20261023.md",
+    "docs/changes/ci-consultation-budget-clock-20261023.json"
+  ],
+  "tests": [
+    {
+      "name": "Existing complete consultation total bound fixture suite",
+      "status": "passed",
+      "evidence": "6/6 tests; strict equality and thresholds unchanged, fixed clock1000.0 as in adjacent test. /workspace/samantha-recovery-evidence/core-consultation-fixed-clock.log"
+    }
+  ],
+  "documentation": [
+    "docs/changes/ci-consultation-budget-clock-20261023.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Test fixture only; no route, permission or runtime change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No production code changed; same canonical guard and CI owner."
+  },
+  "rollback": "Revert this test fixture origin; production and runtime data unchanged.",
+  "limitations": [
+    "Canonical full exact-head CI required after commit; no LIVE or activation qualification."
+  ]
+}

@@ -42,56 +42,114 @@ if [ "${1:-}" = "--resolve" ]; then printf '{"root":"%s","repo":"%s"}\n' "$ROOT"
 #   companion-deploy.sh --maintenance close [--allow conv-…]…   new epoch, every new request refused (D-B);
 #                                                               --allow: acceptance conversations (B-14)
 #   companion-deploy.sh --maintenance open                      reopen this epoch; older messages render stale
-#   companion-deploy.sh --maintenance status
+#   companion-deploy.sh --maintenance open --expected-epoch N --expected-revision HEX32  scoped CAS
+#   companion-deploy.sh --maintenance status|capabilities
 # The WhatsApp channel is never stopped: each message gets the deterministic maintenance reply and OpenClaw marks it
 # completed, so nothing is delivered late after the reopening.
 if [ "${1:-}" = "--maintenance" ]; then
   shift
   DIALOGUE_HOME="${CLAW_DIALOGUE_HOME:-$HOME/.openclaw/samantha-dialogue}"
-  mkdir -p "$DIALOGUE_HOME"; chmod 700 "$DIALOGUE_HOME"
-  # Bounded wait with `flock -n` only: the toybox flock found first on some S24 PATHs has no `-w`
-  # (bascule 17/10: `flock -w 10` failed there). Same 10 s bound, same refusal, any flock.
-  exec 8>"$DIALOGUE_HOME/maintenance.lock"
-  lock_tries=$(( ${COMPANION_MAINTENANCE_LOCK_WAIT_S:-10} * 5 ))
-  until flock -n 8; do
-    lock_tries=$((lock_tries - 1))
-    [ "$lock_tries" -gt 0 ] || { echo "maintenance_marker_busy" >&2; exit 3; }
-    sleep 0.2
-  done
-  python3 - "$DIALOGUE_HOME/maintenance.json" "$STATE" "$@" <<'PY'
-import json, os, re, sys, time
-path, state_dir, args = sys.argv[1], sys.argv[2], sys.argv[3:]
+  [ ! -L "$DIALOGUE_HOME" ] || { echo "maintenance_path_invalid" >&2; exit 2; }
+  mkdir -p "$DIALOGUE_HOME" || exit 2
+  chmod 700 "$DIALOGUE_HOME" || exit 2
+  python3 - "$DIALOGUE_HOME" "$STATE" "$@" <<'PY'
+import fcntl, json, os, re, stat, sys, time, uuid
+home, state_dir, args = sys.argv[1], sys.argv[2], sys.argv[3:]
+
+def refuse(cause, code=2):
+    print(cause, file=sys.stderr); sys.exit(code)
+
 action = args[0] if args else "status"
+allow, expected_epoch, expected_revision = [], None, None
+index = 1
+while index < len(args):
+    flag = args[index]
+    if index + 1 >= len(args): refuse("maintenance_arguments_invalid")
+    value = args[index + 1]
+    if flag == "--allow" and action == "close" and re.fullmatch(r"conv-[a-f0-9]{24}", value):
+        allow.append(value)
+    elif flag == "--expected-epoch" and action == "open" and expected_epoch is None \
+            and re.fullmatch(r"0|[1-9][0-9]{0,18}", value):
+        expected_epoch = int(value)
+    elif flag == "--expected-revision" and action == "open" and expected_revision is None \
+            and re.fullmatch(r"[a-f0-9]{32}", value):
+        expected_revision = value
+    else:
+        refuse("maintenance_arguments_invalid")
+    index += 2
+if action not in {"close", "open", "status", "capabilities"} or len(allow) > 16 \
+        or ((expected_revision is None) != (expected_epoch is None)):
+    refuse("maintenance_arguments_invalid")
+raw_wait = os.environ.get("COMPANION_MAINTENANCE_LOCK_WAIT_S", "10")
+if not re.fullmatch(r"0|[1-9][0-9]{0,2}", raw_wait) or int(raw_wait) > 600:
+    refuse("maintenance_lock_wait_invalid")
+# Same existing lock and writer. A safe open avoids truncating a substituted
+# lock/marker; no external flock option depends on the Termux PATH.
 try:
-    current = json.load(open(path))
+    directory = os.open(home, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    lock = os.open("maintenance.lock", os.O_CREAT | os.O_RDWR | os.O_NONBLOCK | os.O_NOFOLLOW,
+                   0o600, dir_fd=directory)
+    info = os.fstat(lock)
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
+        refuse("maintenance_lock_invalid")
+except OSError:
+    refuse("maintenance_path_invalid")
+deadline = time.monotonic() + int(raw_wait)
+while True:
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB); break
+    except BlockingIOError:
+        if time.monotonic() >= deadline: refuse("maintenance_marker_busy", 3)
+        time.sleep(0.2)
+if action == "capabilities":
+    print(json.dumps({"version": 1, "owner": "companion-deploy.sh",
+                      "expected_epoch_open": True, "expected_revision_open": True})); sys.exit(0)
+try:
+    fd = os.open("maintenance.json", os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW, dir_fd=directory)
+    with os.fdopen(fd) as source:
+        info = os.fstat(source.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size > 16384 or info.st_nlink != 1:
+            raise ValueError("invalid_marker")
+        current = json.load(source)
+    if (not isinstance(current, dict) or current.get("state") not in {"open", "closed"}
+            or type(current.get("epoch")) is not int or not 0 <= current["epoch"] < 2**63
+            or ("revision" in current and not re.fullmatch(r"[a-f0-9]{32}", str(current["revision"])))):
+        raise ValueError("invalid_marker")
 except FileNotFoundError:
     current = {"state": "open", "epoch": 0, "changedAt": 0}
 except (OSError, ValueError):
     current = {"state": "closed", "epoch": None, "invalid": True}
 if action == "status":
     print(json.dumps(current, ensure_ascii=False)); sys.exit(0)
-allow = [args[i + 1] for i, a in enumerate(args) if a == "--allow" and i + 1 < len(args)]
-if action not in ("close", "open") or any(not re.fullmatch(r"conv-[a-f0-9]{24}", ref) for ref in allow) \
-        or (allow and action != "close"):
-    print("usage: --maintenance close [--allow conv-<24 hex>]... | open | status", file=sys.stderr); sys.exit(2)
-epoch = int(current.get("epoch") or 0)
 if current.get("invalid") and action == "open":
-    print("maintenance_marker_invalid: close it again before opening", file=sys.stderr); sys.exit(2)
+    refuse("maintenance_marker_invalid: close it again before opening")
+epoch = int(current.get("epoch") or 0)
+if expected_epoch is not None and (epoch != expected_epoch or
+        (expected_revision is not None and current.get("revision") != expected_revision)):
+    refuse("maintenance_epoch_mismatch", 4)
+# Repeating the same scoped open is a read, not a new maintenance transition.
+if expected_epoch is not None and current.get("state") == "open":
+    print(json.dumps({"state": "open", "epoch": epoch, "revision": current.get("revision"),
+                      "unchanged": True})); sys.exit(0)
 now = int(time.time() * 1000)
 value = {"state": "closed" if action == "close" else "open",
          "epoch": epoch + 1 if action == "close" and current.get("state") != "closed" else epoch,
+         "revision": uuid.uuid4().hex if action == "close" else current.get("revision"),
          "changedAt": now, "by": "companion-deploy.sh", "acceptance": allow}
-tmp = path + ".next"
-fd = os.open(tmp, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+# Existing legacy markers can be opened without introducing a null revision.
+if value["revision"] is None: del value["revision"]
+name = "maintenance.json.next-" + uuid.uuid4().hex
+fd = os.open(name, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600, dir_fd=directory)
 with os.fdopen(fd, "w") as out:
     json.dump(value, out); out.flush(); os.fsync(out.fileno())
-os.replace(tmp, path)
-os.chmod(path, 0o600)
+os.replace(name, "maintenance.json", src_dir_fd=directory, dst_dir_fd=directory)
 stamp = time.strftime("%Y%m%dT%H%M%S")
 receipt = os.path.join(state_dir, f"maintenance-{stamp}.json")
 with open(receipt, "w") as out:
     json.dump({"version": 1, "action": action, "previous": current, "marker": value}, out, ensure_ascii=False)
-print(json.dumps({"state": value["state"], "epoch": value["epoch"], "receipt": receipt}))
+print(json.dumps({"state": value["state"], "epoch": value["epoch"], "revision": value.get("revision"),
+                  "previous_state": current.get("state"), "previous_epoch": current.get("epoch"),
+                  "receipt": receipt}))
 PY
   exit $?
 fi
@@ -153,6 +211,9 @@ doc={"version":1,"state":state,"target":target,"previous":previous,"detail":deta
      "at":datetime.datetime.now(datetime.timezone.utc).isoformat()}
 # R03: a rollback is judged on identity and availability, kept apart from the acceptance that failed.
 if rollback_acc is not None: doc["rollback_acceptance"]=rollback_acc
+try: parcours=json.loads(__import__("os").environ.get("PARCOURS_JSON") or "null")
+except ValueError: parcours={"state":"unreadable"}
+if parcours is not None: doc["parcours"]=parcours
 json.dump(doc,open(path,"w"),ensure_ascii=False)
 PY
   # Only ordinary logs are bounded. Canonical JSON receipts are never removed.
@@ -162,7 +223,7 @@ PY
 health(){ for _ in $(seq 1 60); do curl -fsS -m 3 http://127.0.0.1:8765/v1/health >/dev/null 2>&1 && return 0; sleep 2; done; return 1; }
 # The Companion is started with the lock fd closed: otherwise it inherits it and holds the deploy lock forever.
 restart(){ pkill -f 'dist/companion/server.js' 2>/dev/null; sleep 3
-  pgrep -f 'dist/companion/server.js' >/dev/null || { nohup "$ROOT/companion-server.sh" >>"$log" 2>&1 </dev/null & } 9>&-
+  pgrep -f 'dist/companion/server.js' >/dev/null || { CLAWMOBILE_DEPLOY_CANDIDATE="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)" nohup "$ROOT/companion-server.sh" >>"$log" 2>&1 </dev/null & } 9>&-
   health || return 1
   # Settle before judging: Gateway session ready and load back under the preflight ceiling (bounded, 3 min).
   gateway_ready || echo "settle: gateway_not_ready" >>"$log"
@@ -179,8 +240,15 @@ wait_calm(){ limit="$1"; max="$2"; waited=0; ok=0
     if calm "$max"; then ok=$((ok+1)); [ "$ok" -ge 3 ] && return 0; else ok=0; fi
     sleep 10; waited=$((waited+10))
   done; return 1; }
-# Gateway-backed reads answer again (not 503) before they are judged.
-gateway_ready(){ for _ in $(seq 1 30); do code=$(curl -s -o /dev/null -w '%{http_code}' -m 10 http://127.0.0.1:8765/v1/control/health?contract=2 2>/dev/null); [ "$code" = 200 ] && return 0; sleep 4; done; return 1; }
+# Gateway-backed reads answer again (not 503) before they are judged. S24 26/10 11:33: /control/health answered
+# 200 while the Gateway was still starting (startup-sidecars-pending until 11:34:59); /agent/config, metadata,
+# WhatsApp and automations answered 503 and the deploy rolled back. Ready means a Gateway-backed read answers too.
+GATEWAY_READY_TRIES="${COMPANION_DEPLOY_GATEWAY_READY_TRIES:-45}"
+case "$GATEWAY_READY_TRIES" in ''|*[!0-9]*) GATEWAY_READY_TRIES=45;; esac
+gateway_ready(){ for _ in $(seq 1 "$GATEWAY_READY_TRIES"); do
+  control=$(curl -s -o /dev/null -w '%{http_code}' -m 10 'http://127.0.0.1:8765/v1/control/health?contract=2' 2>/dev/null)
+  agent=$(curl -s -o /dev/null -w '%{http_code}' -m 10 'http://127.0.0.1:8765/v1/agent/config' 2>/dev/null)
+  [ "$control" = 200 ] && [ "$agent" = 200 ] && return 0; sleep 4; done; return 1; }
 WAIT_CALM_S="${COMPANION_DEPLOY_WAIT_CALM_S:-0}"
 [ "$WAIT_CALM_S" -gt 0 ] && wait_calm "$WAIT_CALM_S" "$MAX_LOAD" >/dev/null 2>&1 || true
 
@@ -236,6 +304,48 @@ sync_runtime(){ [ -x "$ROOT/runtime-sync.sh" ] || { echo '{"ok":true,"skipped":"
 
 rollback(){
   reason="$1"; acc="${2:-}"
+  # A candidate can install a model profile consumer before its Tier0 release is promoted.
+  # Undo its exact set while this checkout still owns the manifest; the previous release may not.
+  if [ -f "$ROOT/openclaw-compat/model-flow-selection.json" ] &&
+     { ! git cat-file -e "$previous:installer/termux-lite/openclaw-compat/model-flow-selection.json" 2>/dev/null ||
+       [ "$(git rev-parse "$previous:installer/termux-lite/openclaw-compat/model-flow-selection.json" 2>/dev/null)" != "$(git hash-object "$ROOT/openclaw-compat/model-flow-selection.json")" ]; }; then
+    python3 "$ROOT/openclaw-compat/whatsapp-network-recovery.py" --patch-set model-flow-selection --rollback >>"$log" 2>&1 ||
+      { write rollback_failed "$full" "$previous" "model_flow_selection_rollback_failed"; exit 6; }
+  fi
+  # A candidate can extend a known patch set. Undo its exact manifest before the previous checkout
+  # reapplies its own version; the old owner must never see an unknown newer patched hash.
+  if [ -f "$ROOT/openclaw-compat/native-turn-provenance.json" ] &&
+     { ! git cat-file -e "$previous:installer/termux-lite/openclaw-compat/native-turn-provenance.json" 2>/dev/null ||
+       [ "$(git rev-parse "$previous:installer/termux-lite/openclaw-compat/native-turn-provenance.json" 2>/dev/null)" != "$(git hash-object "$ROOT/openclaw-compat/native-turn-provenance.json")" ]; }; then
+    python3 "$ROOT/openclaw-compat/whatsapp-network-recovery.py" --patch-set native-turn-provenance --rollback >>"$log" 2>&1 ||
+      { write rollback_failed "$full" "$previous" "native_turn_provenance_rollback_failed"; exit 6; }
+  fi
+  # The memory recall keep-alive set: undo a manifest the previous checkout does not own byte for byte.
+  if [ -f "$ROOT/openclaw-compat/memory-retrieval-warm.json" ] &&
+     { ! git cat-file -e "$previous:installer/termux-lite/openclaw-compat/memory-retrieval-warm.json" 2>/dev/null ||
+       [ "$(git rev-parse "$previous:installer/termux-lite/openclaw-compat/memory-retrieval-warm.json" 2>/dev/null)" != "$(git hash-object "$ROOT/openclaw-compat/memory-retrieval-warm.json")" ]; }; then
+    python3 "$ROOT/openclaw-compat/whatsapp-network-recovery.py" --patch-set memory-retrieval-warm --rollback >>"$log" 2>&1 ||
+      { write rollback_failed "$full" "$previous" "memory_retrieval_warm_rollback_failed"; exit 6; }
+  fi
+  # The Android filesystem set: undo a manifest the previous checkout does not own byte for byte.
+  if [ -f "$ROOT/openclaw-compat/android-fs-compat.json" ] &&
+     { ! git cat-file -e "$previous:installer/termux-lite/openclaw-compat/android-fs-compat.json" 2>/dev/null ||
+       [ "$(git rev-parse "$previous:installer/termux-lite/openclaw-compat/android-fs-compat.json" 2>/dev/null)" != "$(git hash-object "$ROOT/openclaw-compat/android-fs-compat.json")" ]; }; then
+    python3 "$ROOT/openclaw-compat/whatsapp-network-recovery.py" --patch-set android-fs-compat --rollback >>"$log" 2>&1 ||
+      { write rollback_failed "$full" "$previous" "android_fs_compat_rollback_failed"; exit 6; }
+  fi
+  # The startup triage opt-out set: undo a manifest the previous checkout does not own byte for byte.
+  if [ -f "$ROOT/openclaw-compat/startup-triage-optout.json" ] &&
+     { ! git cat-file -e "$previous:installer/termux-lite/openclaw-compat/startup-triage-optout.json" 2>/dev/null ||
+       [ "$(git rev-parse "$previous:installer/termux-lite/openclaw-compat/startup-triage-optout.json" 2>/dev/null)" != "$(git hash-object "$ROOT/openclaw-compat/startup-triage-optout.json")" ]; }; then
+    python3 "$ROOT/openclaw-compat/whatsapp-network-recovery.py" --patch-set startup-triage-optout --rollback >>"$log" 2>&1 ||
+      { write rollback_failed "$full" "$previous" "startup_triage_optout_rollback_failed"; exit 6; }
+  fi
+  if [ -f "$ROOT/openclaw-compat/agent-exec-auth-scope.json" ] &&
+     ! git cat-file -e "$previous:installer/termux-lite/openclaw-compat/agent-exec-auth-scope.json" 2>/dev/null; then
+    python3 "$ROOT/openclaw-compat/whatsapp-network-recovery.py" --patch-set agent-exec-auth-scope --rollback >>"$log" 2>&1 ||
+      { write rollback_failed "$full" "$previous" "agent_exec_auth_scope_rollback_failed"; exit 6; }
+  fi
   # Undo this compatibility patch before returning to a revision that does not own it.
   if [ -f "$ROOT/openclaw-compat/whatsapp-network-recovery.py" ] &&
      ! git cat-file -e "$previous:installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py" 2>/dev/null; then
@@ -252,15 +362,24 @@ rollback(){
   # different from the one that admitted the restarted Companion.
   health_ok=false; restart && health_ok=true
   head_now="$(git rev-parse HEAD 2>/dev/null)"; dist_now="$(dist_hash "$PLUGIN/dist" 2>/dev/null)"
-  rollback_acc=$(python3 - "$previous" "$head_now" "$backup_hash" "$dist_now" "$health_ok" <<'PY'
+  # S24 02/11 09:44 UTC (deploy 20e36415): the Companion health was not ready in time, the runtime sync sat at the
+  # end of the && chain and never ran, so the Gateway kept the failed candidate's plugin (typed tools refused) for
+  # 50 minutes. Once the checkout identity is proven, the Gateway plugin and Tier0 release are always brought back
+  # to previous, whatever the Companion health; a failed sync is its own failed check.
+  runtime_ok=false; runtime=""
+  if [ "$head_now" = "$previous" ] && [ -n "$dist_now" ] && [ "$dist_now" = "$backup_hash" ]; then
+    runtime=$(sync_runtime "$previous") && runtime_ok=true
+  fi
+  rollback_acc=$(python3 - "$previous" "$head_now" "$backup_hash" "$dist_now" "$health_ok" "$runtime_ok" <<'PY'
 import json,sys
-previous,head,want,got,health=sys.argv[1:6]
-checks={"head_is_previous":bool(head) and head==previous,"dist_matches_backup":bool(got) and got==want,"health_ready":health=="true"}
+previous,head,want,got,health,runtime=sys.argv[1:7]
+checks={"head_is_previous":bool(head) and head==previous,"dist_matches_backup":bool(got) and got==want,"health_ready":health=="true",
+        "runtime_restored":runtime=="true"}
 print(json.dumps({"ok":all(checks.values()),"criterion":"identity_and_health","head":head[:12] or None,"checks":checks}))
 PY
 )
-  if [ "$head_now" = "$previous" ] && [ -n "$dist_now" ] && [ "$dist_now" = "$backup_hash" ] && $health_ok \
-     && runtime=$(sync_runtime "$previous"); then write rolled_back "$full" "$previous" "$reason" "$acc" "$runtime" "$rollback_acc"
+  if [ "$head_now" = "$previous" ] && [ -n "$dist_now" ] && [ "$dist_now" = "$backup_hash" ] && $health_ok && $runtime_ok; then
+    write rolled_back "$full" "$previous" "$reason" "$acc" "$runtime" "$rollback_acc"
   else write rollback_failed "$full" "$previous" "$reason" "$acc" "${runtime:-}" "$rollback_acc"; "$ROOT/incident-notify.sh" human_required "Samantha — déploiement Companion ${full:0:7} annulé mais le retour arrière n'est pas sain." >/dev/null 2>&1 || true; fi
   exit 6
 }
@@ -273,6 +392,15 @@ restart || rollback health_failed
 acc=$(accept 2>>"$log"); rc=$?
 [ "$rc" -eq 0 ] || rollback acceptance_failed "$acc"
 runtime=$(sync_runtime "$full") || rollback runtime_sync_failed "$acc"
+# Amine 29/10: five representative paths on the switched runtime (Gateway on the synced plugin). A failed path
+# rolls back; a provider outage (exit 3) does not, a rollback would not fix it. The section goes in the receipt.
+if [ -f "$ROOT/deploy-parcours.py" ]; then
+  gateway_ready || echo "settle: gateway_not_ready_before_parcours" >>"$log"
+  # The paths judge the warm runtime Amine meets; the Gateway's one cold turn is paid here (brain-warm.py).
+  [ -f "$ROOT/brain-warm.py" ] && { python3 "$ROOT/brain-warm.py" >>"$log" 2>&1 || echo "settle: brain_warm_failed" >>"$log"; }
+  PARCOURS_JSON=$(python3 "$ROOT/deploy-parcours.py" 2>>"$log"); prc=$?; export PARCOURS_JSON
+  [ "$prc" -eq 1 ] && rollback parcours_failed "$acc"
+fi
 write deployed "$full" "$previous" "ok" "$acc" "$runtime"
 # M3 « une seule mémoire » : the receipt above (~/.openclaw/deploys/companion-*.json, served by
 # deploymentReceipts.ts) is the canonical deploy record; no "Companion déployé" copy in memory.db.

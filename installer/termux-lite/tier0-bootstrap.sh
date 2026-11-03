@@ -95,5 +95,4 @@ if ! pgrep -f '[t]ier0-watchdog.py' >/dev/null 2>&1; then
 fi
 mkdir -p "$HOME/.openclaw/continuity"
 printf '%s boot=tier0 event=started release=%s\n' "$(date -Iseconds)" "$(basename "$(dirname "$ROOT")")" >>"$HOME/.openclaw/continuity/boot.log"
-nohup "$ROOT/boot-continuity-recovery.sh" >>"$HOME/.openclaw/continuity/boot-recovery.stderr.log" 2>&1 </dev/null &
 exec "$ROOT/samantha-root-guardian.sh"

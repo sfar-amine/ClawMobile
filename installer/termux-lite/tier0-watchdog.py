@@ -54,6 +54,13 @@ def sample_evidence(s,health,decision):
 
 def rollback_for_sample(s,reason):
     if STOP.exists(): return
+    admission=runpy.run_path(str(Path(__file__).with_name('immune_action.py')))
+    return admission['run']('tier0','bounded-soak-rollback',
+        {'reason':reason,'sample':s.get('soak_last_health_sample',{})},
+        lambda: _rollback_selected(s,reason))
+
+def _rollback_selected(s,reason):
+    if STOP.exists(): return
     evidence=s.get('soak_last_health_sample',{})
     record={'event':'soak_rollback','reason':reason,**evidence}
     try:
@@ -117,9 +124,14 @@ def tick():
         s['lkg_candidate']=cur.name;s['lkg_due_epoch']=int(now)+LKG_HOLD_S
     save(s)
 def main():
-    while True:
-        try:tick()
-        except Exception as e:
-            with (T/'watchdog.log').open('a') as f:f.write(f'{time.time()} error={type(e).__name__}\n')
-        time.sleep(10)
-if __name__=='__main__':main()
+    T.mkdir(parents=True,exist_ok=True)
+    # Same Tier0 owner, one resident interpreter. Guardian and bootstrap may observe absence concurrently.
+    with (T/'watchdog.lock').open('a') as lock:
+        try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:return
+        while True:
+            try:tick()
+            except Exception as e:
+                with (T/'watchdog.log').open('a') as f:f.write(f'{time.time()} error={type(e).__name__}\n')
+            time.sleep(10)
+if __name__=='__main__': main()

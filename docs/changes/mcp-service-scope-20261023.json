@@ -1,0 +1,103 @@
+{
+  "version": 2,
+  "id": "mcp-service-scope-20261023",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Bind MCP interpretation to an authenticated server service",
+  "reason": "A generic client context must not select a Pulse-only catalogue or create service authority",
+  "files": [
+    ".github/workflows/ci.yml",
+    "cloud/voice-relay/src/index.mjs",
+    "cloud/voice-relay/src/mcp.mjs",
+    "cloud/voice-relay/test-long-action.mjs",
+    "cloud/voice-relay/test-mcp.mjs",
+    "docs/08-decisions/ADR-20261023-mcp-service-scope.md",
+    "docs/changes/mcp-service-scope-20261023.json",
+    "docs/changes/mcp-service-scope-20261023.md",
+    "docs/work/samantha-runtime/contracts/mcp-service-scope.md",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-model-fast-path-intent.py",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-client-input.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-context-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-private-context.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-read-owner.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-read-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-service-scope.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-model-fast-path-intent.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-model-fast-path-mcp-read.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts"
+  ],
+  "tests": [
+    {
+      "name": "MCP scope and existing owner regressions",
+      "status": "passed",
+      "evidence": "TypeScript compile; Node120/120; Python18/18; Worker tool/provenance, routing6/6, OIDC8/8, local OAuth RPC8/8, including invalid server-config refusals. Actual two-repository owner pairs target PB24cb837b: C8 four cases, C12 five admitted helper calls, no unadmitted/shadow reads; DATA_PROFILE_UNVERIFIED remains closed. Canonical numbered-PR CI pending. No model or business effects."
+    },
+    {
+      "name": "Portable retained C8/C12 owner pairs",
+      "status": "passed",
+      "evidence": "Replayed against immutable committed PB24cb837b9aa966af6f2ab15294179108a4f107d7; original mechanisms retained, MOCK_ONLY, source metadata only, zero provider calls and real effects. Exact core-head replay follows commit."
+    }
+  ],
+  "documentation": [
+    "docs/08-decisions/ADR-20261023-mcp-service-scope.md",
+    "docs/work/samantha-runtime/contracts/mcp-service-scope.md",
+    "docs/changes/mcp-service-scope-20261023.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing MCP tool admission and internal catalogue boundary only; no new route/action or grant"
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Extend existing C12 private contract across the paired owners",
+    "documents": [
+      "docs/08-decisions/ADR-20261023-mcp-service-scope.md"
+    ]
+  },
+  "rollback": "Restore a compatible core/PB pair through existing delivery owners; disable new ingress, retain receipts and historical/native routes.",
+  "limitations": [
+    "No real client configuration or activation",
+    "No LIVE/provider/professional DATA qualification",
+    "Canonical exact-head numbered-PR CI pending; paired fixture proof is not LIVE activation."
+  ],
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "updated",
+      "claw_execute": "updated",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "updated",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "other_existing_tools": {
+      "claw_remember": "verified_no_impact"
+    },
+    "evidence": [
+      "Server client configuration alone admits service selection",
+      "Existing authenticated exact-frame WeakMap binds the service; public JSON cannot mint it",
+      "Private peer/header/digest checks precede owner IO",
+      "Scope selects a canonical domain, never DATA or business permission"
+    ]
+  },
+  "paired_dependency": {
+    "repository": "sfar-amine/samantha-ui-playbooks",
+    "sha": "24cb837b9aa966af6f2ab15294179108a4f107d7",
+    "qualification": "MOCK_ONLY",
+    "replay": "node openclaw-plugin-mobile-ui/scripts/test-mcp-{read,context}-paired.cjs <PB-checkout> 24cb837b9aa966af6f2ab15294179108a4f107d7 <result.json>",
+    "external_provider_calls": 0,
+    "real_business_effects": 0
+  }
+}

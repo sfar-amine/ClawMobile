@@ -33,18 +33,42 @@ export type DialogueReply = {
   handoff?: { status: string; klass: string } | null;
   pendingHandoff?: { goalRef: string; klass: string } | null;
   replayed?: boolean;
+  /** A question keeps the requests behind it waiting in the coordinator's conversation state. */
+  queuedCount?: number;
+  /** Waiting requests handed back once their question no longer is open; the host runs them next. */
+  resumeRequests?: DialogueRequest[];
+  requestContext?: DialogueRequestContext;
+  requestQueue?: unknown;
+  /** Nothing ran and nothing was kept (Samantha restarting, closed maintenance window): submit the same event again. */
+  retryable?: boolean;
 };
+
+export type DialogueRequest = {text: string; eventRef: string; parentEventRef: string; ordinal: number};
+export type DialogueRequestContext = {parentEventRef: string; originalText: string};
+export function dialogueChildRequest(parentEventRef:string,text:string,ordinal:number):DialogueRequest {
+  return {text,parentEventRef,ordinal,eventRef:'pulse-sub:'+crypto.createHash('sha256')
+    .update(JSON.stringify([parentEventRef,ordinal,text])).digest('hex')};
+}
+/** Same quoted view as the canonical coordinator; all bytes remain source-attested user data. */
+export function dialogueRequestText(text:string,context?:Readonly<DialogueRequestContext>){
+  return context?'Message original (contexte et contraintes à conserver) :\n'+context.originalText+
+    '\n\nDemande actuellement traitée :\n'+text:text;
+}
 
 export type DialogueRunner = (message: string, options?: RunnerOptions) => Promise<FastPathResult>;
 
 export type DialogueInput = {
   /** Host-only QA room authority, excluded from the dialogue event and policy payloads. */
   qaContext?:Record<string,unknown>;
+  nativePulse?:import("./nativePulseAdmission").NativePulseContact;
   surface: DialogueSurfaceName;
   graphSurface: string;
   conversationKey: string;
   eventRef: string;
   text: string;
+  /** Requests of the same message not run yet; kept by the coordinator only if this one asks a question. */
+  queuedRequests?: DialogueRequest[];
+  requestContext?: DialogueRequestContext;
   caller?: "owner" | "trusted" | "other";
   admittedAt?: number;
   policy?: Record<string, unknown>;
@@ -56,7 +80,9 @@ export type DialogueInput = {
 export const DIALOGUE_UNAVAILABLE_TEXT =
   "Je ne peux pas traiter ta demande pour le moment : le suivi de conversation de Samantha est indisponible. Rien n'a été exécuté ; réessaie dans un instant.";
 const QUESTION_OUTCOMES = new Set(["NEEDS_INPUT", "NEEDS_CHOICE", "NEEDS_CONFIRMATION", "STALE_QUESTION"]);
-const DONE_OUTCOMES = new Set(["COMPLETED", "WAITING_OPERATION"]);
+// CANCELLED: the coordinator closed the open request at the user's word (S24 30/10, Pulse room recette:
+// « Annule la demande en cours » was cancelled in the store but shown as « suivi de conversation indisponible »).
+const DONE_OUTCOMES = new Set(["COMPLETED", "WAITING_OPERATION", "CANCELLED"]);
 const OUTCOMES = new Set([...QUESTION_OUTCOMES, ...DONE_OUTCOMES, "READY", "UNRESOLVED", "DENIED", "OUTSIDE_SCOPE",
   "NEW_GOAL", "TECHNICAL_FAILURE", "FAILED", "EVENT_ID_CONFLICT", "MAINTENANCE", "STALE_EPOCH", "HANDOFF_INTERRUPTED"]);
 
@@ -102,6 +128,7 @@ export function admittedAtMs(value: unknown): number | undefined {
 function runnerOptions(input: DialogueInput, mode: DialogueMode): RunnerOptions {
   return {
     ...(input.qaContext?{qaContext:input.qaContext}:{}),
+    ...(input.nativePulse?{nativePulse:input.nativePulse}:{}),
     surface: input.graphSurface,
     caller: input.caller || "owner",
     originId: input.eventRef.slice(0, 120),
@@ -112,7 +139,43 @@ function runnerOptions(input: DialogueInput, mode: DialogueMode): RunnerOptions 
 
 function eventOf(input: DialogueInput) {
   return { surface: input.surface, conversationKey: input.conversationKey, eventRef: input.eventRef,
-    caller: input.caller || "owner", ...(input.admittedAt ? { admittedAt: input.admittedAt } : {}) };
+    caller: input.caller || "owner", ...(input.admittedAt ? { admittedAt: input.admittedAt } : {}),
+    ...(input.queuedRequests?.length ? { queuedRequests: input.queuedRequests } : {}),
+    ...(input.requestContext ? {requestContext: input.requestContext} : {}) };
+}
+
+export const MAX_SPLIT_REQUESTS = 10;
+const ENUMERATED = /^\s*(?:\d{1,2}\s*[.)\-:]|[-•*])\s+(\S.*)$/;
+
+/**
+ * Amine 26/10 (« il faut gérer ce genre de demande automatiquement »): « 1. État du projet …\n2. Passe la phase … »
+ * is two requests. Deterministic and closed: split only when the message is an enumeration from its first line
+ * (a line that is not an item continues the previous item); anything else stays one request.
+ */
+export function splitRequests(text: string): string[] {
+  const items: string[] = [];
+  for (const line of String(text || "").split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const item = ENUMERATED.exec(line);
+    if (item) items.push(item[1].trim());
+    else if (items.length) items[items.length - 1] += "\n" + line.trim();
+    else return [String(text || "").trim()];
+  }
+  return items.length >= 2 && items.length <= MAX_SPLIT_REQUESTS ? items : [String(text || "").trim()];
+}
+
+/**
+ * Ordinal of a child request of `context`, or 0 when `text`/`eventRef` is not one. An enumerated message's child is
+ * one of its lines (splitRequests). Any other message's child, ordinal 2 and up, is a request the coordinator's
+ * interpreter found in it beside the first one (S24 30/10, « liste les projets et les offres »); the message itself
+ * was ordinal 1. Both carry the same derived identity, and each is interpreted again with the original message.
+ */
+export function dialogueChildOrdinal(context: Readonly<DialogueRequestContext>, text: unknown, eventRef: unknown): number {
+  if (typeof text !== "string" || !text.trim() || typeof eventRef !== "string") return 0;
+  const parts = splitRequests(context.originalText);
+  const ordinals = parts.length > 1 ? parts.map((part, n) => part === text ? n + 1 : 0).filter(Boolean)
+    : Array.from({ length: MAX_SPLIT_REQUESTS - 1 }, (_, n) => n + 2);
+  return ordinals.find(n => dialogueChildRequest(context.parentEventRef, text, n).eventRef === eventRef) ?? 0;
 }
 
 export async function dialogueTurn(runner: DialogueRunner, input: DialogueInput): Promise<DialogueReply> {
@@ -122,6 +185,24 @@ export async function dialogueTurn(runner: DialogueRunner, input: DialogueInput)
   } catch {
     return asDialogueReply({ status: "error", reason: "helper_failed" });
   }
+}
+
+/** Waiting bound while Samantha restarts (S24 28/10: Gateway up, interpreter ready about 1 min 40 s later). */
+export const DEFER_UNTIL_READY = { windowMs: 5 * 60_000, stepMs: 5_000 };
+export const STILL_RESTARTING_TEXT = "Samantha redémarre encore : rien n’a été exécuté. Renvoie ta demande dans quelques minutes, stp.";
+
+/**
+ * Amine 28/10 (replaces D-B): a message received while Samantha restarts is kept and handled once she is ready.
+ * The coordinator marks a turn retryable only when it kept nothing and ran nothing (closed maintenance window,
+ * interpretation never dispatched); the same event is submitted again, bounded. Any other reply is final.
+ */
+export async function dialogueTurnUntilReady(runner: DialogueRunner, input: DialogueInput): Promise<DialogueReply> {
+  let turn = await dialogueTurn(runner, input);
+  for (const until = Date.now() + DEFER_UNTIL_READY.windowMs; turn.retryable === true && Date.now() + DEFER_UNTIL_READY.stepMs <= until;) {
+    await new Promise(done => setTimeout(done, DEFER_UNTIL_READY.stepMs));
+    turn = await dialogueTurn(runner, input);
+  }
+  return turn;
 }
 
 /** Second half of a deferred turn (app, doc 43): execute or abort the hand-off already committed with its decision. */

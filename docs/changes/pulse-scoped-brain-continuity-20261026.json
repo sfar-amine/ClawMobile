@@ -1,0 +1,85 @@
+{
+  "version": 2,
+  "id": "pulse-scoped-brain-continuity-20261026",
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Le parcours cerveau unique concerne Amine ; le service professionnel des contacts Pulse conserve son IA Gemini déjà admise et transmet les contraintes globales avec des reprises durables identifiées.",
+  "reason": "Confrontation SPEC owner/WhatsApp d’Amine et réparation des écarts441 : fragments sans contexte global, identité de reprise recréée, perte en interruption et poursuite après effet incertain. Admission C2/DATA01 et origine d’effet du coordinateur inchangées.",
+  "files": [
+    "installer/termux-lite/model-fast-path.py",
+    "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
+    "openclaw-plugin-mobile-ui/src/dialogueSurface.ts",
+    "openclaw-plugin-mobile-ui/src/nativePulseAdmission.ts",
+    "openclaw-plugin-mobile-ui/src/pulseRoomFastPath.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-native-pulse-handoff.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
+    "docs/changes/pulse-scoped-brain-continuity-20261026.md",
+    "docs/08-decisions/ADR-20261026-pulse-scoped-brain.md",
+    "docs/changes/pulse-scoped-brain-continuity-20261026.json",
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/scripts/test-native-pulse-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/native-pulse-paired-helper.py"
+  ],
+  "tests": [
+    {
+      "name": "Owner scope / professional Pulse continuity focused source",
+      "status": "passed",
+      "evidence": "CI core441-owner-scope-restored-focused-v1.log : TS +4scripts existants (room, intent port, NativePulse39/39 mocks, typedowner isolation), PASS8.218s ; WIP source/diff hashes identiques avant/après. Garde acteurSDK propriétaire, contexte lié/forgé/absent, refs longues/stables, reprises de la queue existante, stop erreur/inconnu/replay et purpose professionnel conservé sous flagowner."
+    },
+    {
+      "name": "Native Pulse actual Node/Python/IR/Graph paired owners",
+      "status": "passed",
+      "evidence": "CI core428-pb8588-native-paired-final-v8.log :47/47 PASS8.635s avec PB85883aa31be7dd7633a12abaebf0dbe01242d140 propre ; source Core3661+WIP explicitée dans source_state et snapshots CI stables. Global-only4/4 PASS également. Aucun fournisseur/réseau/effet professionnel réel ; C2source est MOCK_ONLY ici et son WholeProjection/R17 réel est couvert séparément dans les191testsPB. Source40/40 NativeHandoff après refus parentuntracked vérifiée dans ciblév4, sans attribuer son échecglobal historique au succès final. PinCI C16 mis àjour vers le propriétaire effectivement testé."
+    },
+    {
+      "name": "Final canonical PB8bbd room-policy paired contract",
+      "status": "passed",
+      "evidence": "Exact Core16a7c38467a6235d2562416b6b809283c8e05ec1/PB8bbd00ccb848d0b52773f2fa1b8d16fc87b83136, clean stable sources:49/49 PASS12.009s in qualified cloud container; log core428-16a7c384-pb8bbd-paired-v3.log SHA256 ce394af399f88cf45da136dbe888b33c1e70923a2cc7c1d06577e7d9029f46b4. Canonical #326/decision ec0ec646 room policy: complete request→handoff→completed/replay same event, missing-value question causes zero effect then same-goal answer runs once; pre-effect refusal/replay and global-context deferred sibling retained. Zero provider/network/business effects. Tsc passed on product-identical c8deb. Earlier historical-contract refusal and missing parse5 preparation refusal conserved; no runtime guard relaxed. Final pin PB7615bc96958818b86083e639a89cf4ba0523d818 is code/test/registry-identical to8bbd: diff contains only CAPABILITIES.md regenerated plus its change JSON/MD. Evidence core428-pb7615-docs-equivalence-20261026.json; no repeated product test needed for docs. Exact final canonical full remains required."
+    }
+  ],
+  "documentation": [
+    "docs/changes/pulse-scoped-brain-continuity-20261026.md",
+    "docs/08-decisions/ADR-20261026-pulse-scoped-brain.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "NO_CAPABILITY : aucun nouveau droit, outil, route ou endpoint ; mêmes Pulse/C2 et catalogue MCP, aucune DATA01/Purpose nouvelle."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Borne de portée owner et continuité chez les seuls propriétaires existants ; aucune nouvelle file/planification/retry et aucune nouvelle autorité contact.",
+    "documents": [
+      "docs/08-decisions/ADR-20261026-pulse-scoped-brain.md"
+    ]
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Catalogues, signatures et autorisations MCP inchangés. Le gardeSDK exclut Amine du service contact avant toute interprétation ; modèle/contact ne peut fournir une autorité par texte. La queue appartient au même dialogue CAS."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Les contrôles unitaires et appariés sont MOCK_ONLY, sans fournisseur/S24/effet professionnel.",
+    "Les refus préparatoires et snapshots WIP restent conservés ; ils ne sont pas des verdicts de cette tête publiée.",
+    "CI canonique complète de la nouvelle union et activation/recette S24 restent requises."
+  ],
+  "rollback": "Revert du correctif apparié Core/PB après rapprochement des reçus ; conserver queue/reçus, ne jamais rejouer un effet incertain. Le flag cerveau propriétaire ne change pas les admissions professionnelles contact."
+}

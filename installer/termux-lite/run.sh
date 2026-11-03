@@ -29,7 +29,7 @@ schema_json="$(python3 "$GATEWAY_PREFLIGHT" plugin-schema   --source-manifest "$
   }
 schema_state="$(printf '%s' "$schema_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])')"
 if [ "$schema_state" = "repairable" ]; then
-  if [ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=all -- openclaw-plugin-mobile-ui)" ]; then
+  if clawmobile_source_dirty "$REPO_ROOT" openclaw-plugin-mobile-ui; then
     echo "[lite] ERROR: installed plugin schema is stale, but source plugin has uncommitted changes; refusing automatic deployment." >&2
     exit 1
   fi

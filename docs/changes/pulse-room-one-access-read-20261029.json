@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "id": "pulse-room-one-access-read-20261029",
+  "date": "2026-10-29",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "A Pulse room message reads the contact's access once: NativePulseContact keeps that read for 60 s and every later packet of the same message (dialogue turn, handoff, Bridge submit, dispatch, T2 observation) reuses it instead of spawning the people owner again. Each packet still re-validates the kept value (state, rooms, owner, e164, expiry against the current clock). A failed read is never kept; a message that waits beyond 60 s (restart deferral) reads again.",
+  "reason": "Amine 29/10: « pourquoi il faut checker à chaque message, on perd du temps et efficience ». On the S24 one allowlist read costs 2.1–2.8 s (python spawn); the paired write test showed 11 reads for one room message. Amine approved: one check per message.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/nativePulseAdmission.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-native-pulse-handoff.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-native-pulse-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-native-fast-paired.cjs",
+    "docs/changes/pulse-room-one-access-read-20261029.json",
+    "docs/changes/pulse-room-one-access-read-20261029.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-native-pulse-handoff.cjs",
+      "status": "passed",
+      "evidence": "53/53: one read per message reused by its packets; a revoked contact is refused at the next message and, past 60 s, inside the same message; a failed read is not reused."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-native-pulse-paired.cjs",
+      "status": "passed",
+      "evidence": "49/49 against playbooks 067fb028: a complete room write runs with 1 access read (11 before)."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-native-fast-paired.cjs",
+      "status": "passed",
+      "evidence": "23/23 against playbooks 0d267872: 7 reads for 6 messages (one stale refresh); a stale read is revalidated before the subprocess."
+    }
+  ],
+  "documentation": [
+    "docs/changes/pulse-room-one-access-read-20261029.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same room actions and refusals; fewer owner spawns per message."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "The read is kept inside the existing per-message admission object; no cache, store or daemon is added."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Pulse room admission object only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The Python side still re-checks its sealed in-process evidence at each send (no spawn).",
+    "A revocation made during a message already in progress takes effect within 60 s or at the next message."
+  ],
+  "rollback": "Revert this commit and redeploy the core."
+}

@@ -13,12 +13,20 @@ cur=os.path.realpath(os.path.expanduser("~/.openclaw/runtime-ui-playbooks/curren
 open(os.environ["COMPILE_LOG"],"a").write(os.path.basename(cur)+"\n")
 PY
 export CLAW_CAPABILITY_CLI="$tmp/compile-stub.py" COMPILE_LOG="$tmp/compile.log"
+# Deployment paths stub (Amine 29/10): records the snapshot it judged; PARCOURS_RC chooses its verdict.
+cat > "$tmp/parcours-stub.py" <<'PY'
+import os,sys
+cur=os.path.realpath(os.path.expanduser("~/.openclaw/runtime-ui-playbooks/current"))
+open(os.environ["PARCOURS_LOG"],"a").write(os.path.basename(cur)+"\n")
+print('{"state":"stub"}');sys.exit(int(os.environ.get("PARCOURS_RC","0")))
+PY
+export CLAW_DEPLOY_PARCOURS="$tmp/parcours-stub.py" PARCOURS_LOG="$tmp/parcours.log"
 mkdir -p "$HOME" "$CLAW_UI_PLAYBOOKS_WORKSPACE"
 cd "$CLAW_UI_PLAYBOOKS_WORKSPACE"
 git init -q && git config user.email t@t && git config user.name t
 mkdir -p tests billing/direct-runtime
 : > tests/__init__.py
-for t in test_capability_decision_contract test_composed_reads; do
+for t in test_capability_decision_contract test_composed_reads test_dialogue_replay; do
   printf 'import unittest\nclass T(unittest.TestCase):\n    def test_ok(self): pass\n' > "tests/$t.py"
 done
 echo node_modules/ > .gitignore
@@ -63,4 +71,31 @@ prev=$(readlink "$HOME/.openclaw/runtime-ui-playbooks/previous"); rm -f "$prev/b
 bash "$here/activate-ui-playbooks.sh" --rollback >/dev/null
 [ -L "$prev/billing/direct-runtime/node_modules" ]
 [ "$(tail -n 1 "$tmp/compile.log")" = "$(basename "$prev")" ] || { echo "views not recompiled after rollback" >&2; exit 1; }
-echo '{"ok":true,"linked":true,"unresolvedRefused":true,"retention":true,"rollbackLinked":true,"viewsRecompiled":true}'
+# A commit merged on origin but not fetched yet is fetched, then activated (S24 25/10, fresh merge 698322f7).
+git clone -q --bare "$CLAW_UI_PLAYBOOKS_WORKSPACE" "$tmp/origin.git"
+git remote add origin "$tmp/origin.git" 2>/dev/null || git remote set-url origin "$tmp/origin.git"
+git clone -q "$tmp/origin.git" "$tmp/upstream" && (cd "$tmp/upstream" && git config user.email t@t && git config user.name t \
+  && echo merged > merged.txt && git add merged.txt && git commit -qm merged && git push -q origin HEAD)
+fresh=$(git -C "$tmp/upstream" rev-parse HEAD)
+! git cat-file -e "$fresh^{commit}" 2>/dev/null || { echo "fixture already has the fresh commit" >&2; exit 1; }
+bash "$here/activate-ui-playbooks.sh" "$fresh" > "$tmp/out-fresh" 2>&1 || { cat "$tmp/out-fresh" >&2; exit 1; }
+grep -q "ACTIVATED $fresh" "$tmp/out-fresh"
+# An unknown commit still fails, without switching the current snapshot.
+before=$(readlink "$HOME/.openclaw/runtime-ui-playbooks/current")
+if bash "$here/activate-ui-playbooks.sh" 0123456789abcdef0123456789abcdef01234567 > "$tmp/out-unknown" 2>&1; then echo "unknown commit was activated" >&2; exit 1; fi
+[ "$(readlink "$HOME/.openclaw/runtime-ui-playbooks/current")" = "$before" ]
+echo '{"ok":true,"linked":true,"unresolvedRefused":true,"retention":true,"rollbackLinked":true,"viewsRecompiled":true,"freshCommitFetched":true}'
+# The five paths judge the switched snapshot; a failed path switches current and previous back (exit 5),
+# an inconclusive run (provider outage, exit 3) keeps the new snapshot.
+[ "$(head -n 1 "$tmp/parcours.log")" = "$sha" ] || { echo "paths did not judge $sha" >&2; exit 1; }
+git commit -q --allow-empty -m next; next=$(git rev-parse HEAD)
+base=$(basename "$(readlink "$HOME/.openclaw/runtime-ui-playbooks/current")")
+rc=0; PARCOURS_RC=1 bash "$here/activate-ui-playbooks.sh" HEAD > "$tmp/out-failed" 2>&1 || rc=$?
+[ "$rc" -eq 5 ] || { cat "$tmp/out-failed" >&2; echo "failed paths exit $rc" >&2; exit 1; }
+[ "$(basename "$(readlink "$HOME/.openclaw/runtime-ui-playbooks/current")")" = "$base" ] || { echo "current not restored" >&2; exit 1; }
+[ "$(tail -n 1 "$tmp/parcours.log")" = "$next" ]
+PARCOURS_RC=3 bash "$here/activate-ui-playbooks.sh" HEAD > "$tmp/out-outage" 2>&1
+grep -q "ACTIVATED $next" "$tmp/out-outage"
+[ "$(basename "$(readlink "$HOME/.openclaw/runtime-ui-playbooks/current")")" = "$next" ]
+[ "$(basename "$(readlink "$HOME/.openclaw/runtime-ui-playbooks/previous")")" = "$base" ]
+echo "activate-ui-playbooks: ok"

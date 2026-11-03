@@ -61,11 +61,13 @@ assert.equal(p.failedStep,'Exécution du paiement');assert.equal(p.cause,failedP
 assert.equal(runProgressSteps({...find(r=>r.state==='failed'),presentation:{...failedPayment,locale:'en'}}).steps[0].label,'Request received');
 
 // Existing route GET /v1/runs/{id}: steps derived on read, never persisted.
-const helper=path.join(root,'helper.py');fs.writeFileSync(helper,`import sys,json\np=json.loads(${JSON.stringify(JSON.stringify(failedPayment))})\nm=sys.argv[sys.argv.index('--dialogue')+1]\nprint(json.dumps({'outcome':'READY','handled':True,'goalRef':'goal-eeeeeeeeeeeeeeeeeeee','pendingHandoff':{'goalRef':'goal-eeeeeeeeeeeeeeeeeeee','klass':'DURABLE'}} if m=='turn' else {'outcome':'FAILED','text':p['spoken'],'handled':True,'metadata':{'presentation':p}}))\n`);process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;
-const {submitIntent}=require('../dist/companion/intent'),{route}=require('../dist/companion/server');
+// ADR 02/11 step 3: a retained failed run (canonical runs owner) still exposes its progress on read.
+const runs=require('../dist/companion/runs'),{route}=require('../dist/companion/server');
 const request=(port,runId)=>new Promise((resolve,reject)=>{http.get({host:'127.0.0.1',port,path:'/v1/runs/'+runId},res=>{let body='';res.on('data',c=>body+=c);res.on('end',()=>{try{resolve({status:res.statusCode,body:JSON.parse(body)})}catch(e){reject(e)}})}).on('error',reject)});
 (async()=>{const server=http.createServer((req,res)=>route(req,res).catch(()=>{res.writeHead(500);res.end('{}')}));await new Promise(r=>server.listen(0,'127.0.0.1',r));try{
- const accepted=await submitIntent('hs5 progress','hs5-session',[],{clientRunId:'hs5-terminal-error'});assert.equal(accepted.state,'failed');
+ const reserved=await runs.reserveSubmittedRun('hs5 progress','hs5-session','hs5-terminal-error',{userText:'hs5 progress',attachments:[],requestText:'hs5 progress',executionSource:'capability_first'});
+ await runs.settleSubmittedRun(reserved.status.runId,'failed',failedPayment.spoken,{presentation:failedPayment});
+ const accepted=await runs.getRunStatus(reserved.status.runId);assert.equal(accepted.state,'failed');
  const timings=[];let response;
  for(let i=0;i<20;i++){const t=performance.now();response=await request(server.address().port,accepted.runId);timings.push(performance.now()-t);}
  assert.equal(response.status,200);const prog=response.body.progress;

@@ -1,10 +1,18 @@
+import fs from "fs";
+import os from "os";
+import path from "path";
+import crypto from "crypto";
+import {accountAlias,publicModelRef,ACCOUNT_ALIAS} from "./accountIdentity";
 import {callOpenClawGateway} from "./openclawAgentClient";
+import {INTERPRETER_PRIMARY,INTERPRETER_FALLBACK,IMMUNE_MODELS} from "../intentInterpreterPort";
+import {PUBLIC_WEB_MODEL} from "./runWeb";
+import {MEMO_STT_PROVIDER,MEMO_STT_MODEL,MEMO_STT_PROFILE} from "./memoSttBoundary";
 
 // Process-local projection of the existing Gateway owners. No credential or
 // whole config/auth object is retained; fresh mutation reads keep their own
 // validation, CAS and dispatch rules in the consumer.
-export type ModelOwnerRead={raw:any,catalog:any,auth:any};
-export type ModelOwnerSnapshot={config:any,catalog:any,auth:any,revision:string|null,updatedAt:number,stale?:boolean};
+export type ModelOwnerRead={raw:any,catalog:any,auth:any,policy?:any};
+export type ModelOwnerSnapshot={config:any,catalog:any,auth:any,revision:string|null,updatedAt:number,stale?:boolean,policy?:any};
 export type CachedModelOwner={snapshot:ModelOwnerSnapshot|null,state:"fresh"|"stale"|"unknown",refreshThrottled:boolean};
 const CACHE_MS=60000,REFRESH_MS=30000;
 let lastExplicitRefreshAt=-Infinity,nextCachedReadAt=0;
@@ -31,8 +39,8 @@ function model(value:any){
 const providerRef=(value:any)=>identity(value)&&/^[a-z][a-z0-9_.-]{0,79}$/.test(value)?value:undefined;
 function agent(value:any){
  if(!value||typeof value!=='object'||Array.isArray(value))return undefined;
- return {model:model(value.model),thinkingDefault:text(value.thinkingDefault,40),tools:tools(value.tools),
-  modelPolicy:value.modelPolicy&&Object.prototype.hasOwnProperty.call(value.modelPolicy,'allow')?{allow:strings(value.modelPolicy.allow,2000,200)?.filter(x=>identity(x))}:undefined,compaction:{model:model(value.compaction?.model)}};
+ return {model:model(value.model),thinkingDefault:text(value.thinkingDefault,40),...(typeof value.fastModeDefault==='boolean'?{fastModeDefault:value.fastModeDefault}:{}),tools:tools(value.tools),
+  modelPolicy:value.modelPolicy&&Object.prototype.hasOwnProperty.call(value.modelPolicy,'allow')?{allow:strings(value.modelPolicy.allow,2000,200)?.filter(x=>identity(x)||/^[a-z][a-z0-9_.-]{0,79}\/\*$/.test(x!))}:undefined,compaction:{model:model(value.compaction?.model)}};
 }
 /** Same explicit-agent then default allow precedence as OpenClaw resolveConfiguredModelPolicyAllow.
  * An explicit empty agent allow remains empty; no policy is widened or persisted. */
@@ -40,7 +48,203 @@ export function configuredModelAllow(config:any,agentId='main'):string[]{
  const entry=config?.agents?.entries?.[agentId]??config?.agents?.list?.find((row:any)=>row.id===agentId);
  const ownsAllow=entry?.modelPolicy&&Object.prototype.hasOwnProperty.call(entry.modelPolicy,'allow');
  const selected=ownsAllow?entry.modelPolicy.allow:config?.agents?.defaults?.modelPolicy?.allow;
- return Array.isArray(selected)&&selected.length<=2000?selected.filter((ref:any)=>identity(ref)) : [];
+ return Array.isArray(selected)&&selected.length<=2000?selected.filter((ref:any)=>identity(ref)||typeof ref==='string'&&/^[a-z][a-z0-9_.-]{0,79}\/\*$/.test(ref)) : [];
+}
+/** Configured policy supports its existing closed provider/* form, never an implicit global allow. */
+export function modelReferenceAllowed(allow:string[],reference:string):boolean {
+ const base=reference.split('@')[0];return allow.some(item=>item===base||/^[a-z][a-z0-9_.-]{0,79}\/\*$/.test(item)&&base.startsWith(item.slice(0,-1)));
+}
+export const MODEL_FLOW_IDS=['brain','intent_interpreter','web_search','conversation_summary','memory_search','realtime_voice','spoken_voice','dictation','voice_memos','immune_system','engineering_learning','whatsapp'] as const;
+export type ModelFlowId=typeof MODEL_FLOW_IDS[number];
+export const CONTACT_MODEL_AGENTS=['contacts','contacts-projet','contacts-pulse','contacts-projet-pulse'] as const;
+/** Conversation flows change agent/session models and keep the R6 provenance proof. */
+export const CONVERSATION_MODEL_FLOWS=['brain','conversation_summary','whatsapp'] as const;
+/** Executor flows: one fixed executor (interpretation port, public web synthesis, memo transcription) reads its
+ * own key in the plugin config, else its current constant. Only the executor's qualified references are admitted.
+ * Policy flows (Amine 30/10: immune system, engineering learning) are executor flows whose default is the canonical
+ * routing profile of model_policy.json; the governor puts the setting first and keeps the rest of that profile. */
+export const EXECUTOR_MODEL_FLOWS=['intent_interpreter','web_search','voice_memos','immune_system','engineering_learning'] as const;
+export const POLICY_MODEL_FLOWS=['immune_system','engineering_learning'] as const;
+export type ConversationModelFlow=typeof CONVERSATION_MODEL_FLOWS[number];
+export type ExecutorModelFlow=typeof EXECUTOR_MODEL_FLOWS[number];
+export type PolicyModelFlow=typeof POLICY_MODEL_FLOWS[number];
+export type ConstantExecutorFlow=Exclude<ExecutorModelFlow,PolicyModelFlow>;
+export type EditableModelFlow=ConversationModelFlow|ExecutorModelFlow;
+export const EDITABLE_MODEL_FLOWS:readonly EditableModelFlow[]=[...CONVERSATION_MODEL_FLOWS,...EXECUTOR_MODEL_FLOWS];
+export const isExecutorModelFlow=(flow:any):flow is ExecutorModelFlow=>(EXECUTOR_MODEL_FLOWS as readonly string[]).includes(flow);
+export const isPolicyModelFlow=(flow:any):flow is PolicyModelFlow=>(POLICY_MODEL_FLOWS as readonly string[]).includes(flow);
+export const EXECUTOR_FLOW_KEYS:Record<ExecutorModelFlow,string>={intent_interpreter:'interpreterModelFlow',web_search:'webSearchModelFlow',voice_memos:'voiceMemoModelFlow',
+ immune_system:'immuneModelFlow',engineering_learning:'engineeringModelFlow'};
+/** The governor's routing profiles (samantha-ui-playbooks model_governor: IMMUNE_PROFILE, task class ENGINEERING). */
+export const POLICY_FLOW_PROFILE:Record<PolicyModelFlow,string>={immune_system:'IMMUNE_ENGINEERING',engineering_learning:'ENGINEERING'};
+const WEB_SYNTHESIS_PROFILE='google:claw-gemini-free';
+/** The references each executor can run today. The interpretation port admits the qualified Sol/Luna/Gemini free
+ * set (same Gateway LLM policy as the immune port); web synthesis and memo transcription stay pinned to their
+ * qualified free model until another one carries its own qualification. */
+/** For the policy flows this is the ceiling of the immune port (one Gateway LLM policy); the admitted set is further
+ * narrowed to the enabled, qualified native slots of the flow's routing profile (policyFlowQualified). */
+export const EXECUTOR_FLOW_QUALIFIED:Record<ExecutorModelFlow,readonly string[]>={intent_interpreter:IMMUNE_MODELS,
+ web_search:[PUBLIC_WEB_MODEL+'@'+WEB_SYNTHESIS_PROFILE],voice_memos:[MEMO_STT_PROVIDER+'/'+MEMO_STT_MODEL+'@'+MEMO_STT_PROFILE],
+ immune_system:IMMUNE_MODELS,engineering_learning:IMMUNE_MODELS};
+export const EXECUTOR_FLOW_DEFAULT:Record<ConstantExecutorFlow,{primary:string,fallbacks:string[]}>={intent_interpreter:{primary:INTERPRETER_PRIMARY,fallbacks:[INTERPRETER_FALLBACK]},
+ web_search:{primary:EXECUTOR_FLOW_QUALIFIED.web_search[0],fallbacks:[]},voice_memos:{primary:EXECUTOR_FLOW_QUALIFIED.voice_memos[0],fallbacks:[]}};
+export const EXECUTOR_FLOW_MAX_FALLBACKS:Record<ExecutorModelFlow,number>={intent_interpreter:1,web_search:0,voice_memos:0,immune_system:1,engineering_learning:1};
+/** Ordered enabled slots of one canonical routing profile, from the projected model_policy.json (readIncludedModelPolicy). */
+export function policyProfileSlots(policy:any,profile:string):{alias:string,model:string,executor:string|undefined,qualified:boolean}[]{
+ const aliases=policy?.routing_profiles?.[profile];if(!Array.isArray(aliases))return [];
+ const rows=aliases.flatMap((alias:string)=>{const slot=policy.model_slots?.[alias];return slot?.enabled===true&&typeof slot.model==='string'?[{alias,model:slot.model,executor:slot.executor,qualified:!!slot.qualification_ref}]:[];});
+ return rows.filter((row:any,index:number)=>rows.findIndex((other:any)=>other.model===row.model)===index);
+}
+/** Admitted references of a policy flow: the qualified native slots of its profile that the immune port also admits.
+ * Claude (CLI executor) or any slot outside the port's Gateway LLM ceiling is never an app choice. */
+export function policyFlowQualified(flow:PolicyModelFlow,policy:any):string[]{
+ return policyProfileSlots(policy,POLICY_FLOW_PROFILE[flow]).filter(row=>row.qualified&&row.executor==='native_agent_exec'&&EXECUTOR_FLOW_QUALIFIED[flow].includes(row.model)).map(row=>row.model);
+}
+/** Stored reference -> the executor's qualified reference. A bare qualified reference (OpenAI on the
+ * subscription OAuth) accepts its configured profile suffix; a pinned one (Gemini free) must match exactly.
+ * A policy flow needs the canonical policy: without it nothing is admitted. */
+export function executorFlowReference(flow:ExecutorModelFlow,ref:any,policy?:any):string|null{
+ if(typeof ref!=='string'||!identity(ref))return null;
+ const qualified=isPolicyModelFlow(flow)?policyFlowQualified(flow,policy):EXECUTOR_FLOW_QUALIFIED[flow];
+ return qualified.find(row=>ref===row||!row.includes('@')&&ref.split('@')[0]===row)??null;
+}
+/** The stored setting of an executor flow when it names only qualified references, else null. */
+function executorFlowSetting(config:any,flow:ExecutorModelFlow,policy?:any):{primary:string,fallbacks:string[]}|null{
+ const own=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.[EXECUTOR_FLOW_KEYS[flow]];
+ const value=own&&typeof own==='object'&&!Array.isArray(own)&&own.version===1?own.model:undefined;
+ const primary=executorFlowReference(flow,value?.primary,policy),raw=Array.isArray(value?.fallbacks)?value.fallbacks:null;
+ const fallbacks=raw&&raw.length<=EXECUTOR_FLOW_MAX_FALLBACKS[flow]?raw.map((ref:any)=>executorFlowReference(flow,ref,policy)):null;
+ if(!primary||!fallbacks||fallbacks.some((ref:any)=>!ref)||new Set([primary,...fallbacks]).size!==fallbacks.length+1)return null;
+ return {primary,fallbacks:fallbacks as string[]};
+}
+/** Runtime read with fallback: an absent, malformed or unqualified key keeps the current constant chain. */
+export function executorFlowChain(config:any,flow:ConstantExecutorFlow):{primary:string,fallbacks:string[],origin:'flow'|'default'}{
+ const setting=executorFlowSetting(config,flow);
+ if(!setting)return {...EXECUTOR_FLOW_DEFAULT[flow],fallbacks:[...EXECUTOR_FLOW_DEFAULT[flow].fallbacks],origin:'default'};
+ return {...setting,origin:'flow'};
+}
+/** Effective chain of a policy flow, as the playbooks governor runs it: the valid setting first, then the rest of the
+ * profile in policy order (never left without a working model); absent/invalid -> the profile chain unchanged. */
+export function policyFlowChain(config:any,flow:PolicyModelFlow,policy:any):{primary:string|null,fallbacks:string[],setting:{primary:string,fallbacks:string[]}|null,origin:'flow'|'default'}{
+ const profile=policyProfileSlots(policy,POLICY_FLOW_PROFILE[flow]).map(row=>row.model);
+ const setting=profile.length?executorFlowSetting(config,flow,policy):null;
+ const chosen=setting?[setting.primary,...setting.fallbacks]:[];
+ const chain=[...chosen,...profile.filter(model=>!chosen.includes(model))];
+ return {primary:chain[0]??null,fallbacks:chain.slice(1),setting,origin:setting?'flow':'default'};
+}
+/** What « hériter » means for a policy flow in the editor: the profile's first admitted model and, at most, the next one. */
+export function policyFlowDefault(flow:PolicyModelFlow,policy:any):{primary:string,fallbacks:string[]}|null{
+ const admitted=policyFlowQualified(flow,policy);
+ return admitted.length?{primary:admitted[0],fallbacks:admitted.slice(1,1+EXECUTOR_FLOW_MAX_FALLBACKS[flow])}:null;
+}
+export const MODEL_FLOW_PROVENANCE_PATH=['plugins','entries','openclaw-plugin-mobile-ui','config','modelFlowSelection'] as const;
+const flowError=()=>Object.assign(new Error('model_flow_provenance_unverified'),{statusCode:409});
+/** The R6-owned setting paths are also the source of its durable admission proof. */
+export function modelFlowSettingPaths(flow:EditableModelFlow):string[][]{
+ if(isExecutorModelFlow(flow))return [['plugins','entries','openclaw-plugin-mobile-ui','config',EXECUTOR_FLOW_KEYS[flow]]];
+ if(flow==='conversation_summary')return [['agents','defaults','compaction','model']];
+ const agents=flow==='brain'?['main']:[...CONTACT_MODEL_AGENTS];
+ return [...agents.flatMap(id=>['model','thinkingDefault','fastModeDefault'].map(field=>['agents','entries',id,field])),
+  ...(flow==='whatsapp'?[['plugins','entries','openclaw-plugin-mobile-ui','config','whatsappModelFlow']]:[])];
+}
+export function modelFlowSafeValue(value:any,depth=0):any{
+ if(depth>12)throw flowError();
+ if(typeof value==='string'){if(!identity(value))throw flowError();return value.includes('/')?publicModelRef(value):value;}
+ if(typeof value==='boolean')return value;
+ if(Array.isArray(value)&&value.length<=20)return value.map(row=>modelFlowSafeValue(row,depth+1));
+ if(value&&typeof value==='object'&&!Array.isArray(value)){
+  if(Object.keys(value).sort().join()==='fieldsHash,version'){
+   if(value.version!==1||typeof value.fieldsHash!=='string'||!/^[a-f0-9]{64}$/.test(value.fieldsHash))throw flowError();
+   return {version:1,fieldsHash:value.fieldsHash};
+  }
+  if(Object.keys(value).every(key=>['version','model','primary','fallbacks','thinkingDefault','fastModeDefault'].includes(key)))
+   return Object.fromEntries(['version','model','primary','fallbacks','thinkingDefault','fastModeDefault'].filter(key=>key in value).map(key=>[key,key==='version'&&value[key]===1?1:modelFlowSafeValue(value[key],depth+1)]));
+ }
+ throw flowError();
+}
+export function modelFlowSettingSnapshot(config:any,flow:EditableModelFlow){
+ return modelFlowSettingPaths(flow).map(path=>{
+  let node=config;for(const key of path){if(!node||typeof node!=='object'||!Object.prototype.hasOwnProperty.call(node,key))return {path,present:false};node=node[key];}
+  return {path,present:true,value:modelFlowSafeValue(node)};
+ });
+}
+export function modelFlowSettingHash(config:any,flow:EditableModelFlow):string{return crypto.createHash('sha256').update(JSON.stringify(modelFlowSettingSnapshot(config,flow))).digest('hex');}
+/** Reads only R6 metadata in the canonical config. Absence is neutral; malformed proof fails closed. */
+export function verifiedModelFlowProvenance(config:any,flow:EditableModelFlow):boolean{
+ const value=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.modelFlowSelection;
+ if(value===undefined)return false;
+ if(!value||typeof value!=='object'||Array.isArray(value)||value.version!==1||Object.keys(value).sort().join()!=='flows,version'||!value.flows||typeof value.flows!=='object'||Array.isArray(value.flows)||Object.keys(value.flows).some(id=>!['brain','conversation_summary','whatsapp'].includes(id)))throw flowError();
+ for(const entry of Object.values(value.flows))modelFlowSafeValue(entry);
+ const proof=value.flows[flow];if(proof===undefined)return false;
+ if(proof.fieldsHash!==modelFlowSettingHash(config,flow))throw flowError();
+ return true;
+}
+/** A bounded read of the canonical policy, inside the existing model owner, not a new registry or cache. */
+export function readIncludedModelPolicy(){
+ try{
+  const pinned=path.join(os.homedir(),'.openclaw/runtime-ui-playbooks/current');
+  const root=process.env.SAMANTHA_CONTROL_PLAYBOOKS||process.env.CLAW_UI_PLAYBOOKS_ROOT||pinned;
+  const file=path.join(root,'skill_intelligence/model_policy.json');
+  const metadata=fs.statSync(file);if(!metadata.isFile()||metadata.size>65536)return null;
+  const bytes=fs.readFileSync(file),value=JSON.parse(bytes.toString());
+  if(!value||value.authentication!=='subscription_only'||!value.model_slots||typeof value.model_slots!=='object'||Array.isArray(value.model_slots)||Object.keys(value.model_slots).length>64)return null;
+  const slots=Object.fromEntries(Object.entries(value.model_slots).flatMap(([key,row]:[string,any])=>{
+   if(!/^[a-z_]{1,64}$/.test(key)||typeof row?.enabled!=='boolean')return [];
+   return [[key,{enabled:row.enabled,provider:providerRef(row.provider),model:model(row.model),cost_policy:['free_only','subscription'].includes(row.cost_policy)?row.cost_policy:null,executor:text(row.executor,64),qualification_ref:text(row.qualification_ref,240)}]];
+  }));
+  // Read-only routing projection for /providers: closed profile names, aliases of the projected slots only.
+  const profileName=(name:any)=>typeof name==='string'&&/^[A-Z][A-Z0-9_]{0,63}$/.test(name);
+  const routes=value.routing_profiles&&typeof value.routing_profiles==='object'&&!Array.isArray(value.routing_profiles)&&Object.keys(value.routing_profiles).length<=64?value.routing_profiles:{};
+  const routing_profiles=Object.fromEntries(Object.entries(routes).flatMap(([key,row]:[string,any])=>profileName(key)&&Array.isArray(row)&&row.length<=16&&row.every((alias:any)=>typeof alias==='string'&&Object.prototype.hasOwnProperty.call(slots,alias))?[[key,[...row]]]:[]));
+  const chain=(row:any,keys:string[])=>row&&typeof row==='object'&&!Array.isArray(row)?Object.fromEntries(keys.flatMap(key=>key==='profile'?(profileName(row[key])?[[key,row[key]]]:[]):(identity(row[key])?[[key,row[key]]]:[]))):null;
+  return {authentication:value.authentication,primary:model(value.primary),fallback:model(value.fallback),model_slots:slots,routing_profiles,default_profile:profileName(value.default_profile)?value.default_profile:null,
+   interpretation:chain(value.interpretation,['profile','primary','fallback']),immune:chain(value.immune,['profile','primary','fallback','last_resort']),sourceHash:crypto.createHash('sha256').update(bytes).digest('hex')};
+ }catch{return null;}
+}
+export function configuredModelFlow(config:any,flow:EditableModelFlow,policy?:any){
+ if(isExecutorModelFlow(flow)){
+  const own=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.[EXECUTOR_FLOW_KEYS[flow]];
+  if(own!==undefined)return {model:own?.model,thinkingDefault:undefined,fastModeDefault:undefined,inheritsFrom:null,explicit:own,origins:{model:'flow',thinking:'unsupported',fastMode:'unsupported'},mixedFields:[]};
+  const fallback=isPolicyModelFlow(flow)?policyFlowDefault(flow,policy):EXECUTOR_FLOW_DEFAULT[flow];
+  return {model:fallback?{primary:fallback.primary,fallbacks:[...fallback.fallbacks]}:undefined,thinkingDefault:undefined,fastModeDefault:undefined,inheritsFrom:null,explicit:{},origins:{model:'default',thinking:'unsupported',fastMode:'unsupported'},mixedFields:[]};
+ }
+ const entry=(id:string)=>config?.agents?.entries?.[id]??config?.agents?.list?.find((row:any)=>row.id===id);
+ const defaults=config?.agents?.defaults||{},main=entry('main')||{},base={model:main.model??defaults.model,thinkingDefault:main.thinkingDefault??defaults.thinkingDefault,fastModeDefault:main.fastModeDefault??defaults.fastModeDefault};
+ if(flow==='brain')return {...base,inheritsFrom:main.model===undefined?'default':null,explicit:main,origins:{model:main.model===undefined?'default':'flow',thinking:main.thinkingDefault===undefined?'default':'flow',fastMode:main.fastModeDefault===undefined?'default':'flow'},mixedFields:[]};
+ if(flow==='conversation_summary'){const own=defaults.compaction||{};return {model:own.model??null,thinkingDefault:null,fastModeDefault:null,inheritsFrom:own.model===undefined?'conversation':null,explicit:own,origins:{model:own.model===undefined?'conversation':'flow',thinking:'unsupported',fastMode:'unsupported'},mixedFields:[]};}
+ const own=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.whatsappModelFlow||{},contacts=CONTACT_MODEL_AGENTS.map(id=>entry(id)||{}),origins:any={},selected:any={},mixedFields:string[]=[];
+ for(const [field,publicField] of [['model','model'],['thinkingDefault','thinking'],['fastModeDefault','fastMode']]){
+  if(own[field]!==undefined){selected[field]=own[field];origins[publicField]='flow';continue;}
+  const values=contacts.map(row=>row[field]),present=values.filter(value=>value!==undefined);
+  if(present.length===contacts.length&&new Set(values.map(value=>JSON.stringify(value))).size===1){selected[field]=values[0];origins[publicField]='whatsapp_agents';if(JSON.stringify(values[0])!==JSON.stringify((base as any)[field]))mixedFields.push(publicField);}
+  else {selected[field]=(base as any)[field];origins[publicField]='brain';if(present.length)mixedFields.push(publicField);}
+ }
+ return {...selected,inheritsFrom:Object.values(origins).every(value=>value==='brain')?'brain':null,explicit:own,origins,mixedFields};
+}
+/** Billing admission needs policy AND a matching authenticated account, never just models.list.available. */
+export function includedModelAccounts(reference:string,auth:any,policy:any):{reference:string;account:string;costPolicy:string;source:string}[]{
+ if(!policy||policy.authentication!=='subscription_only')return [];
+ const base=reference.split('@')[0],provider=base.split('/')[0];
+ const row=auth?.providers?.find((item:any)=>item.provider===provider);
+ if(!row||!['ok','static','expiring'].includes(row.status))return [];
+ const slots=Object.values(policy.model_slots||{}) as any[];
+ return (Array.isArray(row.profiles)&&row.profiles.length<=64?row.profiles:[]).flatMap((profile:any)=>{
+  const id=typeof profile.profileId==='string'?profile.profileId:null;
+  if(!id||!/^[A-Za-z0-9._:+@-]{1,200}$/.test(id)||!['ok','static','expiring'].includes(profile.status))return [];
+  const pinned=base+'@'+id;
+  // ChatGPT OAuth cannot select an API-key profile. The canonical subscription policy attests its executor.
+  const subscription=provider==='openai'&&profile.type==='oauth'&&slots.some(slot=>slot.enabled===true&&slot.provider==='openai'&&slot.cost_policy==='subscription'&&slot.executor==='native_agent_exec'&&slot.qualification_ref);
+  // API-key profiles are admitted only as the exact canonical free-only model/profile pair.
+  const free=slots.some(slot=>slot.enabled===true&&slot.cost_policy==='free_only'&&publicModelRef(slot.model)===publicModelRef(pinned)&&slot.qualification_ref);
+  if(!subscription&&!free)return [];
+  return [{reference:pinned,account:ACCOUNT_ALIAS.test(id)?id:accountAlias(id),costPolicy:subscription?'subscription':'free_only',source:'canonical_model_policy_and_auth'}];
+ });
+}
+function publicFlowProvenance(value:any){
+ try{
+  if(!value||value.version!==1||Object.keys(value).sort().join()!=='flows,version'||!value.flows||typeof value.flows!=='object'||Array.isArray(value.flows)||Object.keys(value.flows).some(key=>!['brain','conversation_summary','whatsapp'].includes(key)))return {version:0,flows:{}};
+  return {version:1,flows:Object.fromEntries(Object.entries(value.flows).map(([key,proof])=>[key,modelFlowSafeValue(proof)]))};
+ }catch{return {version:0,flows:{}};}
 }
 function projected(value:ModelOwnerRead):ModelOwnerSnapshot|null{
  const config=value.raw?.config;
@@ -62,9 +266,11 @@ function projected(value:ModelOwnerRead):ModelOwnerSnapshot|null{
  const providers=value.auth.providers.flatMap((row:any)=>{
   const provider=typeof row?.provider==='string'&&/^[A-Za-z0-9._+-]{1,200}$/.test(row.provider)?row.provider:undefined,status=authState(row?.status);
   if(!provider||!status)return [];
-  return [{provider,status,...(publicName(row.displayName)?{displayName:publicName(row.displayName)}:{}),...(Array.isArray(row.profiles)&&row.profiles.length<=2000?{profiles:row.profiles.flatMap((profile:any)=>{const profileId=typeof profile?.profileId==='string'&&/^[A-Za-z0-9._:+-]{1,128}$/.test(profile.profileId)?profile.profileId:undefined,status=authState(profile?.status);return profileId&&status?[{profileId,status}]:[];})}:{})}];
+  return [{provider,status,...(publicName(row.displayName)?{displayName:publicName(row.displayName)}:{}),...(Array.isArray(row.profiles)&&row.profiles.length<=2000?{profiles:row.profiles.flatMap((profile:any)=>{const rawId=typeof profile?.profileId==='string'&&profile.profileId.length<=200?profile.profileId:undefined,status=authState(profile?.status);return rawId&&status?[{profileId:accountAlias(rawId),status,...(['oauth','api_key','token'].includes(profile.type)?{type:profile.type}:{})}]:[];})}:{})}];
  });
- return {config:{agents:{entries:{main:agent(config.agents?.entries?.main),"engineering-lite":agent(config.agents?.entries?.["engineering-lite"]),gemini:agent(config.agents?.entries?.gemini)},defaults:agent(config.agents?.defaults),...(Array.isArray(config.agents?.list)&&config.agents.list.length<=100?{list:config.agents.list.filter((row:any)=>row?.id==='main').slice(0,1).map((row:any)=>({id:'main',...agent(row)}))}:{})},plugins:{entries:plugins},tools:tools(config.tools),talk:{provider:providerRef(config.talk?.provider),providers:providerRef(config.talk?.provider)?{[config.talk.provider]:{voice:identity(config.talk?.providers?.[config.talk.provider]?.voice)}}:{},realtime:{provider:providerRef(config.talk?.realtime?.provider),model:config.talk?.realtime?.model==null?null:identity(config.talk.realtime.model)??false}},memory:{search:{provider:providerRef(config.memory?.search?.provider),model:config.memory?.search?.model==null?null:identity(config.memory.search.model)??false}}},catalog:{models,providerOutcomes:Array.isArray(value.catalog.providerOutcomes)&&value.catalog.providerOutcomes.length<=2000?value.catalog.providerOutcomes.flatMap((row:any)=>typeof row?.provider==='string'&&/^[A-Za-z0-9._+-]{1,200}$/.test(row.provider)&&['ready','needs_auth','unknown'].includes(row.status)?[{provider:row.provider,status:row.status}]:[]):[]},auth:{providers},revision:text(value.raw.hash)||null,updatedAt:Date.now()};
+ const rawPlugin=config.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config,pluginSettings={...(rawPlugin?.whatsappModelFlow?{whatsappModelFlow:agent(rawPlugin.whatsappModelFlow)}:{}),
+  ...Object.fromEntries(EXECUTOR_MODEL_FLOWS.flatMap(flow=>{const own=rawPlugin?.[EXECUTOR_FLOW_KEYS[flow]];return own&&typeof own==='object'&&!Array.isArray(own)?[[EXECUTOR_FLOW_KEYS[flow],{version:own.version===1?1:undefined,model:model(own.model)}]]:[];})),...(rawPlugin?.modelFlowSelection!==undefined?{modelFlowSelection:publicFlowProvenance(rawPlugin.modelFlowSelection)}:{})};
+ return {config:{agents:{entries:Object.fromEntries(["main","engineering-lite","gemini",...CONTACT_MODEL_AGENTS].flatMap(id=>config.agents?.entries?.[id]?[[id,agent(config.agents.entries[id])]]:[])),defaults:agent(config.agents?.defaults),...(Array.isArray(config.agents?.list)&&config.agents.list.length<=100?{list:config.agents.list.filter((row:any)=>['main',...CONTACT_MODEL_AGENTS].includes(row?.id)).slice(0,5).map((row:any)=>({id:row.id,...agent(row)}))}:{})},plugins:{entries:{...plugins,...(plugins['openclaw-plugin-mobile-ui']&&Object.keys(pluginSettings).length?{'openclaw-plugin-mobile-ui':{...plugins['openclaw-plugin-mobile-ui'],config:pluginSettings}}:{})}},tools:tools(config.tools),talk:{provider:providerRef(config.talk?.provider),providers:providerRef(config.talk?.provider)?{[config.talk.provider]:{voice:identity(config.talk?.providers?.[config.talk.provider]?.voice)}}:{},realtime:{provider:providerRef(config.talk?.realtime?.provider),model:config.talk?.realtime?.model==null?null:identity(config.talk.realtime.model)??false}},memory:{search:{provider:providerRef(config.memory?.search?.provider),model:config.memory?.search?.model==null?null:identity(config.memory.search.model)??false}}},catalog:{models,providerOutcomes:Array.isArray(value.catalog.providerOutcomes)&&value.catalog.providerOutcomes.length<=2000?value.catalog.providerOutcomes.flatMap((row:any)=>typeof row?.provider==='string'&&/^[A-Za-z0-9._+-]{1,200}$/.test(row.provider)&&['ready','needs_auth','unknown'].includes(row.status)?[{provider:row.provider,status:row.status}]:[]):[]},auth:{providers},revision:text(value.raw.hash)||null,updatedAt:Date.now(),policy:value.policy??null};
 }
 
 /** Explicit fresh owner read; concurrent consumers share only the in-flight read. */
@@ -79,7 +285,7 @@ export async function readModelOwnerFresh(options:{budgetMs?:number}={}):Promise
    callOpenClawGateway('models.list',{agentId:'main',includeDetails:true},budget),
    callOpenClawGateway('models.authStatus',{agentId:'main'},budget).catch(()=>null)
   ]);
-  const value={raw,catalog,auth},next=projected(value);
+  const value={raw,catalog,auth,policy:readIncludedModelPolicy()},next=projected(value);
   lastReadFailed=next===null;
   if(next)snapshot=next;
   return value;
@@ -120,3 +326,6 @@ function boundedRead<T>(read:Promise<T>):Promise<T>{
   read.then(value=>{clearTimeout(timer);resolve(value);},error=>{clearTimeout(timer);reject(error);});
  });
 }
+
+/** Observe only a verified config readback using the already-read catalog/auth owners. */
+export function observeVerifiedModelOwnerConfig(value:ModelOwnerRead):void{const next=projected(value);if(next){snapshot=next;lastReadFailed=false;}}

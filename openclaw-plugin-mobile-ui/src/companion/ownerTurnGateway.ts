@@ -9,10 +9,10 @@ import path from "path";
 import {createRequire} from "module";
 import {pathToFileURL} from "url";
 import {turnAdmission, type AdmissionTicket} from "./ownerTurnAdmission";
+import {importSurface, openclawSdkVersion, readChunkConstExport} from "./openclawSdkVersions";
 
 export const OWNER_TURN_SCOPES = Object.freeze(["operator.admin", "operator.write"]);
 export const OWNER_TURN_METHOD = "agent";
-const SUPPORTED_OPENCLAW = "2026.9.6";
 const nativeImport = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<any>;
 const unavailable = (code: string) => Object.assign(new Error(code), {code, requestSent: false});
 
@@ -23,6 +23,13 @@ type GatewaySdk = {
   resolveGatewayAuth: (options: any) => any;
   resolveGatewayPort: (config: any, env?: any) => number;
   resolveConfiguredSecretInputWithFallback: (options: any) => Promise<any>;
+};
+/** Process-local callbacks bound by the runs owner; never accepted from an HTTP body. */
+export type OwnerTurnObserver = {
+  sent(): void;
+  event(frame: unknown): void;
+  final(value: unknown): Promise<void>;
+  lost(requestSent: boolean): Promise<void>;
 };
 export type OwnerTurnSdkLoader = () => Promise<GatewaySdk>;
 
@@ -72,27 +79,63 @@ export async function loadInstalledGatewaySdk(binary = process.env.CLAWMOBILE_OP
     try { entry = createRequire(path.join(root, "package.json")).resolve("openclaw/plugin-sdk/gateway-runtime"); }
     catch { throw unavailable("owner_transport_unavailable"); }
   }
-  const {version} = await packageRoot(entry);
-  if (version !== SUPPORTED_OPENCLAW) throw unavailable("owner_transport_version_unsupported");
-  const packageRequire = createRequire(path.join((await packageRoot(entry)).root, "package.json"));
-  const modules = await Promise.all(["gateway-runtime", "config-runtime", "gateway-config-runtime"].map(async (name) => {
-    try { return await nativeImport(pathToFileURL(packageRequire.resolve(`openclaw/plugin-sdk/${name}`)).href); }
-    catch { throw unavailable("owner_transport_unavailable"); }
-  }));
-  const sdk = {...modules[0], ...modules[1], ...modules[2]};
-  for (const name of ["GatewayClient", "startGatewayClientWhenEventLoopReady", "getRuntimeConfig", "resolveGatewayAuth", "resolveGatewayPort", "resolveConfiguredSecretInputWithFallback"])
+  const pkg = await packageRoot(entry);
+  // Version table (openclawSdkVersions): 2026.9.6 keeps its subpaths; any version outside the table is refused.
+  const pinned = openclawSdkVersion(pkg.version);
+  if (!pinned) throw unavailable("owner_transport_version_unsupported");
+  const packageRequire = createRequire(path.join(pkg.root, "package.json"));
+  let surface: Awaited<ReturnType<typeof importSurface>>;
+  try { surface = await importSurface(pinned.ownerTurn, specifier => packageRequire.resolve(specifier), file => nativeImport(pathToFileURL(file).href)); }
+  catch { throw unavailable("owner_transport_unavailable"); }
+  const sdk = {...Object.assign({}, ...surface.modules.values()), ...surface.picked};
+  for (const name of Object.keys(pinned.ownerTurn))
     if (typeof sdk[name] !== "function") throw unavailable("owner_transport_unavailable");
   return sdk;
 
 }
 
 let loader: OwnerTurnSdkLoader = () => loadInstalledGatewaySdk();
+
+async function installedSessionStorePackage(binary: string) {
+  let entry: string;
+  try { entry = require.resolve("openclaw/plugin-sdk/session-store-runtime"); }
+  catch {
+    const {root} = await installedPackageRoot(binary);
+    entry = createRequire(path.join(root, "package.json")).resolve("openclaw/plugin-sdk/session-store-runtime");
+  }
+  const pkg = await packageRoot(entry);
+  const pinned = openclawSdkVersion(pkg.version);
+  if (!pinned) throw unavailable("owner_transport_version_unsupported");
+  return {pkg, pinned};
+}
+
+/** Model profile contract version of the installed OpenClaw, read as text (#126): the contract chunk is hashed per
+ * version and only exports the symbol once model-flow-selection is applied; importing it from the plugin made the
+ * Gateway copy the whole agent runtime into its plugin capture. Resolution only, no module is loaded. */
+export async function readInstalledModelProfileContractVersion(binary = process.env.CLAWMOBILE_OPENCLAW_BIN || "openclaw"): Promise<number> {
+  const {pkg, pinned} = await installedSessionStorePackage(binary);
+  return readChunkConstExport(await fs.readFile(path.join(pkg.root, pinned.modelProfileContract.module), "utf8"),
+    pinned.modelProfileContract.symbol);
+}
+
+/** Lazy access to the same pinned SDK session metadata owner. No config/credential copy or new store.
+ * Inside the Gateway the profile hooks use the host's own session API instead (conversationModelProfile, #126). */
+export async function loadInstalledSessionStoreSdk(binary = process.env.CLAWMOBILE_OPENCLAW_BIN || "openclaw"): Promise<any> {
+  const {pkg, pinned} = await installedSessionStorePackage(binary);
+  const resolve = createRequire(path.join(pkg.root, "package.json"));
+  const [surface, modelProfileContractVersion] = await Promise.all([
+    importSurface(pinned.sessionStore, specifier => resolve.resolve(specifier), file => nativeImport(pathToFileURL(file).href)),
+    readInstalledModelProfileContractVersion(binary)]);
+  for (const key of Object.keys(pinned.sessionStore))
+    if (typeof surface.picked[key] !== "function") throw unavailable("owner_session_metadata_unavailable");
+  return {...surface.modules.get(pinned.sessionStore.getSessionEntry[0]), ...surface.picked, modelProfileContractVersion};
+}
 let loading: Promise<GatewaySdk> | undefined;
 /** Tests uniquement. */
 export function setOwnerTurnSdkLoader(next: OwnerTurnSdkLoader) { loader = next; loading = undefined; }
 
 /** Soumet un tour admis owner. Seul appelant : openclawAgentClient, après `turnAdmission.isCurrent`. */
-export async function submitOwnerTurn(params: Record<string, any>, options: {expectFinal?: boolean; timeoutMs: number; admission: AdmissionTicket; binding: {clientRunId?: string; sessionId: string}}) {
+export async function submitOwnerTurn(params: Record<string, any>, options: {expectFinal?: boolean; timeoutMs: number; admission: AdmissionTicket; binding: {clientRunId?: string; sessionId: string}; observer?: OwnerTurnObserver}) {
   if (!params || typeof params !== "object" || Array.isArray(params) || typeof params.idempotencyKey !== "string" ||
     typeof params.sessionKey !== "string" || typeof params.message !== "string") throw unavailable("owner_turn_invalid");
   const timeoutMs = options.timeoutMs;
@@ -148,6 +191,7 @@ export async function submitOwnerTurn(params: Record<string, any>, options: {exp
       clientName: "cli", mode: "cli", role: "operator", deviceIdentity: null, sharedStateMode: "read-only",
       scopes: [...OWNER_TURN_SCOPES], minProtocol: 4, maxProtocol: 4,
       hostDeps: {beforeConnect: assertCurrent},
+      onEvent: (frame: unknown) => { if (!done && requestSent) options.observer?.event(frame); },
       onConnectError: fail, onReconnectPaused: () => fail(unavailable("owner_transport_unavailable")),
       onClose: () => fail(unavailable("owner_transport_unavailable")),
       onHelloOk: (hello: any) => {
@@ -159,7 +203,7 @@ export async function submitOwnerTurn(params: Record<string, any>, options: {exp
           dispatched = true;
           // The pinned public client sends synchronously: no await between this check and socket.send.
           const pending = client.request(OWNER_TURN_METHOD, params, {expectFinal: options.expectFinal === true, timeoutMs,
-            signal: abort.signal, onSent: () => {requestSent = true;}});
+            signal: abort.signal, onSent: () => {requestSent = true; options.observer?.sent();}});
           Promise.resolve(pending).then(value => {if (!done) {done = true; resolveResult(value);}}, fail);
         } catch (error) {fail(error);}
       },
@@ -167,9 +211,13 @@ export async function submitOwnerTurn(params: Record<string, any>, options: {exp
     timer = setTimeout(() => {abort.abort(); fail(unavailable("owner_transport_timeout"));}, timeoutMs + 5_000);
     const readiness = await sdk.startGatewayClientWhenEventLoopReady(client, {clientOptions: {}, signal: abort.signal, timeoutMs});
     if (!readiness.ready) fail(unavailable("owner_transport_unavailable"));
-    return await result;
+    const value = await result;
+    if (options.observer) await options.observer.final(value);
+    return value;
   } catch (error) {
     fail(error);
+    if (options.observer) {try {await options.observer.lost(requestSent);} catch { /* Storage/projection failure cannot make a sent effect safe to retry. */ }}
+    if (requestSent) throw Object.assign(new Error("owner_turn_indeterminate"), {code:"owner_turn_indeterminate", requestSent:true});
     return await result;
   } finally {
     done = true;

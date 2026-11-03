@@ -1,0 +1,34 @@
+{
+  "provenance": {
+    "kind": "sanitized_real_s24_metadata",
+    "source": "qa413-question-v2-observation.json",
+    "core": {
+      "sha": "d87bd249",
+      "receipt": "companion-20261025T142744"
+    },
+    "qaSource": "b18342bdb93c0978406bd4f6676dfb6eff4866f3",
+    "voiceRun": "voice-e2a70840-e6d7-45e5-bea4-acf9de4feb28",
+    "brainRun": "run_1792935319413_895d9c81",
+    "scope": "Controlled native PCM; not physical acoustic proof; no request or result text"
+  },
+  "observed": {
+    "firstSignMs": 567,
+    "usefulMs": 31317,
+    "sessionStartedAt": 1792935339.355,
+    "modelCompletedAt": 1792935342.479,
+    "receivedFrames": 341520,
+    "playedFrames": 341520
+  },
+  "expectedProjection": {
+    "kind": "authored_new_schema_from_observed_values",
+    "version": 1,
+    "surface": "voice",
+    "route": "answer",
+    "model": "openai/gpt-5.6-sol",
+    "firstSignMs": 567,
+    "decisionMs": null,
+    "toolMs": null,
+    "usefulMs": 31317,
+    "totalMs": null
+  }
+}

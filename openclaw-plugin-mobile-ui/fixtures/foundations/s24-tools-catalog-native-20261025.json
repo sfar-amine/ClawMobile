@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "source_receipt": "catalog-native-once-v1.json",
+  "captured_at_unix": 1792943867.9734666,
+  "ended_at_unix": 1792943880.6111698,
+  "method": "tools.catalog",
+  "params": {
+    "agentId": "main",
+    "includePlugins": true
+  },
+  "exit": 0,
+  "agentId": "main",
+  "duration_ms": 12636.97,
+  "duration_includes_cli_startup": true,
+  "groups": [
+    {
+      "id": "fs",
+      "source": "core",
+      "toolCount": 5
+    },
+    {
+      "id": "runtime",
+      "source": "core",
+      "toolCount": 4
+    },
+    {
+      "id": "web",
+      "source": "core",
+      "toolCount": 3
+    },
+    {
+      "id": "memory",
+      "source": "core",
+      "toolCount": 2
+    },
+    {
+      "id": "sessions",
+      "source": "core",
+      "toolCount": 15
+    },
+    {
+      "id": "ui",
+      "source": "core",
+      "toolCount": 8
+    },
+    {
+      "id": "messaging",
+      "source": "core",
+      "toolCount": 1
+    },
+    {
+      "id": "automation",
+      "source": "core",
+      "toolCount": 5
+    },
+    {
+      "id": "nodes",
+      "source": "core",
+      "toolCount": 3
+    },
+    {
+      "id": "agents",
+      "source": "core",
+      "toolCount": 7
+    },
+    {
+      "id": "media",
+      "source": "core",
+      "toolCount": 6
+    },
+    {
+      "id": "plugin:file-transfer",
+      "source": "plugin",
+      "toolCount": 4
+    },
+    {
+      "id": "plugin:memory-core",
+      "source": "plugin",
+      "toolCount": 1
+    },
+    {
+      "id": "plugin:openclaw-plugin-mobile-ui",
+      "source": "plugin",
+      "toolCount": 42
+    },
+    {
+      "id": "plugin:talk-voice",
+      "source": "plugin",
+      "toolCount": 1
+    },
+    {
+      "id": "plugin:whatsapp",
+      "source": "plugin",
+      "toolCount": 2
+    }
+  ],
+  "qualification": {
+    "metadata_only": true,
+    "model_turn": false,
+    "tool_execution": false,
+    "warm_gain_measured": false,
+    "raw_tool_schema_included": false
+  }
+}

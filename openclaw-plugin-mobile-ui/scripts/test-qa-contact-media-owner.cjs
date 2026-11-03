@@ -21,7 +21,8 @@ let n=0;const check=f=>{f();n++;};
  try{const hooks=[];require('../dist/index').register({on(name,fn){hooks.push([name,fn]);},registerTool(){},logger:{}});
   const received=hooks.filter(([name])=>name==='message_received');check(()=>assert.equal(received.length,1));
   await received[0][1](event,ctx);check(()=>assert.deepEqual(observed,{e:event,c:ctx}));
-  check(()=>assert.equal(hooks.filter(([name])=>name==='before_dispatch').length,1));
+  // No before_dispatch interception any more (ADR 02/11 step 3 + contact rooms brain): every turn reaches its brain.
+  check(()=>assert.equal(hooks.filter(([name])=>name==='before_dispatch').length,0));
  }finally{ownerModule.handleQaContactMediaReceived=original;}
  console.log(`${n}/${n} factory/host checks passed; synthetic files, public SDK contract, no S24 effects`);
 }finally{await fs.rm(dir,{recursive:true,force:true});}})().catch(e=>{console.error(e);process.exitCode=1;});

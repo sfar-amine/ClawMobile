@@ -1,0 +1,49 @@
+{
+  "version": 2,
+  "id": "native-exec-auth-scope-20261023",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Resolve native agent-exec SecretRefs in the existing scoped authentication environment",
+  "reason": "Real primary Gemini test failed before model; native temporary execution state was used for auth SecretRef materialization while profiles came from the original auth owner.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/gateway-start.sh",
+    "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
+    "installer/termux-lite/runtime-sync.sh",
+    "docs/changes/native-exec-auth-scope-20261023.md",
+    "installer/termux-lite/openclaw-compat/agent-exec-auth-scope.json",
+    "installer/termux-lite/test-agent-exec-auth-scope.cjs",
+    "installer/termux-lite/test-agent-exec-auth-scope.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-23-native-auth-scope/provenance.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-23-native-auth-scope/runtime-BnnQBrxr.mjs",
+    "docs/changes/native-exec-auth-scope-20261023.json"
+  ],
+  "tests": [
+    {
+      "name": "Captured native secret snapshot producer and compatibility transactions",
+      "status": "passed",
+      "evidence": "Original failure reproduced; patched auth scope, explicit override, isolated execution, missing-secret refusal, ordinary and concurrent scopes; 6 native patch transaction tests and 8 existing WhatsApp patch tests. Canonical CI pending."
+    }
+  ],
+  "documentation": [
+    "docs/changes/native-exec-auth-scope-20261023.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing native model execution only; no new route or permission."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing native auth scope, secret store and reversible compatibility owner; no credential-copy store or alternate execution transport."
+  },
+  "rollback": "Existing compatibility owner --patch-set agent-exec-auth-scope --rollback restores exact original bytes; automatic Companion rollback and startup follow checkout ownership.",
+  "limitations": [
+    "No real provider success or C17 activation claimed by fixture tests.",
+    "OAuth Luna and professional DATA02 remain separate prerequisites.",
+    "Exact source hash and package version only; unknown upgrades are refused."
+  ]
+}

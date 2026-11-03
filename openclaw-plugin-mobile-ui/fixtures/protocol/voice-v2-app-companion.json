@@ -8,6 +8,8 @@
   "controls": {
     "speakFirst": ["operationId", "sessionEpoch", "turnId"],
     "speakResult": ["operationId", "sessionEpoch", "turnId", "text"],
+    "speakProgress": ["operationId", "sessionEpoch", "turnId", "text"],
+    "speakDeferred": ["operationId", "sessionEpoch", "turnId", "sourceTurnId"],
     "turnStart": ["operationId", "sessionEpoch", "turnId", "firstSample"],
     "turnEnd": ["operationId", "sessionEpoch", "turnId", "lastSampleExclusive"],
     "transcriptFinal": ["operationId", "sessionEpoch", "turnId", "source", "text"],
@@ -16,6 +18,53 @@
   },
   "optionalControlFields": {
     "transcriptFinal": ["noSpeech"]
+  },
+  "optionalWarmReadyFields": {
+    "progressReadback": 1,
+    "asyncToolReadback": 1,
+    "turnBudgetMs": 30000,
+    "deferredReadback": 1
+  },
+  "speakProgress": {
+    "maxChars": 200,
+    "maxPerTurn": 6,
+    "generationPattern": "out-<turnId>-progress-<n>",
+    "refusalReasons": ["invalid_text", "progress_budget", "not_admissible"]
+  },
+  "deferredReadback": {
+    "optIn": "POST /v1/extensions/claw-live/capability voiceTurn.deferredReadback = 1, only after warmReady.deferredReadback = 1",
+    "pendingNotice": "Je te donne la réponse dès que je l'ai.",
+    "events": ["deferredReady", "deferredDropped"],
+    "dropReasons": ["superseded", "expired"],
+    "admitted": ["notice", "result"],
+    "refusalReasons": ["not_deferred", "already_spoken", "superseded", "expired", "nothing_due", "not_admissible"],
+    "retryableRefusals": ["not_admissible"],
+    "maxOpenPerSession": 3,
+    "abandonAfterReadyMs": 90000,
+    "followHorizonMs": 300000
+  },
+  "waitingCues": {
+    "runActivity": "GET /v1/runs/{runId} and GET /v1/runs/by-client/{clientRunId}: progress.activity = {tool, action?, at?}, the latest typed Samantha tool the run started; absent on an older Companion (generic phrase)",
+    "toolPattern": "^samantha_[a-z0-9_]{1,100}$",
+    "actionPattern": "^[a-z][a-z0-9_.-]{0,127}$",
+    "excludedTools": ["samantha_catalogue"],
+    "modes": ["phrase", "sound", "silence"],
+    "defaultMode": "phrase",
+    "firstCueMs": 1500,
+    "repeatEveryMs": 6000,
+    "maxCuesPerTurn": 5,
+    "phrasesPerTurn": 1,
+    "phrases": {
+      "samantha_utility_billing": "Je regarde tes factures.",
+      "samantha_steg": "Je regarde tes factures.",
+      "samantha_sonede": "Je regarde tes factures.",
+      "samantha_topnet": "Je regarde tes factures.",
+      "samantha_agenda": "Je consulte ton agenda.",
+      "samantha_maxit_tunisie": "Je regarde ton compte Orange.",
+      "samantha_pulse": "Je regarde dans Pulse.",
+      "default": "Je m'en occupe."
+    },
+    "budgetNotice": "deferredReadback.pendingNotice, once per turn, in every mode (information, not filler)"
   },
   "audio": ["sessionEpoch", "turnId", "firstSample", "samples", "sampleRate", "data"],
   "correlation": {"values": ["exact", "stale_ignored", "ambiguous"], "unknown": "fatal"},

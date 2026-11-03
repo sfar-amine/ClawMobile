@@ -13,7 +13,12 @@ const enroll=()=>fs.writeFileSync(path.join(state,'owner-turn-admission.json'),J
 const storage=require('../dist/companion/attachmentStorage'),sdk=require('../dist/companion/memoSttOwner');
 let providerCalls=0,effects=0,resolve,verifications=0;
 sdk.transcribeMemoAttachment=async()=>{providerCalls++;return new Promise(r=>resolve=r);};
-require('../dist/modelFastPath').runModelFastPath=require('./lib/legacy-fast-path-as-dialogue.cjs')(async(text,opts)=>{assert.equal(text,'9addech batterie');if(opts.checkOnly)return{status:'eligible',decision:{version:2,type:'EXECUTE',risk:'read',confirmationRequired:false,capability:'device.assistance'}};effects++;return{status:'hit',text:'Synthetic read receipt'};});
+// ADR 02/11 « le cerveau partout », step 3: the transcript goes to the brain (Gateway agent) once, no fast path before it.
+require('../dist/modelFastPath').runModelFastPath=async()=>{throw Error('no fast path before the brain');};
+const runsOwner=require('../dist/companion/runs');
+require('../dist/companion/openclawGatewayClient').getGatewayStatus=async()=>({reachable:true});
+require('../dist/companion/openclawAgentClient').submitToOpenClawAgent=async(text,runId,sessionId)=>{assert.ok(text.includes('9addech batterie'));effects++;
+ setTimeout(()=>runsOwner.settleSubmittedRun(runId,'done','Synthetic read receipt',{}),1);return {success:true,accepted:true,runId,sessionId,acceptedAt:Date.now()};};
 const verify=owner.verifyRequest;owner.verifyRequest=request=>{verifications++;return verify(request);};
 const {route}=require('../dist/companion/server');
 const server=http.createServer((req,res)=>route(req,res).catch(e=>{res.writeHead(500);res.end(JSON.stringify({error:String(e.message)}));}));

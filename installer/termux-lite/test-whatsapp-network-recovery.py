@@ -22,6 +22,9 @@ class PatchTests(unittest.TestCase):
         base = Path(self.tmp.name)
         self.roots = {k: base/k for k in ("openclaw", "whatsapp")}
         for k, dest in self.roots.items(): shutil.copytree(FIXTURE/k, dest)
+        # Installed npm packages always carry their version; the owner picks the pinned set from it.
+        for root in self.roots.values():
+            if not (root/"package.json").exists(): (root/"package.json").write_text('{"version":"2026.9.6"}')
         self.entries = json.loads(mod.MANIFEST.read_text())["files"]
     def snapshot(self):
         return {e["path"]:(self.roots[e["root"]]/e["path"]).read_bytes() for e in self.entries}

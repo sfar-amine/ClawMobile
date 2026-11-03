@@ -1,7 +1,10 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
-UI_ROOT="${SAMANTHA_UI_PLAYBOOKS_ROOT:-$HOME/.openclaw/workspace/ui-playbooks}"
+# Single code root (02/11): explicit root, then the activated playbooks pin, then the workspace copy (alerted).
+UI_ROOT="$(python3 "$ROOT/code_root.py" resolve --component learning_gate_close --require skill_intelligence/improvement.py \
+  --override "${SAMANTHA_UI_PLAYBOOKS_ROOT:-}" --override "${CLAW_UI_PLAYBOOKS_ROOT:-}" 2>/dev/null)" \
+  || UI_ROOT="${SAMANTHA_UI_PLAYBOOKS_ROOT:-$HOME/.openclaw/workspace/ui-playbooks}"
 STORE="${SAMANTHA_IMPROVEMENT_STORE:-$HOME/.openclaw/skill-intelligence/improvements.db}"
 gate_json="$("$ROOT/learning-gate.py" close "$@")"
 learning_text="$(printf '%s' "$gate_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("context_text",""))')"

@@ -34,14 +34,32 @@ clawmobile_require_npm
 
 cd "$REPO_ROOT"
 clawmobile_select_adb_device
-clawmobile_build_plugin_lite "$REPO_ROOT"
+# Single code root (02/11): rebuild and re-seed only from the deployed commit. Otherwise keep starting on the
+# dist already built by the last deploy, and leave a code-root event (alerted by runtime-sync.sh --check).
+code_root_event() { python3 "$SCRIPT_DIR/code_root.py" event --component "$1" --event "$2" --reason "$3" --root "$REPO_ROOT" >/dev/null 2>&1 || true; }
+CODE_ROOT_STATE="$(clawmobile_code_root_state "$REPO_ROOT")"
+if [ "$CODE_ROOT_STATE" = ok ]; then
+  clawmobile_build_plugin_lite "$REPO_ROOT"
+elif [ ! -f "$PLUGIN_DIR/dist/companion/server.js" ]; then
+  echo "[lite] WARNING: checkout state $CODE_ROOT_STATE and no built Companion; building anyway so the Companion starts." >&2
+  code_root_event companion_build built_unverified "$CODE_ROOT_STATE"
+  clawmobile_build_plugin_lite "$REPO_ROOT"
+else
+  echo "[lite] WARNING: checkout state $CODE_ROOT_STATE; keeping the deployed Companion build (no plugin rebuild)." >&2
+  code_root_event companion_build skipped "$CODE_ROOT_STATE"
+fi
 if [ "${CLAWMOBILE_COMPANION_INSTALL_PLUGIN:-0}" = "1" ]; then
   clawmobile_install_plugin "$PLUGIN_DIR"
 else
   echo "[lite] Skipping OpenClaw plugin reinstall during companion server startup."
   echo "[lite] Run 'clawmobile install' or set CLAWMOBILE_COMPANION_INSTALL_PLUGIN=1 to refresh plugin registration."
 fi
-clawmobile_sync_workspace_seed "$REPO_ROOT"
+if [ "$CODE_ROOT_STATE" = ok ]; then
+  clawmobile_sync_workspace_seed "$REPO_ROOT"
+else
+  echo "[lite] WARNING: checkout state $CODE_ROOT_STATE; workspace seed left as deployed." >&2
+  code_root_event companion_seed skipped "$CODE_ROOT_STATE"
+fi
 
 echo "[lite] Starting ClawMobile Companion server on ${CLAWMOBILE_COMPANION_HOST:-auto}:${CLAWMOBILE_COMPANION_PORT}"
 echo "[lite] OpenClaw gateway target is ${CLAWMOBILE_GATEWAY_HOST}:${CLAWMOBILE_GATEWAY_PORT}"

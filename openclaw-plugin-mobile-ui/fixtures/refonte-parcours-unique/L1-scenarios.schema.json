@@ -1,0 +1,267 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:samantha:refonte:l1-scenarios:v1",
+  "type": "object",
+  "required": [
+    "version",
+    "lot",
+    "provenance",
+    "scenarios"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "lot": {
+      "const": "L1"
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "kind",
+        "runtimeCapture",
+        "spec",
+        "contractSource",
+        "authorization"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "authored_acceptance_plan"
+        },
+        "runtimeCapture": {
+          "const": false
+        },
+        "spec": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "authorization": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "contractSource": {
+          "type": "object",
+          "required": [
+            "repository",
+            "commit",
+            "files"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "const": "sfar-amine/samantha-ui-playbooks"
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            },
+            "files": {
+              "const": [
+                "capabilities/registry.json",
+                "capabilities/execution_graph.json",
+                "skill_intelligence/manifests/*.json"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "surfaces",
+          "phrase",
+          "expected",
+          "safety"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "enum": [
+              "orange-balance",
+              "steg-invoice",
+              "agenda-recap",
+              "whatsapp-recap",
+              "pulse-read",
+              "pc-status",
+              "open-question",
+              "ambiguous-reminder",
+              "unknown-request",
+              "voice-greeting",
+              "voice-interruption",
+              "deferred-reply"
+            ]
+          },
+          "surfaces": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "app",
+                "whatsapp",
+                "voice"
+              ]
+            },
+            "uniqueItems": true,
+            "minItems": 1,
+            "maxItems": 3
+          },
+          "phrase": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "expected": {
+            "type": "object",
+            "required": [
+              "route"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "route": {
+                "enum": [
+                  "tool",
+                  "question",
+                  "answer",
+                  "reflex"
+                ]
+              },
+              "capability": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.-]{0,95}$"
+              },
+              "domain": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.-]{0,95}$"
+              },
+              "intent": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.-]{0,95}$"
+              },
+              "params": {
+                "type": "object",
+                "maxProperties": 12,
+                "additionalProperties": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "bindings": {
+                "type": "object",
+                "required": [
+                  "recipient"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "recipient": {
+                    "const": "owner_self"
+                  }
+                }
+              },
+              "conditions": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "confirmation_before_effect",
+                    "future_date_required",
+                    "owner_identity_resolved",
+                    "no_connection_mutation",
+                    "no_business_effect",
+                    "one_precise_question",
+                    "honest_unavailability",
+                    "barge_in_during_wait",
+                    "waiting_audio_stopped",
+                    "observed_over_budget",
+                    "same_surface_and_thread",
+                    "single_deferred_notice"
+                  ]
+                },
+                "uniqueItems": true,
+                "minItems": 1,
+                "maxItems": 8
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "route": {
+                      "const": "tool"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "capability",
+                    "domain",
+                    "intent",
+                    "params"
+                  ]
+                },
+                "else": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "capability"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "domain"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "intent"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "params"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "bindings"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "safety": {
+            "type": "object",
+            "required": [
+              "stopAtConfirmation",
+              "allowWrite"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "stopAtConfirmation": {
+                "const": true
+              },
+              "allowWrite": {
+                "const": false
+              }
+            }
+          }
+        }
+      },
+      "minItems": 12,
+      "maxItems": 12
+    }
+  }
+}

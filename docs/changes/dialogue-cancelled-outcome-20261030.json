@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "id": "dialogue-cancelled-outcome-20261030",
+  "date": "2026-10-30",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "A coordinator turn that cancels the open request (outcome CANCELLED) is a valid reply of the dialogue surface: the Pulse room, WhatsApp, voice and the app show the coordinator's sentence « J’ai arrêté la demande en cours. » instead of « Le suivi de conversation est indisponible ».",
+  "reason": "Pulse room recette on the S24, 30/10 12:21: « Crée un nouveau projet » then « Annule la demande en cours ». The dialogue store holds transition 554 CANCEL_REQUESTED AWAITING_INPUT -> CLOSED CANCELLED and the event reply {outcome: CANCELLED, text: « J’ai arrêté la demande en cours. »}, but asDialogueReply only admitted a closed outcome list without CANCELLED, so the reply became TECHNICAL_FAILURE coordinator_unavailable (source invalid_result) and the room showed « Le suivi de conversation est indisponible. ».",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/dialogueSurface.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+    "docs/changes/dialogue-cancelled-outcome-20261030.json",
+    "docs/changes/dialogue-cancelled-outcome-20261030.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+      "status": "passed",
+      "evidence": "Question then CANCELLED: the room replies « J’ai arrêté la demande en cours. ». Without the fix the same assertion fails (the reply is the coordinator_unavailable phrase)."
+    },
+    {
+      "name": "test-e3-surfaces, test-typed-failure-presentation",
+      "status": "passed",
+      "evidence": "40 E3 surface checks; 176 presentation checks in 2 locales."
+    }
+  ],
+  "documentation": [
+    "docs/changes/dialogue-cancelled-outcome-20261030.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No capability or route changes."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "One outcome added to the existing closed list of coordinator turn outcomes; the coordinator already produces it."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_impacted",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "dialogueSurface.ts outcome list, shared by the Pulse room, WhatsApp, voice and app surfaces."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Live proof: the Pulse cahier C1/C2 (question then cancel) after deployment."
+  ],
+  "rollback": "Revert this commit and redeploy the core."
+}

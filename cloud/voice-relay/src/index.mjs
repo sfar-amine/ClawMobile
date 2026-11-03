@@ -1,9 +1,14 @@
+import { authenticateMcpClient } from './mcp.mjs';
+import { useLegacyMcpAuth } from './mcp-routing.mjs';
 import { handleMcpHttp } from "./mcp.mjs";
 
 const ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 const MAX_TEXT_CHARS = 12000;
 // Edge wait for one device answer. Kept under the ~30 s MCP client budget.
 export const RELAY_WAIT_MS = 28000;
+// Useful brain work remains30s. This5s reserve only carries its terminal/deferred receipt;
+// MCP client timeout and all model/provider budgets remain unchanged.
+export const VOICE_RELAY_WAIT_MS = 30000 + 5000;
 // Tools whose device receipt is idempotent per action_key/step_key (canonical
 // remote-bridge receipt). Only these may report a pending state instead of an error.
 const ACTION_TOOLS = new Set(["claw_exec", "claw_execute", "claw_remember"]);
@@ -127,10 +132,31 @@ export class VoiceRelay {
   async fetch(request) {
     const url = new URL(request.url);
     if (url.pathname === "/device") return this.acceptDevice(request);
+    // RFC 9728 discovery is served by the official OAuth resource handler.
+    // It must be available only once the authorization Worker is bound.
+    if (url.pathname.startsWith('/.well-known/oauth-protected-resource')) {
+      if (!this.env.CHATGPT_AUTH_SERVER) {
+        return json({error:'oauth_not_configured'},503);
+      }
+      const { createChatgptOAuthResource } = await import('./chatgpt-oauth.mjs');
+      return createChatgptOAuthResource((req, env, auth) =>
+        handleMcpHttp(req, env, (tool,args,identity,meta) =>
+          this.handleMcpTool(tool,args,identity,meta), auth)
+      ).fetch(request,this.env,this.ctx);
+    }
+
     if (url.pathname === "/mcp") {
-      return handleMcpHttp(request, this.env, (tool, args, auth, meta) =>
-        this.handleMcpTool(tool, args, auth, meta),
-      );
+      const invoke = (tool, args, auth, meta) => this.handleMcpTool(tool, args, auth, meta);
+      const old = await authenticateMcpClient(request, this.env);
+      if (useLegacyMcpAuth(old)) return handleMcpHttp(request, this.env, invoke, old);
+      // OAuth is opt-in only when the separately deployed validator is ready.
+      // It cannot weaken the existing static Bearer authentication.
+      if (!this.env.CHATGPT_AUTH_SERVER) {
+        return handleMcpHttp(request, this.env, invoke, old);
+      }
+      const { createChatgptOAuthResource } = await import('./chatgpt-oauth.mjs');
+      return createChatgptOAuthResource((req, env, auth) =>
+        handleMcpHttp(req, env, invoke, auth)).fetch(request, this.env, this.ctx);
     }
     if (url.pathname === "/health") {
       if (!this.ownerAuthorized(request)) {
@@ -197,11 +223,15 @@ export class VoiceRelay {
     const sockets = this.authenticatedSockets();
     if (!sockets.length) return json({ error: "device_offline" }, 503);
 
-    const response = await this.waitForResponse(
+    const observed = await this.waitForResponse(
       body.requestId,
       sockets[0],
       JSON.stringify({ type: "request", ...body }),
+      VOICE_RELAY_WAIT_MS,
     );
+    // A transport deadline/disconnect cannot establish whether a business effect started.
+    const response = ["device_timeout", "device_disconnected"].includes(transportError(observed))
+      ? {...observed, state: "unknown", requestId: body.requestId, retrySafe: false} : observed;
 
     this.recent.set(body.requestId, {
       turnKey,
@@ -238,6 +268,10 @@ export class VoiceRelay {
         requestId,
         clientId: String(auth.clientId || ""),
         profile: String(auth.profile || ""),
+        // Service metadata comes from server auth, never from arguments alone.
+        ...(auth.profile === "chat-owner" && auth.interpretationServices?.includes("pulse") &&
+            args?.client_context && args?.service_scope?.schema_version === "mcp-service.v1" && args?.service_scope?.domain_id === "pulse"
+          ? { interpretationService: { schema_version: "mcp-service.v1", domain_id: "pulse" } } : {}),
         tool: String(tool || ""),
         arguments: args || {},
       }),

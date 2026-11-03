@@ -1,0 +1,51 @@
+{
+  "version": 2,
+  "id": "chantier1-maintenance-owner-cas-20261022",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Reopen only the exact maintenance state closed by the caller, under the existing owner lock.",
+  "reason": "An intervening urgent close can otherwise be reopened; epoch alone does not distinguish repeated legacy closes at the same epoch.",
+  "files": [
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/test-maintenance-epoch-cas.py",
+    ".github/workflows/ci.yml",
+    "docs/08-decisions/ADR-20261022-maintenance-owner-state-cas.md",
+    "docs/changes/chantier1-maintenance-owner-cas-20261022.md"
+  ],
+  "tests": [
+    {
+      "name": "actual maintenance owner on temporary HOME",
+      "status": "passed",
+      "evidence": "10/10 new fixtures passed in 1.424 s; 3/3 existing MaintenanceMarkerTests passed in 1.496 s. No real CI, phone, deployment, inference or payment."
+    },
+    {
+      "name": "bounded cross-owner counter-validation",
+      "status": "passed",
+      "evidence": "Reviewer replayed 4/4 core stale-epoch/revision/lock/idempotence controls in 0.401 s and 3/3 PB controls in 0.028 s. The real current core owner linked to the actual PB probe refused both epoch99 and a second canonical close at the same epoch: FAIL, old SHA restored, maintenance still closed, one refused CAS open. Fixtures only; no real CI/S24."
+    }
+  ],
+  "documentation": [
+    "docs/08-decisions/ADR-20261022-maintenance-owner-state-cas.md",
+    "docs/changes/chantier1-maintenance-owner-cas-20261022.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Internal existing deployment-maintenance CLI protocol only; no app/business/MCP tool or new Companion route."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Atomic expected epoch+revision comparison stays inside the sole existing maintenance marker writer and same lock.",
+    "documents": [
+      "docs/08-decisions/ADR-20261022-maintenance-owner-state-cas.md"
+    ]
+  },
+  "rollback": "Revert the scoped CAS owner and tests/docs; the lab client fails closed before first actuation if the required owner capability/source is absent.",
+  "limitations": [
+    "No actual phone deployment or runtime qualification is claimed.",
+    "State revision is not an authorization credential and creates no new store.",
+    "Canonical exact-head CI with the PR number remains required."
+  ]
+}

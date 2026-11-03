@@ -71,13 +71,13 @@ class RuntimeSync(unittest.TestCase):
         for name in ("runtime-sync.sh", "runtime_mode.py", "lib.sh", "companion-deploy.sh", "companion-acceptance.py", "project-room.py", "pulse-room.py", "contacts-agent.md"):
             shutil.copy2(HERE / name, self.root / name)
         compat = self.root / "openclaw-compat"; compat.mkdir()
-        (compat / "whatsapp-network-recovery.py").write_text('import json,os,sys\nstate=os.environ.get("STUB_WA_PATCH","unchanged")\nprint(json.dumps({"ok":state!="refused","state":state}))\nsys.exit(1 if state=="refused" else 0)\n')
+        (compat / "whatsapp-network-recovery.py").write_text('import json,os,sys\nstate=os.environ.get("STUB_MODEL_PATCH" if "model-flow-selection" in sys.argv else "STUB_NATIVE_PATCH" if "native-turn-provenance" in sys.argv else "STUB_WA_PATCH","unchanged")\nprint(json.dumps({"ok":state!="refused","state":state}))\nsys.exit(1 if state=="refused" else 0)\n')
         (self.root / "install-tier0-control.py").write_text(TIER0_STUB)
         plugin = repo / PLUGIN_ID; (plugin / "dist").mkdir(parents=True)
         (plugin / "package.json").write_text('{"name":"openclaw-plugin-mobile-ui"}')
         (plugin / "openclaw.plugin.json").write_text('{"id":"openclaw-plugin-mobile-ui"}')
-        (plugin / "dist/index.js").write_text("require('./pulseRoomFastPath')\n")
-        (plugin / "dist/pulseRoomFastPath.js").write_text("// room\n")
+        (plugin / "dist/index.js").write_text("require('./pulseRoomBrain')\n")
+        (plugin / "dist/pulseRoomBrain.js").write_text("// room\n")
         # Public source contracts only; no synthetic account/runtime payload.
         for rel in ("installer/termux-lite/context_memory.py", "installer/termux-lite/model-fast-path.py", "openclaw-plugin-mobile-ui/src/companion/runWeb.ts", "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json"):
             dest = repo / rel; dest.parent.mkdir(parents=True, exist_ok=True)
@@ -124,6 +124,17 @@ class RuntimeSync(unittest.TestCase):
                         RUNTIME_SYNC_COMPANION_URL=f"http://127.0.0.1:{self.server.server_address[1]}",
                         RUNTIME_SYNC_GATEWAY_HEALTHZ_URL=f"http://127.0.0.1:{self.server.server_address[1]}/healthz")
         self.env.pop("OPENCLAW_STATE_DIR", None)
+        # Invocation-boundary double: the separate Node test exercises the real metadata projection/closed RPC.
+        node = self.tmp / 'bin/node'
+        node.write_text('#!/usr/bin/env python3\nimport json,os,pathlib,sys\n'
+            'assert len(sys.argv)==3 and sys.argv[2]=="--prepare-main-tools"\n'
+            'h=pathlib.Path.home()\n'
+            'with (h/"preparation.log").open("a") as f:f.write("tools.catalog:main\\n")\n'
+            'if os.environ.get("STUB_PREP_ORDER"): \n with (h/"tier0.log").open("a") as f:f.write("tools-prepare\\n")\n'
+            'failed=os.environ.get("STUB_PREP_FAIL")=="1"\n'
+            'print(json.dumps({"state":"unverified" if failed else "ready","agentId":"main","elapsed_ms":1200,"budget_ms":20000,"groups":2,"tools":96}))\n'
+            'sys.exit(75 if failed else 0)\n')
+        node.chmod(0o700)
 
     def sync(self, commit=None, check=False, inherited=None, **env):
         args = ["--check"] if check else []
@@ -134,6 +145,26 @@ class RuntimeSync(unittest.TestCase):
     def tier0_log(self):
         path = self.home / "tier0.log"
         return path.read_text().splitlines() if path.exists() else []
+
+    def test_metadata_preparation_is_once_after_restart_and_readiness_before_promotion(self):
+        Companion.healthz_logged=True
+        rc,out,err=self.sync(STUB_PREP_ORDER='1')
+        self.assertEqual(rc,0,err)
+        timeline=self.tier0_log()
+        self.assertLess(timeline.index('gateway-ready'),timeline.index('tools-prepare'))
+        self.assertLess(timeline.index('tools-prepare'),timeline.index('--apply'))
+        log=self.home/'preparation.log';self.assertEqual(log.read_text().splitlines(),['tools.catalog:main'])
+        self.assertEqual(self.sync(check=True)[0],0)
+        self.assertEqual(self.sync()[0],0) # Unchanged warm Gateway is not prepared again.
+        self.assertEqual(log.read_text().splitlines(),['tools.catalog:main'])
+        self.assertNotIn('PRIVATE_SENTINEL',err)
+
+    def test_failed_metadata_preparation_does_not_retry_or_restart_an_already_ready_gateway(self):
+        rc,out,err=self.sync(STUB_PREP_FAIL='1')
+        self.assertEqual(rc,0,err);self.assertEqual(out['gateway'],'restarted')
+        self.assertEqual((self.home/'preparation.log').read_text().splitlines(),['tools.catalog:main'])
+        self.assertIn('tools_catalog_unavailable',err)
+        self.assertEqual(sum(row=='gateway-restart' for row in self.tier0_log()),1)
 
     def test_context_coverage_mismatch_is_runtime_drift(self):
         self.assertEqual(self.sync()[0],0)
@@ -171,6 +202,7 @@ class RuntimeSync(unittest.TestCase):
         # Invocation-boundary double only; the separate Node test runs actual
         # Gateway stop/start over a TCP fixture with this same real flock proof.
         node.write_text('#!/usr/bin/env python3\nimport json,os,subprocess,sys\n'
+            'if len(sys.argv)==3 and sys.argv[2]=="--prepare-main-tools":print(json.dumps({"state":"ready","groups":2,"tools":96}));sys.exit(0)\n'
             'assert len(sys.argv)==4 and sys.argv[2]=="--deploy-restart"\n'
             'fd=int(os.environ["SAMANTHA_DEPLOY_LOCK_FD"])\n'
             'p=subprocess.run([sys.executable,sys.argv[3],"--repair-lease","--require-existing-exclusive"],'
@@ -195,7 +227,7 @@ class RuntimeSync(unittest.TestCase):
         self.assertIn("inventes jamais", (self.rooms["project"] / "AGENTS.md").read_text())
         self.assertIn("inventes jamais", (self.rooms["pulse"] / "AGENTS.md").read_text())
         self.assertEqual((self.root / "contacts-agent.md").read_text(), (self.home / ".openclaw/workspace-contacts/AGENTS.md").read_text())
-        self.assertEqual("// room\n", (self.ext / "dist/pulseRoomFastPath.js").read_text())
+        self.assertEqual("// room\n", (self.ext / "dist/pulseRoomBrain.js").read_text())
         self.assertEqual("dep", (self.ext / "node_modules/dep/x.js").read_text())  # the Gateway's installed deps stay
         manifest = json.loads((self.home / ".openclaw/releases/current/manifest.json").read_text())
         self.assertEqual(self.commit, manifest["source_commit"])
@@ -266,6 +298,39 @@ class RuntimeSync(unittest.TestCase):
         self.assertEqual("restarted", out["gateway"])
         self.assertIn(("POST", "/v1/runtime/restart"), Companion.calls)
 
+    def test_model_profile_patch_restarts_without_plugin_copy_change(self):
+        self.assertEqual(self.sync()[0], 0)
+        Companion.calls.clear()
+        rc, out, err = self.sync(STUB_MODEL_PATCH="applied")
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(out["plugin"], "unchanged")
+        self.assertEqual(out["gateway"], "restarted")
+        self.assertIn(("POST", "/v1/runtime/restart"), Companion.calls)
+
+    def test_model_profile_patch_refused_before_activation_and_health_reports_drift(self):
+        rc, out, _ = self.sync(STUB_MODEL_PATCH="refused")
+        self.assertNotEqual(rc, 0)
+        self.assertEqual(out["reason"], "model_flow_selection_refused")
+        self.assertNotIn(("POST", "/v1/runtime/restart"), Companion.calls)
+        rc, out, _ = self.sync(check=True, STUB_MODEL_PATCH="refused")
+        self.assertNotEqual(rc, 0)
+        self.assertIn("openclaw:model_flow_selection", out["drift"])
+
+    def test_new_native_provenance_patch_restarts_even_when_plugin_matches(self):
+        self.sync(); Companion.calls.clear()
+        rc, out, err = self.sync(STUB_NATIVE_PATCH="applied")
+        self.assertEqual(0, rc, err)
+        self.assertEqual("restarted", out["gateway"])
+        self.assertIn(("POST", "/v1/runtime/restart"), Companion.calls)
+
+    def test_unsupported_native_provenance_patch_refuses_and_reports_drift(self):
+        rc, out, _ = self.sync(STUB_NATIVE_PATCH="refused")
+        self.assertEqual((1, "native_turn_provenance_refused"), (rc, out["reason"]))
+        self.assertEqual([], Companion.calls)
+        rc, out, _ = self.sync(check=True, STUB_NATIVE_PATCH="refused")
+        self.assertEqual(1, rc)
+        self.assertIn("openclaw:native_turn_provenance", out["drift"])
+
     def test_unsupported_whatsapp_patch_refuses_sync_and_is_reported_as_drift(self):
         rc, out, _ = self.sync(STUB_WA_PATCH="refused")
         self.assertEqual((1, "whatsapp_network_recovery_refused"), (rc, out["reason"]))
@@ -297,6 +362,29 @@ class RuntimeSync(unittest.TestCase):
         (self.dist / "dispatch-from-config-X.mjs").write_text("// before_dispatch no longer dispatched")
         rc, out, _ = self.sync(check=True)
         self.assertEqual(1, rc); self.assertEqual(["rules:contacts", "rules:operating", "openclaw:before_dispatch_missing"], out["drift"])
+
+    def test_single_code_root_drift_is_reported_and_the_deploy_records_the_skills_baseline(self):
+        # 02/11: code_root.py/job_code_root.py extend the check; without them (older checkout) nothing changes.
+        for name in ("code_root.py", "job_code_root.py"):
+            shutil.copy2(HERE / name, self.root / name)
+        self.sync()
+        rc, out, err = self.sync(check=True)
+        self.assertEqual(1, rc, err)
+        self.assertEqual(["code_root:playbooks_pin_missing"], out["drift"])
+        self.assertNotIn("skills:no_activation_baseline", out.get("advisory", []), "the deploy recorded the baseline")
+        baseline = json.loads((self.home / ".openclaw/health/code-root/baseline.json").read_text())
+        self.assertEqual((baseline["source"], baseline["core"]), ("deploy", self.commit))
+        graph = self.home / ".openclaw/runtime-ui-playbooks/current/skill_intelligence/capability_graph.py"
+        graph.write_text("")
+        rc, out, err = self.sync(check=True)
+        self.assertEqual((0, {"ok": True, "commit": self.commit, "drift": []}), (rc, out), err)
+        skills = self.home / ".openclaw/workspace/skills/samantha-x"; skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text("hand edit\n")
+        (self.home / ".openclaw/health/code-root/events").mkdir(parents=True)
+        (self.home / ".openclaw/health/code-root/events/model_fast_path.json").write_text(json.dumps({"component": "model_fast_path", "event": "fallback"}))
+        rc, out, _ = self.sync(check=True)
+        self.assertEqual(1, rc)
+        self.assertEqual(["code_root:model_fast_path:fallback", "skills:changed_since_activation"], out["drift"])
 
     def test_a_gateway_without_before_dispatch_fails_the_deploy_sync(self):
         (self.dist / "dispatch-from-config-X.mjs").write_text("// gone")

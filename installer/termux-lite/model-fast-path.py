@@ -17,10 +17,22 @@ import time
 import threading
 import select
 import stat
+import socket
+import struct
 from typing import Any
 
 HOME = Path.home()
 _QA_INGRESS_CONTEXT = None
+_INTENT_CLIENT_CONTEXT = None
+_INTENT_CONTEXT_READ_EVIDENCE = None
+_INTENT_PRIVATE_CHANNEL = None
+_INTENT_CHANNEL_SEAL = object()
+_NATIVE_PULSE_EVENT = None
+_NATIVE_PULSE_HANDOFF = None
+_NATIVE_CONTEXT_READ_EVIDENCE = None
+_NATIVE_FAST_READ_PRECONDITION = None
+# Private, unconfigured until C17 supplies current scoped service evidence.
+_NATIVE_FAST_READ_SCOPE_OWNER = None
 
 def _read_qa_input():
     """Host's private input pipe. Raw contact text never becomes a CLI argument."""
@@ -41,6 +53,143 @@ def _read_qa_input():
         if not isinstance(result,dict) or set(result)!={'context','user_input'} or not isinstance(result['user_input'],str) or not 0<len(result['user_input'])<=4000:raise ValueError('qa_scope_unavailable')
         return result
     finally:os.close(0)
+def _intent_input_is_private(fd):
+    """The inherited subprocess stream only; never connect or listen anywhere."""
+    info = os.fstat(fd)
+    if info.st_uid != os.getuid():
+        return False
+    if stat.S_ISFIFO(info.st_mode):
+        return True
+    if not stat.S_ISSOCK(info.st_mode):
+        return False
+    duplicate = os.dup(fd)
+    try:
+        stream = socket.socket(fileno=duplicate)
+        duplicate = None  # The socket object owns only our duplicate.
+        with stream:
+            if stream.family != socket.AF_UNIX or stream.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE) != socket.SOCK_STREAM:
+                return False
+            if hasattr(socket, "SO_PEERCRED"):
+                credentials = stream.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"))
+                _, peer_uid, _ = struct.unpack("3i", credentials)
+                if peer_uid != os.getuid():
+                    return False
+            return True
+    except (OSError, ValueError, struct.error):
+        return False
+    finally:
+        if duplicate is not None:
+            os.close(duplicate)
+
+
+def _read_native_pulse_input():
+    """Inherited local stream only; native host admission never comes from argv."""
+    if os.environ.pop('SAMANTHA_NATIVE_PULSE_FD',None)!='0' or not _intent_input_is_private(0):
+        raise ValueError('native_pulse_admission_required')
+    data=bytearray();deadline=time.monotonic()+2
+    try:
+        while True:
+            remaining=deadline-time.monotonic()
+            if remaining<=0 or not select.select([0],[],[],remaining)[0]:raise ValueError('native_pulse_input_timeout')
+            chunk=os.read(0,min(4096,16385-len(data)))
+            if not chunk:break
+            data.extend(chunk)
+            if len(data)>16384:raise ValueError('native_pulse_input_capacity')
+        value=json.loads(data)
+        if (not isinstance(value,dict) or set(value)!={'request','admission'} or
+                not isinstance(value['request'],str) or not 0<len(value['request'])<=4000):
+            raise ValueError('native_pulse_admission_required')
+        return value
+    finally:os.close(0)
+
+
+def _read_intent_input():
+    """One bounded host-private MCP envelope; its contents remain client-reported."""
+    global _INTENT_PRIVATE_CHANNEL
+    _INTENT_PRIVATE_CHANNEL = None
+    raw_fd = os.environ.pop("SAMANTHA_INTENT_INPUT_FD", None)
+    if raw_fd != "0":
+        raise ValueError("intent_private_input_required")
+    # libuv/Node uses an AF_UNIX stream pair; Python uses a FIFO.
+    if not _intent_input_is_private(0):
+        raise ValueError("intent_private_input_required")
+    data = bytearray(); deadline = time.monotonic() + 2
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not select.select([0], [], [], remaining)[0]:
+                raise ValueError("intent_private_input_timeout")
+            chunk = os.read(0, min(4096, 32769 - len(data)))
+            if not chunk:
+                break
+            data.extend(chunk)
+            if len(data) > 32768:
+                raise ValueError("intent_private_input_too_large")
+        value = json.loads(data)
+        if (not isinstance(value, dict) or set(value) not in ({"request", "client_context"}, {"request", "client_context", "host_context"},
+                {"request", "client_context", "service_scope"}, {"request", "client_context", "service_scope", "host_context"}) or
+                not isinstance(value["request"], str) or not 0 < len(value["request"]) <= 12000 or
+                not isinstance(value["client_context"], dict) or
+                value["client_context"].get("schema_version") != "mcp-input.v1" or
+                value["client_context"].get("original_message", {}).get("text") != value["request"]):
+            raise ValueError("intent_private_input_invalid")
+        _INTENT_PRIVATE_CHANNEL = _INTENT_CHANNEL_SEAL
+        return value
+    finally:
+        os.close(0)
+
+
+def _admit_intent_host_context(packet, args):
+    """Private transport admission only. A public/client JSON object never calls this.
+
+    The parent creates host_context only from its existing authenticated relay
+    WeakMap. This process also verifies the inherited same-UID IPC channel and
+    exact bindings before importing a context owner or opening private data.
+    """
+    scope = packet.get('service_scope')
+    if (not isinstance(scope, dict) or set(scope) != {'schema_version', 'domain_id'} or
+            scope != {'schema_version': 'mcp-service.v1', 'domain_id': 'pulse'}):
+        raise ValueError('MCP_INTERPRETATION_SERVICE_REQUIRED')
+    if "host_context" not in packet:
+        raise ValueError('MCP_INTERPRETATION_SERVICE_UNVERIFIED')
+    host = packet["host_context"]
+    fields = {"schema_version", "client_id", "authenticated_profile", "request_id", "observed_at", "valid_until",
+              "principal_ref", "conversation_key", "verification_ref", "input_digest", "service_scope"}
+    now = time.time()
+    if (_INTENT_PRIVATE_CHANNEL is not _INTENT_CHANNEL_SEAL or not isinstance(host, dict) or set(host) != fields or
+            host["schema_version"] != "mcp-host-context.v2" or host["authenticated_profile"] != "chat-owner" or
+            host.get('service_scope') != scope or
+            args.surface != "mcp" or args.caller != "owner" or
+            not isinstance(host["client_id"], str) or not re.fullmatch(r"[A-Za-z0-9._-]{1,24}", host["client_id"]) or
+            not isinstance(host["request_id"], str) or not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", host["request_id"]) or
+            args.request_id != host["request_id"] or args.origin_id != host["request_id"] or
+            host["principal_ref"] != "mcp:" + host["client_id"] or
+            host["verification_ref"] != "mcp-context:" + host["request_id"] or
+            type(host["observed_at"]) not in (int, float) or type(host["valid_until"]) not in (int, float) or
+            not host["observed_at"] <= now < host["valid_until"] <= host["observed_at"] + 30):
+        raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
+    expected_key = "external_mcp:" + host["client_id"] + ":" + str(packet["client_context"].get("conversation_ref", ""))
+    event = _b64_json("CLAW_DIALOGUE_EVENT_B64")
+    if (host["conversation_key"] != expected_key or event.get("conversationKey") != expected_key or
+            event.get("eventRef") != host["request_id"]):
+        raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
+    raw = json.dumps({"request": packet["request"], "client_context": packet["client_context"], "service_scope": scope},
+                     sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
+    if host["input_digest"] != hashlib.sha256(raw).hexdigest():
+        raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
+    root = args.ui_root.resolve()
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from skill_intelligence import interpretation_context
+    if not Path(interpretation_context.__file__).resolve().is_relative_to(root / "skill_intelligence"):
+        raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
+    return interpretation_context._admit_owner_context_channel(
+        authenticated_profile=host["authenticated_profile"], channel_verified=True,
+        home=Path.home(), core_owner_root=Path(__file__).resolve().parent,
+        request_id=host["request_id"], principal_ref=host["principal_ref"], verification_ref=host["verification_ref"],
+        observed_at=host["observed_at"], valid_until=host["valid_until"], service_domain=scope['domain_id'])
+
+
 def _ui_root() -> Path:
     # Same order as claw-capability.py: explicit root, pinned runtime snapshot, then the mutable workspace.
     configured = os.environ.get("CLAW_UI_PLAYBOOKS_ROOT")
@@ -49,7 +198,16 @@ def _ui_root() -> Path:
     pinned = HOME / ".openclaw/runtime-ui-playbooks/current"
     if (pinned / "skill_intelligence/capability_graph.py").is_file():
         return pinned
-    return HOME / ".openclaw/workspace/ui-playbooks"
+    workspace = HOME / ".openclaw/workspace/ui-playbooks"
+    # Single code root (02/11): keep answering from the working copy, and leave a throttled event that
+    # runtime-sync.sh --check turns into an alert. Never blocking, never raising.
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from code_root import record_event
+        record_event("model_fast_path", "fallback", workspace, "pin_missing", HOME)
+    except Exception:
+        pass
+    return workspace
 UI_ROOT = _ui_root()
 STATIC_BAD = ("{", "}", "$(", "`", ";", "&&", "||", "|", ">", "<")
 SAFE_EXECUTION_STATES = {"completed"}
@@ -797,6 +955,7 @@ def _durable_capability_execute(
     origin_id: str,
     timeout: int,
     decision: dict[str, Any] | None = None,
+    read_handoff: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     selected = resolution.get("selected") if isinstance(resolution.get("selected"), dict) else {}
     capability = str(selected.get("capability") or resolution.get("capability") or "").strip()
@@ -812,6 +971,10 @@ def _durable_capability_execute(
     params = {"request": message, "targetHint": "", "surface": surface, "caller": caller}
     if isinstance(decision, dict):
         params["decision"] = decision
+    if read_handoff is not None:
+        if risk != "read" or caller != "owner":
+            raise ValueError("intent_read_handoff_requires_read_only")
+        params["dialogueReadHandoff"] = read_handoff
     params = _js_json(params)
     owner_id = "capfirst-" + hashlib.sha256(origin_id.encode()).hexdigest()[:24]
     prepared = _continuum_call(ui_root, [
@@ -1108,6 +1271,63 @@ def _execute_web_resolved(message: str, resolution: dict[str, Any], decision: di
             "decision": executed.get("decision") or decision, "model_bypassed": True, **metadata}
 
 
+def _completed_execution(executed: dict[str, Any], decision: dict[str, Any] | None) -> dict[str, Any]:
+    """The one rendering of a completed Graph execution, for the lexical and the interpreted paths."""
+    execution = executed.get("execution") if isinstance(executed.get("execution"), dict) else {}
+    selected = executed.get("selected") if isinstance(executed.get("selected"), dict) else {}
+    metadata = _presentation_metadata(executed)
+    payload = execution.get("result")
+    reason_class = _public_reason_class(payload)
+    executed_decision = executed.get("decision") if isinstance(executed.get("decision"), dict) else {}
+    decision_selected = executed_decision.get("selected") if isinstance(executed_decision.get("selected"), dict) else {}
+    resolved_risk = selected.get("risk") or decision_selected.get("risk")
+    generic_renders = [0]
+    rendered = _display_text(payload, card=resolved_risk != "read", generic_renders=generic_renders)
+    capability = selected.get("capability")
+    diagnostics = {"genericDisplayByCapability": [{"capability": capability, "renders": generic_renders[0]}]} if generic_renders[0] and isinstance(capability, str) and re.fullmatch(r"[a-z][a-z0-9_.-]{0,159}", capability) else None
+    return {
+        # A proven read renders its business result instead of an opaque receipt card.  For every other
+        # risk (including missing metadata), the explicit owner presentation remains authoritative.
+        "status": "hit", "source": "capability",
+        "text": _understood_prefix(metadata, rendered),
+        **({"presentationDiagnostics": diagnostics} if diagnostics else {}),
+        **metadata,
+        "result": payload, "target": selected.get("target"), "intent": selected.get("intent"),
+        "route": selected.get("route"), "capability": selected.get("capability"),
+        "execution_state": str(execution.get("state") or ""), "decision": executed.get("decision") or decision or None,
+        "provenance": _execution_provenance(selected, execution),
+        **({"reason_class": reason_class} if reason_class else {}),
+        "model_bypassed": True,
+    }
+
+
+def _rendered_semantic_execution(out: Any) -> Any:
+    """The interpreted backend returns the Graph's own execution; render it like the lexical path.
+
+    A completed execution or an explicitly presented partial billing read is rendered.
+    Failures, waits and owner-provided texts keep their existing presentation."""
+    if not isinstance(out, dict) or out.get("status") != "hit" or out.get("text"):
+        return out
+    executed = out.get("resolution")
+    execution = executed.get("execution") if isinstance(executed, dict) else None
+    if not isinstance(execution, dict):
+        return out
+    selected = executed.get("selected") if isinstance(executed.get("selected"), dict) else {}
+    partial_billing = (execution.get("state") == "partial" and selected.get("risk") == "read"
+        and selected.get("capability") == "billing.utility.fast_path"
+        and isinstance(executed.get("presentation"), dict) and bool(executed["presentation"].get("rows")))
+    if str(execution.get("state") or "") not in SAFE_EXECUTION_STATES and not partial_billing:
+        return out
+    if partial_billing:
+        metadata = _presentation_metadata(executed)
+        if not metadata:
+            return out
+        return {**out, **metadata, "text": _display_text(executed),
+                "result": execution.get("result"), "execution_state": "partial"}
+    # The dialogue's frozen decision stays the reply's decision.
+    return {**out, **_completed_execution(executed, out.get("decision")), "decision": out.get("decision") or executed.get("decision")}
+
+
 def execute_resolved(
     message: str,
     resolution: dict[str, Any],
@@ -1119,6 +1339,7 @@ def execute_resolved(
     origin_id: str = "capability-first",
     timeout: int = 30,
     execution_context: dict[str, Any] | None = None,
+    read_handoff: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Execution stage of the canonical fast path for an already resolved decision (unchanged behaviour: confirmed
     handoff, durable Continuum execution with identity derived from origin_id, or read execution)."""
@@ -1142,6 +1363,7 @@ def execute_resolved(
         executed = _durable_capability_execute(
             resolution, message, ui_root=ui_root, surface=surface, caller=caller,
             origin_id=origin_id, timeout=execution_timeout, decision=decision or None,
+            **({"read_handoff": read_handoff} if read_handoff is not None else {}),
         )
     else:
         executed = (
@@ -1154,29 +1376,7 @@ def execute_resolved(
     selected = executed.get("selected") if isinstance(executed.get("selected"), dict) else {}
     metadata = _presentation_metadata(executed)
     if state in SAFE_EXECUTION_STATES:
-        payload = execution.get("result")
-        reason_class = _public_reason_class(payload)
-        executed_decision = executed.get("decision") if isinstance(executed.get("decision"), dict) else {}
-        decision_selected = executed_decision.get("selected") if isinstance(executed_decision.get("selected"), dict) else {}
-        resolved_risk = selected.get("risk") or decision_selected.get("risk")
-        generic_renders = [0]
-        rendered = _display_text(payload, card=resolved_risk != "read", generic_renders=generic_renders)
-        capability = selected.get("capability")
-        diagnostics = {"genericDisplayByCapability": [{"capability": capability, "renders": generic_renders[0]}]} if generic_renders[0] and isinstance(capability, str) and re.fullmatch(r"[a-z][a-z0-9_.-]{0,159}", capability) else None
-        return {
-            # A proven read renders its business result instead of an opaque receipt card.  For every other
-            # risk (including missing metadata), the explicit owner presentation remains authoritative.
-            "status": "hit", "source": "capability",
-            "text": _understood_prefix(metadata, rendered),
-            **({"presentationDiagnostics": diagnostics} if diagnostics else {}),
-            **metadata,
-            "result": payload, "target": selected.get("target"), "intent": selected.get("intent"),
-            "route": selected.get("route"), "capability": selected.get("capability"),
-            "execution_state": state, "decision": executed.get("decision") or decision or None,
-            "provenance": _execution_provenance(selected, execution),
-            **({"reason_class": reason_class} if reason_class else {}),
-            "model_bypassed": True,
-        }
+        return _completed_execution(executed, decision)
     if state == "needs_clarification" and isinstance(executed.get("decision"), dict) and executed["decision"].get("type") == "CLARIFY":
         # Amine 12/10 : several matches → one question listing them; nothing was executed.
         choices = [c for c in (execution.get("choices") or []) if isinstance(c, dict) and _plain_display(c.get("label"), 120)]
@@ -1233,9 +1433,32 @@ DIALOGUE_UNAVAILABLE = {
 WEB_HOST_ID = re.compile(r"[A-Za-z0-9_.:-]{1,160}")
 
 
+def _intent_dialogue_backend(ui_root: Path, *, surface: str, caller: str, timeout: int):
+    """Load the pinned existing PB owner in-process; never serialize trust objects."""
+    root = str(ui_root.resolve())
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from skill_intelligence import intent_dialogue
+    loaded = Path(intent_dialogue.__file__).resolve()
+    if not loaded.is_relative_to(Path(root) / "skill_intelligence"):
+        raise RuntimeError("intent_backend_root_mismatch")
+    return intent_dialogue.make_intent_dialogue_port(ui_root, surface="pulse_room" if _NATIVE_PULSE_EVENT else surface, caller=caller, timeout=timeout,
+        **({"native_handoff":_NATIVE_PULSE_HANDOFF} if _NATIVE_PULSE_HANDOFF is not None else {}),
+        **({"native_context_evidence":_NATIVE_CONTEXT_READ_EVIDENCE} if _NATIVE_CONTEXT_READ_EVIDENCE is not None else {}),
+        **({"native_read_precondition":_NATIVE_FAST_READ_PRECONDITION} if _NATIVE_FAST_READ_PRECONDITION is not None else {}),
+        **({"context_read_evidence": _INTENT_CONTEXT_READ_EVIDENCE} if _INTENT_CONTEXT_READ_EVIDENCE is not None else {}))
+
+
+def _intent_surface(graph_surface, event=None):
+    """Host dialogue identity is distinct from the executor's technical surface alias."""
+    actual = event.get("surface") if isinstance(event, dict) else None
+    return actual if actual in {"app", "voice", "whatsapp", "pulse_room", "claw_live", "mcp"} else graph_surface
+
+
 class FastPathPorts:
     def __init__(self, ui_root: Path, *, surface: str, caller: str, timeout: int,
-                 web_host: dict[str, Any] | None = None) -> None:
+                 web_host: dict[str, Any] | None = None, dialogue_surface: str | None = None) -> None:
+        self.intent_surface = dialogue_surface or surface
         self.ui_root = ui_root
         self.surface = surface
         self.caller = caller
@@ -1250,6 +1473,46 @@ class FastPathPorts:
         self.web_run_id = host.get("run_id") if isinstance(host.get("run_id"), str) and WEB_HOST_ID.fullmatch(host["run_id"]) else None
         self.web_session_id = host.get("session_id") if isinstance(host.get("session_id"), str) and WEB_HOST_ID.fullmatch(host["session_id"]) else None
         self.web_voice = host.get("voice_delegation") is True
+        self._semantic_backend = None
+        # Host deployment switch only. No natural word or client field toggles it.
+        # Doc 71: voice uses the same interpreter; Claude's own live session
+        # (claw_live) and private QA ingress keep their existing owners.
+        # Owner turns belong to the brain (ADR 02/11, step 3): the Gateway port refuses the owner interpreter purpose,
+        # so an owner caller never starts it here; the native Pulse room keeps its own.
+        self._semantic_enabled = (os.environ.get("SAMANTHA_INTENT_INTERPRETER") == "1" and
+            not (self.caller == "owner" and self.intent_surface != "pulse_room") and
+            self.intent_surface != "claw_live" and _QA_INGRESS_CONTEXT is None)
+        if self._semantic_enabled:
+            self.interpret_turn = self._interpret_semantic_turn
+
+    def _semantic(self):
+        if self._semantic_backend is None:
+            self._semantic_backend = _intent_dialogue_backend(self.ui_root, surface=self.intent_surface,
+                caller=self.caller, timeout=self.timeout)
+        return self._semantic_backend
+
+    def _semantic_context(self, ctx):
+        context = {**ctx, "messageProvenance":
+                   "client_reported" if self.surface == "mcp" else "server_verified"}
+        if _NATIVE_PULSE_EVENT is not None:
+            if (not _NATIVE_PULSE_EVENT.current(int(time.time()*1000)) or
+                    context.get('conversationRef')!=_NATIVE_PULSE_EVENT.conversation_ref or
+                    context.get('eventKey')!=_NATIVE_PULSE_EVENT.event_key):
+                raise ValueError('native_pulse_event_mismatch')
+            context['messageProvenance']='server_verified'
+            context['requestId']=_NATIVE_PULSE_EVENT.event_key
+            context['generationId']=_NATIVE_PULSE_EVENT.event_key
+        if _INTENT_CONTEXT_READ_EVIDENCE is not None:
+            if context.get("requestId", _INTENT_CONTEXT_READ_EVIDENCE.request_id) != _INTENT_CONTEXT_READ_EVIDENCE.request_id:
+                raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
+            context["requestId"] = _INTENT_CONTEXT_READ_EVIDENCE.request_id
+        if _INTENT_CLIENT_CONTEXT is not None:
+            context["client_context"] = json.loads(json.dumps(_INTENT_CLIENT_CONTEXT))
+            context["input_provenance"] = "client_reported"
+        return context
+
+    def _interpret_semantic_turn(self, text, state, ctx):
+        return self._semantic().interpret_turn(text, state, self._semantic_context(ctx))
 
     def _web_context(self, decision: dict[str, Any]) -> dict[str, Any] | None:
         request_id = decision.get("requestId")
@@ -1274,11 +1537,20 @@ class FastPathPorts:
         return out
 
     def resolve(self, text: str, ctx: dict[str, Any]) -> dict[str, Any]:
+        if self._semantic_enabled:
+            try:
+                return self._semantic().preview(text, self._semantic_context(ctx))
+            except Exception:
+                return {"status": "known_error", "reason": "INTERPRETATION_HOST_UNAVAILABLE",
+                        "execution_state": "not_started"}
         return self._remember(try_fast_path(
             text, self.ui_root, execute=False, surface=self.surface, caller=self._caller(ctx),
             origin_id=self._origin(ctx), timeout=min(self.timeout, 15)))
 
     def resolve_answer(self, answer: str, original_text: str, decision: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
+        if self._semantic_enabled:
+            # Enabled turns must arrive through the one contextual interpreter.
+            raise RuntimeError("semantic_answer_requires_admitted_turn")
         return self._remember(try_fast_path(
             answer, self.ui_root, execute=False, surface=self.surface, caller=self._caller(ctx),
             origin_id=self._origin(ctx), timeout=min(self.timeout, 15),
@@ -1292,6 +1564,26 @@ class FastPathPorts:
 
     def execute(self, text: str, decision: dict[str, Any] | None, origin_id: str, klass: str, ctx: dict[str, Any]) -> dict[str, Any]:
         decision = decision if isinstance(decision, dict) else {}
+        if self._semantic_enabled:
+            try:
+                backend = self._semantic()
+            except Exception:
+                return {"status": "known_error", "reason": "INTERPRETATION_HOST_UNAVAILABLE",
+                        "execution_state": "not_started"}
+            if decision.get("risk") == "read" and (klass == "DURABLE" or (decision.get("continuum") or {}).get("mode") == "durable"):
+                try:
+                    from skill_intelligence.dialogue.coordinator import read_handoff_context
+                    from skill_intelligence.decision_contract import frozen_resolution
+                    reference = {"conversationRef": ctx.get("conversation_ref"), "goalRef": ctx.get("goal_ref"),
+                        "eventKey": ctx.get("event_key"), "originId": origin_id, "revision": ctx.get("conversation_revision")}
+                    read_handoff_context(reference, decision, ctx.get("_intent_dialogue_store"))
+                    resolution = frozen_resolution(decision, text)
+                    return self._track_execution(execute_resolved(text, resolution, decision, self.ui_root,
+                        surface=self.surface, caller=self._caller(ctx), origin_id=origin_id,
+                        timeout=self.timeout, read_handoff=reference))
+                except (ImportError, ValueError, TypeError, KeyError):
+                    return {"status": "known_error", "reason": "intent_read_handoff_unqualified", "execution_state": "blocked"}
+            return self._track_execution(_rendered_semantic_execution(backend.execute(text, decision, origin_id, klass, ctx)))
         resolution = self._resolutions.get(str(decision.get("decisionId")))
         if _is_web_capability(decision, resolution):
             return self._execute_web(text, decision, resolution, origin_id, ctx)
@@ -1348,7 +1640,8 @@ def _dialogue_coordinator(ui_root: Path):
 def run_dialogue(message: str, *, mode: str, ui_root: Path, surface: str, caller: str, timeout: int,
                  event: dict[str, Any] | None = None, policy: dict[str, Any] | None = None,
                  goal_ref: str | None = None, web_host: dict[str, Any] | None = None) -> dict[str, Any]:
-    ports = FastPathPorts(ui_root, surface=surface, caller=caller, timeout=timeout, web_host=web_host)
+    ports = FastPathPorts(ui_root, surface=surface, caller=caller, timeout=timeout, web_host=web_host,
+                          dialogue_surface=_intent_surface(surface, event))
     try:
         coordinator = _dialogue_coordinator(ui_root)
     except Exception:  # an older pinned playbook or a broken install: fail closed (T-X05)
@@ -1370,6 +1663,118 @@ def run_dialogue(message: str, *, mode: str, ui_root: Path, surface: str, caller
             worker.store.close()
 
 
+def run_intent_mcp_read(message, *, ui_root, caller, timeout, event):
+    """Existing MCP read owner callback; one interpretation, no dialogue persistence."""
+    ports = FastPathPorts(ui_root, surface="mcp", caller=caller, timeout=timeout)
+    try:
+        if not ports._semantic_enabled or _INTENT_CLIENT_CONTEXT is None:
+            raise ValueError("intent_mcp_read_not_admitted")
+        if not isinstance(event, dict) or any(not isinstance(event.get(name), str) or not event[name].strip()
+                                              for name in ("conversationKey", "eventRef")):
+            raise ValueError("intent_mcp_host_event_required")
+        owner = _dialogue_coordinator(ui_root)
+        conversation = owner.m.conversation_ref("mcp", str(event["conversationKey"]))
+        key = owner.m.event_key("mcp", conversation, str(event["eventRef"]))
+        context = ports._semantic_context({"surface": "mcp", "caller": caller,
+            "conversationRef": conversation, "conversationRevision": 0, "eventKey": key,
+            "nowMs": int(time.time() * 1000)})
+        out = ports._semantic().execute_mcp_read(message, context)
+        return {**out, "intentInputProtocol": "mcp-input.v1", "intentReadProtocol": "mcp-read.v1"}
+    except Exception:
+        # This entry is strictly read-only. The canonical RemoteBridge caller
+        # claims its request before calling us and owns the resulting receipt.
+        return {"status": "known_error", "reason": "INTERPRETATION_HOST_UNAVAILABLE",
+            "execution_state": "not_started", "intentInputProtocol": "mcp-input.v1",
+            "intentReadProtocol": "mcp-read.v1"}
+
+
+def _native_context_for_event(native_event,*,store,original_text,ui_root,request_context=None):
+    from skill_intelligence import interpretation_native_context as native_context
+    if not Path(native_context.__file__).resolve().is_relative_to(ui_root.resolve()/'skill_intelligence'):
+        raise ValueError('NATIVE_ROOM_ACCESS_UNVERIFIED')
+    evidence=native_context._admit_native_room_context(native_event,store=store,
+        original_text=original_text,**({'request_context':request_context} if request_context is not None else {}),
+        home=Path.home(),core_owner_root=Path(__file__).resolve().parent)
+    if type(evidence) is not native_context.NativeRoomContextReadEvidence:
+        raise ValueError('NATIVE_ROOM_ACCESS_UNVERIFIED')
+    return evidence
+
+
+def _native_read_scope_owner(*,native_event,store,goal_ref):
+    """Concrete current C17 owner; never installed by env or a client field."""
+    from skill_intelligence.interpretation_native_context import bind_native_read_precondition
+    return bind_native_read_precondition(_NATIVE_CONTEXT_READ_EVIDENCE,
+        native_event=native_event,store=store,goal_ref=goal_ref)
+
+
+def _native_fast_precondition(adapter, goal_ref):
+    """Future C17 owner port; no CLI/env/JSON value can install this callable."""
+    from skill_intelligence.dialogue.native_fast import NativePulseReadPrecondition
+    if not callable(_NATIVE_FAST_READ_SCOPE_OWNER):
+        raise ValueError('native_pulse_read_scope_unqualified')
+    try:
+        proof = _NATIVE_FAST_READ_SCOPE_OWNER(native_event=adapter.event, store=adapter.store, goal_ref=goal_ref)
+    except Exception:
+        raise ValueError('native_pulse_read_scope_unqualified') from None
+    if type(proof) is not NativePulseReadPrecondition:
+        raise ValueError('native_pulse_read_scope_unqualified')
+    return proof
+
+
+def run_native_pulse(message,*,args,event,policy):
+    """Three phases of existing owners, not a new business route/executor."""
+    global _NATIVE_FAST_READ_PRECONDITION
+    adapter=_NATIVE_PULSE_HANDOFF
+    try:
+        if args.native_pulse_mode in {'prepare','fast-read'}:
+            _,snapshot=adapter.store.load(adapter.event.conversation_ref)
+            goal=(snapshot or {}).get('goals',{}).get(args.goal_ref) or {}
+            if args.native_pulse_mode=='prepare' and goal.get('pulseConfirmation') is not None:
+                # Retained/stale mutation bindings never escape the C16 owner.
+                out=adapter.prepare(args.goal_ref)
+            else:
+                from skill_intelligence.dialogue.native_fast import native_fast_envelope
+                _NATIVE_FAST_READ_PRECONDITION=_native_fast_precondition(adapter,args.goal_ref)
+                out=native_fast_envelope(adapter.store,adapter.event,args.goal_ref,_NATIVE_FAST_READ_PRECONDITION)
+                if args.native_pulse_mode=='fast-read':
+                    out=run_dialogue(message,mode='handoff',ui_root=args.ui_root,surface='whatsapp',caller='owner',
+                        timeout=max(2,min(args.timeout,120)),event=event,
+                        policy={**policy,'scope':'pulse_room','_native_pulse_event':_NATIVE_PULSE_EVENT},goal_ref=args.goal_ref)
+        elif args.native_pulse_mode=='execute':
+            from skill_intelligence.capability_graph import CapabilityGraph
+            out=adapter.execute_claimed(CapabilityGraph(args.ui_root),args.goal_ref,
+                timeout=max(2,min(args.timeout,120)))
+        else:
+            if args.native_pulse_mode=='observe':
+                # A terminal Bridge receipt is necessary before T2. A missing
+                # or unknown receipt is observed, never rearmed or resubmitted.
+                settled=adapter.settle(args.goal_ref)
+                if settled.get('state')!='settled_native_pulse_phase':
+                    return {'nativePulseProtocol':'native-pulse.v1','outcome':'WAITING_OPERATION',
+                        'reasonCode':'verification_required','handled':True,'modelAllowed':False,
+                        'text':'La commande est en cours de vérification. Elle ne sera pas rejouée.'}
+                out=adapter.observe_dialogue(_dialogue_coordinator(args.ui_root).Coordinator(None,store=adapter.store),args.goal_ref,
+                    {**policy,'scope':'pulse_room','_native_pulse_event':_NATIVE_PULSE_EVENT})
+                return {**out,'nativePulseProtocol':'native-pulse.v1'}
+            out=run_dialogue(message,mode='turn' if args.native_pulse_mode=='turn' else args.dialogue,
+                ui_root=args.ui_root,surface='whatsapp',caller='owner',timeout=max(2,min(args.timeout,120)),
+                event=event,policy={**policy,'scope':'pulse_room','deferHandoff':args.native_pulse_mode=='turn',
+                    '_native_pulse_event':_NATIVE_PULSE_EVENT},
+                goal_ref=args.goal_ref)
+        return {**out,'nativePulseProtocol':'native-pulse.v1'}
+    except Exception as error:
+        allowed={'native_contract_unqualified','pulse_confirmation_not_current','native_pulse_phase_only',
+            'native_pulse_handoff_not_current','native_pulse_bridge_claim_required','native_pulse_bridge_binding_changed',
+            'native_pulse_admission_expired','native_pulse_event_mismatch',
+            'native_pulse_read_scope_unqualified','native_pulse_read_scope_stale',
+            'native_pulse_read_handoff_changed','native_pulse_read_only_policy'}
+        reason=str(error) if str(error) in allowed else 'native_pulse_handoff_unavailable'
+        return {'nativePulseProtocol':'native-pulse.v1','outcome':'TECHNICAL_FAILURE','reasonCode':reason,
+            'status':'known_error','reason':reason,'execution_state':
+                'verification_required' if args.native_pulse_mode in {'execute','observe'} else 'not_started',
+            'handled':True,'modelAllowed':False,'text':'Je ne peux pas confirmer le résultat de cette commande : '+reason+'.'}
+
+
 def _b64_json(name: str) -> dict[str, Any]:
     raw = os.environ.get(name, "")
     if not raw:
@@ -1384,8 +1789,14 @@ def _b64_json(name: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    global _QA_INGRESS_CONTEXT
+    global _QA_INGRESS_CONTEXT, _INTENT_CLIENT_CONTEXT, _INTENT_CONTEXT_READ_EVIDENCE, _NATIVE_PULSE_EVENT, _NATIVE_PULSE_HANDOFF
+    global _NATIVE_CONTEXT_READ_EVIDENCE, _NATIVE_FAST_READ_SCOPE_OWNER
     parser = argparse.ArgumentParser(description="Capability-first pre-model Claw ingress.")
+    parser.add_argument("--native-pulse-mode",choices=("turn","prepare","execute","observe","fast-read"))
+    parser.add_argument("--intent-read-only", action="store_true",
+                        help="Host-private existing MCP read owner callback, never a write entry.")
+    parser.add_argument("--intent-context-stdin", action="store_true",
+                        help="Host-private MCP context pipe; text and local excerpts stay client-reported.")
     parser.add_argument("--check", action="store_true", help="Resolve only; do not execute or open a human boundary.")
     parser.add_argument("--execute-decision", action="store_true", help="Execute the prepared decision from CLAW_PREPARED_DECISION_B64 without re-resolving.")
     parser.add_argument("--resolve-clarification", action="store_true", help="Resolve the reply against the pending clarification decision.")
@@ -1406,6 +1817,67 @@ def main() -> int:
     parser.add_argument("--deadline-epoch-ms",type=int)
     parser.add_argument("message", nargs="*")
     args = parser.parse_args()
+    if args.native_pulse_mode or 'SAMANTHA_NATIVE_PULSE_FD' in os.environ:
+        try:
+            if (not args.native_pulse_mode or args.surface!='whatsapp' or args.caller!='owner' or
+                    not args.dialogue or args.intent_context_stdin or args.intent_read_only or
+                    args.voice_delegation or args.execute_decision or args.resolve_clarification or args.check or
+                    'SAMANTHA_INTENT_INPUT_FD' in os.environ or 'SAMANTHA_QA_INPUT_FD' in os.environ or
+                    'SAMANTHA_QA_CONTEXT_FD' in os.environ or os.environ.get('SAMANTHA_INTENT_INTERPRETER')!='1'):
+                raise ValueError('native_pulse_admission_required')
+            private=_read_native_pulse_input()
+            root=str(args.ui_root.resolve());sys.path.insert(0,root)
+            from skill_intelligence.dialogue import native_handoff
+            if not Path(native_handoff.__file__).resolve().is_relative_to(Path(root)/'skill_intelligence'):
+                raise ValueError('native_pulse_admission_required')
+            _NATIVE_PULSE_EVENT=native_handoff.admit_private_native_event(private['admission'],channel_verified=True)
+            event=_b64_json('CLAW_DIALOGUE_EVENT_B64');policy=_b64_json('CLAW_DIALOGUE_POLICY_B64')
+            if (event.get('surface')!='pulse_room' or event.get('conversationKey')!=_NATIVE_PULSE_EVENT.conversation_key or
+                    event.get('eventRef')!=_NATIVE_PULSE_EVENT.event_ref or event.get('caller')!='owner' or
+                    policy.get('scope')!='pulse_room' or args.native_pulse_mode!='turn' and not args.goal_ref or
+                    args.native_pulse_mode=='turn' and args.dialogue!='turn' or
+                    args.native_pulse_mode!='turn' and args.dialogue!='handoff'):
+                raise ValueError('native_pulse_event_mismatch')
+            _NATIVE_PULSE_HANDOFF=native_handoff.NativePulseHandoff(_NATIVE_PULSE_EVENT)
+            try:
+                _NATIVE_CONTEXT_READ_EVIDENCE=_native_context_for_event(_NATIVE_PULSE_EVENT,
+                    store=_NATIVE_PULSE_HANDOFF.store,original_text=private['request'],ui_root=args.ui_root,
+                    request_context=event.get('requestContext'))
+                if _NATIVE_FAST_READ_SCOPE_OWNER is None:
+                    _NATIVE_FAST_READ_SCOPE_OWNER=_native_read_scope_owner
+                out=run_native_pulse(private['request'],args=args,event=event,policy=policy)
+            finally:_NATIVE_PULSE_HANDOFF.close()
+            print(json.dumps(out,ensure_ascii=False));return 0
+        except Exception:
+            print(json.dumps({'nativePulseProtocol':'native-pulse.v1','status':'known_error',
+                'reason':'native_pulse_admission_required','execution_state':'not_started',
+                'outcome':'DENIED','reasonCode':'native_pulse_admission_required','handled':True,'modelAllowed':False}))
+            return 1
+    if args.intent_read_only and (not args.intent_context_stdin or args.dialogue != "preview"):
+        print(json.dumps({"status": "known_error", "reason": "INTERPRETATION_HOST_UNAVAILABLE",
+                          "execution_state": "not_started"}))
+        return 1
+    if args.intent_context_stdin or "SAMANTHA_INTENT_INPUT_FD" in os.environ:
+        try:
+            if (not args.intent_context_stdin or os.environ.get("SAMANTHA_INTENT_INTERPRETER") != "1" or
+                    args.surface != "mcp" or not args.dialogue or
+                    "SAMANTHA_QA_INPUT_FD" in os.environ or "SAMANTHA_QA_CONTEXT_FD" in os.environ):
+                raise ValueError("intent_private_input_not_admitted")
+            private = _read_intent_input()
+            args.message = [private["request"]]
+            _INTENT_CLIENT_CONTEXT = private["client_context"]
+            _INTENT_CONTEXT_READ_EVIDENCE = _admit_intent_host_context(private, args)
+            if _INTENT_CONTEXT_READ_EVIDENCE is None:
+                # Admission precedes even backend construction: its default
+                # ModelGovernor owns a private SQLite database.
+                raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
+        except Exception as error:
+            reason = (str(error) if str(error) == "SHARED_CONTEXT_ACCESS_UNVERIFIED" or
+                      str(error).startswith('MCP_INTERPRETATION_SERVICE_') else "INTERPRETATION_HOST_UNAVAILABLE")
+            print(json.dumps({"status": "known_error", "reason": reason,
+                              "execution_state": "not_started", "intentInputProtocol": "mcp-input.v1",
+                              **({"intentReadProtocol":"mcp-read.v1"} if args.intent_read_only else {})}))
+            return 1
     if 'SAMANTHA_QA_CONTEXT_FD' in os.environ:
         # This descriptor is reserved to the Graph child, never an owner-default helper ingress.
         print(json.dumps({'status':'known_error','reason':'qa_scope_unavailable','execution_state':'not_started','model_bypassed':True}))
@@ -1440,17 +1912,28 @@ def main() -> int:
         except Exception:
             print(json.dumps({'status':'known_error','reason':'qa_scope_unavailable','execution_state':'not_started','model_bypassed':True}))
             return 1
-    message = " ".join(args.message).strip()
+    admitted_surface = _intent_surface(args.surface, _b64_json("CLAW_DIALOGUE_EVENT_B64")) if args.dialogue else args.surface
+    semantic_input = (os.environ.get("SAMANTHA_INTENT_INTERPRETER") == "1" and
+        admitted_surface != "claw_live" and _QA_INGRESS_CONTEXT is None)
+    message = " ".join(args.message) if semantic_input else " ".join(args.message).strip()
     if not message and not sys.stdin.isatty():
-        message = sys.stdin.read().strip()
+        raw_message = sys.stdin.read()
+        message = raw_message if semantic_input else raw_message.strip()
     if not message:
         raise SystemExit("message_required")
+    if args.intent_read_only:
+        out = run_intent_mcp_read(message, ui_root=args.ui_root, caller=args.caller,
+            timeout=max(2, min(args.timeout, 120)), event=_b64_json("CLAW_DIALOGUE_EVENT_B64"))
+        print(json.dumps(out, ensure_ascii=False))
+        return 0
     if args.dialogue:
         out = run_dialogue(message, mode=args.dialogue, ui_root=args.ui_root, surface=args.surface, caller=args.caller,
                            timeout=max(2, min(args.timeout, 120)), event=_b64_json("CLAW_DIALOGUE_EVENT_B64"),
                            policy=_b64_json("CLAW_DIALOGUE_POLICY_B64"), goal_ref=args.goal_ref,
                            web_host={"run_id": args.run_id, "session_id": args.session_id,
                                      "deadline_epoch_ms": args.deadline_epoch_ms, "voice_delegation": args.voice_delegation})
+        if _INTENT_CLIENT_CONTEXT is not None:
+            out = {**out, "intentInputProtocol": "mcp-input.v1"}
         print(json.dumps(out, ensure_ascii=False))
         return 0
     prepared = None

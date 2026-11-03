@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "id": "refonte-l0-spec-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "summary": "Intègre la spécification autorisée avec le code L6 d’avancement lisible et le tri vérifié des anciennes PR ; correctif activation411 déjà intégré par une session concurrente.",
+  "scope": {
+    "files": [
+      "docs/work/samantha-refonte/README.md",
+      "docs/work/samantha-refonte/SPEC-refonte-parcours-unique-20261025.md",
+      "docs/work/samantha-refonte/TRIAGE-chantier1-20261025.md",
+      "docs/changes/refonte-l0-spec-20261025.md"
+    ]
+  },
+  "routes": [],
+  "tests": {
+    "status": "pending_ci",
+    "evidence": [
+      "L6 build et suites progression/titres/cartes/réconciliation/runs PASS ; test activation existant PASS ; CI complète obligatoire sur le head final"
+    ]
+  },
+  "capability_impact": {
+    "changed": false,
+    "ids": [],
+    "detail": "Outil de livraison existant, aucune route produit : sans objet pour une capability."
+  },
+  "architecture_impact": {
+    "changed": false,
+    "adr": null,
+    "reason": "Ce lot importe la cible sans l’activer ; ADR requis dans les lots L2,L3,L4."
+  },
+  "mcp_parity": {
+    "status": "no_impact",
+    "detail": "claw_context/resolve/execute/exec/status/artifact_read inchangés par ce correctif de livraison."
+  },
+  "merge_eligibility": "requires_canonical_ci",
+  "deployment_state": "not_applied",
+  "rollback": "Companion par companion-deploy.sh du SHA précédent ; ancien pin playbooks conservé."
+}

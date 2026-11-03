@@ -1,0 +1,85 @@
+2026-11-02T16:11:30+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T16:13:36+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T16:15:36+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T16:17:22+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T16:18:43+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T16:19:59+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T16:24:33+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T16:25:15+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T16:42:14+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T16:42:51+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T16:46:41+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T16:47:18+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T16:50:55+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T16:51:35+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T16:54:12+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T16:54:57+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T17:04:59+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T17:06:17+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T17:20:59+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T17:21:55+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T17:23:15+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=latest_outbound_failed incident=deferred grace_s=120
+2026-11-02T17:25:55+01:00 component=health-manager service=whatsapp state=degraded failures=1 retry_in_s=15
+2026-11-02T17:27:34+01:00 component=health-manager service=whatsapp state=degraded failures=2 retry_in_s=30
+2026-11-02T17:28:29+01:00 component=health-manager service=whatsapp state=degraded failures=3 retry_in_s=60
+2026-11-02T17:28:30+01:00 component=health-manager service=whatsapp action=incident_opened incident_id=<id> correlation_id=<id>
+2026-11-02T17:28:31+01:00 component=health-manager service=whatsapp state=awaiting_deterministic_recovery reason=no_repair_handler incident_id=<id> correlation_id=<id>
+2026-11-02T17:29:46+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T17:31:12+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=latest_outbound_failed incident=deferred grace_s=120
+2026-11-02T17:31:50+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T17:38:55+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T17:40:40+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T17:42:27+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=latest_outbound_failed incident=deferred grace_s=120
+2026-11-02T17:43:02+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T17:46:02+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T17:46:44+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T17:57:20+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T17:57:58+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T17:59:08+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=latest_outbound_failed incident=deferred grace_s=120
+2026-11-02T17:59:47+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T18:02:11+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T18:02:49+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T18:05:12+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=latest_outbound_failed incident=deferred grace_s=120
+2026-11-02T18:05:47+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T18:07:02+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T18:07:39+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T18:09:04+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T18:09:40+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T18:12:17+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T18:14:34+01:00 component=health-manager service=whatsapp state=degraded failures=1 retry_in_s=15
+2026-11-02T18:15:15+01:00 component=health-manager service=whatsapp state=degraded failures=2 retry_in_s=30
+2026-11-02T18:16:20+01:00 component=health-manager service=whatsapp state=degraded failures=3 retry_in_s=60
+2026-11-02T18:16:20+01:00 component=health-manager service=whatsapp action=incident_opened incident_id=<id> correlation_id=<id>
+2026-11-02T18:16:21+01:00 component=health-manager service=whatsapp state=awaiting_deterministic_recovery reason=no_repair_handler incident_id=<id> correlation_id=<id>
+2026-11-02T18:17:42+01:00 component=health-manager service=whatsapp state=degraded failures=4 retry_in_s=120
+2026-11-02T18:20:07+01:00 component=health-manager service=whatsapp state=degraded failures=5 retry_in_s=240
+2026-11-02T18:22:03+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T18:31:49+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T18:32:29+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T18:43:57+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T18:44:37+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T18:48:15+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T18:50:02+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T18:52:13+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T18:54:42+01:00 component=health-manager service=whatsapp state=degraded failures=1 retry_in_s=15
+2026-11-02T18:55:33+01:00 component=health-manager service=whatsapp state=degraded failures=2 retry_in_s=30
+2026-11-02T18:56:09+01:00 component=health-manager service=whatsapp state=degraded failures=3 retry_in_s=60
+2026-11-02T18:56:10+01:00 component=health-manager service=whatsapp action=incident_opened incident_id=<id> correlation_id=<id>
+2026-11-02T18:56:10+01:00 component=health-manager service=whatsapp state=awaiting_deterministic_recovery reason=no_repair_handler incident_id=<id> correlation_id=<id>
+2026-11-02T18:58:12+01:00 component=health-manager service=whatsapp state=degraded failures=4 retry_in_s=120
+2026-11-02T19:00:19+01:00 component=health-manager service=whatsapp state=degraded failures=5 retry_in_s=240
+2026-11-02T19:23:26+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T19:24:50+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T19:26:02+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T19:35:37+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T19:38:01+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T19:39:19+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120
+2026-11-02T19:39:55+01:00 component=health-manager service=whatsapp state=healthy
+2026-11-02T19:53:12+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=latest_outbound_failed incident=deferred grace_s=120
+2026-11-02T19:55:30+01:00 component=health-manager service=whatsapp state=degraded failures=1 retry_in_s=15
+2026-11-02T19:56:05+01:00 component=health-manager service=whatsapp state=degraded failures=2 retry_in_s=30
+2026-11-02T19:56:44+01:00 component=health-manager service=whatsapp state=degraded failures=3 retry_in_s=60
+2026-11-02T19:56:45+01:00 component=health-manager service=whatsapp action=incident_opened incident_id=<id> correlation_id=<id>
+2026-11-02T19:56:46+01:00 component=health-manager service=whatsapp state=awaiting_deterministic_recovery reason=no_repair_handler incident_id=<id> correlation_id=<id>
+2026-11-02T19:58:50+01:00 component=health-manager service=whatsapp state=degraded failures=4 retry_in_s=120
+2026-11-02T20:01:22+01:00 component=health-manager service=whatsapp state=degraded failures=5 retry_in_s=240

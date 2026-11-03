@@ -58,13 +58,26 @@ async function main() {
   assert.ok(englishPrompt.includes("The UI locale is English"));
   assert.ok(englishPrompt.includes("Detect the language actually spoken by Amine on every turn"));
   assert.deepEqual(englishToken.setup.inputAudioTranscription.languageCodes, []);
-  for (const marker of ["IDENTITY_CANONICAL", "OPERATING_CANONICAL", "VOICE_CANONICAL", "MEMORY_CANONICAL"]) {
-    assert.ok(prompt.includes(marker), marker);
+  // Brain delegation (Amine 25/10/2026): the Android voice keeps identity and speaking style only; operating rules,
+  // memory view and voice decisions go to the main agent (test-voice-brain-delegation.cjs, real S24 captures).
+  assert.ok(prompt.includes("IDENTITY_CANONICAL"));
+  for (const marker of ["OPERATING_CANONICAL", "VOICE_CANONICAL", "MEMORY_CANONICAL"]) {
+    assert.equal(prompt.includes(marker), false, marker);
   }
   assert.equal(prompt.includes("STALE_CAPABILITY_LIST_MUST_NOT_LOAD"), false);
-  assert.ok(prompt.includes("Capability discovery is query-scoped inside the Claw harness"));
-  assert.ok(prompt.includes("harness.tool_policy"));
-  assert.equal(token.setup.tools[0].functionDeclarations[0].name, "clawmobile_capability");
+  assert.ok(prompt.includes("ABSOLUTE RULE: every time Amine speaks, call ask_samantha"));
+  assert.equal(token.setup.tools[0].functionDeclarations[0].name, "ask_samantha");
+  // Other clients keep the legacy canonical bootstrap unchanged.
+  const legacy = (await mod.createClawLiveToken(fakeFetch, async () => "secret-test-key", {home, locale: "fr-FR", client: "browser"})).setup;
+  const legacyPrompt = legacy.systemInstruction.parts[0].text;
+  for (const marker of ["IDENTITY_CANONICAL", "OPERATING_CANONICAL", "VOICE_CANONICAL", "MEMORY_CANONICAL"]) {
+    assert.ok(legacyPrompt.includes(marker), marker);
+  }
+  assert.equal(legacyPrompt.includes("STALE_CAPABILITY_LIST_MUST_NOT_LOAD"), false);
+  assert.ok(legacyPrompt.includes("Capability discovery is query-scoped inside the Claw harness"));
+  assert.ok(legacyPrompt.includes("harness.tool_policy"));
+  assert.ok(legacyPrompt.includes("Detect the language actually spoken by Amine on every turn"));
+  assert.equal(legacy.tools[0].functionDeclarations[0].name, "clawmobile_capability");
 
   const html = mod.clawLivePageHtml();
   assert.ok(html.includes("Claw Live"));

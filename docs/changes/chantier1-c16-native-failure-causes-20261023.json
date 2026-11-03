@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "id": "chantier1-c16-native-failure-causes-20261023",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Render native Pulse failure causes through the existing typed presentation owner",
+  "reason": "Exact core390 CI stopped because the exhaustive presentation test found native_pulse_protocol_required with no renderer-owned phrase",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/receiptPresentation.ts",
+    "openclaw-plugin-mobile-ui/src/pulseRoomFastPath.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-failure-presentation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+    "docs/work/samantha-runtime/contracts/c16-native-failure-causes.md",
+    "docs/changes/chantier1-c16-native-failure-causes-20261023.md",
+    "docs/changes/chantier1-c16-native-failure-causes-20261023.json"
+  ],
+  "tests": [
+    {
+      "name": "TypeScript build and exhaustive typed native failures",
+      "status": "passed",
+      "evidence": "TypeScript/lite build green; typed-failure-presentation 162/162 checks, 24 producer codes, FR/EN, persisted status and repeated reads. Existing exhaustiveness retained and expanded to single quotes, native admission and public Python codes."
+    },
+    {
+      "name": "Native room and inherited HS3 fixture regressions",
+      "status": "passed",
+      "evidence": "Pulse-room fast-path suite green, including 4 native typed-cause cases. HS3 initial-failure capture184, run-payment presentation (2 linked chains, 4 states), and receipt-presentation transport/persistence suites green. No real model, S24 or business effect."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/c16-native-failure-causes.md",
+    "docs/changes/chantier1-c16-native-failure-causes-20261023.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Presentation of existing producer codes only; no capability or execution route changed"
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing renderer owns phrases; no store, registry, router, scheduler, daemon or executor added"
+  },
+  "rollback": "Revert presentation source only; retain receipts and never replay a command to change its wording",
+  "limitations": [
+    "Source/fixtures only; no live provider, phone or business operation.",
+    "Unknown or possible effects remain unknown and observe-only; wording does not assert zero submission.",
+    "Canonical exact-new-head CI pending."
+  ],
+  "base_dependency": {
+    "repository": "sfar-amine/samantha-core",
+    "pr": 390,
+    "sha": "47a32db2f6fdac21adc7cea4e5f5c9077c494c54"
+  }
+}

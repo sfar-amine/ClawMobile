@@ -1,0 +1,186 @@
+{
+  "version": 2,
+  "id": "chantier1-core-oauth-integration-20261022",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Integrate the exact live OAuth lineage with C12 private MCP context, G1 and the bounded autonomous delivery mandate.",
+  "reason": "Preserve existing ChatGPT OAuth authentication before synchronizing Chantier 1 foundations; the user confirmed the fourteen commits were produced with GPT Chat and must be incorporated.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "AGENTS.md",
+    "cloud/voice-relay/auth/consent.mjs",
+    "cloud/voice-relay/auth/google-oidc.mjs",
+    "cloud/voice-relay/auth/google-verify.mjs",
+    "cloud/voice-relay/auth/index.mjs",
+    "cloud/voice-relay/package-lock.json",
+    "cloud/voice-relay/package.json",
+    "cloud/voice-relay/scripts/setup-chatgpt-oauth-secrets.sh",
+    "cloud/voice-relay/src/chatgpt-oauth-policy.mjs",
+    "cloud/voice-relay/src/chatgpt-oauth.mjs",
+    "cloud/voice-relay/src/index.mjs",
+    "cloud/voice-relay/src/mcp-routing.mjs",
+    "cloud/voice-relay/src/mcp.mjs",
+    "cloud/voice-relay/test-chatgpt-oauth-rpc.mjs",
+    "cloud/voice-relay/test-chatgpt-oauth.mjs",
+    "cloud/voice-relay/test-google-oidc.mjs",
+    "cloud/voice-relay/test-mcp-routing.mjs",
+    "cloud/voice-relay/test-mcp.mjs",
+    "cloud/voice-relay/wrangler.auth-check.jsonc",
+    "cloud/voice-relay/wrangler.jsonc",
+    "cloud/voice-relay/wrangler.oauth-check.jsonc",
+    "docs/08-decisions/ADR-20261022-chantier1-autonomous-delivery.md",
+    "docs/08-decisions/ADR-20261022-core-oauth-source-preservation.md",
+    "docs/changes/chantier1-autonomous-delivery-core-20261022.json",
+    "docs/changes/chantier1-autonomous-delivery-core-20261022.md",
+    "docs/changes/chantier1-c1-mcp-context-consumers-20261022.json",
+    "docs/changes/chantier1-c1-mcp-context-consumers-20261022.md",
+    "docs/changes/chantier1-c12-private-context-owner-20261022.json",
+    "docs/changes/chantier1-c12-private-context-owner-20261022.md",
+    "docs/changes/chantier1-c4-runtime-semantic-port-20261022.json",
+    "docs/changes/chantier1-c4-runtime-semantic-port-20261022.md",
+    "docs/changes/chantier1-c5-mcp-input-20261022.json",
+    "docs/changes/chantier1-c5-mcp-input-20261022.md",
+    "docs/changes/chantier1-c8-mcp-read-owner-20261022.json",
+    "docs/changes/chantier1-c8-mcp-read-owner-20261022.md",
+    "docs/changes/chantier1-c8-mcp-read-private-port-20261022.json",
+    "docs/changes/chantier1-c8-mcp-read-private-port-20261022.md",
+    "docs/changes/chantier1-core-oauth-integration-20261022.json",
+    "docs/changes/chantier1-core-oauth-integration-20261022.md",
+    "docs/changes/chantier1-g1-private-ci-api-20261022.json",
+    "docs/changes/chantier1-g1-private-ci-api-20261022.md",
+    "docs/changes/chatgpt-mcp-oauth-20261021.md",
+    "docs/changes/chatgpt-mcp-oauth-rpc-20261022-evidence.json",
+    "docs/work/samantha-runtime/contracts/c12-mcp-private-context-owner.md",
+    "docs/work/samantha-runtime/contracts/c5-mcp-input.md",
+    "docs/work/samantha-runtime/contracts/c6.md",
+    "docs/work/samantha-runtime/contracts/c8-mcp-read-owner.md",
+    "docs/work/samantha-runtime/contracts/canonical-ci-private-evidence.md",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-model-fast-path-intent.py",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/mcp-context-paired-helper.py",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/mcp-read-paired-helper.py",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-client-input.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-context-consumers.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-context-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-context-provenance.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-private-context.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-read-owner.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-read-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-model-fast-path-intent.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-model-fast-path-mcp-read.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceRelay.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "tools/localci.py",
+    "tools/test_localci.py"
+  ],
+  "tests": [
+    {
+      "name": "targeted private MCP regressions",
+      "status": "passed",
+      "evidence": "TypeScript build PASS; private21/21, owner23/23, client input29/29, Python18/18. No full CI replay claimed."
+    },
+    {
+      "name": "OAuth and legacy relay fixtures",
+      "status": "passed",
+      "evidence": "Worker, MCP and long-action PASS; legacy routing6/6, Google claims8/8, owner/read6/6, local Workerd RPC8/8. Fixture dates come from the actual relay configuration; production configurations unchanged."
+    },
+    {
+      "name": "immutable two-repository context owners",
+      "status": "passed",
+      "evidence": "Both C12 and retained C8 pair scripts pass against PB38ef1ad5053517e7796238854ed3daecfbf585ce; MOCK_ONLY, zero provider calls/business effects/shadow private reads/replay execution."
+    },
+    {
+      "name": "source lineage and private backup integrity",
+      "status": "passed",
+      "evidence": "bundle verify/list-heads/connectivity PASS; backup private ref verified equal98e9b8f859682cd6866cf174dcb229e6a73f6217 after normal push; fourteen original OAuth commits retained as ancestors."
+    },
+    {
+      "name": "versioned documentation and full workflow union",
+      "status": "passed",
+      "evidence": "Existing validate_note owner passes all10 version2 notes across68 changed files from dd5078; local Markdown links PASS;414 inherited parent run steps retained in order; all four source heads remain ancestors."
+    }
+  ],
+  "documentation": [
+    "docs/changes/chantier1-core-oauth-integration-20261022.md",
+    "docs/08-decisions/ADR-20261022-core-oauth-source-preservation.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing OAuth/static MCP transport identities and private owner boundary only; no new business capability or registry entry."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Document the already-live OAuth owner and its preserved source alongside C12; no new runtime component is provisioned by this integration.",
+    "documents": [
+      "docs/08-decisions/ADR-20261022-core-oauth-source-preservation.md"
+    ]
+  },
+  "rollback": "Use canonical release rollback to a qualified prior version while preserving the OAuth backup branch; never rebuild the relay from a source lineage omitting the live OAuth commits.",
+  "source_recovery": {
+    "head": "98e9b8f859682cd6866cf174dcb229e6a73f6217",
+    "base": "0a8ae8d175076f96d3dd6ed3b4fa165ecc322a6a",
+    "commits": [
+      "18becc74325d02519615c6b3b69e4ebe24cd06b6",
+      "7d2d95a1549d199b27570c0f3d6a21dca2c08406",
+      "b635c0c1796dae92af3363f38eac74efe9a6a198",
+      "7f93015285d04f8ac53884131cdd8a9813c2922c",
+      "6600142de846f583381837805365b59c2c1f8aa4",
+      "534799bb4e0ca377c6b3968156a55e0f15ab02f2",
+      "9764f2e2c6b994a9c6ce1c4da6bf968716c76fda",
+      "3cd79fc2c7bd4ecbcd5b975ed997e3a9959fd2c3",
+      "0e5a434c4b359e8ff77c5497024e6e9b75291d36",
+      "1a8c53dd293ef1d3362dfa175e0963162b7b9876",
+      "be40fbaa96119e7af6e6be1d8a6f8d137cc91079",
+      "f898792e2cd790bac5069bb2337c4697b58346a3",
+      "24b6f354aa781f2f7af79d7cf18e76600acb6068",
+      "98e9b8f859682cd6866cf174dcb229e6a73f6217"
+    ],
+    "bundle_bytes": 25232,
+    "bundle_sha256": "90d8ccf17dd464415c857b3aa992bf76200299bd05ee2ef53f191129e97d1d2f",
+    "blob_count": 44,
+    "blob_bytes": 372175,
+    "backup_ref": "codex/preserve-s24-oauth-98e9b8f-20261022",
+    "normal_push_verified": true
+  },
+  "integrated_sources": {
+    "c12": "a42af97203cf78a894da23f4efabf82c9a7bf687",
+    "g1": "abab1e307592ec2a6238f50b1b22f126453df4ff",
+    "autonomy": "d7a67af7c173631d61f8ecfd43188fd0cd9d7d3a"
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "updated",
+      "claw_execute": "updated",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "updated",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "other_existing_tools": {
+      "claw_remember": "verified_no_impact"
+    },
+    "evidence": [
+      "Existing static client authentication and OAuth identity paths remain separate and authenticated.",
+      "OAuth profile is shadow read-only, never a private owner proof.",
+      "C12 exact process-local server admission and private peer validation remain in the compiled owner pair."
+    ]
+  },
+  "limitations": [
+    "Targeted fixtures do not replace the numbered exact-head canonical CI or deployment acceptance.",
+    "Historical OAuth observation is imported evidence, not qualification of the composed release.",
+    "No payment, direct voice, additional permission or new persistent store/service is introduced.",
+    "Bounded secret-pattern and nonexample-email checks do not constitute an exhaustive security audit."
+  ]
+}

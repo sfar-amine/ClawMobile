@@ -1,0 +1,96 @@
+{
+  "provenance": {
+    "source": "S24 remote-bridge request capfirst-796ff68905afa690512cb5bac1c99f3b.json; execution.result, 2026-10-24T14:48:58.018Z",
+    "sanitization": "Only public provider status, coverage, exact amounts and item units retained. Account references, session material, commands and HTTP bodies removed."
+  },
+  "capability": "billing.utility.fast_path",
+  "execution": {
+    "state": "partial",
+    "result": {
+      "status": "partial",
+      "coverage_complete": false,
+      "checked_at": "2026-10-24T14:48:58.018Z",
+      "currency": "TND",
+      "known_total_pending": "0.985",
+      "total_pending": null,
+      "providers_checked": 2,
+      "providers_requested": 3,
+      "providers": [
+        {
+          "provider": "sonede",
+          "status": "ok",
+          "coverage_complete": true,
+          "reason_code": null,
+          "has_pending": false,
+          "items": []
+        },
+        {
+          "provider": "steg",
+          "status": "ok",
+          "coverage_complete": true,
+          "reason_code": null,
+          "has_pending": true,
+          "items": [
+            {
+              "amount_pending": "0.985",
+              "unit": "reference_balance"
+            }
+          ]
+        },
+        {
+          "provider": "topnet",
+          "status": "contract_drift",
+          "coverage_complete": false,
+          "reason_code": "login_form_changed",
+          "has_pending": null,
+          "items": []
+        }
+      ]
+    }
+  },
+  "projection_provenance": "Presentation regenerated offline by owner receipt_presentation.project at PB6bb507cd over sanitized S24 original business receipt; not a live post-deploy receipt.",
+  "presentation": {
+    "version": 1,
+    "locale": "fr",
+    "status": "info",
+    "label": "Factures",
+    "title": "Factures",
+    "rows": [
+      [
+        "SONEDE",
+        "Aucun impayé signalé"
+      ],
+      [
+        "STEG",
+        "0,985 DT"
+      ],
+      [
+        "Topnet",
+        "Montant non établi · Formulaire de connexion modifié"
+      ],
+      [
+        "Montants confirmés",
+        "0,985 DT"
+      ]
+    ],
+    "spoken": "Consultation des factures incomplète. Total global non établi.",
+    "primary": {
+      "label": "Terminer",
+      "action": "done"
+    },
+    "effect": {
+      "debited": "unknown",
+      "source": "receipt"
+    },
+    "meta": {
+      "capability": "billing.utility.fast_path"
+    },
+    "understood": {
+      "capability": "billing.utility.fast_path",
+      "label": "Factures",
+      "slots": {},
+      "text": "Compris : Factures"
+    },
+    "alternatives": []
+  }
+}

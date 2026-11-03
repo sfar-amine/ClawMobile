@@ -1,13 +1,60 @@
 #!/usr/bin/env python3
-"""Offline fail-closed tests for canonical localci.py; never run on S24."""
+"""Canonical CI contracts: synthetic workflows plus the real pinned PB schema (read-only Git fetch, no device)."""
+import contextlib
+import atexit
+import json
 import os
+import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 import localci
+
+
+# One real immutable PB checkout for the schema integration tests. No schema
+# source or fake validator is embedded in these fixtures; no runtime effects.
+_delivery_owner_temp = None
+
+def pinned_delivery_owner():
+    global _delivery_owner_temp
+    if _delivery_owner_temp is None:
+        _delivery_owner_temp = tempfile.TemporaryDirectory(prefix="localci-contract-test-")
+        atexit.register(_delivery_owner_temp.cleanup)
+        owner = Path(_delivery_owner_temp.name) / "samantha-ui-playbooks"
+        localci._checkout_delivery_owner(owner)
+    return Path(_delivery_owner_temp.name) / "samantha-ui-playbooks"
+
+
+def fixture_delivery_record(case):
+    folder = case.repo / "docs/changes"; folder.mkdir(parents=True, exist_ok=True)
+    case.note = folder / "synthetic-delivery.json"
+    doc = folder / "synthetic-delivery.md"
+    doc.write_text("Synthetic delivery fixture only; no physical test or production qualification is claimed. Range base: " + case.base_sha + "\n")
+    case.git("add", ".")
+    files = set(case.git("diff", "--cached", "--name-only", case.base_sha).splitlines())
+    files.add("docs/changes/synthetic-delivery.json")
+    note = {"version":2,"id":"synthetic-delivery","origin":"chat","kind":"maintenance",
+            "summary":"Synthetic fixture for CI admission tests", "reason":"Exercise the real pinned common delivery contract",
+            "rollback":"Remove the isolated synthetic test checkout", "merge_eligibility":"allowed","deployment_state":"not_applied",
+            "files":sorted(files),"tests":[{"name":"synthetic fixture","status":"passed","evidence":"Authored test metadata; not a real production assertion"}],
+            "documentation":["docs/changes/synthetic-delivery.md"],"capabilities":{"impact":"none","reason":"Synthetic source admission fixture only"},
+            "architecture":{"changed":False,"reason":"No runtime change in this test fixture"}}
+    case.note.write_text(json.dumps(note))
+    case.git("add", ".")
+    case.git("commit", "-qm", "synthetic documented change")
+    case.head=case.git("rev-parse", "HEAD")
+
+
+def use_real_delivery_owner(case):
+    owner = pinned_delivery_owner()
+    gate = patch.object(localci, "validate_core_delivery", side_effect=lambda repo,base,head:
+                        localci._validate_at_delivery_owner(owner,repo,base,head))
+    gate.start();case.addCleanup(gate.stop)
+
 
 class LocalCiUnitTests(unittest.TestCase):
     def test_android_failure_reports_survive_disposable_checkout_without_following_links(self):
@@ -32,9 +79,16 @@ class LocalCiUnitTests(unittest.TestCase):
         with self.assertRaisesRegex(localci.LocalCIError, "SHA"):
             localci.run_ci("samantha-core", "a" * 8, "-", "/dev/null")
 
-    def test_s24_is_forbidden(self):
+    def test_s24_without_its_profile_is_refused_not_silently_allowed(self):
         with patch.dict(os.environ, {"PREFIX": "/data/data/com.termux/files/usr"}):
-            with self.assertRaisesRegex(localci.LocalCIError, "S24"):
+            os.environ.pop("LOCALCI_PROFILE", None)
+            with self.assertRaisesRegex(localci.LocalCIError, "localci-s24.sh"):
+                localci.run_ci("samantha-core", "a" * 40, "-", "/dev/null")
+
+    def test_s24_profile_requires_the_heavy_job_lock(self):
+        with patch.dict(os.environ, {"LOCALCI_PROFILE": "s24"}):
+            os.environ.pop("LOCALCI_HEAVY_LOCK", None)
+            with self.assertRaisesRegex(localci.LocalCIError, "LOCALCI_HEAVY_LOCK"):
                 localci.run_ci("samantha-core", "a" * 40, "-", "/dev/null")
 
     def test_unsupported_expression_fails_closed(self):
@@ -123,6 +177,67 @@ class LocalCiSyntheticReplayTests(unittest.TestCase):
         self.assertEqual(output.count("STEP_END "), 4)
         self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
 
+    def s24(self, **extra):
+        lock = Path(self.temp.name) / "companion-deploy.lock"
+        env = {"LOCALCI_PROFILE": "s24", "LOCALCI_HEAVY_LOCK": str(lock), **extra}
+        stack = contextlib.ExitStack()
+        stack.enter_context(patch.dict(os.environ, env))
+        real = shutil.which  # No gh on the S24: PR refs come from the wrapper's fetch.
+        stack.enter_context(patch.object(localci.shutil, "which", lambda name: None if name == "gh" else real(name)))
+        return lock, stack
+
+    def pull_refs(self, pr, head):
+        self.git("update-ref", f"refs/localci/pull/{pr}/head", head)
+        merge = subprocess.run(["git", "-C", str(self.repo), "commit-tree", f"{head}^{{tree}}", "-p", self.base_sha,
+                                "-p", head, "-m", "merge"], check=True, capture_output=True, text=True).stdout.strip()
+        self.git("update-ref", f"refs/localci/pull/{pr}/merge", merge)
+
+    def test_s24_profile_runs_with_private_home_no_credentials_and_wrapper_pr_refs(self):
+        head = self.commit(
+            "jobs:\n  contract:\n    steps:\n"
+            "      - run: test \"$HOME\" != /live-home && test -d \"$HOME\" && echo \"STEP_HOME=$HOME\"\n"
+            "      - run: test -z \"${CLAW_TOKEN:-}${SAMANTHA_INTENT_INTERPRETER:-}${OPENCLAW_STATE:-}\"\n"
+            "      - run: test -z \"${LOCALCI_PROFILE:-}${LOCALCI_HEAVY_LOCK:-}${LOCALCI_PR_BODY_FILE:-}\"\n"
+            "      - run: python3 -c 'import json,os; e=json.load(open(os.environ[\"GITHUB_EVENT_PATH\"])); "
+            "assert e[\"pull_request\"][\"body\"]==\"## Résumé\\n\"'\n")
+        self.pull_refs(7, head)
+        body = Path(self.temp.name) / "body.md"
+        body.write_text("## Résumé\n", encoding="utf-8")
+        lock, env = self.s24(HOME="/live-home", CLAW_TOKEN="x", SAMANTHA_INTENT_INTERPRETER="1",
+                             OPENCLAW_STATE="y", LOCALCI_PR_BODY_FILE=str(body))
+        with env:
+            self.assertEqual(localci.run_ci(str(self.repo), head, "7", str(self.log)), 0)
+        output = self.log.read_text(encoding="utf-8")
+        self.assertIn("profile=s24", output)
+        self.assertIn(f"base={self.base_sha}", output)
+        self.assertIn("LOCALCI_RESULT exit=0 sha=" + head, output)
+        home = re.search(r"STEP_HOME=(\S+)", output).group(1)
+        self.assertNotIn("/com.termux/", home)
+        self.assertFalse(Path(home).exists())
+
+    def test_s24_busy_lock_starts_nothing(self):
+        import fcntl
+        head = self.commit("jobs:\n  contract:\n    steps:\n      - run: echo no-effect\n")
+        self.pull_refs(7, head)
+        lock, env = self.s24()
+        holder = os.open(lock, os.O_RDWR | os.O_CREAT)
+        self.addCleanup(os.close, holder)
+        fcntl.flock(holder, fcntl.LOCK_EX)  # A deploy or QA campaign holds it.
+        with env, self.assertRaisesRegex(localci.LocalCIError, "heavy_job_busy"):
+            localci.run_ci(str(self.repo), head, "7", str(self.log))
+        self.assertFalse(self.log.exists())
+
+    def test_s24_pr_head_mismatch_and_missing_refs_refused(self):
+        head = self.commit("jobs:\n  contract:\n    steps:\n      - run: echo no-effect\n")
+        lock, env = self.s24()
+        with env, self.assertRaisesRegex(localci.LocalCIError, "S24 PR refs missing"):
+            localci.run_ci(str(self.repo), head, "7", str(self.log))
+        self.pull_refs(7, self.base_sha)
+        lock, env = self.s24()
+        with env, self.assertRaisesRegex(localci.LocalCIError, "GitHub PR head SHA mismatch"):
+            localci.run_ci(str(self.repo), head, "7", str(self.log))
+        self.assertFalse(self.log.exists())
+
     def test_sha_mismatch_refused_before_work(self):
         head = self.commit("jobs:\n  contract:\n    steps:\n      - run: echo no-effect\n")
         with self.fake_gh("f" * 40):
@@ -132,13 +247,19 @@ class LocalCiSyntheticReplayTests(unittest.TestCase):
 
     def test_versioned_python_gets_a_setup_python_environment(self):
         # Stock images often ship python3 = another minor version and python3.12 beside it.
-        folder = localci.bin_for("python", "3.12") if shutil.which("python3.12") else None
-        if folder is None:
+        if not shutil.which("python3.12"):
             self.skipTest("python3.12 absent")
-        for name in ("python", "python3"):
-            out = subprocess.run([str(Path(folder) / name), "-c", "import sys;print(sys.version_info[:2])"],
-                                 capture_output=True, text=True).stdout.strip()
-            self.assertEqual(out, "(3, 12)")
+        # The venv lives in the caller's marked scratch and disappears with it (no /tmp/localci-python-*).
+        with localci.scratch("localci-test-python-", self.temp.name) as holder:
+            folder = localci.bin_for("python", "3.12", holder)
+            self.assertIn(holder, Path(folder).parents)
+            for name in ("python", "python3"):
+                out = subprocess.run([str(Path(folder) / name), "-c", "import sys;print(sys.version_info[:2])"],
+                                     capture_output=True, text=True).stdout.strip()
+                self.assertEqual(out, "(3, 12)")
+        self.assertFalse(holder.exists())
+        with self.assertRaisesRegex(localci.LocalCIError, "job scratch"):
+            localci.bin_for("python", "3.12")
 
     def test_exit_failure_aborts_remaining_commands(self):
         head = self.commit("jobs:\n  contract:\n    steps:\n"
@@ -148,6 +269,139 @@ class LocalCiSyntheticReplayTests(unittest.TestCase):
             self.assertEqual(localci.run_ci(str(self.repo), head, "5", str(self.log)), 17)
         self.assertNotIn("FORBIDDEN_NEXT", self.log.read_text(encoding="utf-8"))
         self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
+
+
+
+class LocalCiScratchHygieneTests(unittest.TestCase):
+    """Success, failure and SIGTERM/SIGINT leave no localci directory; the purge only takes marked orphans."""
+    fake_gh = LocalCiSyntheticReplayTests.fake_gh
+    commit = LocalCiSyntheticReplayTests.commit
+
+    def setUp(self):
+        LocalCiSyntheticReplayTests.setUp(self)
+        self.scratch_root = Path(self.temp.name) / "tmp-root"
+        self.scratch_root.mkdir()
+        self.env = patch.dict(os.environ, {"LOCALCI_TMP_ROOT": str(self.scratch_root)})
+
+    def assertNothingLeft(self):
+        self.assertEqual(sorted(p.name for p in self.scratch_root.iterdir()), [])
+        self.assertEqual(localci._LIVE_SCRATCH, {})
+        self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
+
+    def python_step(self):
+        return ("      - uses: actions/setup-python@v5\n        with:\n          python-version: '3.12'\n"
+                if shutil.which("python3.12") else "")
+
+    def test_successful_job_removes_worktree_and_python_environment(self):
+        head = self.commit("jobs:\n  first:\n    steps:\n" + self.python_step()
+                           + "      - run: test -f \"$GITHUB_WORKSPACE/../.localci-owner.json\"\n"
+                           + ("      - run: python3 -c 'import sys,os; r=os.path.realpath; "
+                              "assert r(sys.prefix).startswith(r(os.environ[\"GITHUB_WORKSPACE\"]+\"/..\"))'\n"
+                              if self.python_step() else "")
+                           + "  second:\n    steps:\n" + self.python_step()
+                           + "      - run: echo second\n")
+        with self.env, self.fake_gh(head):
+            self.assertEqual(localci.run_ci(str(self.repo), head, "5", str(self.log)), 0)
+        self.assertIn("JOB_OK second", self.log.read_text(encoding="utf-8"))
+        self.assertNothingLeft()
+
+    def test_failed_step_and_runner_error_remove_everything(self):
+        head = self.commit("jobs:\n  contract:\n    steps:\n" + self.python_step() + "      - run: exit 17\n")
+        with self.env, self.fake_gh(head):
+            self.assertEqual(localci.run_ci(str(self.repo), head, "5", str(self.log)), 17)
+        self.assertNothingLeft()
+        head = self.commit("jobs:\n  contract:\n    steps:\n      - run: echo ok\n      - uses: foreign/action@v1\n")
+        with self.env, self.fake_gh(head), self.assertRaisesRegex(localci.LocalCIError, "Unsupported uses"):
+            localci.run_ci(str(self.repo), head, "5", str(self.log))
+        self.assertNothingLeft()
+
+    def test_termination_signal_unwinds_job_and_stops_the_step(self):
+        import signal as signals
+        import time
+        for signum in (signals.SIGTERM, signals.SIGINT):
+            with self.subTest(signal=signum):
+                started = Path(self.temp.name) / f"started-{signum}"
+                head = self.commit("jobs:\n  contract:\n    steps:\n" + self.python_step()
+                                   + f"      - run: echo $$ > '{started}.tmp' && mv '{started}.tmp' '{started}' && sleep 60\n"
+                                   "      - run: echo FORBIDDEN_NEXT\n")
+                log = Path(self.temp.name) / f"signal-{signum}.log"
+                env = dict(os.environ, LOCALCI_TMP_ROOT=str(self.scratch_root))
+                proc = subprocess.Popen([sys.executable, str(Path(localci.__file__).resolve()), str(self.repo), head,
+                                         "-", str(log)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                        text=True)
+                deadline = time.monotonic() + 60
+                while not started.exists() and proc.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.assertTrue(started.exists(), proc.stderr.read() if proc.poll() is not None else "step not started")
+                self.assertTrue(any(self.scratch_root.iterdir()))
+                step_pid = int(started.read_text())
+                proc.send_signal(signum)  # Exactly this localci process, by PID.
+                self.assertEqual(proc.wait(timeout=30), 128 + signum)
+                proc.stderr.close()
+                output = log.read_text(encoding="utf-8")
+                self.assertIn("terminated_by_signal", output)
+                self.assertNotIn("FORBIDDEN_NEXT", output)
+                with self.assertRaises(ProcessLookupError):
+                    os.kill(step_pid, 0)
+                self.assertEqual(sorted(p.name for p in self.scratch_root.iterdir()), [])
+                self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
+
+    # ---- Startup purge: only localci's own marked, dead and old directories. ----
+    def forge(self, name, pid, *, path=None, root=None, age_offset_hours=0):
+        import time
+        root = root or self.scratch_root
+        folder = (root / name).resolve()
+        folder.mkdir()
+        (folder / "payload").write_text("x")
+        (folder / localci.SCRATCH_MARKER).write_text(json.dumps({
+            "owner": "localci", "version": 1, "path": str(path or folder), "pid": pid,
+            "pid_start": localci._proc_start_time(pid), "pid_ns": localci._pid_namespace(),
+            "boot_id": localci._read_small("/proc/sys/kernel/random/boot_id"),
+            "created": time.time() + age_offset_hours * 3600}))
+        return folder
+
+    def dead_pid(self):
+        child = subprocess.Popen(["true"]); child.wait()
+        return child.pid
+
+    def purge(self, hours_later=48):
+        import time
+        return localci.purge_stale_scratch([self.scratch_root], max_age_hours=6, now=time.time() + hours_later * 3600)
+
+    def test_purge_removes_only_marked_dead_old_directories(self):
+        orphan = self.forge("localci-samantha-core-test-orphan", self.dead_pid())
+        unmarked = self.scratch_root / "localci-python-unmarked"; unmarked.mkdir()
+        (unmarked / "bin").mkdir()
+        alive = self.forge("localci-samantha-core-test-alive", os.getpid())
+        foreign = self.forge("other-tool-dead", self.dead_pid())
+        elsewhere = Path(self.temp.name) / "elsewhere"; elsewhere.mkdir()
+        target = self.forge("localci-linked-target", self.dead_pid(), root=elsewhere)
+        (self.scratch_root / "localci-symlink").symlink_to(target)
+        copied = self.forge("localci-copied-marker", self.dead_pid(), path=self.scratch_root / "localci-somewhere-else")
+        young = self.forge("localci-young", self.dead_pid(), age_offset_hours=47)  # 1 h old when purged
+        self.assertEqual(self.purge(hours_later=1), [])  # Nothing is 6 h old yet: even the orphan stays.
+        self.assertTrue(orphan.exists())
+        self.assertEqual(self.purge(), [str(orphan)])
+        self.assertFalse(orphan.exists())
+        for kept in (unmarked, alive, foreign, target, copied, young.parent / "localci-symlink"):
+            self.assertTrue(kept.exists() or kept.is_symlink(), kept)
+        self.assertTrue((unmarked / "bin").is_dir())
+        self.assertTrue((alive / "payload").exists())
+
+    def test_purge_never_takes_a_live_locked_scratch_even_with_a_dead_or_foreign_pid(self):
+        holder = localci.make_scratch("localci-live-", str(self.scratch_root))
+        try:
+            marker = holder / localci.SCRATCH_MARKER
+            # A run in another PID namespace (bwrap) records a PID meaningless here: its held lock is the proof.
+            data = json.loads(marker.read_text()); data.update(pid=self.dead_pid(), pid_ns="pid:[0]")
+            marker.write_text(json.dumps(data))
+            self.assertEqual(self.purge(), [])
+            self.assertTrue(holder.exists())
+        finally:
+            localci.drop_scratch(holder)
+        self.assertFalse(holder.exists())
+        with self.assertRaisesRegex(localci.LocalCIError, "scratch_prefix"):
+            localci.make_scratch("shared-", str(self.scratch_root))
 
 
 class LocalCiAndroidReplayTests(unittest.TestCase):
@@ -199,6 +453,8 @@ PYOWNER
         self.git("add", ".")
         self.git("commit", "-qm", "versioned Android owner")
         self.head = self.git("rev-parse", "HEAD")
+        fixture_delivery_record(self)
+        use_real_delivery_owner(self)
 
     def run_owner(self, mode="good"):
         with self.fake_gh(self.head), patch.dict(os.environ, {
@@ -212,6 +468,13 @@ PYOWNER
         self.assertIn("LOCALCI_RESULT exit=0 sha=" + self.head, output)
         self.assertTrue(self.log.with_name("out-android").joinpath("build.json").is_file())
         self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
+
+    def test_invalid_delivery_note_prevents_android_build(self):
+        value=json.loads(self.note.read_text());value['merge_eligibility']='requires_canonical_ci';self.note.write_text(json.dumps(value))
+        self.git("add",".");self.git("commit","-qm","invalid documentary eligibility");self.head=self.git("rev-parse","HEAD")
+        with self.assertRaisesRegex(localci.LocalCIError,"merge_eligibility_required"):self.run_owner()
+        self.assertFalse(self.log.with_name("out-android").exists())
+        self.assertEqual(len(self.git("worktree","list").splitlines()),1)
 
     def test_invalid_receipts_fail_closed(self):
         for mode in ("sha", "failures", "errors", "skipped", "empty", "boolean", "checksum", "versions", "malformed", "missing"):
@@ -272,6 +535,296 @@ PYOWNER
         with self.assertRaisesRegex(localci.LocalCIError, "already exists"):
             self.run_owner()
 
+
+
+
+class LocalCiCoreDeliveryTests(unittest.TestCase):
+    """Real pinned schema on tiny Core workflows; no SDK/build/model/device."""
+    fake_gh = LocalCiSyntheticReplayTests.fake_gh
+
+    def setUp(self):
+        LocalCiSyntheticReplayTests.setUp(self)
+        old=self.repo;self.repo=old.with_name("samantha-core");old.rename(self.repo)
+        self.git("remote","set-url","origin","https://github.com/example/samantha-core.git")
+        gh=self.bin/"gh";gh.write_text(gh.read_text().replace("samantha-context-private","samantha-core"))
+        (self.repo/".github/workflows/context-contract.yml").unlink()
+        self.marker=self.repo.parent/"workflow-started"
+        self.workflow=self.repo/".github/workflows/ci.yml"
+        self.workflow.write_text("jobs:\n  source:\n    steps:\n      - run: touch " + str(self.marker) + "\n")
+        fixture_delivery_record(self)
+        use_real_delivery_owner(self)
+
+    def replay(self):
+        with self.fake_gh(self.head):
+            return localci.run_ci(str(self.repo),self.head,"5",str(self.log))
+
+    def change_note(self, edit):
+        value=json.loads(self.note.read_text());edit(value);self.note.write_text(json.dumps(value))
+        self.git("add",".");self.git("commit","-qm","changed note");self.head=self.git("rev-parse","HEAD")
+
+    def test_valid_v2_uses_real_pinned_owner_then_runs_workflow(self):
+        self.assertEqual(self.replay(),0);self.assertTrue(self.marker.exists())
+        self.assertIn(localci.DELIVERY_OWNER_SHA,self.log.read_text())
+        self.assertIn('"strict_v2": true',self.log.read_text())
+
+    def test_v1_is_refused_without_a_policy_file_in_core_base(self):
+        self.change_note(lambda n:n.update(version=1))
+        with self.assertRaisesRegex(localci.LocalCIError,"change_record_v2_required"):self.replay()
+        self.assertFalse(self.marker.exists());self.assertEqual(len(self.git("worktree","list").splitlines()),1)
+
+    def test_old_object_shape_does_not_become_valid_from_its_v2_label(self):
+        def old_shape(n):n['scope']={'files':n.pop('files')}
+        self.change_note(old_shape)
+        with self.assertRaisesRegex(localci.LocalCIError,"missing_file_scope"):self.replay()
+        self.assertFalse(self.marker.exists())
+
+    def test_inherited_legacy_note_is_not_revalidated(self):
+        legacy=self.repo/"docs/changes/historical.json";legacy.write_text('{"historical":"not a current change"}')
+        self.git("add",".");self.git("commit","-qm","inherited history");self.base_sha=self.git("rev-parse","HEAD")
+        self.workflow.write_text(self.workflow.read_text()+"      - run: echo current\n")
+        fixture_delivery_record(self)
+        self.assertEqual(self.replay(),0)
+
+    def test_pr_package_and_pythonpath_cannot_replace_the_pinned_validator(self):
+        hostile=self.repo.parent/"hostile/skill_intelligence";hostile.mkdir(parents=True)
+        (hostile/"__init__.py").write_text("")
+        (hostile/"delivery_contract.py").write_text("raise RuntimeError('foreign validator loaded')")
+        with patch.dict(os.environ,{"PYTHONPATH":str(hostile.parent)}):self.assertEqual(self.replay(),0)
+
+    def test_missing_changed_note_blocks_before_worktree_or_workflow(self):
+        self.note.unlink();self.git("add",".");self.git("commit","-qm","missing note");self.head=self.git("rev-parse","HEAD")
+        with self.assertRaisesRegex(localci.LocalCIError,"change_documentation_required"):self.replay()
+        self.assertFalse(self.marker.exists());self.assertEqual(len(self.git("worktree","list").splitlines()),1)
+
+
+class LocalCiPrivateProofTests(LocalCiSyntheticReplayTests):
+    """Actual canonical owner on a tiny fake workflow; no full Samantha CI."""
+    def setUp(self):
+        super().setUp()
+        import json
+        self.subject = 'qualification/report.json'
+        self.value = {'schema_version': 2, 'results': [{'id': 'synthetic-case', 'status': 'PASS'}]}
+        target = self.repo/self.subject; target.parent.mkdir(); target.write_text(json.dumps(self.value))
+        self.owner = self.repo.parent/'owner'; (self.owner/'tools').mkdir(parents=True)
+        self.owner_file = self.owner/'tools/localci.py'
+        self.owner_file.write_bytes(Path(localci.__file__).read_bytes())
+        subprocess.run(['git', 'init', '-q', str(self.owner)], check=True)
+        for args in (['config','user.name','Fixture'], ['config','user.email','fixture@example.invalid'],
+                     ['add','.'], ['commit','-qm','canonical owner fixture']):
+            subprocess.run(['git', '-C', str(self.owner), *args], check=True, capture_output=True)
+
+    def qualify(self, body=None):
+        head = self.commit(body or 'jobs:\n  contract:\n    steps:\n      - run: echo synthetic-short-workflow\n')
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)):
+            proof = localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
+        return head, proof
+
+    def subject_digest(self):
+        import hashlib,json
+        return hashlib.sha256(json.dumps(self.value, ensure_ascii=True, sort_keys=True, separators=(',',':')).encode()).hexdigest()
+
+    def verify(self, head, proof):
+        subject_digest = self.subject_digest()
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)):
+            return localci.verify_ci_evidence(proof, repository='example/samantha-context-private', head=head,
+                                             pr_number=5, subject_digest=subject_digest)
+
+    def test_private_proof_from_real_short_workflow(self):
+        head, proof = self.qualify()
+        out = self.verify(head, proof)
+        self.assertEqual(out['status'], 'PASS')
+        self.assertEqual(out['base'], self.base_sha)
+        self.assertEqual(len(out['runner_revision']), 40)
+        self.assertEqual(out['proof_scope'], 'canonical_CI_and_committed_artifact_identity_only')
+
+    def test_json_log_and_reconstructed_flags_cannot_create_proof(self):
+        for value in (None, {'status':'PASS','exit_code':0,'executed':True}, 'LOCALCI_RESULT exit=0'):
+            self.assertEqual(self.verify('a'*40, value)['status'], 'NOT_IMPLEMENTED')
+        with self.assertRaises(localci.LocalCIError): localci.CanonicalCIProof({'exit_code':0})
+        _, proof = self.qualify()
+        import pickle
+        with self.assertRaises(TypeError): pickle.dumps(proof)
+
+    def test_false_success_marker_does_not_override_real_failure(self):
+        with self.assertRaisesRegex(localci.LocalCIError, 'terminal_failure'):
+            self.qualify('jobs:\n  contract:\n    steps:\n      - run: echo LOCALCI_RESULT exit=0; exit 17\n')
+
+    def test_log_tamper_and_changed_subject_rejected(self):
+        head, proof = self.qualify()
+        self.log.write_text(self.log.read_text() + 'forged evidence')
+        with self.assertRaisesRegex(localci.LocalCIError, 'artifact_or_owner_changed'):
+            self.verify(head, proof)
+        self.value = {'different':'subject'}
+        with self.assertRaisesRegex(localci.LocalCIError, 'subject_binding_changed'):
+            self.verify(head, proof)
+
+    def test_pr_changed_after_run_refused(self):
+        head = self.commit('jobs:\n  contract:\n    steps:\n      - run: echo short\n')
+        original = localci._run_canonical_ci_process
+        def changed(*args):
+            out = original(*args)
+            os.environ['MOCK_HEAD'] = 'f'*40
+            return out
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)), patch.object(localci, '_run_canonical_ci_process', changed):
+            with self.assertRaisesRegex(localci.LocalCIError, 'pr_identity_changed'):
+                localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
+
+    def test_symlink_subject_and_reused_log_rejected_before_ci(self):
+        target = self.repo/self.subject; target.unlink(); target.symlink_to('/outside-grant')
+        head = self.commit('jobs:\n  contract:\n    steps:\n      - run: echo short\n')
+        with self.fake_gh(head), self.assertRaisesRegex(localci.LocalCIError, 'regular_subject'):
+            localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
+        self.assertFalse(self.log.exists())
+
+
+    def test_subject_mismatch_and_stale_output_fail_before_execution(self):
+        head = self.commit('jobs:\n  contract:\n    steps:\n      - run: echo must-not-start\n')
+        with self.fake_gh(head), patch.object(localci, 'run_ci', side_effect=AssertionError('must not run')):
+            with self.assertRaisesRegex(localci.LocalCIError, 'subject_binding_changed'):
+                localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest='0'*64)
+        self.log.write_text('stale')
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)), patch.object(localci, 'run_ci', side_effect=AssertionError('must not run')):
+            with self.assertRaisesRegex(localci.LocalCIError, 'fresh_output_required'):
+                localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
+
+    def test_pr_changed_after_qualification_cannot_reuse_proof(self):
+        head, proof = self.qualify()
+        with self.fake_gh('f'*40), patch.object(localci, '__file__', str(self.owner_file)):
+            with self.assertRaisesRegex(localci.LocalCIError, 'pr_identity_changed'):
+                localci.verify_ci_evidence(proof, repository='example/samantha-context-private', head=head, pr_number=5, subject_digest=self.subject_digest())
+
+
+    def test_import_then_committed_owner_change_refused_before_run(self):
+        self.owner_file.write_text(self.owner_file.read_text() + '\n# newly committed source after import\n')
+        subprocess.run(['git', '-C', str(self.owner), 'add', '.'], check=True, capture_output=True)
+        subprocess.run(['git', '-C', str(self.owner), 'commit', '-qm', 'post-import owner change'], check=True, capture_output=True)
+        head = self.commit('jobs:\n  contract:\n    steps:\n      - run: echo must-not-start\n')
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)), patch.object(localci, 'run_ci', side_effect=AssertionError('loaded source mismatch must not execute')):
+            with self.assertRaisesRegex(localci.LocalCIError, 'loaded_owner_changed'):
+                localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
+        self.assertFalse(self.log.exists())
+
+
+    def test_detached_descendant_started_then_stopped_before_proof(self):
+        import json, shlex, time
+        started = self.repo.parent/'descendant-started'
+        late = self.repo.parent/'descendant-survived'
+        child = "import pathlib,time;pathlib.Path(%r).write_text('started');time.sleep(.8);pathlib.Path(%r).write_text('survived')" % (str(started), str(late))
+        parent = "import subprocess,sys,time,pathlib;subprocess.Popen([sys.executable,'-c',%r],start_new_session=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);deadline=time.monotonic()+2\nwhile not pathlib.Path(%r).exists() and time.monotonic()<deadline: time.sleep(.01)\nassert pathlib.Path(%r).exists()" % (child, str(started), str(started))
+        head, proof = self.qualify('jobs:\n  contract:\n    steps:\n      - run: ' + json.dumps('python3 -c ' + shlex.quote(parent)) + '\n')
+        if proof is None:
+            self.assertEqual(self.verify(head, proof)['status'], 'NOT_IMPLEMENTED'); return
+        self.assertEqual(self.verify(head, proof)['status'], 'PASS')
+        self.assertTrue(started.exists())
+        time.sleep(1.1)
+        self.assertFalse(late.exists(), 'a descendant must not survive proof issuance')
+
+    def test_no_containment_has_no_uncontained_fallback(self):
+        head = self.commit('jobs:\n  contract:\n    steps:\n      - run: echo must-not-start\n')
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)), patch.object(localci, '_canonical_pid_command', return_value=None), patch.object(localci, '_canonical_subreaper_command', return_value=None), patch.object(localci, 'run_ci', side_effect=AssertionError('no uncontained run')):
+            proof = localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
+        self.assertIsNone(proof)
+        self.assertEqual(self.verify(head, proof)['status'], 'NOT_IMPLEMENTED')
+        self.assertFalse(self.log.exists())
+
+    def test_without_namespaces_the_subreaper_contains_the_same_run(self):
+        # The S24 case: user namespaces refused, the subreaper keeps the lifetime contract.
+        import json, shlex, time
+        started = self.repo.parent/'descendant-started'
+        late = self.repo.parent/'descendant-survived'
+        child = "import pathlib,time;pathlib.Path(%r).write_text('started');time.sleep(.8);pathlib.Path(%r).write_text('survived')" % (str(started), str(late))
+        parent = "import subprocess,sys,time,pathlib;subprocess.Popen([sys.executable,'-c',%r],start_new_session=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);deadline=time.monotonic()+2\nwhile not pathlib.Path(%r).exists() and time.monotonic()<deadline: time.sleep(.01)\nassert pathlib.Path(%r).exists()" % (child, str(started), str(started))
+        with patch.object(localci, '_canonical_pid_command', return_value=None):
+            head, proof = self.qualify('jobs:\n  contract:\n    steps:\n      - run: ' + json.dumps('python3 -c ' + shlex.quote(parent)) + '\n')
+        self.assertEqual(self.verify(head, proof)['status'], 'PASS')
+        self.assertEqual(proof._facts(localci._CI_PROOF_SEAL)['process_lifetime'], 'subreaper_teardown')
+        self.assertTrue(started.exists())
+        time.sleep(1.1)
+        self.assertFalse(late.exists(), 'a descendant must not survive proof issuance')
+
+    def test_subreaper_failure_paths_are_failures(self):
+        with patch.object(localci, '_canonical_pid_command', return_value=None):
+            with self.assertRaisesRegex(localci.LocalCIError, 'terminal_failure'):
+                self.qualify('jobs:\n  contract:\n    steps:\n      - run: exit 17\n')
+        sup = [sys.executable, str(Path(localci.__file__).resolve()), localci.SUBREAPER_FLAG, '--']
+        self.assertEqual(subprocess.run(sup + [sys.executable, '-c', 'raise SystemExit(5)']).returncode, 5)
+        with patch.object(localci, '_kill_all_descendants', return_value=False), \
+                patch.object(localci.subprocess, 'Popen') as popen, patch('ctypes.CDLL') as cdll:
+            cdll.return_value.prctl.return_value = 0
+            popen.return_value.wait.return_value = 0
+            self.assertEqual(localci._subreaper_main(['true']), 126, 'an unproven teardown is a failure')
+        with patch('ctypes.CDLL') as cdll:
+            cdll.return_value.prctl.return_value = -1
+            self.assertEqual(localci._subreaper_main(['true']), 125)
+
+    def test_fifo_owner_refused_without_blocking_read(self):
+        self.owner_file.unlink(); os.mkfifo(self.owner_file)
+        head = self.commit('jobs:\n  contract:\n    steps:\n      - run: echo must-not-start\n')
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)), patch.object(localci, '_run_canonical_ci_process', side_effect=AssertionError('no run')):
+            with self.assertRaisesRegex(ValueError, 'regular_bounded_owner_required'):
+                localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
+
+
+
+class LocalCiS24GhTests(unittest.TestCase):
+    """The S24 steps' `gh`: two read-only forms from local mirrors, anything else refused."""
+
+    def setUp(self):
+        import localci_s24_gh
+        self.gh = localci_s24_gh
+        self.temp = tempfile.TemporaryDirectory(prefix="ci-gh-")
+        self.addCleanup(self.temp.cleanup)
+        origin = Path(self.temp.name) / "origin"
+        origin.mkdir()
+        run = lambda repo, *a: subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True, text=True).stdout.strip()
+        run(origin, "init", "-q", "-b", "runtime/x")
+        run(origin, "config", "user.email", "f@example.invalid"); run(origin, "config", "user.name", "F")
+        (origin / "tools").mkdir(); (origin / "tools" / "a.py").write_text("print('peer')\n")
+        run(origin, "add", "."); run(origin, "commit", "-qm", "c")
+        self.sha = run(origin, "rev-parse", "HEAD")
+        mirrors = Path(self.temp.name) / "repos"
+        subprocess.run(["git", "clone", "-q", str(origin), str(mirrors / "samantha-core")], check=True)
+        self.env = patch.dict(os.environ, {"LOCALCI_S24_MIRRORS": str(mirrors)})
+        self.env.start(); self.addCleanup(self.env.stop)
+        self.gh.MIRRORS = mirrors
+
+    def call(self, *argv):
+        import io, contextlib as cl
+        out = io.StringIO()
+        with cl.redirect_stdout(out):
+            code = self.gh.main(list(argv))
+        return code, out.getvalue()
+
+    def test_ref_and_contents_are_served_from_the_mirror(self):
+        code, out = self.call("api", "repos/sfar-amine/samantha-core/git/ref/heads/runtime/x", "--jq", ".object.sha")
+        self.assertEqual((code, out.strip()), (0, self.sha))
+        code, out = self.call("api", f"repos/sfar-amine/samantha-core/contents/tools/a.py?ref={self.sha}", "--jq", ".content")
+        import base64
+        self.assertEqual(base64.b64decode(out), b"print('peer')\n")
+
+    def test_anything_else_is_refused(self):
+        for argv in (("pr", "view", "1"), ("api", "repos/sfar-amine/samantha-core/pulls/1"),
+                     ("api", "repos/sfar-amine/other/git/ref/heads/main"),
+                     ("api", f"repos/sfar-amine/samantha-core/contents/../x?ref={self.sha}"),
+                     ("api", "repos/sfar-amine/samantha-core/git/ref/heads/runtime/x", "--jq", ".ref")):
+            with self.assertRaises(SystemExit) as raised:
+                self.call(*argv)
+            self.assertEqual(raised.exception.code, 2)
+
+
+class LocalCiS24LauncherTests(unittest.TestCase):
+    """tools/localci-s24.sh: what Termux and Debian both touch keeps one absolute path; node is on the base PATH."""
+
+    def setUp(self):
+        self.text = (Path(__file__).resolve().parent / "localci-s24.sh").read_text()
+
+    def test_no_debian_only_path_for_mirrors_worktrees_or_logs(self):
+        self.assertIn('--bind "$ci:$ci"', self.text)
+        self.assertIn('LOCALCI_TMP_ROOT="$ci/tmp"', self.text)
+        self.assertNotRegex(self.text, r"(?<![\w$])/ci/")
+
+    def test_base_path_has_node_like_the_github_runner_image(self):
+        self.assertRegex(self.text, r"env -i PATH=/opt/node22/bin:")
 
 if __name__ == "__main__":
     unittest.main()

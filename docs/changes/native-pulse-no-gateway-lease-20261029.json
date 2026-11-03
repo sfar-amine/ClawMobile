@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "id": "native-pulse-no-gateway-lease-20261029",
+  "date": "2026-10-29",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The Gateway no longer requires a per-invocation native Pulse lease (with a second allowlist re-read) before interpreting a Pulse room message. The room stays admitted at its turn (NativePulseContact) and the Python transport still re-reads the sealed contact evidence at every send; the Gateway keeps only the admitted Gemini profile and a Pulse-only catalogue. The room failure table names an unanswered interpretation and generation_context_changed instead of the generic text.",
+  "reason": "S24 28/10 15:06 and 29/10 15:28Z (Sadok): every Pulse room message was refused by the Gateway in 3 ms (« native Pulse admission required », then « native Pulse model not admitted »); the room has not worked since the L5 refonte. Amine 29/10: align the room on his path and remove superfluous constraints. Paired with playbooks #346.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
+    "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/companion/receiptPresentation.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-brain-only-entry.cjs",
+    "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
+    "docs/changes/native-pulse-no-gateway-lease-20261029.json",
+    "docs/changes/native-pulse-no-gateway-lease-20261029.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
+      "status": "passed",
+      "evidence": "A Pulse room request (Gemini, Pulse catalogue) is interpreted without any lease; Luna, a non-REQUEST message, an owner catalogue or malformed JSON are refused before the model."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-brain-only-entry.cjs",
+      "status": "passed",
+      "evidence": "Under brain-only the room interpretation survives the retired owner interpreter; other model / plain message / owner catalogue refused with zero completion."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+      "status": "passed",
+      "evidence": "Unchanged: native codes keep their room phrases, untrusted producer text is not shown."
+    }
+  ],
+  "documentation": [
+    "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
+    "docs/changes/native-pulse-no-gateway-lease-20261029.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same Pulse room actions; the room interpretation stops being refused."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "A redundant guard is removed; same admission, transport and interpreter owners. No new store, router or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Gateway interpretation port and Pulse room fast path only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Requires playbooks #346 active first (the transport must accept no correlation id).",
+    "The room keeps the single admitted Gemini profile (DATA01).",
+    "Full canonical CI on the final head and a live recette with Sadok remain required."
+  ],
+  "rollback": "Revert this commit and redeploy the core (playbooks #346 stays compatible)."
+}

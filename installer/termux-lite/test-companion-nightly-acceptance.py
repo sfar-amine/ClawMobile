@@ -26,6 +26,8 @@ class NightlyTests(unittest.TestCase):
    state=Path(td);result,code=self.execute(state,aux)
    receipt=m.read_receipt(state/'nightly-20261011.json')
    self.assertIn(result['state'],('ok','attention'));self.assertNotIn('reason',receipt)
+   # S24 27/10: the scheduler auto-disabled the job after 10 « attention » nights that exited 1.
+   self.assertEqual(code,0)
    self.assertFalse(any(row['route']=='/catalog' and row['seconds']==1.93 for row in receipt['drift']))
   for bad in ({'route':'/catalog','check':'Prewarm!','status':'ok'},{'route':'/catalog','check':'prewarm','status':'maybe'}):
    with self.assertRaises(ValueError):m.closed_acceptance({'accepted':True,'checks':[bad]})
@@ -136,4 +138,13 @@ class NightlyTests(unittest.TestCase):
   started=time.monotonic()
   with self.assertRaises(TimeoutError):m.bounded_command([sys.executable,'-c','import time;time.sleep(20)'],.05)
   self.assertLess(time.monotonic()-started,1)
+ def test_attention_exits_zero_and_only_failed_exits_one(self):
+  # S24 27/10: 10 « attention » nights (latency drift) exited 1 and OpenClaw auto-disabled the job (consecutive-failures).
+  drifted=lambda acceptance,history:[{'route':'/catalog','read':None,'seconds':1.0,'budget':1.0,'median7':None,'baselineNights':0,'state':'attention','reasons':['budget_over_80_percent']}]
+  with tempfile.TemporaryDirectory() as td, patch.object(m,'drift',drifted):
+   out,code=self.execute(Path(td))
+   self.assertEqual((out['state'],code),('attention',0))
+  with tempfile.TemporaryDirectory() as td:
+   failed=copy.deepcopy(REAL);failed['accepted']=False
+   out,code=self.execute(Path(td),failed);self.assertEqual((out['state'],code),('failed',1))
 if __name__=='__main__':unittest.main()

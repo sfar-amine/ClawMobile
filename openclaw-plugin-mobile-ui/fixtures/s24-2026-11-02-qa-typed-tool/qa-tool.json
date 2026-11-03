@@ -1,0 +1,527 @@
+{
+  "source": {
+    "repository": "sfar-amine/samantha-ui-playbooks",
+    "commit": "3bb52c2d244d052a7e34221d44e7bb92b2f0e35e",
+    "branch": "claude/samantha-qa",
+    "generator": "skill_intelligence.typed_tools.project_tools",
+    "capabilityRevision": "b837b6b9b6d52606"
+  },
+  "tool": {
+    "name": "samantha_qa",
+    "domain": "qa",
+    "description": "Tests automatiques (campagnes QA)",
+    "actions": [
+      {
+        "action": "qa.campaign.cancel",
+        "description": "arrêter une campagne de tests",
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "[A-Za-z0-9][A-Za-z0-9_.-]{0,95}"
+            }
+          },
+          "required": [
+            "run_id"
+          ],
+          "additionalProperties": false
+        },
+        "risk": "write",
+        "confirmationRequired": true,
+        "directExecution": true,
+        "canonicalStatus": "ready",
+        "executionMode": "command",
+        "ownerReferences": [
+          "qa_testing/typed_qa.py",
+          "qa_testing/core.py",
+          "qa_testing/SKILL.md",
+          "qa_testing/APP_MAP.md",
+          "docs/changes/samantha-qa-typed-tool-20261102.md"
+        ],
+        "examples": [
+          "arrête la campagne de tests"
+        ]
+      },
+      {
+        "action": "qa.campaign.list",
+        "description": "lister les campagnes de tests",
+        "params": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 500
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "risk": "read",
+        "confirmationRequired": false,
+        "directExecution": true,
+        "canonicalStatus": "ready",
+        "executionMode": "command",
+        "ownerReferences": [
+          "qa_testing/typed_qa.py",
+          "qa_testing/core.py",
+          "qa_testing/SKILL.md",
+          "qa_testing/APP_MAP.md",
+          "docs/changes/samantha-qa-typed-tool-20261102.md"
+        ],
+        "examples": [
+          "liste les campagnes de tests",
+          "où en sont mes tests automatiques"
+        ]
+      },
+      {
+        "action": "qa.campaign.start",
+        "description": "démarrer une campagne de tests prête (cas ou smoke)",
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "[A-Za-z0-9][A-Za-z0-9_.-]{0,95}"
+            }
+          },
+          "required": [
+            "run_id"
+          ],
+          "additionalProperties": false
+        },
+        "risk": "write",
+        "confirmationRequired": true,
+        "directExecution": true,
+        "canonicalStatus": "ready",
+        "executionMode": "command",
+        "ownerReferences": [
+          "qa_testing/typed_qa.py",
+          "qa_testing/core.py",
+          "qa_testing/SKILL.md",
+          "qa_testing/APP_MAP.md",
+          "docs/changes/samantha-qa-typed-tool-20261102.md"
+        ],
+        "examples": [
+          "lance la campagne de tests",
+          "démarre le smoke test"
+        ]
+      },
+      {
+        "action": "qa.campaign.status",
+        "description": "voir l'état d'une campagne de tests",
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "[A-Za-z0-9][A-Za-z0-9_.-]{0,95}"
+            }
+          },
+          "required": [
+            "run_id"
+          ],
+          "additionalProperties": false
+        },
+        "risk": "read",
+        "confirmationRequired": false,
+        "directExecution": true,
+        "canonicalStatus": "ready",
+        "executionMode": "command",
+        "ownerReferences": [
+          "qa_testing/typed_qa.py",
+          "qa_testing/core.py",
+          "qa_testing/SKILL.md",
+          "qa_testing/APP_MAP.md",
+          "docs/changes/samantha-qa-typed-tool-20261102.md"
+        ],
+        "examples": [
+          "état de la campagne de tests",
+          "où en est le smoke"
+        ]
+      },
+      {
+        "action": "qa.docs.list",
+        "description": "lister la documentation des tests automatiques",
+        "params": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        },
+        "risk": "read",
+        "confirmationRequired": false,
+        "directExecution": true,
+        "canonicalStatus": "ready",
+        "executionMode": "command",
+        "ownerReferences": [
+          "qa_testing/typed_qa.py",
+          "qa_testing/core.py",
+          "qa_testing/SKILL.md",
+          "qa_testing/APP_MAP.md",
+          "docs/changes/samantha-qa-typed-tool-20261102.md"
+        ],
+        "examples": [
+          "donne moi la documentation des tests automatiques"
+        ]
+      },
+      {
+        "action": "qa.map.approve",
+        "description": "approuver la carte observée d'une application testée",
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "[A-Za-z0-9][A-Za-z0-9_.-]{0,95}"
+            },
+            "map_version": {
+              "type": "string",
+              "minLength": 28,
+              "maxLength": 28,
+              "pattern": "map-[0-9a-f]{24}"
+            }
+          },
+          "required": [
+            "run_id",
+            "map_version"
+          ],
+          "additionalProperties": false
+        },
+        "risk": "write",
+        "confirmationRequired": true,
+        "directExecution": true,
+        "canonicalStatus": "ready",
+        "executionMode": "command",
+        "ownerReferences": [
+          "qa_testing/typed_qa.py",
+          "qa_testing/core.py",
+          "qa_testing/SKILL.md",
+          "qa_testing/APP_MAP.md",
+          "docs/changes/samantha-qa-typed-tool-20261102.md"
+        ],
+        "examples": [
+          "approuve la carte de l'application testée"
+        ]
+      },
+      {
+        "action": "qa.map.get",
+        "description": "voir la carte observée d'une application testée",
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "[A-Za-z0-9][A-Za-z0-9_.-]{0,95}"
+            }
+          },
+          "required": [
+            "run_id"
+          ],
+          "additionalProperties": false
+        },
+        "risk": "read",
+        "confirmationRequired": false,
+        "directExecution": true,
+        "canonicalStatus": "ready",
+        "executionMode": "command",
+        "ownerReferences": [
+          "qa_testing/typed_qa.py",
+          "qa_testing/core.py",
+          "qa_testing/SKILL.md",
+          "qa_testing/APP_MAP.md",
+          "docs/changes/samantha-qa-typed-tool-20261102.md"
+        ],
+        "examples": [
+          "montre la carte de l'application testée"
+        ]
+      },
+      {
+        "action": "qa.plan.approve",
+        "description": "valider le plan d'une campagne de tests",
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "[A-Za-z0-9][A-Za-z0-9_.-]{0,95}"
+            },
+            "plan_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            }
+          },
+          "required": [
+            "run_id",
+            "plan_version"
+          ],
+          "additionalProperties": false
+        },
+        "risk": "write",
+        "confirmationRequired": true,
+        "directExecution": true,
+        "canonicalStatus": "ready",
+        "executionMode": "command",
+        "ownerReferences": [
+          "qa_testing/typed_qa.py",
+          "qa_testing/core.py",
+          "qa_testing/SKILL.md",
+          "qa_testing/APP_MAP.md",
+          "docs/changes/samantha-qa-typed-tool-20261102.md"
+        ],
+        "examples": [
+          "valide le plan de la campagne de tests"
+        ]
+      },
+      {
+        "action": "qa.report.latest",
+        "description": "lire le dernier rapport de tests",
+        "params": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        },
+        "risk": "read",
+        "confirmationRequired": false,
+        "directExecution": true,
+        "canonicalStatus": "ready",
+        "executionMode": "command",
+        "ownerReferences": [
+          "qa_testing/typed_qa.py",
+          "qa_testing/core.py",
+          "qa_testing/SKILL.md",
+          "qa_testing/APP_MAP.md",
+          "docs/changes/samantha-qa-typed-tool-20261102.md"
+        ],
+        "examples": [
+          "donne le rapport des tests automatiques",
+          "dernier rapport de tests"
+        ]
+      }
+    ]
+  },
+  "catalogueRow": {
+    "id": "qa.test_campaign",
+    "name": "Tests applicatifs web et Android",
+    "status": "implemented",
+    "description": "Préparer, exécuter et consulter des campagnes web ou Android S24 depuis des cas Excel ou un smoke, avec descriptif, vérifications UX/UI, preuves et diagnostic technique. Retrouver les documents et résultats de cette capability.",
+    "examples": [
+      "donne moi la documentation des tests automatiques",
+      "liste les campagnes de tests",
+      "lance un smoke test",
+      "teste une application Android",
+      "teste un site web avec les test cases Excel"
+    ],
+    "aliases": [
+      "qa.test_campaign",
+      "tests automatiques",
+      "tests applicatifs",
+      "campagne de tests",
+      "campagne de test",
+      "smoke test",
+      "test ux ui",
+      "test cases excel",
+      "rapport de tests automatiques",
+      "documentation tests automatiques"
+    ],
+    "calls": [
+      {
+        "tool": "samantha_qa",
+        "domain": "qa",
+        "action": "qa.campaign.cancel",
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "[A-Za-z0-9][A-Za-z0-9_.-]{0,95}"
+            }
+          },
+          "required": [
+            "run_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "tool": "samantha_qa",
+        "domain": "qa",
+        "action": "qa.campaign.list",
+        "params": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 500
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      {
+        "tool": "samantha_qa",
+        "domain": "qa",
+        "action": "qa.campaign.start",
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "[A-Za-z0-9][A-Za-z0-9_.-]{0,95}"
+            }
+          },
+          "required": [
+            "run_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "tool": "samantha_qa",
+        "domain": "qa",
+        "action": "qa.campaign.status",
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "[A-Za-z0-9][A-Za-z0-9_.-]{0,95}"
+            }
+          },
+          "required": [
+            "run_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "tool": "samantha_qa",
+        "domain": "qa",
+        "action": "qa.docs.list",
+        "params": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      {
+        "tool": "samantha_qa",
+        "domain": "qa",
+        "action": "qa.map.approve",
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "[A-Za-z0-9][A-Za-z0-9_.-]{0,95}"
+            },
+            "map_version": {
+              "type": "string",
+              "minLength": 28,
+              "maxLength": 28,
+              "pattern": "map-[0-9a-f]{24}"
+            }
+          },
+          "required": [
+            "run_id",
+            "map_version"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "tool": "samantha_qa",
+        "domain": "qa",
+        "action": "qa.map.get",
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "[A-Za-z0-9][A-Za-z0-9_.-]{0,95}"
+            }
+          },
+          "required": [
+            "run_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "tool": "samantha_qa",
+        "domain": "qa",
+        "action": "qa.plan.approve",
+        "params": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "[A-Za-z0-9][A-Za-z0-9_.-]{0,95}"
+            },
+            "plan_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            }
+          },
+          "required": [
+            "run_id",
+            "plan_version"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "tool": "samantha_qa",
+        "domain": "qa",
+        "action": "qa.report.latest",
+        "params": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    ]
+  }
+}

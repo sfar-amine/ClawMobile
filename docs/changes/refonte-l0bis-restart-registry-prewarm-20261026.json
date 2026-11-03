@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "repair",
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Only optional internal closed stage callbacks. No public MCP or HTTP schema, adapter, business effect or payment boundary changed."
+    ]
+  },
+  "id": "refonte-l0bis-restart-registry-prewarm-20261026",
+  "summary": "Prepare the existing SDK tool registry on the private restart owner before acknowledging its completion.",
+  "reason": "Native19-boundary cold run: registry loader8843ms versus factories23ms. Diagnostic --deploy-restart skipped runtime-sync metadata preparation; close that lifecycle gap before any cache modification.",
+  "rollback": "Redeploy the prior paired Companion source through companion-deploy.sh; no SDK module, runtime configuration or business-data rollback.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/openclawGatewayClient.ts",
+    "installer/termux-lite/runtime-sync.sh",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-deploy-gateway-restart.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-registry-startup/native-timings.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-registry-startup/README.md",
+    "docs/work/samantha-refonte/L0bis-restart-registry-prewarm-20261026.md",
+    "docs/changes/refonte-l0bis-restart-registry-prewarm-20261026.md",
+    "docs/changes/refonte-l0bis-restart-registry-prewarm-20261026.json"
+  ],
+  "documentation": [
+    "docs/work/samantha-refonte/L0bis-restart-registry-prewarm-20261026.md",
+    "docs/changes/refonte-l0bis-restart-registry-prewarm-20261026.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-registry-startup/README.md"
+  ],
+  "tests": [
+    {
+      "name": "Exact restart-owned metadata preparation and runtime-sync contracts",
+      "status": "passed",
+      "evidence": "Source77e081cdd573daaa762121baa4109b42fc5ba581, qualified cloud container,15.433s: real tsc; test-qa-deploy-gateway-restart.cjs, test-gateway-tools-metadata-preparation.cjs (6 contracts), test-runtime-sync.py (3 selected lifecycle cases), actual test-ci-registration.py (3 guards). Log l0bis-warm77-container-v1.log SHA256 e28b19a55101b1d59f9aa5489016b907c80bd9fc39ce832cd302fb72108099fa; source stable. Linux lock/TCP fixture and local fake catalog only; no S24 gain or activation claimed; integrated canonical full pending."
+    }
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "NO_CAPABILITY: existing private CLI lifecycle action only; no public route, tool, configuration or admission."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuse private deploy-restart, prepareMainToolCatalog, official SDK transport and SDK registry/module caches, existing runtime-sync fallback. No cache or registry added; no factory-context reuse."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "canonical_ci": "pending_exact_head",
+  "native_acceptance": "pending_root_owned_isolated_cold_then_warm_measurement_no_gain_claim"
+}

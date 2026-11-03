@@ -1,19 +1,13 @@
 import crypto from "crypto";
+import {TURN_BUDGET_MS, remainingTurnBudgetMs} from "./turnBudget";
+import {gatewayTerminalResult} from "./runs";
 import {compactOwnerAgentContext} from "./clawLive";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { capabilityBridge } from "./capabilityBridge";
 import { handleMcpRelayRequest } from "./mcpBridge";
+import { registerAuthenticatedMcpRelayMessage } from "./remoteBridge";
 import { reconnectDelay } from "./reconnectPolicy";
-import {
-  isVoiceRealignment, planVoiceSpeech, readVoiceUnderstood, realignmentChoice, realignmentRoundPayload,
-  realignmentSpeech, voiceTurnContext, type VoiceTurnContext,
-} from "./voiceUnderstanding";
-import { captureVoiceRound, type RoundCaptureRunner } from "./voiceRoundLearning";
-import { readReceiptPresentation } from "./receiptPresentation";
-import { DialogueSurface, type SurfaceTurn } from "../dialogueSurface";
-import { runModelFastPath } from "../modelFastPath";
 export { reconnectDelay } from "./reconnectPolicy";
 import {
   callOpenClawGateway,
@@ -35,13 +29,12 @@ type RelayState =
   | "reconnecting"
   | "unavailable";
 
+/** Transport binding of a relay conversation to its brain session (ADR 02/11, step 3: every turn goes to the brain). */
 type PendingConversation = {
-  kind: "deterministic" | "agent" | "realignment" | "capability";
-  realignment?: VoiceTurnContext;
-  clarificationId?: string;
+  kind: "agent";
   originalRequest: string;
-  target?: string;
   agentSessionId?: string;
+  brain: true;
   at: number;
 };
 
@@ -55,6 +48,7 @@ const CONFIG_PATH =
 const MAX_REQUEST_CHARS = 12000;
 const RECENT_TTL_MS = 10 * 60_000;
 const CONVERSATION_TTL_MS = 30 * 60_000;
+const MAX_BRAIN_CONVERSATIONS = 256;
 const ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 // A socket that is not authenticated within this delay is abandoned: after a network
 // switch a dead TCP connection can stay CONNECTING or CLOSING without ever emitting close.
@@ -74,16 +68,8 @@ let lastError = "";
 
 const recent = new Map<string, { hash: string; at: number; response: any }>();
 const VOICE_SURFACE = "bixby_claw";
-// SAM-MIG V2.2: the dialogue coordinator owns the pending question; `conversations` below keeps only the relay's
-// transport binding (conversationId -> coordinator conversation id), never a question nor a decision.
-let voiceDialogue = new DialogueSurface(runModelFastPath, "voice", VOICE_SURFACE, { modelAllowed: true }, { voice: true });
+// The relay keeps only its transport binding (conversationId -> brain session), never a question nor a decision.
 const conversations = new Map<string, PendingConversation>();
-// Lot 41 V2: last deterministic voice turn (bounded projection, no transcript), 2-minute window.
-let lastRelayTurn: VoiceTurnContext | null = null;
-let roundCapture: RoundCaptureRunner = captureVoiceRound;
-/** Test seam only: the production runner is the canonical learning_gate capture-round. */
-export function setVoiceRelayRoundCaptureForTest(runner: RoundCaptureRunner | null) { roundCapture = runner || captureVoiceRound; }
-export function resetVoiceRelayUnderstandingForTest() { lastRelayTurn = null; }
 
 function expandHome(value: string) {
   return value.replace(/^~(?=\/|$)/, os.homedir());
@@ -130,10 +116,6 @@ function requestHash(value: unknown) {
     .digest("hex");
 }
 
-function newConversationId() {
-  return "conv-" + crypto.randomBytes(12).toString("hex");
-}
-
 function cleanupRecent(now = Date.now()) {
   for (const [key, value] of recent) {
     if (now - value.at > RECENT_TTL_MS) recent.delete(key);
@@ -173,119 +155,6 @@ function labelsForChoices(choices: unknown[]) {
 
 function questionForChoices(choices: unknown[]) {
   return "Précise : " + labelsForChoices(choices).join(" ou ") + ".";
-}
-
-/** Voice executes a resolved capability directly only when it is deterministic, needs no confirmation and its
- * registry risk is "read" or "low". O10 (fichier 37) : "low" is the owner-only voice decision record
- * (samantha.voice.decision.record, no biometrics, no confirmation, decision of Amine 10/10). Anything else, and
- * every payment or confirmed path, keeps going to the agent turn. */
-export const VOICE_DIRECT_RISKS = new Set(["read", "low"]);
-export function deterministicVoiceAdmission(resolved: any): boolean {
-  const selected = resolved?.selected;
-  return !(
-    resolved?.success === false ||
-    selected?.deterministic !== true ||
-    !VOICE_DIRECT_RISKS.has(String(selected?.risk || "")) ||
-    resolved?.confirmation_required === true ||
-    selected?.confirmation_required === true
-  );
-}
-
-export function extractFastClarification(value: any) {
-  const execution = value?.execution;
-  const result = execution?.result;
-  if (
-    !execution ||
-    execution.state !== "completed" ||
-    !result ||
-    typeof result !== "object"
-  ) {
-    return null;
-  }
-  // A capability that lacks one parameter asks its own question (O10: "Quelle décision veux-tu que je note ?").
-  if (result.state === "needs_parameter" && typeof result.question === "string" && result.question.trim()) {
-    return { question: result.question.trim().slice(0, 300), choices: [] as string[] };
-  }
-  if (
-    result.state === "needs_counter" &&
-    result.sent === false &&
-    Array.isArray(result.choices) &&
-    result.choices.length
-  ) {
-    return {
-      question: questionForChoices(result.choices),
-      choices: result.choices.map((item: any) => String(item)),
-    };
-  }
-  return null;
-}
-
-export function renderFastVoiceResult(value: any): string | null {
-  const execution = value?.execution;
-  const result = execution?.result;
-  if (
-    !execution ||
-    execution.state !== "completed" ||
-    !result ||
-    typeof result !== "object"
-  ) {
-    return null;
-  }
-  if (extractFastClarification(value)) return null;
-  if (result.ok !== true) return null;
-
-  for (const key of ["text", "message", "summary"]) {
-    if (typeof result[key] === "string" && result[key].trim()) {
-      return result[key].trim();
-    }
-  }
-
-  const data = result.data;
-  if (!data || typeof data !== "object") return null;
-  const labels: Record<string, string> = {
-    recharge: "solde de recharge",
-    forfait: "forfait",
-    forfait_bonus: "bonus sur recharge",
-    data: "data restante",
-    voice: "voix restante",
-    phone_number: "numéro",
-    offer: "offre",
-  };
-  const parts: string[] = [];
-  const pushValue = (label: string, item: any) => {
-    if (!item || typeof item !== "object" || item.value === undefined) return;
-    const unit = item.unit ? " " + String(item.unit) : "";
-    parts.push(label + " : " + String(item.value) + unit);
-  };
-
-  const balances = (data as Record<string, any>).balances;
-  if (balances && typeof balances === "object") {
-    for (const [key, item] of Object.entries(balances as Record<string, any>)) {
-      pushValue(labels[key] || key, item);
-    }
-  }
-
-  for (const [key, item] of Object.entries(data as Record<string, any>)) {
-    if (key === "balances" || key === "cards") continue;
-    pushValue(labels[key] || key, item);
-  }
-
-  const cards = (data as Record<string, any>).cards;
-  if (Array.isArray(cards)) {
-    const duplicateTitles = new Set([
-      "compte de recharge",
-      "forfait du mois en cours",
-      "bonus sur recharge",
-    ]);
-    for (const card of cards) {
-      if (!card || typeof card !== "object" || card.value === undefined) continue;
-      const title = String(card.title || "").trim();
-      if (!title || duplicateTitles.has(title.toLowerCase())) continue;
-      pushValue(title, card);
-    }
-  }
-
-  return parts.length ? [...new Set(parts)].slice(0, 8).join(", ") + "." : null;
 }
 
 function extractAgentText(value: any): string {
@@ -359,96 +228,18 @@ export function classifyAgentTurn(value: any): AgentTurn {
   return { state: "done", text };
 }
 
-export function composeContinuationRequest(
-  originalRequest: string,
-  answer: string,
-) {
-  const original = String(originalRequest || "").trim();
-  const clarification = String(answer || "").trim();
-  return (original + "\nPrécision utilisateur : " + clarification).slice(
-    0,
-    MAX_REQUEST_CHARS,
-  );
-}
-
-async function resolveDeterministic(request: string, targetHint?: string) {
-  const resolved: any = await capabilityBridge(request, {
-    execute: false,
-    surface: "bixby_claw",
-    caller: "owner",
-    timeoutSeconds: 20,
-    targetHint,
-  });
-  if (!deterministicVoiceAdmission(resolved)) {
-    return null;
-  }
-
-  const executed: any = await capabilityBridge(request, {
-    execute: true,
-    surface: "bixby_claw",
-    caller: "owner",
-    timeoutSeconds: 30,
-    targetHint,
-  });
-
-  const clarification = extractFastClarification(executed);
-  // Lot 41 V1/V3: imposed text built from the owner receipt (HS3 understood/failure, else decision v2).
-  const speech = planVoiceSpeech(executed, { locale: "fr" });
-  const context = voiceTurnContext(executed, request, { locale: "fr", scope: "bixby_claw" });
-  lastRelayTurn = context;
-  if (clarification) {
-    return {
-      state: "needs_clarification" as const,
-      context,
-      question: speech.understood ? speech.understood + " " + clarification.question : clarification.question,
-      choices: clarification.choices,
-      capability: executed?.capability || null,
-      route: executed?.selected?.route || executed?.execution?.route || null,
-      target: executed?.selected?.target || executed?.skill_plan?.target || targetHint || null,
-    };
-  }
-
-  if (speech.failure && explicitExecutionFailure(executed)) {
-    // V3: the step and the readable reason, never a code; no agent fallback that could rephrase it.
-    return {
-      state: "failed" as const,
-      context,
-      text: speech.verbatim as string,
-      capability: executed?.capability || null,
-      route: executed?.selected?.route || executed?.execution?.route || null,
-      target: executed?.selected?.target || executed?.skill_plan?.target || targetHint || null,
-    };
-  }
-  const rendered = renderFastVoiceResult(executed);
-  if (!rendered) return null;
-  const text = speech.understood ? speech.understood + " " + rendered : rendered;
-  return {
-    state: "done" as const,
-    context,
-    text,
-    capability: executed?.capability || null,
-    route: executed?.selected?.route || executed?.execution?.route || null,
-    target: executed?.selected?.target || executed?.skill_plan?.target || targetHint || null,
-  };
-}
-
-/** V3 applies to an explicit failure of the owner: HS3 failure, or a failed/timeout/unavailable execution. */
-function explicitExecutionFailure(value: any) {
-  const p = readReceiptPresentation(value);
-  if (p?.status === "error" && p.failure) return true;
-  return ["failed", "timeout", "unavailable"].includes(String(value?.execution?.state || ""));
-}
-
+/** One turn of Samantha's main brain for the relay (no other agent, no resolver before it). */
 async function runAgentTurn(
   sessionId: string,
   requestId: string,
   message: string,
 ) {
-  lastRelayTurn = null; // a free agent turn has no harness understanding to correct
-  const sessionKey = expectedCompanionSessionKey(sessionId);
+  const startedAt = performance.now();
+  const sessionKey = expectedCompanionSessionKey(sessionId, "main");
   const canonical=compactOwnerAgentContext({authority:"owner"});
   const params = {
       sessionKey,
+      agentId: "main",
       label: "Bixby Voice",
       message,
       deliver: false,
@@ -457,11 +248,26 @@ async function runAgentTurn(
       idempotencyKey: requestId,
   };
   assertCanonicalAgentPayload(params);
+  const budget = remainingTurnBudgetMs(startedAt, performance.now());
+  if (!budget) throw new Error("voice_brain_budget_exhausted");
   const raw = await callOpenClawGateway(
     "agent", params,
-    { expectFinal: true, timeoutMs: 20_000 },
+    { expectFinal: true, timeoutMs: budget, hardTimeoutMs: budget },
   );
-  return classifyAgentTurn(raw);
+  // A late/empty/failed receipt does not prove absence of an effect. Never retry here.
+  if (performance.now() - startedAt >= TURN_BUDGET_MS) throw new Error("voice_brain_budget_exhausted");
+  if (raw?.success === false || ["error", "failed", "aborted", "timeout", "unknown"].includes(String(raw?.state || raw?.status || ""))) {
+    throw new Error("voice_brain_gateway_unverified");
+  }
+  // Reuse the canonical installed-SDK terminal renderer: summary=completed is not an answer.
+  const terminal = typeof raw?.runId === "string" && raw.runId
+    ? gatewayTerminalResult(raw, raw.runId) : null;
+  if (!terminal || terminal.state !== "done") throw new Error("voice_brain_empty_receipt");
+  // Output projection only: the main brain already chose and spoke the question.
+  // Reuse the capsule's existing clarification protocol; never classify the input here.
+  const explicit = explicitClarificationQuestion(raw);
+  return explicit ? {state: "needs_clarification" as const, question: explicit}
+    : classifyAgentTurn({text: terminal.text});
 }
 
 function clarificationResponse(
@@ -481,132 +287,35 @@ function clarificationResponse(
   };
 }
 
-function realignmentResponse(context: VoiceTurnContext, learning: any) {
-  const conversationId = newConversationId();
-  conversations.set(conversationId, { kind: "realignment", originalRequest: "", realignment: context, at: Date.now() });
-  return clarificationResponse(conversationId, "voice_realignment", realignmentSpeech(context), {
-    alternatives: context.alternatives,
-    understood: { capability: context.understood.capability, label: context.understood.label, source: context.understood.source },
-    learning,
-  });
+/** Existing authenticated relay channel only: no native P1 ticket is minted from its bearer.
+ * The Gateway and typed tool guards retain their own least-privilege admission checks. */
+async function runRelayBrainTurn(requestId: string, message: string, conversationId: string, pending: PendingConversation) {
+  cleanupConversations();
+  if (!conversations.has(conversationId) && conversations.size >= MAX_BRAIN_CONVERSATIONS)
+    return {success: false, state: "failed", source: "samantha_brain", error: "voice_conversation_capacity", retrySafe: false};
+  const sessionId = pending.agentSessionId || "voice-" + conversationId;
+  // Reuse the existing transport binding before awaiting, so an uncertain receipt keeps continuity.
+  conversations.set(conversationId, {...pending, kind: "agent", brain: true, agentSessionId: sessionId, at: Date.now()});
+  try {
+    const turn = await runAgentTurn(sessionId, requestId, message);
+    if (turn.state === "needs_clarification") return clarificationResponse(conversationId, "samantha_brain", turn.question);
+    return {success: true, state: "done", source: "samantha_brain", conversationId, text: turn.text};
+  } catch (error: unknown) {
+    const reason = error instanceof Error ? error.message : "";
+    // Only machine-readable refusal codes from the existing official Gateway client are projected.
+    const gateway = error as {name?: unknown; gatewayCode?: unknown; details?: {code?: unknown}} | undefined;
+    const code = gateway?.name === "GatewayClientRequestError" && gateway?.details?.code === "MISSING_SCOPE"
+      ? "missing_scope" : reason;
+    const authority = /^(?:voice_owner_admission_required|owner_admission_required|missing_scope|insufficient_scope|unauthorized|forbidden)$/.test(code);
+    return {success: false, state: authority ? "failed" : "unknown", source: "samantha_brain", conversationId,
+      error: authority ? code : reason.startsWith("voice_brain_") ? reason : "voice_brain_gateway_unverified",
+      retrySafe: false};
+  }
 }
 
 async function runVoiceRequest(requestId: string, request: string) {
-  // V2: a listed correction gesture within 2 minutes of the last voice turn reopens the guided realignment.
-  const previous = lastRelayTurn;
-  if (previous && isVoiceRealignment(request, previous.at)) {
-    const payload = realignmentRoundPayload(previous, "requested");
-    const learning = payload ? await roundCapture(payload) : { state: "skipped", reason: "no_target_intent" };
-    return realignmentResponse(previous, learning);
-  }
-  const turn = await voiceDialogue.turn(request, { originId: requestId });
-  if (turn.state !== "continue") lastRelayTurn = voiceTurnContext(surfaceVoiceReceipt(turn), request, { locale: "fr", scope: "bixby_claw" });
-  if (turn.state === "needs_clarification") {
-    const conversationId = newConversationId();
-    conversations.set(conversationId, {
-      kind: "capability", originalRequest: request, clarificationId: turn.clarificationId, at: Date.now(),
-    });
-    return clarificationResponse(conversationId, "capability", spokenCapabilityText(turn), { choices: turn.choices });
-  }
-  if (turn.state === "done" || turn.state === "failed") {
-    return { success: turn.state === "done", state: turn.state, source: "capability", text: spokenCapabilityText(turn), capability: readVoiceUnderstood(surfaceVoiceReceipt(turn))?.capability || null, route: readVoiceUnderstood(surfaceVoiceReceipt(turn))?.route || null };
-  }
-  return runVoiceLegacy(requestId, turn.text);
-}
-
-function surfaceVoiceReceipt(turn: SurfaceTurn) {
-  return { ...turn, success: turn.state !== "failed", execution: {
-    state: turn.state === "failed" ? "failed" : turn.state === "needs_clarification" ? "needs_clarification" : "completed",
-    result: "result" in turn ? turn.result : undefined,
-  } };
-}
-function spokenCapabilityText(turn: SurfaceTurn) {
-  const envelope = surfaceVoiceReceipt(turn);
-  const speech = planVoiceSpeech(envelope, { locale: "fr" });
-  if (speech.failure) return speech.verbatim || ("text" in turn ? turn.text : turn.question);
-  const rendered = "result" in turn && turn.result && typeof turn.result === "object"
-    ? renderFastVoiceResult(envelope) : null;
-  const text = rendered || ("text" in turn ? turn.text : turn.question);
-  return speech.understood ? speech.understood + " " + text : text;
-}
-
-async function runVoiceCapabilityContinuation(requestId: string, conversationId: string, pending: PendingConversation, answer: string) {
-  const turn = await voiceDialogue.turn(answer, { id: pending.clarificationId, originId: requestId });
-  if (turn.state !== "continue") lastRelayTurn = voiceTurnContext(surfaceVoiceReceipt(turn), answer, { locale: "fr", scope: "bixby_claw" });
-  if (turn.state === "needs_clarification") {
-    pending.clarificationId = turn.clarificationId;
-    pending.at = Date.now();
-    return clarificationResponse(conversationId, "capability", spokenCapabilityText(turn), { choices: turn.choices });
-  }
-  conversations.delete(conversationId);
-  if (turn.state === "done" || turn.state === "failed") {
-    return { success: turn.state === "done", state: turn.state, source: "capability", text: spokenCapabilityText(turn), capability: readVoiceUnderstood(surfaceVoiceReceipt(turn))?.capability || null, route: readVoiceUnderstood(surfaceVoiceReceipt(turn))?.route || null };
-  }
-  // Resolved (or unrelated) text from resolve-clarification; never "original + Précision utilisateur".
-  return runVoiceLegacy(requestId, turn.text);
-}
-
-async function runVoiceLegacy(requestId: string, request: string) {
-  const deterministic = await resolveDeterministic(request);
-  if (deterministic?.state === "failed") {
-    return {
-      success: false,
-      state: "failed",
-      source: "deterministic",
-      text: deterministic.text,
-      capability: deterministic.capability,
-      route: deterministic.route,
-    };
-  }
-  if (deterministic?.state === "needs_clarification") {
-    const conversationId = newConversationId();
-    conversations.set(conversationId, {
-      kind: "deterministic",
-      originalRequest: request,
-      target: deterministic.target || undefined,
-      at: Date.now(),
-    });
-    return clarificationResponse(
-      conversationId,
-      "deterministic",
-      deterministic.question,
-      {
-        choices: deterministic.choices,
-        capability: deterministic.capability,
-        route: deterministic.route,
-      },
-    );
-  }
-  if (deterministic?.state === "done") {
-    return {
-      success: true,
-      state: "done",
-      source: "deterministic",
-      text: deterministic.text,
-      capability: deterministic.capability,
-      route: deterministic.route,
-    };
-  }
-
-  const conversationId = newConversationId();
-  const agentSessionId = "bixby-voice-" + conversationId;
-  const turn = await runAgentTurn(agentSessionId, requestId, request);
-  if (turn.state === "needs_clarification") {
-    conversations.set(conversationId, {
-      kind: "agent",
-      originalRequest: request,
-      agentSessionId,
-      at: Date.now(),
-    });
-    return clarificationResponse(conversationId, "agent", turn.question);
-  }
-
-  return {
-    success: Boolean(turn.text),
-    state: "done",
-    source: "agent",
-    text: turn.text || "Claw n'a pas retourné de réponse exploitable.",
-  };
+  const conversationId = "brain-" + requestHash({channel: VOICE_SURFACE, requestId});
+  return runRelayBrainTurn(requestId, request, conversationId, {kind: "agent", brain: true, originalRequest: request, at: Date.now()});
 }
 
 async function runVoiceContinuation(
@@ -621,124 +330,7 @@ async function runVoiceContinuation(
   }
 
   pending.at = Date.now();
-
-  if (pending.kind === "realignment" && pending.realignment) {
-    // The answer goes through the normal path (E1); an ordinal/label picks that candidate.
-    conversations.delete(conversationId);
-    const context = pending.realignment;
-    const choice = realignmentChoice(answer, context);
-    const response: any = await runVoiceRequest(requestId, choice ? choice.label : answer);
-    const payload = realignmentRoundPayload(context, "resolved", { capability: response?.capability || null, route: response?.route || null });
-    return payload ? { ...response, realignment_learning: await roundCapture(payload) } : response;
-  }
-  if (pending.kind === "capability") {
-    return runVoiceCapabilityContinuation(requestId, conversationId, pending, answer);
-  }
-
-  if (pending.kind === "deterministic") {
-    const scoped = pending.target
-      ? await resolveDeterministic(answer, pending.target)
-      : null;
-    if (scoped?.state === "needs_clarification") {
-      pending.originalRequest = composeContinuationRequest(pending.originalRequest, answer);
-      pending.target = scoped.target || pending.target;
-      pending.at = Date.now();
-      return clarificationResponse(
-        conversationId,
-        "deterministic",
-        scoped.question,
-        {
-          choices: scoped.choices,
-          capability: scoped.capability,
-          route: scoped.route,
-        },
-      );
-    }
-    if (scoped?.state === "failed") {
-      conversations.delete(conversationId);
-      return { success: false, state: "failed", source: "deterministic", text: scoped.text, capability: scoped.capability, route: scoped.route };
-    }
-    if (scoped?.state === "done") {
-      conversations.delete(conversationId);
-      return {
-        success: true,
-        state: "done",
-        source: "deterministic",
-        text: scoped.text,
-        capability: scoped.capability,
-        route: scoped.route,
-      };
-    }
-
-    const refined = composeContinuationRequest(pending.originalRequest, answer);
-    const deterministic = await resolveDeterministic(refined);
-    if (deterministic?.state === "needs_clarification") {
-      pending.originalRequest = refined;
-      pending.target = deterministic.target || pending.target;
-      pending.at = Date.now();
-      return clarificationResponse(
-        conversationId,
-        "deterministic",
-        deterministic.question,
-        {
-          choices: deterministic.choices,
-          capability: deterministic.capability,
-          route: deterministic.route,
-        },
-      );
-    }
-    if (deterministic?.state === "failed") {
-      conversations.delete(conversationId);
-      return { success: false, state: "failed", source: "deterministic", text: deterministic.text, capability: deterministic.capability, route: deterministic.route };
-    }
-    if (deterministic?.state === "done") {
-      conversations.delete(conversationId);
-      return {
-        success: true,
-        state: "done",
-        source: "deterministic",
-        text: deterministic.text,
-        capability: deterministic.capability,
-        route: deterministic.route,
-      };
-    }
-
-    const agentSessionId = "bixby-voice-" + conversationId;
-    const turn = await runAgentTurn(agentSessionId, requestId, refined);
-    if (turn.state === "needs_clarification") {
-      conversations.set(conversationId, {
-        kind: "agent",
-        originalRequest: refined,
-        agentSessionId,
-        at: Date.now(),
-      });
-      return clarificationResponse(conversationId, "agent", turn.question);
-    }
-    conversations.delete(conversationId);
-    return {
-      success: Boolean(turn.text),
-      state: "done",
-      source: "agent",
-      text: turn.text || "Claw n'a pas retourné de réponse exploitable.",
-    };
-  }
-
-  const agentSessionId =
-    pending.agentSessionId || "bixby-voice-" + conversationId;
-  const turn = await runAgentTurn(agentSessionId, requestId, answer);
-  if (turn.state === "needs_clarification") {
-    pending.agentSessionId = agentSessionId;
-    pending.at = Date.now();
-    return clarificationResponse(conversationId, "agent", turn.question);
-  }
-
-  conversations.delete(conversationId);
-  return {
-    success: Boolean(turn.text),
-    state: "done",
-    source: "agent",
-    text: turn.text || "Claw n'a pas retourné de réponse exploitable.",
-  };
+  return runRelayBrainTurn(requestId, answer, conversationId, pending);
 }
 
 async function handleRequest(message: any) {
@@ -927,6 +519,7 @@ function connect() {
       }
 
       if (message.type === "mcp_request" && authenticated) {
+        registerAuthenticatedMcpRelayMessage(message);
         void handleMcpMessage(message);
         return;
       }
@@ -948,9 +541,8 @@ function connect() {
   });
 }
 
-/** Test seam: canonical voice turns with an injected fast-path runner (no relay socket). */
+/** Test seam: relay voice turns without a relay socket. */
 export const voiceRelayTurnsForTest = {
-  useDialogue(value: DialogueSurface) { voiceDialogue = value; },
   request: (requestId: string, request: string) => runVoiceRequest(requestId, request),
   continuation: (requestId: string, conversationId: string, answer: string) => runVoiceContinuation(requestId, conversationId, answer),
 };
