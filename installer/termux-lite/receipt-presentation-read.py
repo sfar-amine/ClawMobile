@@ -1,4 +1,4 @@
-"""Closed HS3 transport reader, generic subset only until owner fixtures qualify families."""
+"""Closed HS3 transport reader: generic metadata and qualified read-only billing rows."""
 import importlib.util
 import json
 from pathlib import Path
@@ -31,7 +31,17 @@ def read(raw):
  p=raw.get('presentation')
  if not isinstance(p,dict) or type(p.get('version')) is not int or p.get('version')!=1 or p.get('locale') not in ('fr','en') or p.get('status') not in ('info','error'):return None
  if not all(text(p.get(k),n) for k,n in [('label',200),('title',200),('spoken',240)]):return None
- if p.get('rows')!=[]:return None
+ card_rows=p.get('rows')
+ if not isinstance(card_rows,list) or len(card_rows)>4:return None
+ if card_rows and (not isinstance(p.get('meta'),dict) or p['meta'].get('capability')!='billing.utility.fast_path' or p['status']!='info'):return None
+ seen_labels=set()
+ for row in card_rows:
+  if not isinstance(row,list) or len(row)!=2 or not all(isinstance(v,str) for v in row):return None
+  if row[0] not in {'STEG','SONEDE','Topnet','Total dû','Total due','Montants confirmés','Confirmed amounts'} or row[0] in seen_labels:return None
+  seen_labels.add(row[0])
+  # An exact bounded amount is business data, never a phone/account reference.
+  money=re.fullmatch(r"\d{1,6}[,.]\d{3} DT(?: · (?:Vérification incomplète|Incomplete check|Espace client en maintenance|Customer area under maintenance|Formulaire de connexion modifié|Login form changed|Délai de réponse dépassé|Response timed out|Service inaccessible|Service unreachable|Service indisponible|Service unavailable))?",row[1])
+  if not text(row[1],240) and not money:return None
  primary=p.get('primary');u=p.get('understood');meta=p.get('meta');effect=p.get('effect');rows=p.get('alternatives')
  if not all(isinstance(x,dict) for x in (primary,u,meta,effect)) or not isinstance(rows,list) or len(rows)>3:return None
  if primary.get('action')!='done' or not text(primary.get('label'),200) or effect.get('debited')!='unknown' or effect.get('source')!='receipt':return None
@@ -44,7 +54,7 @@ def read(raw):
   if not isinstance(row,dict) or not identifier(row.get('capability')) or not text(row.get('label'),200) or row['capability'] in seen:return None
   seen.add(row['capability']);alternatives.append({'capability':row['capability'],'label':row['label']})
  result={key:p[key] for key in ('version','locale','status','label','title','spoken')}
- result.update(rows=[],primary={'label':primary['label'],'action':'done'},effect={'debited':'unknown','source':'receipt'},meta={'capability':cid},understood={'capability':cid,'label':u['label'],'slots':slots,**({'text':summary} if summary else {})},alternatives=alternatives)
+ result.update(rows=[list(row) for row in card_rows],primary={'label':primary['label'],'action':'done'},effect={'debited':'unknown','source':'receipt'},meta={'capability':cid},understood={'capability':cid,'label':u['label'],'slots':slots,**({'text':summary} if summary else {})},alternatives=alternatives)
  if p['status']=='error':
   failure=p.get('failure')
   if not isinstance(failure,dict) or not text(failure.get('step'),200) or not text(failure.get('reason'),240):return None
@@ -58,4 +68,4 @@ def display(metadata):
  if not metadata:return None
  p=metadata['presentation'];u=p['understood']
  lines=[u['text']] if u.get('text') and u.get('capability') else []
- return '\n'.join(lines+[p['title'],p['spoken']])
+ return '\n'.join(lines+[p['title']]+[' : '.join(row) for row in p['rows']]+[p['spoken']])

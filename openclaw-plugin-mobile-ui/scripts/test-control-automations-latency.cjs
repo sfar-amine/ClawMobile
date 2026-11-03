@@ -5,9 +5,22 @@ const path=require('node:path');
 const http=require('node:http');
 const {execFileSync,execFile}=require('node:child_process');
 const {performance}=require('node:perf_hooks');
-const {readControl,handleControl}=require('../dist/companion/control');
+const {readControl,handleControl,ControlReadPool}=require('../dist/companion/control');
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
+ // A reader can share the collector's final revision and resume before the
+ // async generate result reaches the pool. Observe completion before cache.
+ const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
+ const pool=new ControlReadPool(),collectorDone=deferred(),revisionDone=deferred();let generations=0;
+ const envelope={schemaVersion:2,sections:{automations:{schemaVersion:2,resourceKey:'control/v2/automations',dataRevision:'a'.repeat(64),availability:'ready',freshness:'fresh',remainingFreshMs:15000,data:{items:[{id:'authored-completion'}]}}}};
+ const generating=pool.read('final-revision',async()=>{generations++;await collectorDone.promise;await revisionDone.promise;return envelope;},undefined,{cache:true});
+ collectorDone.resolve();await Promise.resolve();
+ const duringRevision=(async()=>{await revisionDone.promise;return pool.read('final-revision',()=>{throw Error('duplicate collector');},undefined,{cache:true});})();
+ revisionDone.resolve();const joinedCompletion=await duringRevision;await generating;
+ assert.equal(joinedCompletion.computation.deliveryMode,'coalesced');
+ assert.equal(joinedCompletion.sections.automations.availability,'ready');
+ const afterCompletion=await pool.read('final-revision',()=>{throw Error('duplicate collector');},undefined,{cache:true});
+ assert.equal(afterCompletion.computation.deliveryMode,'cache');assert.equal(generations,1);
  const fixture=path.join(__dirname,'../fixtures/s24-2026-10-10/r5-bis');
  const measures=JSON.parse(await fs.readFile(path.join(fixture,'measures.json'),'utf8'));
  const collectorMs=measures.controlAutomationsContract2.measures.find(row=>row.when.includes('P0-3')).ms;
@@ -75,6 +88,14 @@ print(json.dumps({'schemaVersion':2,'sections':{'automations':{'schemaVersion':2
   };
   const cold=await get();withinBudget(cold,'cold');assert.equal(cold.body.sections.automations.availability,'unavailable');assert.equal(cold.body.sections.automations.remainingFreshMs,0);assert.equal(cold.body.computation.deliveryMode,'deferred');
   await get();await delay(collectorMs);
+  // The collector still verifies its SQLite revision before publishing cache.
+  // A reader sharing that final probe may correctly join the completed flight.
+  // Observe its fresh response before requiring the following read to be cached;
+  // elapsed collector sleep alone is not a completion barrier.
+  const joined=await get();withinBudget(joined,'collector completion');
+  assert.ok(['cache','coalesced'].includes(joined.body.computation.deliveryMode));
+  assert.equal(joined.body.sections.automations.availability,'ready');
+  assert.equal(joined.body.sections.automations.freshness,'fresh');
   const warm=await get();withinBudget(warm,'warm');assert.equal(warm.body.computation.deliveryMode,'cache');assert.equal(warm.body.sections.automations.data.items[0].id,firstId);assert.ok(warm.body.sections.automations.remainingFreshMs>0&&warm.body.sections.automations.remainingFreshMs<=15000);
   await delay(30);const older=await get();assert.ok(older.body.sections.automations.remainingFreshMs<warm.body.sections.automations.remainingFreshMs);
   assert.equal((await fs.readFile(path.join(root,'calls'),'utf8')).trim().split('\n').length,2);
@@ -98,6 +119,16 @@ print(json.dumps({'schemaVersion':2,'sections':{'automations':{'schemaVersion':2
   const unavailable=await get();assert.notEqual(unavailable.body.computation?.deliveryMode,'deferred');assert.equal(unavailable.body.sections.automations.data.items[0].id,'gateway');
   await fs.unlink(source);
   const missing=await get();assert.notEqual(missing.body.computation?.deliveryMode,'deferred');assert.equal(missing.body.sections.automations.data.items[0].id,'gateway');
+  // Negative boundary: an explicitly authored800ms revision exceeds the existing600ms
+  // owner deadline. Force a fresh read: it must use the normal collector, not stay
+  // deferred or silently serve a stale cache. Captured collector/probe cases above remain.
+  const beforeSlow=(await fs.readFile(path.join(root,'calls'),'utf8')).trim().split('\n').length;
+  process.env.R5_PROBE_MS='800';
+  const slowProbe=await get('&force=1');
+  assert.equal(slowProbe.status,200);assert.notEqual(slowProbe.body.computation?.deliveryMode,'deferred');
+  assert.equal(slowProbe.body.sections.automations.data.items[0].id,'gateway');
+  assert.equal((await fs.readFile(path.join(root,'calls'),'utf8')).trim().split('\n').length,beforeSlow+1,'timed-out revision falls back to one normal collector');
+  process.env.R5_PROBE_MS=String(probeMs);
   assert.ok(!JSON.stringify(warm.body).includes('synthetic-private-fixture'));
   console.log(JSON.stringify({test:'control-automations-latency',baselineMs:+baseline.toFixed(2),coldMs:+cold.ms.toFixed(2),cachedMs:+warm.ms.toFixed(2),referenceMs:+referenceMs.toFixed(2),relativeBudgetMs:+routeBudgetMs.toFixed(2),referenceSamplesMs:referenceSamples.map(x=>+x.toFixed(2)),source:'S24 PR82 real STRICT SQLite capture; recorded 2475ms collector and 128ms cold probe replayed',passed:true}));
  }finally{

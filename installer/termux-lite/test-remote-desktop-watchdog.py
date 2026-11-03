@@ -62,11 +62,11 @@ class RepairTests(unittest.TestCase):
         self.events.append('launch');self.running=True
     def test_slow_first_attempt_cannot_create_duplicate(self):
         with patch.object(self.c,'stop',side_effect=self.stop),patch.object(self.c,'launch',side_effect=self.launch),patch.object(self.c,'wait_ready',side_effect=[False,True]),patch.object(self.c,'probe',side_effect=[{'state':'degraded'},{'state':'healthy'}]):
-            self.assertEqual(self.c.repair()['state'],'recovered')
+            self.assertEqual(self.c._repair_selected()['state'],'recovered')
         self.assertEqual(self.events,['stop','launch','stop','stop','launch'])
     def test_exhausted_attempt_is_cleaned(self):
         with patch.object(self.c,'stop',side_effect=self.stop),patch.object(self.c,'launch',side_effect=self.launch),patch.object(self.c,'wait_ready',return_value=False):
-            self.assertEqual(self.c.repair()['state'],'failed')
+            self.assertEqual(self.c._repair_selected()['state'],'failed')
         self.assertFalse(self.running);self.assertEqual(self.events.count('launch'),2)
     def test_launch_preserves_preload_argument_in_android_wrapper(self):
         with patch.object(rdc.subprocess,'Popen') as popen:
@@ -109,10 +109,10 @@ class RepairTests(unittest.TestCase):
             self.assertEqual(self.c.repair()['mutation'],'none_already_healthy');launch.assert_not_called()
     def test_stop_failure_forbids_launch(self):
         with patch.object(self.c,'stop',return_value=False),patch.object(self.c,'launch') as launch:
-            self.assertEqual(self.c.repair()['reason'],'previous_instance_survived');launch.assert_not_called()
+            self.assertEqual(self.c._repair_selected()['reason'],'previous_instance_survived');launch.assert_not_called()
     def test_concurrent_owners_cannot_restart(self):
         with self.c.lock('remote-desktop-repair.lock') as held,patch.object(self.c,'launch') as launch:
-            self.assertTrue(held);self.assertEqual(self.c.repair()['state'],'busy');launch.assert_not_called()
+            self.assertTrue(held);self.assertEqual(self.c._repair_selected()['state'],'busy');launch.assert_not_called()
     def test_readiness_is_bounded_and_requires_consecutive_proofs(self):
         self.c.readiness=4
         with patch.object(self.c,'beat'),patch.object(self.c,'probe',side_effect=[{'state':'degraded','reason':'local_mcp_unresponsive'},{'state':'healthy','reason':'ok'},{'state':'healthy','reason':'ok'}]),patch.object(rdc.time,'sleep'):

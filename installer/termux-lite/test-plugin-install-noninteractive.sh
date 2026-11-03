@@ -61,6 +61,7 @@ printf 'stale\n' > "$update_extension/stale.txt"
 clawmobile_install_plugin "$plugin_dir"
 
 grep -Fqx 'config set plugins.entries["openclaw-plugin-mobile-ui"].enabled true' "$log"
+grep -Fqx 'config set plugins.entries["openclaw-plugin-mobile-ui"].hooks.allowConversationAccess true' "$log"
 if grep -q '^plugins uninstall ' "$log" || grep -q '^plugins install ' "$log"; then
   echo "update_used_plugin_cli" >&2
   exit 1
@@ -84,6 +85,7 @@ grep -Fqx 'plugins uninstall openclaw-plugin-mobile-ui --keep-files --force' "$l
 grep -Fqx "plugins install --force --accept-capabilities --acknowledge-install-policy-warning $first_plugin" "$log"
 grep -Fqx 'plugins enable openclaw-plugin-mobile-ui' "$log"
 grep -Fqx 'config set plugins.entries["openclaw-plugin-mobile-ui"].enabled true' "$log"
+grep -Fqx 'config set plugins.entries["openclaw-plugin-mobile-ui"].hooks.allowConversationAccess true' "$log"
 [ -f "$first_plugin/.openclaw-plugin-installed-lite.stamp" ] || { echo "install_stamp_missing" >&2; exit 1; }
 
 echo "plugin install noninteractive test: PASS"

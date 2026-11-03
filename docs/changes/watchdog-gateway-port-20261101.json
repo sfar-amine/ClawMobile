@@ -1,0 +1,87 @@
+{
+  "version": 2,
+  "id": "watchdog-gateway-port-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "core-services-watchdog.sh no longer trusts a live Gateway process alone: after a 60 s grace and two consecutive observations with port 18789 closed, it stops that exact PID (TERM, bounded wait, KILL) and restarts it through gateway-start.sh, under the existing repair lease.",
+  "reason": "S24 01/11 (read only): a Gateway whose in-process start or restart fails can stay alive without a server (« Process will stay alive », port closed, lock released), on 2026.9.6 during a restart and on 2026.10.9 at first start. Only the Companion watchdog recovered it; the core-services watchdog saw pgrep and believed it alive, and the health manager opens an incident without restarting (owner companion). With the Companion stopped, nobody restarted the Gateway.",
+  "files": [
+    "installer/termux-lite/core-services-watchdog.sh",
+    "installer/termux-lite/test-core-services-watchdog.sh",
+    ".github/workflows/ci.yml",
+    "docs/changes/watchdog-gateway-port-20261101.json",
+    "docs/changes/watchdog-gateway-port-20261101.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-core-services-watchdog.sh",
+      "status": "passed",
+      "evidence": "Real processes and a real TCP listener in an isolated HOME: alive + port open = nothing; alive + port closed within the 60 s grace = nothing; one observation beyond grace = logged only; two observations = exact PID stopped by TERM, gateway-start.sh run once, lease released, shell decoy and Companion untouched; TERM ignored = KILL after the bounded wait; deploy lock held, Companion repair lease held, QA campaign shared lock or Tier0 emergency stop = deferred, nothing stopped. Registered in .github/workflows/ci.yml."
+    },
+    {
+      "name": "installer/termux-lite/test-ci-registration.py",
+      "status": "passed",
+      "evidence": "The new test is registered in the CI workflow."
+    },
+    {
+      "name": "installer/termux-lite/test-runtime-mode.py",
+      "status": "passed",
+      "evidence": "Unchanged lease owner, still green."
+    },
+    {
+      "name": "installer/termux-lite/test-health-deploy-lock.py",
+      "status": "passed",
+      "evidence": "Unchanged, still green."
+    },
+    {
+      "name": "installer/termux-lite/test-supervisor-lock-portability.py",
+      "status": "passed",
+      "evidence": "Unchanged, still green."
+    },
+    {
+      "name": "installer/termux-lite/test-no-hardcoded-clawmobile.py",
+      "status": "passed",
+      "evidence": "Unchanged, still green."
+    }
+  ],
+  "documentation": [
+    "docs/changes/watchdog-gateway-port-20261101.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Internal supervision of the existing Gateway start path; no route, setting or app action."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same watchdog owner, same gateway-start.sh path, same runtime_mode.py lease and companion-deploy.lock; no new store, daemon, scheduler or retry engine."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Core-services watchdog Gateway supervision only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "On the S24 (01/11) core-services-watchdog.sh is not started by any active owner (no process, last log 2026-10-07); the repair takes effect only once an existing owner launches it.",
+    "The Companion test harness gets no live-process/closed-port case: its existing-gateway grace is a fixed 30 s constant and process discovery uses the global ps -ef with real signals, so adding it would require a production change in the Companion."
+  ],
+  "rollback": "Revert this commit and redeploy the core."
+}

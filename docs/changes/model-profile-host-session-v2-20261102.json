@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "id": "model-profile-host-session-v2-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Ré-application de #516 (#126) : dans la Gateway, les hooks de profil de modèle passent par api.runtime.agent.session et api.runtime.config (plus d'import par URL du SDK de session, donc plus de recopie de 190 Mo dans la capture à chaque redémarrage).",
+  "reason": "#516 avait été retirée (#517) parce que les outils typés étaient refusés ; la cause réelle était la preuve d'admission propre à chaque copie du plugin (corrigée par #517, en prod 50fd056c). Banc S24 du 01/11 : premier vrai tour 211 s → 71 s ; prod 02/11 : 90,6 s mesurés avant #517, 19–31 s après. Le gain attendu est la suppression de la recopie de 41,9 s au premier tour.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/scripts/test-model-profile-host-session.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/conversationModelProfile.ts",
+    "openclaw-plugin-mobile-ui/src/companion/openclawSdkVersions.ts",
+    "openclaw-plugin-mobile-ui/src/companion/ownerTurnGateway.ts",
+    "docs/changes/model-profile-host-session-v2-20261102.json",
+    "docs/changes/model-profile-host-session-v2-20261102.md"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "Profil de modèle et admission typée",
+      "status": "passed",
+      "evidence": "Build plugin ; test-model-profile-host-session, test-conversation-model-profile, test-model-flows, test-typed-admission-shared-instances, test-agent-capability-guard (39), test-typed-capability-tools, test-typed-direct-call-id (20) : verts."
+    }
+  ],
+  "documentation": [
+    "docs/changes/model-profile-host-session-v2-20261102.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Même propriétaire de profil de modèle ; source des sessions = API de l'hôte.",
+    "ids": []
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Réutilise l'API session/config fournie par OpenClaw au plugin ; aucun store, routeur ou démon ; le Companion garde le chargeur existant."
+  },
+  "fixtures": [
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-plugin-capture/ (capture-after-498.json, host-session-api-2026.10.9.json), conservées depuis #516"
+  ],
+  "rollback": "Revert du merge, puis companion-deploy vers le commit précédent (le rollback automatique restaure désormais aussi la Gateway).",
+  "limitations": [
+    "La recette de déploiement fait échouer tout refus d'admission typée ou TECHNICAL_FAILURE (#517/#518) : une régression des outils typés déclenche le retour arrière automatique."
+  ]
+}

@@ -3,6 +3,7 @@ import argparse, hashlib, json, os, re, sqlite3, subprocess, sys, time, unicoded
 from pathlib import Path
 from contextlib import closing, contextmanager
 import fcntl
+import stat
 
 HOME=Path.home()
 ROOT=Path(os.environ.get("SAMANTHA_PEOPLE_ROOT", HOME/".openclaw"/"people"))
@@ -584,11 +585,11 @@ EVENTS = {'add':'added', 'remove':'removed', 'scope':'scope_changed', 'suspend':
 # Access "rooms" (decision d'Amine 11/10). Enforced by agent routing, never by prompt: plain conversation is the
 # wildcard `contacts` agent, `projet` a read-only project snapshot agent, `maison` the owner's main agent.
 ROOMS = ('conversation', 'projet', 'pulse', 'agenda', 'taches', 'lignes', 'memoire', 'actions', 'messages', 'qa', 'maison')
-# Rooms are enforced by the concrete-peer binding. Agenda/actions/messages additionally pass through the
-# capability-first contact boundary, which checks the canonical decision before executing it.
+# Rooms are enforced by the concrete-peer binding. Each typed room's contact brain then calls its room's typed tool
+# only (plugin roomBrain.ts, Amine 02/11): the room grant is re-read per message and before each write.
 ENFORCED_ROOMS = {'conversation', 'projet', 'pulse', 'agenda', 'actions', 'messages', 'qa', 'maison'}
 PROJECT_AGENT = 'contacts-projet'
-# Pièce Pulse (fichier 52 §5): the agent only names the room; the plugin's pulse-room ingress executes Pulse alone.
+# Pièce Pulse (fichier 52 §5, Amine 02/11): the room agent's brain uses the room's typed tool only (pulse-room.py).
 PULSE_AGENTS = {'pulse': 'contacts-pulse', 'projet+pulse': 'contacts-projet-pulse'}
 CAPABILITY_ROOMS = {'agenda', 'actions', 'messages', 'qa'}
 ROOM_TAG = 'r17-rooms:'
@@ -643,8 +644,17 @@ def room_agent(rooms):
     if 'pulse' in rooms: return PULSE_AGENTS['projet+pulse' if 'projet' in rooms else 'pulse']
     return PROJECT_AGENT if 'projet' in rooms else None
 
+def room_tool_policy(rooms, tools):
+    """project-room.py room_tool_policy (one closed policy for every room agent), loaded from this release."""
+    spec=importlib.util.spec_from_file_location('people_room_policy',Path(__file__).with_name('project-room.py'))
+    owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
+    return owner.room_tool_policy(rooms,tools)
+
 def ensure_room_profile(cfg, agent, rooms):
-    """Create only the concrete profile required by this grant, from the existing closed contact owners."""
+    """Create only the concrete profile required by this grant, from the existing closed contact owners.
+
+    Amine 02/11: the room contact's brain calls the typed tool of each of its rooms (plugin roomBrain.ts); the
+    profile allows exactly those and the contact tools, and keeps everything else closed (room_tool_policy)."""
     entries=(cfg.get('agents') or {}).get('entries')
     if not isinstance(entries,dict): fail('room_profile_unavailable',503)
     if agent in entries: return
@@ -654,11 +664,12 @@ def ensure_room_profile(cfg, agent, rooms):
     if not isinstance(base,dict): fail('room_profile_unavailable',503)
     tools=base.get('tools') or {}
     denied=set(tools.get('deny') or [])
-    # Capabilities are executed before the model by the room boundary. The profile itself remains closed.
+    # The profile copied must already be closed; the room policy then opens the room's typed tools only.
     if 'clawmobile_capability' not in denied or 'exec' not in denied: fail('room_agent_tools_not_closed',503)
     entry=copy.deepcopy(base)
     entry.update(name=agent,agentDir=str(HOME/'.openclaw'/'agents'/agent/'agent'),
-                 identity={'emoji':'✨','name':'Samantha','theme':"Amine's contacts — "+', '.join(r for r in rooms if r!='conversation')})
+                 identity={'emoji':'✨','name':'Samantha','theme':"Amine's contacts — "+', '.join(r for r in rooms if r!='conversation')},
+                 tools=room_tool_policy(rooms,tools))
     entries[agent]=entry
 
 def route_rooms(cfg, number, rooms, identity):
@@ -682,6 +693,14 @@ class Refused(Exception):
 def fail(code, status=400): raise Refused(code, status)
 def digest(value): return hashlib.sha256(value.encode('utf-8')).hexdigest()
 def canonical(value): return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+def merge_diff(old, new):
+    """RFC 7396 patch turning old into new, as the Gateway's config.patch applies it."""
+    if not isinstance(old, dict) or not isinstance(new, dict): return new
+    out={key: None for key in old if key not in new}
+    for key,value in new.items():
+        if key not in old: out[key]=value
+        elif old[key]!=value: out[key]=merge_diff(old[key], value)
+    return out
 def contact_id(number): return 'wa-' + digest(number)[:16]
 def utc(timestamp): return datetime.fromtimestamp(timestamp, timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
 def stamp(value):
@@ -1153,8 +1172,27 @@ class Contacts:
     def metadata(self, number):
         path=self.path(number)
         try:
-            if path.is_symlink(): fail('contact_state_invalid', 503)
-            with path.open('rb') as file: prefix=file.read(CONTACT_HEADER_BYTES)
+            # Read the two header lines and the fixed end marker only.
+            # Never scan the following note, even without a separating newline.
+            # O_NONBLOCK + fstat reject
+            # FIFOs/devices before any read; O_NOFOLLOW closes the symlink race.
+            fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+            with os.fdopen(fd,'rb',buffering=0) as file:
+                info=os.fstat(file.fileno())
+                if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid():
+                    fail('contact_state_invalid',503)
+                lines=[];remaining=CONTACT_HEADER_BYTES
+                for index in range(2):
+                    line=file.readline(remaining+1)
+                    if len(line)>remaining: fail('contact_state_invalid',503)
+                    if index==0 and line!=(MARKER+'\n').encode(): return None
+                    lines.append(line);remaining-=len(line)
+                end=END.encode()
+                if len(end)>remaining: fail('contact_state_invalid',503)
+                marker=file.read(len(end))
+                if marker!=end: fail('contact_state_invalid',503)
+                lines.append(marker)
+                prefix=b''.join(lines)
         except FileNotFoundError: return None
         except OSError: fail('contact_state_invalid', 503)
         if not prefix.startswith((MARKER+'\n').encode()): return None
@@ -1183,6 +1221,75 @@ class Contacts:
             return path.read_text(encoding='utf-8')
         except FileNotFoundError: return ''
         except (OSError,UnicodeDecodeError): fail('contact_state_invalid',503)
+
+    def _native_pulse_context_read(self, native_event, *, pulse_owner):
+        """Private current R17 authority; no action/CLI exposes this method."""
+        from skill_intelligence.dialogue.native_handoff import NativePulseEvent
+        def denied(): raise ValueError('NATIVE_ROOM_ACCESS_UNVERIFIED')
+        if type(native_event) is not NativePulseEvent or not native_event.current(int(self.clock()*1000)):
+            denied()
+        info=self.people.CONFIG.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid() or info.st_size>2097152: denied()
+        config=self.local_config();allow,direct=self.people.whatsapp_state(config)
+        if not isinstance(allow,list) or len(allow)>5000 or not isinstance(direct,dict): denied()
+        numbers=[n for n in allow if isinstance(n,str) and E164.fullmatch(n) and contact_id(n)==native_event.contact_id]
+        if len(numbers)!=1 or numbers[0] in self.owners(config): denied()
+        number=numbers[0];agent=native_event.agent
+        variants={'contacts-pulse':['conversation','pulse'],
+                  'contacts-projet-pulse':['conversation','projet','pulse']}
+        if agent not in variants: denied()
+        if native_event.conversation_key!='pulse-room:'+agent+':'+native_event.contact_id+':agent:'+agent+':whatsapp:direct:'+number:
+            denied()
+        metadata=self.metadata(number)
+        # Amine 26/10 (S24 3289): the Pulse room alone grants Pulse in this room. The contact's
+        # conversation scope and its compacted memory only shape the model agent, never this path.
+        if (not metadata or metadata['state']!='active' or metadata.get('rooms')!=variants[agent] or
+                metadata['expiresAt'] is not None and stamp(metadata['expiresAt'])<=self.clock()):
+            denied()
+        rule=direct.get(number,{})
+        if not isinstance(rule,dict) or set(rule)-{'systemPrompt'} or self.policy(rule)[0]!=metadata['scope']:
+            denied()
+        bindings=config.get('bindings')
+        if not isinstance(bindings,list) or len(bindings)>5000: denied()
+        tagged=[b for b in bindings if isinstance(b,dict) and b.get('comment')==ROOM_TAG+native_event.contact_id]
+        concrete=[b for b in bindings if isinstance(b,dict) and isinstance(b.get('match'),dict) and
+                  b['match'].get('channel')=='whatsapp' and
+                  b['match'].get('peer')=={'kind':'direct','id':number}]
+        if len(tagged)!=1 or len(concrete)!=1 or tagged[0]!=concrete[0]: denied()
+        binding=tagged[0];match=binding.get('match') or {}
+        if (binding.get('agentId')!=room_agent(metadata['rooms']) or binding.get('agentId')!=agent or
+                set(match)-{'channel','accountId','peer'} or match.get('accountId','*')!='*'): denied()
+        entries=(config.get('agents') or {}).get('entries')
+        if not isinstance(entries,dict): denied()
+        entry=entries.get(agent)
+        if not isinstance(entry,dict): denied()
+        instructions_owner=pulse_owner if agent=='contacts-pulse' else pulse_owner.room
+        expected_workspace=pulse_owner.WORKSPACE if agent=='contacts-pulse' else pulse_owner.room.TARGET
+        actual_workspace=Path(entry.get('workspace','')).expanduser()
+        actual_agent=Path(entry.get('agentDir','')).expanduser()
+        if (not actual_workspace.is_absolute() or actual_workspace!=expected_workspace or
+                actual_workspace.is_symlink() or
+                actual_agent!=self.state_dir/'agents'/agent/'agent' or
+                entry.get('contextInjection')!='continuation-skip' or entry.get('skills')!=[]): denied()
+        tools=entry.get('tools')
+        forbidden={'exec','process','write','edit','apply_patch','browser','web_fetch','message',
+                   'sessions_list','sessions_history','sessions_send','sessions_spawn','session_status',
+                   'sessions_search','memory_search','memory_get','gateway','cron','nodes','clawmobile_capability'}
+        # pulse-room.py room_tools (Amine 02/11): the room's typed tool samantha_pulse joins the contact tools.
+        allowed={'web_search','transmettre_a_amine','noter_contact','samantha_pulse'}|({'read'} if agent=='contacts-projet-pulse' else set())
+        if (not isinstance(tools,dict) or not isinstance(tools.get('allow'),list) or
+                not isinstance(tools.get('deny'),list) or
+                any(type(v) is not str for v in tools['allow']+tools['deny']) or
+                set(tools['allow'])-allowed or not forbidden.issubset(set(tools['deny'])) or
+                agent=='contacts-pulse' and 'read' not in tools['deny'] or
+                agent=='contacts-projet-pulse' and (tools.get('fs') or {}).get('workspaceOnly') is not True): denied()
+        # Only headers and the actual service's complete AGENTS/USER, no snapshot.
+        instructions=instructions_owner.read_native_instructions(actual_workspace)
+        authority={'agent':agent,'contact_ref':native_event.contact_id,
+                   'metadata':{k:metadata[k] for k in ('state','scope','scopeText','rooms','expiresAt')},
+                   'binding':binding,'profile':entry,'workspace':str(expected_workspace)}
+        return {'instructions':instructions,
+                'authority_digest':hashlib.sha256(canonical(authority).encode()).hexdigest()}
 
     def qa_scope_read(self, body, *, config=None):
         """Private current-authority read. A persisted campaign binding is never a grant."""
@@ -1324,9 +1431,16 @@ class Contacts:
                         'lastActivityAt':utc(activity[number]['timestamp']/1000) if activity.get(number,{}).get('timestamp') and not activity[number]['reason'] else None,
                         **({'reason':'archived_history'} if activity.get(number,{}).get('reason')=='archived_history' else {})})
         return out
-    def find(self, identity):
+    def persisted_config(self):
+        """The file the Gateway loads and config.patch writes; the native Pulse room reads it the same way.
+        Amine 29/10: a read takes 22 ms here instead of 2 s for an `openclaw gateway call` spawn."""
+        try: info=self.people.CONFIG.lstat()
+        except OSError: fail('contacts_unavailable',503)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid() or info.st_size>2097152: fail('contacts_unavailable',503)
+        return self.local_config()
+    def find(self, identity, config=None):
         if not isinstance(identity,str) or not CID.fullmatch(identity): fail('invalid_contact_id')
-        values=[r for r in self.rows(target=identity) if r['contactId']==identity]
+        values=[r for r in self.rows(config=config,target=identity) if r['contactId']==identity]
         if len(values)!=1: fail('unknown_contact',404)
         return values[0]
     def retired(self, identity):
@@ -1578,8 +1692,9 @@ class Contacts:
         patch={'channels':{'whatsapp':{}}}; replacements=[]
         if a!=olda: patch['channels']['whatsapp']['allowFrom']=a;replacements.append('channels.whatsapp.allowFrom')
         if d!=oldd:
-            # Replace exact direct map under CAS: JSON merge cannot remove a property safely.
-            patch['channels']['whatsapp']['direct']=d;replacements.append('channels.whatsapp.direct')
+            # The Gateway merges objects (replacePaths only replaces arrays): a removed
+            # rule or field must be an explicit null, under the same CAS baseHash.
+            patch['channels']['whatsapp']['direct']=merge_diff(oldd,d)
         if after.get('bindings')!=before.get('bindings'): patch['bindings']=after.get('bindings') or [];replacements.append('bindings')
         after_agents=(after.get('agents') or {}).get('entries') or {}
         if after_agents!=before_agents:
@@ -1988,7 +2103,7 @@ class Contacts:
         allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'memory-compact':set(),'contact-tool':{'action','operationId','e164','text'},'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'},'rooms':common|{'rooms','qaApps','expectedQaRevision'}}
         if action not in allowed or set(body)-allowed[action]: fail('invalid_request')
         if action=='list': return {'success':True,'state':'partial' if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else 'ok','receipt':None,'items':self.rows(),'issues':['contact_scan_partial'] if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else []}
-        if action=='get': return {'success':True,'state':'ok','receipt':None,'contact':self.find(body.get('contactId')),'historyCount':self.history_count(body.get('contactId'))}
+        if action=='get': return {'success':True,'state':'ok','receipt':None,'contact':self.find(body.get('contactId'),self.persisted_config()),'historyCount':self.history_count(body.get('contactId'))}
         if action=='operation':
             value=self.read_operation(body.get('operationId'),body.get('requestHash'))
             return value or {'success':False,'state':'not_found','receipt':None}

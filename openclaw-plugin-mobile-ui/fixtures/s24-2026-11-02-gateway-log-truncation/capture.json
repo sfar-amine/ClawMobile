@@ -1,0 +1,46 @@
+{
+  "provenance": {
+    "device": "S24 (Termux, owner runtime)",
+    "captured_at_utc": "2026-11-02T19:45:00Z/2026-11-02T19:56:00Z",
+    "access": "Claw MCP claw_exec, read-only (ls, stat, head/tail, grep); no restart, no rotation run, no write",
+    "timezone": "Africa/Tunis (+01:00); Gateway log timestamps are UTC",
+    "cleaning": "metadata and timestamps only; log bodies reduced to [gateway] startup-phase lines; home path, tokens and identifiers removed"
+  },
+  "log_dir": "~/.openclaw/workspace/logs",
+  "files": [
+    {"name": "companion-openclaw-gateway.log", "size": 440191, "mode": "0600", "inode": 1297168,
+     "first_line": "--- OpenClaw gateway start 2026-11-02T19:24:56.857Z ---",
+     "first_ts_utc": "2026-11-02T19:25:13.158Z", "last_ts_utc": "2026-11-02T19:50:26.374Z"},
+    {"name": "companion-openclaw-gateway.log.1", "size": 4194304, "mode": "0600", "mtime_local": "2026-11-02T09:01:59+01:00",
+     "first_ts_utc": "2026-11-01T23:19:47.762Z", "last_ts_utc": "2026-11-02T08:01:58.351Z"},
+    {"name": "companion-openclaw-gateway.log.2", "size": 4194304, "mode": "0600", "mtime_local": "2026-11-01T11:55:30+01:00",
+     "first_ts_utc": "2026-10-31T23:05:32.292Z", "last_ts_utc": "2026-11-01T10:55:30.098Z"},
+    {"name": "companion-openclaw-gateway.log.3", "size": 4194304, "mode": "0600", "mtime_local": "2026-10-31T11:57:11+01:00",
+     "first_ts_utc": "2026-10-31T00:38:32.656Z", "last_ts_utc": "2026-10-31T10:57:10.787Z"}
+  ],
+  "start_header_count": {"companion-openclaw-gateway.log": 1, "companion-openclaw-gateway.log.1": 0,
+                         "companion-openclaw-gateway.log.2": 0, "companion-openclaw-gateway.log.3": 0},
+  "gateway_fds": "pid stdout/stderr (fd 1, 2) -> companion-openclaw-gateway.log, write-only (opened \"a\" by the Companion)",
+  "restarts_local": [
+    {"source": "health.log canonical_mode state=deployment", "at": "2026-11-02T00:17:10+01:00"},
+    {"source": "deploys/companion-20261102T171058.json", "at": "2026-11-02T17:10:58+01:00"},
+    {"source": "deploys/companion-20261102T202213.json", "at": "2026-11-02T20:22:13+01:00"}
+  ],
+  "missing_ranges_utc": [
+    {"from": "2026-11-01T10:55:30Z", "to": "2026-11-01T23:19:47Z", "cause": "deploy restarts on 01/11 (last 2026-11-01T23:17Z) truncated the active log before the 4 MiB rotation"},
+    {"from": "2026-11-02T08:01:58Z", "to": "2026-11-02T16:13:00Z", "cause": "deploy 17:10:58 local restarted the Gateway; start truncated the active log"},
+    {"from": "2026-11-02T16:13:00Z", "to": "2026-11-02T19:24:56Z", "cause": "deploy 20:22:13 local restarted the Gateway at 19:24:56Z; start truncated the active log"}
+  ],
+  "active_log_head": [
+    "--- OpenClaw gateway start 2026-11-02T19:24:56.857Z ---",
+    "[gateway] startup phase: entry.run-main-import starting total=161.7ms",
+    "[gateway] startup phase: entry.run-main-import 50.9ms total=212.6ms start=161.7ms",
+    "[gateway] startup phase: cli.main.gateway-run-select-environment starting total=688.7ms",
+    "[gateway] startup phase: cli.main.gateway-run-select-environment 4167.4ms total=4856.1ms start=688.7ms",
+    "[gateway] startup phase: cli.main.gateway-run-imports starting total=4946.6ms",
+    "[gateway] startup phase: cli.main.gateway-run-imports 22.1ms total=4968.6ms start=4946.6ms",
+    "[gateway] startup phase: cli.main.gateway-run-pre-bootstrap starting total=5024.9ms"
+  ],
+  "truncating_code": "openclaw-plugin-mobile-ui/src/companion/openclawGatewayClient.ts startRuntimeInternal: fs.writeFileSync(logPath, header) (flag \"w\") before fs.openSync(logPath, \"a\")",
+  "retention_owner": "installer/termux-lite/gateway-log-retention.py (health cycle): MAX_BYTES 4 MiB, KEEP 3, copy-tail + ftruncate keeping the inode"
+}

@@ -1,0 +1,22 @@
+{
+  "provenance": {
+    "captured_at": "2026-11-02",
+    "device": "S24 (Termux, profil owner), OpenClaw 2026.10.9",
+    "captured_by": "Claude via claw_exec (lecture seule, actions crb-fixture-capture-2 et crb-agents-tools-1)",
+    "sources": [
+      "python3 ~/.openclaw/releases/current/termux-lite/people-trusted.py allowlist get (contact de recette « Recette Pulse », numéro fictif +216 10 000 001 ajouté par Amine le 29/10) ; lecture en 594 ms",
+      "~/.openclaw/openclaw.json agents.entries.{contacts-pulse,contacts-projet-pulse}.tools (politique d'outils avant ce lot)"
+    ],
+    "cleaning": "seuls les champs utiles au contrôle d'accès ; personId, qaApps, qaRevision et scopeText omis ; aucun vrai contact"
+  },
+  "allowlist_get": {"success": true, "state": "ok", "historyCount": 2,
+    "contact": {"contactId": "wa-23701fc40094ee65", "e164": "+21610000001", "name": null, "owner": false, "scope": "standard",
+      "state": "active", "rooms": ["conversation", "projet", "pulse"], "expiresAt": null, "addedAt": "2026-10-29T19:22:33Z",
+      "lastActivityAt": null}},
+  "routed_agent": "contacts-projet-pulse",
+  "agent_tools_before": {
+    "contacts-pulse": {"allow": ["web_search"], "deny": ["exec", "process", "read", "write", "edit", "apply_patch", "browser", "canvas", "web_fetch", "message", "sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "session_status", "sessions_search", "memory_search", "memory_get", "gateway", "cron", "nodes", "clawmobile_capability"]},
+    "contacts-projet-pulse": {"allow": ["web_search", "read"], "deny": ["exec", "process", "write", "edit", "apply_patch", "browser", "canvas", "web_fetch", "message", "sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "session_status", "sessions_search", "memory_search", "memory_get", "gateway", "cron", "nodes", "clawmobile_capability"], "fs": {"workspaceOnly": true}}
+  },
+  "gateway_env": {"SAMANTHA_BRAIN_ONLY": "1", "SAMANTHA_NATIVE_PULSE_HANDOFF": "1", "SAMANTHA_INTENT_INTERPRETER": "1", "SAMANTHA_CONTEXT_FOUNDATION": "1"}
+}

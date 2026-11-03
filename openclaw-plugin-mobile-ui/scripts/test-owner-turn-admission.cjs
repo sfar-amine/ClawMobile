@@ -12,7 +12,8 @@ fs.writeFileSync(path.join(state,'runs.json'),JSON.stringify({version:1,runs:[],
 // Clé owner-confirmation (biométrique dans l'app) épinglée par installation contrôlée, comme sur le S24.
 const biometric=crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'});
 fs.writeFileSync(path.join(state,'owner-confirmation-public.pem'),biometric.publicKey.export({type:'spki',format:'pem'}));
-// SAM-MIG V2.2 : stand-in de `model-fast-path.py --dialogue` (le coordinateur lui-même est testé dans samantha-ui-playbooks).
+// Ancien double de `model-fast-path.py --dialogue`, gardé comme témoin : depuis l'ADR du 02/11 (étape 3), aucun tour
+// du propriétaire ne l'appelle (les sections ci-dessous vérifient que son journal reste vide).
 // Toujours « UNRESOLVED » (le tour part vers le Gateway), sauf « ambigu » qui ouvre une question dans SA conversation
 // (clé de conversation = session + bit d'admission), et « p1-write » : décision engagée puis remise différée.
 const helper=path.join(root,'fast-path.py'),helperLog=path.join(root,'fast-path.log');
@@ -55,7 +56,7 @@ gatewayTransport.setOwnerTurnSdkLoader(async()=>{
  return fakePublicSdk(async(method,opts,params,extra)=>{
   sdkCalls.push({transport:'admin',method,scopes:extra.scopes,sessionKey:params.sessionKey,id:params.idempotencyKey,progress:extra.progress,opts,extraKeys:Object.keys(extra).sort(),message:params.message,signal:extra.signal});
   if(sdkMode==='fail')throw Object.assign(new Error('boom'),{gatewayCode:'UNAVAILABLE'});
-  return {runId:params.idempotencyKey,status:'accepted'};
+  return opts.expectFinal?{runId:params.idempotencyKey,status:'ok',result:{payloads:[{text:'Réponse finale synthétique.'}],meta:{stopReason:'stop'}}}:{runId:params.idempotencyKey,status:'accepted'};
  });
 });
 const {turnAdmission,createTurnAdmission,admissionMessage,enrollmentMessage,enrollmentPresentation,recentAdmissionRefusals,ADMISSION_WINDOW_MS,NONCE_CAPACITY,sha256Hex}=require('../dist/companion/ownerTurnAdmission');
@@ -149,7 +150,7 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    for(const line of ['scopes: extra?.scopes,','signal: extra?.signal,','expectFinal: extra?.expectFinal ?? Boolean(opts.expectFinal),','clientName: extra?.clientName ?? GATEWAY_CLIENT_NAMES.CLI,'])assert.ok(sig.runtime_excerpt.includes(line),line);
    assert.ok(sig.call_excerpt.includes('if (Array.isArray(opts.scopes)) return await callGatewayWithScopes(opts, opts.scopes);'));
    assert.ok(hit.signal instanceof AbortSignal);assert.ok(hit.extraKeys.includes('clientOptions'));
-   assert.deepEqual(hit.opts,{json:true,timeout:'15000',expectFinal:false});count('sdk_signature_contract');}
+   assert.deepEqual(hit.opts,{json:true,timeout:'120000',expectFinal:true});count('sdk_signature_contract');}
   {let run;for(let i=0;i<50&&!(run=(await request('GET','/v1/runs/'+r.runId)).body).ownerTransport;i++)await new Promise(x=>setTimeout(x,20));
    assert.equal(run.ownerTransport,'admin_admitted');assert.equal(run.ownerAdmitted,true);
    const listed=(await request('GET','/v1/runs?limit=50')).body.runs.find(x=>x.runId===r.runId);assert.equal(listed.ownerTransport,'admin_admitted');count('run_owner_transport');}
@@ -208,8 +209,8 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
   gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(async(method,o,params,extra)=>{sdkCalls.push({transport:'admin',method,scopes:extra.scopes,id:params.idempotencyKey});throw new Error('after dispatch');}));
   r=await submit();await settled(r.runId);await new Promise(x=>setTimeout(x,200));
   assert.equal(readLines(cliLog).filter(x=>x.id===r.runId).length,0,'pas de repli après envoi');
-  const failed=(await request('GET','/v1/runs/'+r.runId)).body;assert.equal(failed.state,'failed');count('no_replay_after_dispatch');
-  gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(async(method,opts,params,extra)=>{sdkCalls.push({transport:'admin',method,scopes:extra.scopes,sessionKey:params.sessionKey,id:params.idempotencyKey,message:params.message});await new Promise(x=>setTimeout(x,30));return {runId:params.idempotencyKey,status:'accepted'};}));
+  const failed=(await request('GET','/v1/runs/'+r.runId)).body;assert.equal(failed.state,'unknown');assert.equal(failed.ownerTransport,'admin_admitted');count('no_replay_after_dispatch');
+  gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(async(method,opts,params,extra)=>{sdkCalls.push({transport:'admin',method,scopes:extra.scopes,sessionKey:params.sessionKey,id:params.idempotencyKey,message:params.message});await new Promise(x=>setTimeout(x,30));return opts.expectFinal?{runId:params.idempotencyKey,status:'ok',result:{payloads:[{text:'Réponse finale synthétique.'}],meta:{stopReason:'stop'}}}:{runId:params.idempotencyKey,status:'accepted'};}));
 
   // --- 6. Concurrence : tours admis et non admis simultanés, sans croisement de connexion.
   {const jobs=[];for(let i=0;i<8;i++){jobs.push(submit({sessionId:'own-'+i}).then(x=>({x,owner:true})));jobs.push(submit({sessionId:'pub-'+i,sign:false}).then(x=>({x,owner:false})));}
@@ -226,30 +227,15 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    const signed=JSON.stringify({instruction:'Édité',displayText:'Édité',sessionId:'replay-dst-2',clientRunId:'p1-replay-proof',replayOf:{sessionId:'replay-src',runId:src.runId}});
    x=await request('POST','/v1/runs',signed,proof({body:signed,clientRunId:'p1-replay-proof',sessionId:'replay-dst-2'}));assert.equal(x.status,200);assert.deepEqual(x.body.ownerAdmission,{owner:true});
    assert.equal((await settled(x.body.runId)).transport,'admin');count('replay_without_proof_403');count('replay_with_proof_admin');}
-  // --- 6c. CLARIFY (SAM-MIG V2.2) : la question appartient à la conversation du coordinateur, séparée par le bit
-  // d'admission. Un tour admis ne reprend jamais une question ouverte par un tour non admis (confused deputy), et
-  // un tour non admis ne touche jamais celle d'Amine.
-  {const helperCalls=()=>readLines(helperLog);
-   const rogue1=await submit({sessionId:'clarify-1',sign:false,text:'ambigu rogue-01'});assert.equal(rogue1.response.body.state,'done');
-   const before=helperCalls().length;
+  // --- 6c. ADR 02/11 (« le cerveau partout », étape 3) : plus de coordinateur avant le cerveau. Dans une même session,
+  // un tour non admis part au Gateway sans autorité propriétaire, un tour admis avec ; aucun résolveur n'est appelé.
+  {const before=readLines(helperLog).length;
+   const rogue1=await submit({sessionId:'clarify-1',sign:false,text:'ambigu rogue-01'});assert.equal((await settled(rogue1.runId)).transport,'cli_write');
    const own=await submit({sessionId:'clarify-1',text:'oui agis'});assert.deepEqual(own.response.body.ownerAdmission,{owner:true});
    const t=await settled(own.runId);assert.equal(t.transport,'admin');assert.ok(t.message.endsWith('oui agis'));
-   const ownCalls=helperCalls().slice(before);
-   assert.ok(!ownCalls.some(c=>c.mode==='resolve'),'aucune résolution de la clarification tierce');
-   assert.ok(ownCalls.every(c=>c.conversation==='app:clarify-1:owner'),'conversation admise distincte');
+   assert.equal(readLines(helperLog).length,before,'aucun résolveur ni coordinateur avant le cerveau');
    assert.equal((await request('GET','/v1/runs/'+rogue1.runId)).body.ownerAdmitted,undefined);
-   assert.equal((await request('GET','/v1/runs/'+own.runId)).body.ownerAdmitted,true);count('clarify_admitted_ignores_unadmitted');
-   // Inverse : une clarification ouverte par Amine n'est ni reprise ni annulée par un tour non admis.
-   const own2=await submit({sessionId:'clarify-2',text:'ambigu owner-02'});assert.equal(own2.response.body.state,'done');
-   const b2=helperCalls().length;const rogue2=await submit({sessionId:'clarify-2',sign:false,text:'agir'});
-   assert.ok(!helperCalls().slice(b2).some(c=>c.mode==='resolve'));assert.equal((await settled(rogue2.runId)).transport,'cli_write');
-   assert.equal(JSON.parse(fs.readFileSync(path.join(state,'runs.json'))).runs.find(x=>x.runId===own2.runId).clarificationState,'pending');
-   // Amine répond ensuite à SA question, que le tour tiers n'a pas masquée ; aucun texte tiers n'y entre.
-   const b3=helperCalls().length;const own3=await submit({sessionId:'clarify-2',text:'agir'});
-   const own3Calls=helperCalls().slice(b3);assert.ok(own3Calls.some(c=>c.mode==='resolve'&&c.caller==='owner'&&c.conversation==='app:clarify-2:owner'));
-   // The pending question is answered by the coordinator itself (no model, no Gateway dispatch: T-C10).
-   const own3Run=JSON.parse(fs.readFileSync(path.join(state,'runs.json'))).runs.find(x=>x.runId===own3.runId);assert.equal(own3Run.executionSource,'capability_first');
-   assert.equal([...readLines(cliLog),...sdkCalls].some(x=>x.id===own3.runId),false);count('clarify_unadmitted_cannot_touch_admitted');}
+   assert.equal((await request('GET','/v1/runs/'+own.runId)).body.ownerAdmitted,true);count('brain_turn_admission_separated');}
 
   // Voice option A: the marker is signed data, not admission or an arbitrary agent selector.
   {const client=require('../dist/companion/openclawAgentClient');
@@ -263,7 +249,7 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    for(const opts of [{},{admission:admitted.ticket,clientRunId:cid,voiceDelegation:true},{admission:admitted.ticket,clientRunId:'other-client',voiceDelegation:true}]) {
     await assert.rejects(()=>client.submitToOpenClawAgent('Mémoire','voice-refused-'+crypto.randomUUID(),'other-session',{voiceDelegation:true,...opts}),/voice_owner_admission_required/);count('voice_ticket_bound');
    }
-   let delegated;gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(async(method,opts,params)=>{delegated=params;return {runId:params.idempotencyKey,status:'accepted'};}));
+   let delegated;gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(async(method,opts,params)=>{delegated=params;return opts.expectFinal?{runId:params.idempotencyKey,status:'ok',result:{payloads:[{text:'Réponse finale synthétique.'}],meta:{stopReason:'stop'}}}:{runId:params.idempotencyKey,status:'accepted'};}));
    process.env.CLAWMOBILE_AGENT_ID='other-agent';const result=await client.submitToOpenClawAgent('Souviens-toi du rendez-vous','voice-main-run','voice-parity',{admission:admitted.ticket,clientRunId:cid,voiceDelegation:true});process.env.CLAWMOBILE_AGENT_ID='main';
    assert.equal(result.ownerTransport,'admin_admitted');assert.equal(delegated.agentId,'main');assert.equal(delegated.sessionKey,'companion-chat-voice-parity');assert(delegated.message.endsWith('Souviens-toi du rendez-vous'));count('voice_main_same_conversation');
    gatewayTransport.setOwnerTurnSdkLoader(async()=>{throw Object.assign(new Error('missing'),{code:'owner_transport_unavailable'});});
@@ -281,7 +267,7 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    const ticket=turnAdmission.verifyRequest({method:'POST',path:'/v1/runs',headers:proof({body:'{}',clientRunId,sessionId}),rawBody,clientRunId,sessionId});assert.equal(ticket.admitted,true);
    let entered,release;const loadingStarted=new Promise(r=>entered=r),loadingGate=new Promise(r=>release=r);
    const before=sdkCalls.length;
-   gatewayTransport.setOwnerTurnSdkLoader(async()=>{entered();await loadingGate;return fakePublicSdk(async(method,opts,params,extra)=>{sdkCalls.push({transport:'admin',id:params.idempotencyKey});return {runId:params.idempotencyKey,status:'accepted'};});});
+   gatewayTransport.setOwnerTurnSdkLoader(async()=>{entered();await loadingGate;return fakePublicSdk(async(method,opts,params,extra)=>{sdkCalls.push({transport:'admin',id:params.idempotencyKey});return opts.expectFinal?{runId:params.idempotencyKey,status:'ok',result:{payloads:[{text:'Réponse finale synthétique.'}],meta:{stopReason:'stop'}}}:{runId:params.idempotencyKey,status:'accepted'};});});
    const pending=require('../dist/companion/openclawAgentClient').submitToOpenClawAgent('tour','p1-sdk-race-run',sessionId,{admission:ticket.ticket,clientRunId});
    await loadingStarted;turnAdmission.revoke();release();
    await assert.rejects(pending,e=>e.code==='owner_turn_admission_expired');
@@ -307,43 +293,51 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    try{await rejectBefore({secret:async()=>{admissionClockOffset=61000;return {value:'synthetic-only'}}},'owner_turn_admission_expired');}finally{admissionClockOffset=0;}count('public_expiry_during_bootstrap');
    let calls=0;const hooks={deferHello:true};const sdk=fakePublicSdk(()=>{calls++;return {status:'accepted'}},hooks);gatewayTransport.setOwnerTurnSdkLoader(async()=>sdk);
    const x=admitted(),pending=gatewayTransport.submitOwnerTurn(x.params,x.options);for(let i=0;i<20&&!sdk.getClient();i++)await new Promise(r=>setTimeout(r,5));sdk.getClient().hello();sdk.getClient().hello();await pending;assert.equal(calls,1);assert.ok(hooks.stops);count('public_one_request_and_close');
+   const events=[];let sends=0;const observed=admitted();
+   const observation={sent:()=>events.push('sent'),event:frame=>events.push(frame.event),final:async value=>events.push(value.status),lost:async sent=>events.push('lost:'+sent)};
+   gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk((method,opts,params,extra)=>{
+    sends++;assert.equal(opts.expectFinal,true);extra.clientOptions.onEvent({event:'agent',payload:{runId:params.idempotencyKey}});
+    return {runId:params.idempotencyKey,status:'ok',result:{payloads:[{text:'Public fixture reply.'}]}};
+   }));
+   await gatewayTransport.submitOwnerTurn(observed.params,{...observed.options,expectFinal:true,observer:observation});
+   assert.deepEqual(events,['sent','agent','ok']);assert.equal(sends,1);count('public_observed_same_admitted_request');
+   events.length=0;const lost=admitted();
+   gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(()=>{sends++;throw Error('synthetic post-send loss')}));
+   await assert.rejects(gatewayTransport.submitOwnerTurn(lost.params,{...lost.options,expectFinal:true,observer:observation}),e=>e.requestSent===true);
+   assert.deepEqual(events,['sent','lost:true']);assert.equal(sends,2,'transport loss never replays agent');count('public_observed_loss_no_replay');
+   const storageFailure=admitted();
+   gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(()=>{sends++;return {status:'ok'}}));
+   await assert.rejects(gatewayTransport.submitOwnerTurn(storageFailure.params,{...storageFailure.options,expectFinal:true,
+    observer:{sent(){},event(){},final:async()=>{throw Error('projection unavailable')},lost:async()=>{throw Error('registry unavailable')}}}),e=>e.requestSent===true&&e.code==='owner_turn_indeterminate');
+   assert.equal(sends,3);count('public_projection_failure_stays_indeterminate');
   }
 
-  // Synthetic write executor: never executes a real capability. It denies caller=other.
-  {let x=await submit({sign:false,text:'p1-write unsigned',sessionId:'write-unsigned'});
-   assert.equal(x.response.body.ownerAdmission.owner,false);assert.equal(x.response.body.state,'failed');
-   assert.ok(readLines(helperLog).filter(c=>c.message==='p1-write unsigned').every(c=>c.caller==='other'));count('execute_unsigned_never_owner');
+  // Brain turns: only a valid native proof gives the owner transport; nothing runs before the brain.
+  {gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(async(method,opts,params)=>{
+    sdkCalls.push({transport:'admin',method,sessionKey:params.sessionKey,id:params.idempotencyKey,message:params.message});
+    return {runId:params.idempotencyKey,status:'accepted'};
+   }));
+   const before=readLines(helperLog).length;
+   let x=await submit({sign:false,text:'p1-write unsigned',sessionId:'write-unsigned'});
+   assert.equal(x.response.body.ownerAdmission.owner,false);assert.equal((await settled(x.runId)).transport,'cli_write');count('execute_unsigned_never_owner');
    const body=JSON.stringify({instruction:'p1-write invalid nonce',sessionId:'write-invalid',clientRunId:'p1-write-invalid-1'});
    const invalid=proof({body,clientRunId:'p1-write-invalid-1',sessionId:'write-invalid',n:'bad'});
-   const refused=await request('POST','/v1/runs',body,invalid);assert.equal(refused.body.ownerAdmission.owner,false);assert.equal(refused.body.state,'failed');
-   assert.ok(readLines(helperLog).filter(c=>c.message==='p1-write invalid nonce').every(c=>c.caller==='other'));count('execute_invalid_nonce_never_owner');
-   x=await submit({text:'p1-write valid',sessionId:'write-valid'});assert.equal(x.response.body.ownerAdmission.owner,true);assert.equal(x.response.body.state,'done');
-   assert.equal(readLines(helperLog).filter(c=>c.message==='p1-write valid'&&c.executing&&c.caller==='owner').length,1);count('execute_admitted_owner');
-   const pending=submit({text:'p1-write revoke-resolution',sessionId:'write-revoked'});
-   for(let i=0;i<300&&!readLines(helperLog).some(c=>c.message==='p1-write revoke-resolution');i++)await new Promise(r=>setTimeout(r,10));
-   assert.ok(readLines(helperLog).some(c=>c.message==='p1-write revoke-resolution'));
-   turnAdmission.revoke();fs.writeFileSync(path.join(root,'resolution-release'),'release');
-   const expired=await pending;assert.equal(expired.response.body.accepted,false);
-   assert.equal(readLines(helperLog).filter(c=>c.message==='p1-write revoke-resolution'&&c.executing).length,0);count('execute_revoked_during_resolution_refused');
-   const again=await biometricApprove('owner.turn_admission.enroll',KEY,KEY);assert.equal((await request('POST','/v1/owner-admission/enrollment',enrollBody(again),owner)).status,200);
+   const refused=await request('POST','/v1/runs',body,invalid);assert.equal(refused.body.ownerAdmission.owner,false);
+   if(refused.body.runId)assert.equal((await settled(refused.body.runId)).transport,'cli_write');count('execute_invalid_nonce_never_owner');
+   x=await submit({text:'p1-write valid',sessionId:'write-valid'});assert.equal(x.response.body.ownerAdmission.owner,true);
+   assert.equal((await settled(x.runId)).transport,'admin');count('execute_admitted_owner');
+   assert.equal(readLines(helperLog).length,before,'aucun résolveur avant le cerveau');
   }
 
   // Voice effects use the same one-use raw-body native proof, never a clarification as a grant.
   {const pathName='/v1/extensions/claw-live/capability';
    const cap=async(text,{sign=true,sessionId='voice-cap-fixture',clarificationId,headers}={})=>{const clientRunId='voice-cap-'+crypto.randomUUID(),body=JSON.stringify({request:text,sessionId,clientRunId,...(clarificationId?{clarificationId}:{})});return request('POST',pathName,body,{...(sign?proof({pathName,body,clientRunId,sessionId}):{}),...(headers||{})});};
-   const before=readLines(helperLog).length;let x=await cap('p1-write voice unsigned',{sign:false});assert.equal(x.status,403);assert.equal(readLines(helperLog).length,before);count('voice_capability_unsigned_before_resolution');
-   x=await cap('p1-write voice invalid',{headers:{'x-samantha-admission-nonce':'bad'}});assert.equal(x.status,403);assert.equal(readLines(helperLog).length,before);count('voice_capability_invalid_nonce_before_resolution');
-   x=await cap('p1-write voice valid');assert.equal(x.status,200);assert.equal(x.body.ownerAdmission.owner,true);assert.equal(x.body.state,'done');
-   assert.equal(readLines(helperLog).filter(c=>c.message==='p1-write voice valid'&&c.executing&&c.caller==='owner').length,1);count('voice_capability_admitted_prepared_execute');
-   const clar=await cap('ambigu voice-fixture');assert.equal(clar.status,200);assert.equal(clar.body.state,'needs_clarification');
-   const prior=readLines(helperLog).length;assert.equal((await cap('p1-write clarification no grant',{sign:false,clarificationId:clar.body.clarificationId})).status,403);assert.equal(readLines(helperLog).length,prior);count('voice_clarification_never_grants_admission');
-   assert.equal((await cap('p1-write other session',{sessionId:'voice-cap-other',clarificationId:clar.body.clarificationId})).status,400);assert.equal(readLines(helperLog).length,prior);count('voice_clarification_bound_session');
-   fs.rmSync(path.join(root,'resolution-release'),{force:true});
-   const pending=cap('p1-write capability-revoke-resolution',{sessionId:'voice-cap-revoked'});
-   for(let i=0;i<300&&!readLines(helperLog).some(c=>c.message==='p1-write capability-revoke-resolution');i++)await new Promise(r=>setTimeout(r,10));
-   assert.ok(readLines(helperLog).some(c=>c.message==='p1-write capability-revoke-resolution'));turnAdmission.revoke();fs.writeFileSync(path.join(root,'resolution-release'),'release');
-   assert.equal((await pending).status,403);assert.equal(readLines(helperLog).filter(c=>c.message==='p1-write capability-revoke-resolution'&&c.executing).length,0);count('voice_capability_revoked_during_resolution');
-   const again=await biometricApprove('owner.turn_admission.enroll',KEY,KEY);assert.equal((await request('POST','/v1/owner-admission/enrollment',enrollBody(again),owner)).status,200);
+   const dispatched=()=>[...readLines(cliLog),...sdkCalls].length+readLines(helperLog).length;
+   const before=dispatched();let x=await cap('p1-write voice unsigned',{sign:false});assert.equal(x.status,403);assert.equal(dispatched(),before);count('voice_capability_unsigned_before_resolution');
+   x=await cap('p1-write voice invalid',{headers:{'x-samantha-admission-nonce':'bad'}});assert.equal(x.status,403);assert.equal(dispatched(),before);count('voice_capability_invalid_nonce_before_resolution');
+   const clarificationId=require('../dist/dialogueSurface').dialogueConversationId('claw_live','claw-live:voice-cap-fixture');
+   assert.equal((await cap('p1-write clarification no grant',{sign:false,clarificationId})).status,403);assert.equal(dispatched(),before);count('voice_clarification_never_grants_admission');
+   assert.equal((await cap('p1-write other session',{sessionId:'voice-cap-other',clarificationId})).status,400);assert.equal(dispatched(),before);count('voice_clarification_bound_session');
   }
 
   // --- 7. Révocation : signée par la clé enrôlée ; ensuite non-owner. Un tour déjà remis au Gateway n'est pas touché.

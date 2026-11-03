@@ -9,7 +9,12 @@ const api=require('../dist/companion/intent');
 let calls=0,effects=0,checks=0,resolve;
 const clock=Date.now;let now=clock();Date.now=()=>now;
 sdk.transcribeMemoAttachment=async()=>{calls++;return new Promise(r=>resolve=r);};
-require('../dist/modelFastPath').runModelFastPath=require('./lib/legacy-fast-path-as-dialogue.cjs')(async(text,opts)=>{assert.equal(text,'9addech batterie');if(opts.checkOnly){checks++;return {status:'eligible',decision:{version:2,type:'EXECUTE',risk:'read',confirmationRequired:false,capability:'device.assistance'}};}effects++;return {status:'hit',text:'Synthetic read receipt'};});
+// ADR 02/11 « le cerveau partout », step 3: the transcript goes to the brain (Gateway agent) once, no fast path before it.
+require('../dist/modelFastPath').runModelFastPath=async()=>{checks++;throw Error('no fast path before the brain');};
+let revokeAtGateway=false;
+require('../dist/companion/openclawGatewayClient').getGatewayStatus=async()=>{if(revokeAtGateway)admission.revoke();return {reachable:true};};
+require('../dist/companion/openclawAgentClient').submitToOpenClawAgent=async(text,runId,sessionId)=>{assert.ok(text.includes('9addech batterie'));effects++;
+ setTimeout(()=>runs.settleSubmittedRun(runId,'done','Synthetic read receipt',{}),1);return {success:true,accepted:true,runId,sessionId,acceptedAt:Date.now()};};
 const source=fs.readFileSync(path.resolve(__dirname,'../fixtures/s24-2026-10-11/hs8-captures/bonjour-samantha.m4a'));
 const audio=id=>storage.saveAttachments([{id,mimeType:'audio/mp4',body:source}],new Set())[0];
 const rows=()=>JSON.parse(fs.readFileSync(path.join(dir,'clawmobile-companion/runs.json'))).runs;
@@ -46,7 +51,7 @@ const fail=()=>resolve({success:false,state:'refused',receipt:null,error:'memo_t
  assert.equal(effects,0);
  const resumed=await api.submitIntent('','success',[successAudio],{clientRunId:'retry-success',authority:'owner',admission:admission.ticket('retry-success','success')});
  assert.equal(resumed.runId,s.runId);await until(async()=> (await poll(s.runId)).state==='done');
- assert.equal(effects,1);assert.equal(checks,1);assert.equal(fs.existsSync(successAudio.path),false,'successful transcript releases audio through existing owner');assert.equal(rows().find(r=>r.runId===s.runId).attachments,undefined);
+ assert.equal(effects,1);assert.equal(checks,0);assert.equal(fs.existsSync(successAudio.path),false,'successful transcript releases audio through existing owner');assert.equal(rows().find(r=>r.runId===s.runId).attachments,undefined);
  const cancelAudio=audio('cancel'),c=await api.submitIntent('','cancel',[cancelAudio],{clientRunId:'retry-cancel',authority:'owner',admission:admission.ticket('retry-cancel','cancel')});fail();await until(async()=> (await poll(c.runId)).status==='transcription_pending');
  await runs.deleteSession('cancel');now+=120000;await poll(c.runId);assert.equal(calls,6);assert.equal(effects,1,'deletion wins before retry claim');assert.equal(fs.existsSync(cancelAudio.path),false);
  // A process stop in the third STT attempt becomes terminal, not eternal pending.
@@ -64,16 +69,15 @@ const fail=()=>resolve({success:false,state:'refused',receipt:null,error:'memo_t
  fail();await until(async()=> (await poll(second.runId)).status==='transcription_pending');
  await runs.deleteSession('share-a');assert.ok(fs.existsSync(shared.path));
  await runs.deleteSession('share-b');assert.equal(fs.existsSync(shared.path),false);assert.equal(effects,1);
- // Revocation during canonical resolution blocks dispatch while preserving ready.
+ // Revocation before the brain dispatch blocks it while preserving ready.
  const revokeAudio=audio('revoke'),r=await api.submitIntent('','revoke',[revokeAudio],{clientRunId:'revoke',authority:'owner',admission:admission.ticket('revoke','revoke')});
- const fast=require('../dist/modelFastPath'),originalFast=fast.runModelFastPath;
- fast.runModelFastPath=async(text,opts)=>{if(opts.dialogue?.mode==='turn')admission.revoke();return originalFast(text,opts);};
+ revokeAtGateway=true;
  resolve({success:true,state:'transcribed',text:'9addech batterie'});
  await until(async()=> (await poll(r.runId)).status==='memo_ready_to_continue');
- assert.equal(effects,1);assert.ok(fs.existsSync(revokeAudio.path));fast.runModelFastPath=originalFast;
+ assert.equal(effects,1);assert.ok(fs.existsSync(revokeAudio.path));revokeAtGateway=false;
  await runs.deleteSession('revoke');
  now=clock();
  const retryAudio=audio('retry-fresh'),freshRetry=await api.submitIntent('','retry-fresh',[retryAudio],{clientRunId:'retry-fresh',authority:'owner',admission:admission.ticket('retry-fresh','retry-fresh')});
- assert.equal(freshRetry.accepted,true,'a new memo can retry after terminal failure');resolve({success:true,state:'transcribed',text:'9addech batterie'});await until(async()=> (await poll(freshRetry.runId)).state==='done');assert.equal(effects,2);assert.equal(fs.existsSync(retryAudio.path),false);
+ assert.equal(freshRetry.accepted,true,'a new memo can retry after terminal failure');resolve({success:true,state:'transcribed',text:'9addech batterie'});await until(async()=> (await poll(freshRetry.runId)).state==='done');assert.equal(effects,2);assert.equal(checks,0);assert.equal(fs.existsSync(retryAudio.path),false);
  console.log('HS8 deferred owner retry: two/ten-minute deadlines, bounded automatic retries, terminal audio purge, clear fresh-memo retry, stable identity, no content in failed registry, success cleanup and deletion passed');
 }finally{Date.now=clock;fs.rmSync(dir,{recursive:true,force:true});}})().catch(e=>{console.error(e);process.exitCode=1;});

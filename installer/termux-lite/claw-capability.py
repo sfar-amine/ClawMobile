@@ -26,8 +26,20 @@ def ui_root() -> Path:
     ]
     for path in candidates:
         if path and (path / "skill_intelligence/capability_graph.py").is_file():
+            if path == DEFAULT_UI and (not configured or Path(configured).expanduser() != DEFAULT_UI):
+                code_root_event("claw_capability", path)
             return path
     raise SystemExit("capability_graph_unavailable")
+
+
+def code_root_event(component: str, root: Path) -> None:
+    """Single code root (02/11): a fallback to the working copy keeps working and is reported (never blocking)."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from code_root import record_event
+        record_event(component, "fallback", root, "pin_missing", HOME)
+    except Exception:
+        pass
 
 
 def _graph(args: list[str], timeout_s: int = 35, input_text: str | None = None) -> subprocess.CompletedProcess:
@@ -186,6 +198,7 @@ def main() -> int:
     ed.add_argument("--decision-b64", required=True)
     ed.add_argument("--timeout", type=int, default=30)
     ed.add_argument("--read-only", action="store_true")
+    ed.add_argument("--dialogue-read-handoff")
     for command in (ed,ae):
         command.add_argument("--request-id")
         command.add_argument("--run-id")
@@ -206,8 +219,35 @@ def main() -> int:
     c = sub.add_parser("compile")
     c.add_argument("--output-dir", default=str(HOME / ".openclaw/capability-views"))
 
+    tt = sub.add_parser("typed-tool")
+    tt.add_argument("--host-input-stdin", action="store_true", required=True)
+    tt.add_argument("--timeout", type=int, default=30)
+    for mode in ("typed-resolve", "typed-execute"):
+        typed = sub.add_parser(mode)
+        typed.add_argument("text")
+        typed.add_argument("--selection-stdin", action="store_true", required=True)
+        typed.add_argument("--surface", default="external_mcp")
+        typed.add_argument("--caller", default="other")
+        typed.add_argument("--request-id", required=True)
+        typed.add_argument("--timeout", type=int, default=30)
+
     started=time.monotonic()
     args = parser.parse_args()
+    if args.cmd in {"typed-resolve", "typed-execute"}:
+        payload = sys.stdin.read(32769)
+        if len(payload.encode()) > 32768:
+            raise SystemExit("typed_private_input_too_large")
+        return call([args.cmd, args.text, "--selection-stdin", "--surface", args.surface, "--caller", args.caller,
+            "--request-id", args.request_id, "--timeout", str(max(2, min(args.timeout, 120)))],
+            timeout_s=max(2, min(args.timeout, 120)) + 5, input_text=payload)
+    if args.cmd == "typed-tool":
+        # Only the host tool guard writes this pipe. No command text, route,
+        # caller override or proof can be supplied as a model-facing argument.
+        payload = sys.stdin.read(65537)
+        if len(payload.encode()) > 65536:
+            raise SystemExit("typed_private_input_too_large")
+        return call(["typed-tool", "--host-input-stdin", "--timeout", str(max(2, min(args.timeout, 120)))],
+                    timeout_s=max(2, min(args.timeout, 120)) + 5, input_text=payload)
     context_args=[]
     context_timeout=None
     if args.cmd in {"execute","execute-decision","agent-execute"}:
@@ -253,6 +293,9 @@ def main() -> int:
         forwarded = ["execute-decision", args.text, "--decision-stdin", "--timeout", str(args.timeout)]
         if args.read_only:
             forwarded.append("--read-only")
+        if args.dialogue_read_handoff:
+            if not args.read_only:raise SystemExit("intent_read_handoff_requires_read_only")
+            forwarded.extend(["--dialogue-read-handoff",args.dialogue_read_handoff])
         if args.request_id and args.request_id != parsed.get("requestId"):
             raise SystemExit("web_request_identity_mismatch")
         return call(forwarded+context_args, timeout_s=context_timeout if context_timeout is not None else args.timeout + 5, input_text=json.dumps(parsed, ensure_ascii=False))

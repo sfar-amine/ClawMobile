@@ -89,4 +89,19 @@ const requestId = "mcp-claude-chat-rel41-bridge-long-demo-sleep35";
   assert.equal(value.status.step_key, "execute");
 }
 
+// The service binding is copied from server authentication, never a public argument.
+for (const [serverServices, selected, expected] of [[undefined,true,false],[["pulse"],true,true],[["pulse"],false,false]]) {
+  const ws=fakeSocket(),relay=relayWith(ws,5000);
+  const scope={schema_version:"mcp-service.v1",domain_id:"pulse"};
+  const value={request:"synthetic",client_context:{schema_version:"mcp-input.v1"},
+    ...(selected?{service_scope:scope}:{}),interpretationService:scope};
+  const id="mcp:scope:"+String(expected)+String(selected);
+  const pending=relay.handleMcpTool("claw_resolve",value,{...auth,...(serverServices?{interpretationServices:serverServices}:{})},{requestId:id});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(Object.hasOwn(ws.sent[0],"interpretationService"),expected);
+  if(expected)assert.deepEqual(ws.sent[0].interpretationService,scope);
+  await relay.webSocketMessage(ws,JSON.stringify({type:"response",requestId:id,response:{state:"synthetic"}}));
+  await pending;
+}
+
 console.log(JSON.stringify({ ok: true, test: "edge-long-action-running" }));

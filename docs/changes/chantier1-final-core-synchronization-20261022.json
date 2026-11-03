@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "id": "chantier1-final-core-synchronization-20261022",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Synchronize preserved OAuth, conditional maintenance and the existing native handoff owners through normal merges.",
+  "reason": "Amine explicitly requested incorporation of the GPT Chat commits and autonomous synchronized delivery without force-push.",
+  "files": [
+    "docs/changes/chantier1-final-core-synchronization-20261022.md",
+    "docs/changes/chantier1-final-core-synchronization-20261022.json"
+  ],
+  "tests": [
+    {
+      "name": "integrated TypeScript build and private native owner regression",
+      "status": "passed",
+      "evidence": "npm run build succeeded on integrated source c8bd6203;33/33 native Bridge probes and42/42 paired IPC probes passed against playbooks9e11ab12, MOCK_ONLY with0 provider calls and0 real business effects."
+    }
+  ],
+  "documentation": [
+    "docs/changes/chantier1-final-core-synchronization-20261022.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Normal integration of already described owners; no additional route, capability or business permission."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Retain the existing owners and individual source-lot contracts.",
+    "documents": []
+  },
+  "rollback": "Use the canonical companion-deploy.sh owner, retain effect and idempotence receipts, verify loaded source parity and do not reopen concurrent maintenance.",
+  "limitations": [
+    "A source integration and mocked paired proof are not a deployment or LIVE qualification.",
+    "Exact final-head CI remains mandatory with the integration PR number.",
+    "No model profile, paid billing, direct voice or payment flow is activated by this integration."
+  ],
+  "dependencies": [
+    {
+      "repository": "sfar-amine/samantha-ui-playbooks",
+      "commit": "dfd92662d2c9054647db584b71a5fc9356673313",
+      "requirement": "Immutable C16 mechanism fixture pin; final paired release identity is recorded separately by its actual qualification receipt."
+    }
+  ]
+}

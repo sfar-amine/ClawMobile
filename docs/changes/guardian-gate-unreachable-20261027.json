@@ -1,0 +1,79 @@
+{
+  "version": 2,
+  "id": "guardian-gate-unreachable-20261027",
+  "date": "2026-10-27",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "After a reboot the root guardian starts a missing base supervisor (tier0 watchdog, health manager, incident orchestrator) by itself when the AI gate cannot answer because the Gateway is down. A reachable gate keeps the decision; a supervisor running from another release still waits for the AI; direct starts are spaced by at least 60 s; a refusal is logged once. The health manager applies the same rule to the Companion, owner of the Gateway: with no Companion process and no Gateway, a refused gate no longer blocks its existing bounded repair (lease, restart budget, canonical mode).",
+  "reason": "S24 27/10 14:00 reboot: the guardian restarted nothing for 50 minutes and logged nothing. Its restores go through the immune gate, whose models are reached only through the Gateway (GatewayEngineeringTransport, port 18789). The Gateway belongs to the Companion, which only the health manager starts. With the health manager missing the gate always answered unavailable, so nothing could come back without a manual start. Amine approved on 27/10: when the AI is unreachable (Gateway down) the guardian starts a missing supervisor directly; otherwise the AI keeps the decision. After the health manager was started by hand at 14:55, the Companion stayed down for the same reason: its repair (bounded-http-service-restore) is gated by the same AI gate (health.log 14:56-15:05: gateway degraded, no Companion process, no repair line).",
+  "files": [
+    "installer/termux-lite/samantha-root-guardian.sh",
+    "installer/termux-lite/test-root-guardian-gate.py",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-health-deploy-lock.py",
+    ".github/workflows/ci.yml",
+    "docs/changes/guardian-gate-unreachable-20261027.json",
+    "docs/changes/guardian-gate-unreachable-20261027.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-root-guardian-gate.py",
+      "status": "passed",
+      "evidence": "4 tests on the real guardian functions with a synthetic gate: a missing supervisor starts when the gate refuses and the Gateway is down; with the Gateway up it is not started and the refusal is logged once over 3 rounds; a supervisor that dies again is not restarted within 60 s; a supervisor running from another script is never replaced without the AI. All 4 fail on the previous guardian."
+    },
+    {
+      "name": "installer/termux-lite/test-health-deploy-lock.py",
+      "status": "passed",
+      "evidence": "8 tests. New: a dead Companion is repaired (restart_authorized, started) when the gate refuses and the Gateway is down; with the Gateway up the refusal is logged and nothing starts; a live Companion is never replaced without the AI. The first two fail on the previous manager."
+    },
+    {
+      "name": "installer/termux-lite/test-immune-action.py",
+      "status": "passed",
+      "evidence": "The guardian keeps its immune_action boundary (needle check unchanged)."
+    },
+    {
+      "name": "health suites",
+      "status": "passed",
+      "evidence": "All 22 termux-lite suites that load samantha-health-manager.sh pass."
+    }
+  ],
+  "documentation": [
+    "docs/changes/guardian-gate-unreachable-20261027.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Recovery behaviour of the root guardian only; no capability, route or scope change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same guardian loop, lock and ensure_supervisor_effect; the Gateway probe is the health manager's /healthz. No new store, daemon, scheduler or retry engine. The immune gate is still asked first on every round."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: root guardian script only; no MCP schema, adapter or endpoint changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Live proof: reboot of the S24, Samantha back without a manual action (with Amine).",
+    "With the Gateway up but providers unreachable (no internet) the gate still decides: nothing is started directly, as decided by Amine."
+  ],
+  "rollback": "Revert this commit."
+}

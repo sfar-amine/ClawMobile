@@ -3,6 +3,7 @@ import os from "os";
 import path from "path";
 import {execFile, spawn} from "child_process";
 import type {PaymentAdapter,PaymentContinuation,PaymentExecutionContext,PaymentExecutionResult,PaymentQuote,PaymentTraceSink} from "./paymentTypes";
+import {playbooksRootFor} from "./playbooksRoot";
 
 type ExecResult={stdout:string;stderr:string};
 type ExecFn=(file:string,args:string[],timeoutMs:number)=>Promise<ExecResult>;
@@ -144,7 +145,8 @@ export type ClicToPayLivePaymentAdapterOptions={billingRoot?:string;stateDir?:st
 
 export function createClicToPayLivePaymentAdapter(config:ClicToPayProviderConfig,options:ClicToPayLivePaymentAdapterOptions={}):PaymentAdapter{
   if(!config||!/^[a-z][a-z0-9_.-]{1,60}$/.test(config.id)||typeof config.label!=="string"||!config.label||typeof config.payee!=="string"||!config.payee||!(config.referencePattern instanceof RegExp))throw new Error("invalid_live_payment_adapter_config");
-  const billingRoot=options.billingRoot??path.join(os.homedir(),".openclaw","workspace","ui-playbooks","billing","direct-runtime");
+  // Single code root (02/11): the activated playbooks pin; the workspace copy only as an alerted fallback.
+  const billingRoot=options.billingRoot??path.join(playbooksRootFor("payment_clictopay","billing/direct-runtime/billing-cli.mjs"),"billing","direct-runtime");
   const stateDir=options.stateDir??process.env.OPENCLAW_STATE_DIR??path.join(os.homedir(),".openclaw");
   const execute=options.exec??runExec;
   const live=options.liveRun??runLive;

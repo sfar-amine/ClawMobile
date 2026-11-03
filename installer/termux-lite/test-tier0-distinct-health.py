@@ -26,6 +26,14 @@ class DistinctHealthSamples(unittest.TestCase):
         self.clock=patch.object(self.w.time,'time',side_effect=lambda:self.now);self.clock.start();self.addCleanup(self.clock.stop)
         self.rollback=patch.object(self.w.subprocess,'run').start();self.addCleanup(patch.stopall)
         patch.object(self.w.subprocess,'Popen').start()
+        # Explicit synthetic AI selection for the downstream rollback contract.
+        native_run_path=self.w.runpy.run_path
+        def selected(path,*args,**kwargs):
+            if str(path).endswith('immune_action.py'):
+                return {'run':lambda component,operation,observation,callback:callback()}
+            return native_run_path(path,*args,**kwargs)
+        admission=patch.object(self.w.runpy,'run_path',side_effect=selected)
+        admission.start();self.addCleanup(admission.stop)
         self.reset()
 
     def reset(self):

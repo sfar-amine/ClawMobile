@@ -1,8 +1,12 @@
 import crypto from "crypto";
-import {readModelOwnerFresh,configuredModelAllow} from "./modelOwner";
+import {readModelOwnerFresh,configuredModelAllow,modelReferenceAllowed,configuredModelFlow,includedModelAccounts,CONTACT_MODEL_AGENTS,observeVerifiedModelOwnerConfig,modelFlowSettingPaths,modelFlowSettingHash,modelFlowSafeValue,MODEL_FLOW_PROVENANCE_PATH,verifiedModelFlowProvenance,EDITABLE_MODEL_FLOWS,EXECUTOR_FLOW_MAX_FALLBACKS,executorFlowReference,isExecutorModelFlow,isPolicyModelFlow,policyProfileSlots,policyFlowChain,POLICY_FLOW_PROFILE,type EditableModelFlow} from "./modelOwner";
 import {confirmations} from "./confirmations";
 import {callOpenClawGateway} from "./openclawAgentClient";
-import {readPaymentRequests,readOwnerConfirmations} from "./runs";
+import {readPaymentRequests,readOwnerConfirmations,getRunStatus,latestModelFlowConfiguration,checkpointModelFlowConfiguration,readModelFlowConfigurationActivity} from "./runs";
+import {memoryRemember} from "./memoryControl";
+import {preserveModelFlowSessions} from "./conversationMetadata";
+import {readModelFlowTurnLatency} from "./control-health";
+import {projectModelFlowMetrics} from "./providers";
 import {findSubmittedRunByClientRunId,reserveSubmittedRun,settleSubmittedRun} from "./runs";
 import {accountView,knownProfiles,publicModelRef,resolveModelRef} from "./accountIdentity";
 import {invalidateSessionDefaults,observeSessionDefaults,peekSessionDefaults} from "./conversationOwnerIndex";
@@ -41,7 +45,7 @@ function modelList(value:any,config:any,auth:any,defaults:any=null){
   const ref=row?.id?.startsWith(row?.provider+'/')?row.id:row?.provider+'/'+row?.id;
   const plugin=config.plugins?.entries?.[row?.provider];
   const thinking=thinkingFor(row,defaults);
-  return identifier.test(row?.id||'')&&identifier.test(row?.provider||'')&&allow.includes(ref.split('@')[0])&&plugin?.enabled!==false&&row?.available===true&&validProvider(auth,row.provider)?[{id:row.id,provider:row.provider,reasoning:row.reasoning===true||thinking.source==='session_defaults'&&thinking.levels.some((x:string)=>x!=='off'),thinkingLevels:thinking.levels,thinkingDefault:thinking.default,thinkingSource:thinking.source}]:[];
+  return identifier.test(row?.id||'')&&identifier.test(row?.provider||'')&&modelReferenceAllowed(allow,ref)&&plugin?.enabled!==false&&row?.available===true&&validProvider(auth,row.provider)?[{id:row.id,provider:row.provider,reasoning:row.reasoning===true||thinking.source==='session_defaults'&&thinking.levels.some((x:string)=>x!=='off'),thinkingLevels:thinking.levels,thinkingDefault:thinking.default,thinkingSource:thinking.source}]:[];
  });
 }
 /**
@@ -105,7 +109,8 @@ async function buildAgentConfig(){
   thinking:level(config),thinkingLevels,models,writeAvailable:selection(config).writeAvailable&&models.length>0,issues:[...(models.length?[]:['model_authentication_proof_unavailable']),...(defaults?[]:['session_thinking_defaults_unavailable'])],
   usage:usage?{scope:'sessions_usage_limit_100',inputTokens:count(usage.totals?.inputTokens),outputTokens:count(usage.totals?.outputTokens),totalTokens:count(usage.totals?.totalTokens),costUsd:count(usage.totals?.totalCost)}:null};
 }
-export async function readAgentConfig(){
+export async function readAgentConfig(flow?:EditableModelFlow){
+ if(flow)return readModelFlowConfig(flow);
  if(agentConfigCache&&Date.now()-agentConfigCache.at<AGENT_CONFIG_SERVE_MS)return agentConfigCache.value;
  if(agentConfigFlight)return agentConfigFlight;
  const read=buildAgentConfig();agentConfigFlight=read;
@@ -124,7 +129,7 @@ const pending=new Map<string,Promise<any>>();
 export async function changeAgentConfig(body:any){
  const key=typeof body?.operationId==='string'?body.operationId:'';
  if(pending.has(key)){await pending.get(key);return changeAgentConfig(body);}
- const work=changeAgentConfigOnce(body);pending.set(key,work);
+ const work=body?.flow!==undefined?changeModelFlowConfigOnce(body):changeAgentConfigOnce(body);pending.set(key,work);
  try{return await work;}finally{if(pending.get(key)===work)pending.delete(key);}
 }
 async function changeAgentConfigOnce(body:any){
@@ -141,6 +146,7 @@ async function changeAgentConfigOnce(body:any){
  if(await protectedActivity())throw nativeError('protected_owner_activity',409);
  // Validate against the canonical current config/catalog before reserving an effect.
  const [{raw,catalog,auth},defaults]=await Promise.all([readModelOwnerFresh(),sessionDefaults()]);const config=configObject(raw);
+ if(config.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.modelFlowSelection!==undefined)throw nativeError('model_flow_required',409);
  if(raw.hash!==body.revision)throw nativeError('agent_config_revision_changed',409);
  if(!selection(config).writeAvailable)throw nativeError('agent_config_owner_shape_unsupported',409);
  // The app echoes `@acct-…` handles; the patch and every comparison use the canonical profile ids.
@@ -193,4 +199,270 @@ async function changeAgentConfigOnce(body:any){
  await settleSubmittedRun(reserved.status.runId,'done',JSON.stringify(result));
  const saved=await findSubmittedRunByClientRunId(clientId,{text:identity,sessionId});
  return saved?stored(saved):{success:false,state:'indeterminate',receipt:null};
+}
+
+
+export type {EditableModelFlow};
+const modelFlowIds=new Set<EditableModelFlow>(EDITABLE_MODEL_FLOWS);
+/** Fields a flow accepts in `set`; executor flows have no thinking/speed setting. */
+function flowWriteFields(flow:EditableModelFlow):string[]{return flow==='conversation_summary'||flow==='web_search'||flow==='voice_memos'?['model']:flow==='intent_interpreter'||isPolicyModelFlow(flow)?['model','fallbacks']:['model','thinking','fallbacks','fastMode'];}
+/** Plugin LLM policy that the Gateway enforces on api.runtime.llm.complete (interpretation and immune ports). */
+function pluginCompletionAllow(config:any):string[]{
+ const value=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.llm?.allowedCompletionModels;
+ return Array.isArray(value)&&value.length<=64?value.filter((ref:any)=>typeof ref==='string'&&identifier.test(ref)):[];
+}
+function modelFlow(value:any):EditableModelFlow{if(!modelFlowIds.has(value))throw nativeError('invalid_model_flow');return value;}
+function flowAgents(flow:EditableModelFlow):string[]{return flow==='whatsapp'?['main',...CONTACT_MODEL_AGENTS]:['main'];}
+function selectedFlowModels(owner:any,flow:EditableModelFlow,defaults:any){
+ const config=configObject(owner.raw),rows=owner.catalog?.models;
+ if(!Array.isArray(rows)||rows.length>2000)throw nativeError('agent_models_unavailable',503);
+ const choices=rows.flatMap((row:any)=>{
+  if(!identifier.test(row?.id||'')||!identifier.test(row?.provider||'')||row.available!==true||config.plugins?.entries?.[row.provider]?.enabled===false)return [];
+  const base=row.id.startsWith(row.provider+'/')?row.id:row.provider+'/'+row.id;
+  const executor=isExecutorModelFlow(flow);
+  // The policy flows (immune, engineering) take the same Gateway LLM policy as the port: never more than it admits.
+  if(executor?(flow==='intent_interpreter'||isPolicyModelFlow(flow))&&!pluginCompletionAllow(config).includes(base):!flowAgents(flow).every(id=>modelReferenceAllowed(configuredModelAllow(config,id),base)))return [];
+  const thinking=thinkingFor(row,defaults);
+  let accounts=includedModelAccounts(base,owner.auth,owner.policy);
+  // An executor runs only its qualified references; an unpinned one cannot choose between several accounts.
+  if(executor){accounts=accounts.filter(account=>executorFlowReference(flow,account.reference,owner.policy));if(accounts.some(account=>!executorFlowReference(flow,account.reference,owner.policy)!.includes('@'))&&accounts.length>1)accounts=[];}
+  const order=accounts.map(account=>account.account).sort();
+  return accounts.map(account=>({id:row.id,provider:row.provider,ref:publicModelRef(account.reference),account:account.account,
+   accountLabel:row.provider+' · compte connecté'+(order.length>1?' '+(order.indexOf(account.account)+1):''),costPolicy:account.costPolicy,costProofSource:account.source,reasoning:row.reasoning===true,
+   thinkingLevels:executor?[]:thinking.levels,thinkingDefault:executor?null:thinking.default,thinkingSource:executor?'unsupported':thinking.source,fastModeSupported:!executor&&base==='openai/gpt-5.6-sol'}));
+ });
+ if(choices.length>256||new Set(choices.map(row=>row.ref)).size!==choices.length)throw nativeError('agent_models_unavailable',503);
+ return choices;
+}
+const provenancePath=(flow:EditableModelFlow)=>[...MODEL_FLOW_PROVENANCE_PATH,'flows',flow];
+// Executor flows keep no R6 conversation proof: their readers re-validate the qualified set, and a proof would
+// switch the conversation catalog/legacy-write fence (modelFlowSelection presence) for an unrelated setting.
+function flowPaths(flow:EditableModelFlow):string[][]{return isExecutorModelFlow(flow)?modelFlowSettingPaths(flow):[...modelFlowSettingPaths(flow),provenancePath(flow)];}
+function normalizeFlowProvenance(config:any){
+ const value=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.modelFlowSelection;
+ if(value===undefined)return;
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['version','flows'].includes(key))||value.version!==undefined&&value.version!==1||!value.flows||typeof value.flows!=='object'||Array.isArray(value.flows)||Object.keys(value.flows).some(key=>!['brain','conversation_summary','whatsapp'].includes(key)))throw nativeError('model_flow_provenance_unverified',409);
+ if(Object.keys(value.flows).length===0)setFlowPath(config,[...MODEL_FLOW_PROVENANCE_PATH],undefined,false);
+ else {value.version=1;for(const proof of Object.values(value.flows))modelFlowSafeValue(proof);}
+}
+function objectAt(value:any,segments:string[]){let node=value;for(const key of segments){if(!node||typeof node!=='object'||Array.isArray(node)||!Object.prototype.hasOwnProperty.call(node,key))return {present:false};node=node[key];}return {present:true,value:node};}
+const publicFlowValue=modelFlowSafeValue;
+function flowContainers(flow:EditableModelFlow):string[][]{return flow==='conversation_summary'?[['agents','defaults','compaction']]:flow==='whatsapp'||isExecutorModelFlow(flow)?[['plugins','entries','openclaw-plugin-mobile-ui','config']]:[];}
+function flowSnapshot(config:any,flow:EditableModelFlow){return [...flowPaths(flow).map(path=>{const value=objectAt(config,path);return {path,present:value.present,...(value.present?{value:publicFlowValue((value as any).value)}:{})};}),...flowContainers(flow).map(path=>({path,present:objectAt(config,path).present,container:true}))];}
+function flowHash(value:any){return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');}
+function flowResult(status:any){
+ if(['running','done'].includes(status?.state)&&typeof status.result==='string'&&status.result.length<=65536)try{const result=JSON.parse(status.result);if(result?.receipt?.version===2&&result.receipt.action==='agent.config'&&result.receipt.runId===status.runId)return result;}catch{}
+ return {success:false,state:'indeterminate',receipt:null};
+}
+/** Readback of this owner's uncertain effect, invoked only by the existing run-status GET.
+ * This does not dispatch configuration or session writes and never retries the action. */
+export async function reconcileModelFlowRunStatus(status:any){
+ const result=flowResult(status),receipt=result.receipt;
+ const checkpointedDispatch=status?.state==='running'&&result.state==='dispatching'&&Number.isSafeInteger(result.artifact?.preservedSessions)&&result.artifact.preservedSessions>=0&&result.artifact.preservedSessions<=2000&&!pending.has(receipt?.operationId);
+ const uncertainEffect=result.state==='indeterminate'&&result.artifact?.dispatchAttempted===true;
+ if((!checkpointedDispatch&&!uncertainEffect)||status?.sessionId!=='native-owner-actions'||!receipt||
+  receipt.runId!==status.runId||!modelFlowIds.has(receipt.flow)||typeof receipt.operationId!=='string'||!/^[-A-Za-z0-9_.:]{1,128}$/.test(receipt.operationId)||!/^[a-f0-9]{64}$/.test(receipt.appliedHash||''))return status;
+ try{
+  const operationId='agent-operation-'+crypto.createHash('sha256').update(receipt.operationId).digest('hex');
+  if(!(await readModelFlowConfigurationActivity()).some(row=>row.runId===status.runId&&row.operationId===operationId&&row.flow===receipt.flow))return status;
+  const observed=await callOpenClawGateway('config.get',{}, {hardTimeoutMs:3000});
+  if(flowHash(flowSnapshot(configObject(observed),receipt.flow))!==receipt.appliedHash)return status;
+  let continuity='pending';try{const event=await memoryRemember({surface:'app',kind:'completed_action',text:'Modèles par flux : configuration '+receipt.flow+' vérifiée ; reçu '+status.runId+'. Aucun droit ni contexte de contact modifié.'});if(event.state==='recorded')continuity='recorded';}catch{}
+  const verified={...result,success:true,state:'completed',artifact:{...result.artifact,configurationRevision:observed.hash,continuity,reconciled:true},receipt:{...receipt,state:'completed'}};
+  await settleSubmittedRun(status.runId,'done',JSON.stringify(verified));invalidateAgentConfigCache();invalidateSessionDefaults();
+  return {...await getRunStatus(status.runId),result:JSON.stringify(verified)};
+ }catch{return status;}
+}
+async function readModelFlowConfig(flow:EditableModelFlow){
+ const [owner,defaults,latest,latency]=await Promise.all([readModelOwnerFresh(),sessionDefaults(),latestModelFlowConfiguration(flow),readModelFlowTurnLatency()]);
+ const config=configObject(owner.raw),current=configuredModelFlow(config,flow,owner.policy),model=current.model,primary=typeof model==='string'?model:model?.primary;
+ const fallbacks=model&&typeof model==='object'&&Array.isArray(model.fallbacks)?model.fallbacks:[];
+ const choices=selectedFlowModels(owner,flow,defaults),snapshot=flowSnapshot(config,flow),revert=latest?.receipt?.appliedHash===flowHash(snapshot)?latest.receipt.runId:null;
+ let restorable=true;try{assertFlowRestorable(snapshot,owner,choices);}catch{restorable=false;}
+ return {success:true,state:'ok',receipt:null,schemaVersion:2,flow,revision:owner.raw.hash,model:publicModelRef(primary),fallbacks:fallbacks.map((ref:string)=>publicModelRef(ref)),thinking:current.thinkingDefault??null,
+  fastMode:typeof current.fastModeDefault==='boolean'?current.fastModeDefault:null,fastModeSetting:flow==='conversation_summary'||isExecutorModelFlow(flow)?null:current.fastModeDefault==='auto'?'auto':typeof current.fastModeDefault==='boolean'?(current.fastModeDefault?'on':'off'):'inherited',inheritsFrom:current.inheritsFrom,origins:current.origins,mixedFields:current.mixedFields,source:'gateway_config',models:choices,
+  writeFields:flowWriteFields(flow),writeAvailable:choices.length>0&&restorable,
+  previousReceiptRunId:revert,issues:[...(!choices.length?['included_model_authentication_proof_unavailable']:[]),...(!restorable?['model_flow_previous_version_unavailable']:[])],
+  appliesTo:'new_sessions',metrics:projectModelFlowMetrics(flow,latency),...(isPolicyModelFlow(flow)?policyFlowView(flow,owner.policy,primary,fallbacks):{})};
+}
+/** Policy flows: the rest of the canonical profile still follows the chosen models (governor order), shown read-only. */
+function policyFlowView(flow:'immune_system'|'engineering_learning',policy:any,primary:any,fallbacks:any[]){
+ const chosen=[primary,...fallbacks].filter((ref:any)=>typeof ref==='string').map((ref:string)=>ref.split('@')[0]);
+ const profile=policyProfileSlots(policy,POLICY_FLOW_PROFILE[flow]).map(row=>row.model);
+ return {policyProfile:POLICY_FLOW_PROFILE[flow],policyContinuation:profile.filter(model=>!chosen.includes(model.split('@')[0])).map(model=>publicModelRef(model))};
+}
+
+function setFlowPath(config:any,path:string[],value:any,present=true){
+ let node=config;for(const part of path.slice(0,-1)){if(!node[part]||typeof node[part]!=='object'||Array.isArray(node[part])){if(!present)return;node[part]={};}node=node[part];}
+ if(present)node[path.at(-1)!]=value;else delete node[path.at(-1)!];
+}
+function flowPatchRows(flow:EditableModelFlow,snapshot:any){
+ const expected=[...flowPaths(flow).map(path=>({path,container:false})),...flowContainers(flow).map(path=>({path,container:true}))];
+ const invalid=!Array.isArray(snapshot)||snapshot.length!==expected.length||snapshot.some((row:any,index:number)=>{
+  if(!row||typeof row!=='object'||Array.isArray(row)||JSON.stringify(row.path)!==JSON.stringify(expected[index].path)||typeof row.present!=='boolean'||Object.keys(row).some(key=>!['path','present','value','container'].includes(key)))return true;
+  if(expected[index].container)return row.container!==true||'value' in row;
+  return row.container!==undefined||row.present!==('value' in row);
+ });
+ if(invalid)throw nativeError('model_flow_receipt_invalid',409);
+ return snapshot;
+}
+
+function canonicalFlowReference(value:string,owner:any,models:any[],exactPrevious=false):string{
+ if(!identifier.test(value)||!value.includes('/'))throw nativeError('model_flow_model_not_included',409);
+ const profiles=knownProfiles(owner.auth),resolved=resolveModelRef(value,profiles);
+ if(!resolved)throw nativeError('model_flow_account_unavailable',409);
+ const same=models.filter(choice=>choice.ref===publicModelRef(resolved));
+ if(same.length===1)return resolved;
+ if(!resolved.includes('@')){
+  const candidates=models.filter(choice=>choice.ref?.split('@')[0]===resolved);
+  const provider=owner.auth?.providers?.find((row:any)=>row.provider===resolved.split('/')[0]);
+  const healthy=(provider?.profiles||[]).filter((row:any)=>['ok','static','expiring'].includes(row.status));
+  if(candidates.length===1&&(!exactPrevious||healthy.length===1)){
+   if(exactPrevious)return resolved; // Exact prior key presence/value, only with an unambiguous included account.
+   const canonical=resolveModelRef(candidates[0].ref,profiles);if(canonical)return canonical;
+  }
+ }
+ throw nativeError('model_flow_model_not_included',409);
+}
+function restoreFlowValue(value:any,owner:any,models:any[]):any{
+ if(typeof value==='string')return value.includes('/')?canonicalFlowReference(value,owner,models,true):value;
+ if(typeof value==='boolean'||value===1)return value;
+ if(Array.isArray(value))return value.map(row=>restoreFlowValue(row,owner,models));
+ if(value&&typeof value==='object'&&Object.keys(value).sort().join()==='fieldsHash,version')return modelFlowSafeValue(value);
+ if(value&&typeof value==='object'&&Object.keys(value).every(key=>['version','model','primary','fallbacks','thinkingDefault','fastModeDefault'].includes(key)))return Object.fromEntries(Object.entries(value).map(([key,row])=>[key,restoreFlowValue(row,owner,models)]));
+ throw nativeError('model_flow_receipt_invalid',409);
+}
+/** A reversible settings action must not knowingly strand its previous state.
+ * Unknown legacy billing/account eligibility is never silently re-admitted by rollback. */
+function assertFlowRestorable(previous:any[],owner:any,models:any[]):void{
+ try{for(const row of previous)if(row.present&&!row.container)restoreFlowValue(row.value,owner,models);}
+ catch{throw nativeError('model_flow_previous_version_unavailable',409);}
+}
+function flowRefs(value:any):string[]{const model=value?.model??value;return typeof model==='string'?[model]:model&&typeof model==='object'?[model.primary,...(Array.isArray(model.fallbacks)?model.fallbacks:[])].filter((ref:any)=>typeof ref==='string'):[];}
+function flowAccountSet(value:any,owner:any):Set<string>{
+ const profiles=knownProfiles(owner.auth),out=new Set<string>();
+ for(const ref of flowRefs(value)){
+  const resolved=resolveModelRef(ref,profiles);if(!resolved)continue;
+  if(resolved.includes('@'))out.add(resolved.split('/')[0]+'@'+resolved.slice(resolved.indexOf('@')+1));
+  else {const provider=owner.auth?.providers?.find((row:any)=>row.provider===resolved.split('/')[0]),healthy=(provider?.profiles||[]).filter((row:any)=>['ok','static','expiring'].includes(row.status));if(healthy.length===1)out.add(provider.provider+'@'+healthy[0].profileId);}
+ }
+ return out;
+}
+function previousFlowAccounts(config:any,flow:EditableModelFlow,owner:any):Set<string>{
+ // A policy flow already runs every account of its effective chain (setting then profile): none of them is new.
+ if(isPolicyModelFlow(flow)){const chain=policyFlowChain(config,flow,owner.policy);return flowAccountSet({model:{primary:chain.primary,fallbacks:chain.fallbacks}},owner);}
+ const sources=flow==='whatsapp'?[configuredModelFlow(config,flow),...CONTACT_MODEL_AGENTS.map(id=>config.agents?.entries?.[id])]:[configuredModelFlow(config,flow)];
+ const sets=sources.map(value=>flowAccountSet(value,owner));
+ return new Set([...sets[0]].filter(value=>sets.every(set=>set.has(value))));
+}
+function validateEffectiveFlow(config:any,flow:EditableModelFlow,owner:any,models:any[]){
+ // « Hériter » of a policy flow leaves the canonical profile chain, owned and qualified by the governor.
+ if(isPolicyModelFlow(flow)&&!objectAt(config,modelFlowSettingPaths(flow)[0]).present)return;
+ const selected=configuredModelFlow(config,flow,owner.policy);
+ for(const ref of flowRefs(selected))canonicalFlowReference(ref,owner,models,true);
+ if(isExecutorModelFlow(flow)){
+  const refs=flowRefs(selected).map(ref=>executorFlowReference(flow,ref,owner.policy));
+  if(!refs.length||refs.some(ref=>!ref)||new Set(refs).size!==refs.length||refs.length-1>EXECUTOR_FLOW_MAX_FALLBACKS[flow])throw nativeError('model_flow_options_unsupported',409);
+  return;
+ }
+ if(flow!=='conversation_summary'){
+  const primary=flowRefs(selected)[0],choice=models.find(row=>row.ref?.split('@')[0]===primary?.split('@')[0]);
+  // Missing fields are native inheritance, not an invalid explicit setting.
+  // Revert also preserves the SDK's existing automatic speed mode exactly.
+  const effort=selected.thinkingDefault,speed=selected.fastModeDefault;
+  if(!choice||effort!==undefined&&!choice.thinkingLevels.includes(effort)||
+     speed!==undefined&&typeof speed!=='boolean'&&speed!=='auto'||
+     (speed===true||speed==='auto')&&!choice.fastModeSupported)throw nativeError('model_flow_options_unsupported',409);
+ }
+}
+async function changeModelFlowConfigOnce(body:any){
+ const flow=modelFlow(body?.flow);
+ const mode=body.mode,common=['flow','mode','revision','operationId','confirmationId'];
+ const fields=mode==='set'?flowWriteFields(flow):mode==='revert'?['restoreRunId']:mode==='inherit'?[]:null;
+ if(!fields||typeof body!=='object'||Array.isArray(body)||fields.some(key=>!(key in body))||Object.keys(body).some(key=>![...common,...fields].includes(key))||!/^[-A-Za-z0-9_.:]{1,128}$/.test(body.operationId||'')||!configHash.test(body.revision||''))throw nativeError('invalid_model_flow_config');
+ const refList=(value:any,max:number)=>Array.isArray(value)&&value.length<=max&&new Set(value).size===value.length&&value.every((ref:any)=>typeof ref==='string'&&identifier.test(ref)&&ref.includes('/'));
+ if(mode==='set'&&isExecutorModelFlow(flow)&&(!identifier.test(body.model||'')||!body.model.includes('/')||flowWriteFields(flow).includes('fallbacks')&&(!refList(body.fallbacks,EXECUTOR_FLOW_MAX_FALLBACKS[flow])||body.fallbacks.includes(body.model))))throw nativeError('invalid_model_flow_config');
+ if(mode==='set'&&!isExecutorModelFlow(flow)&&(!identifier.test(body.model||'')||!body.model.includes('/')||flow!=='conversation_summary'&&(!thinkingLevels.includes(body.thinking)||typeof body.fastMode!=='boolean'||!Array.isArray(body.fallbacks)||body.fallbacks.length>20||new Set(body.fallbacks).size!==body.fallbacks.length||body.fallbacks.some((ref:any)=>typeof ref!=='string'||!identifier.test(ref)||!ref.includes('/')))))throw nativeError('invalid_model_flow_config');
+ if(mode==='revert'&&(typeof body.restoreRunId!=='string'||!/^[A-Za-z0-9._:-]{1,160}$/.test(body.restoreRunId)))throw nativeError('invalid_model_flow_config');
+ const desired={flow,mode,revision:body.revision,...Object.fromEntries(fields.map(key=>[key,body[key]]))};
+ const payloadHash=flowHash(desired),target=flow+':'+payloadHash,identity=JSON.stringify({action:'agent.config',target});
+ const clientId='agent-operation-'+crypto.createHash('sha256').update(body.operationId).digest('hex'),sessionId='native-owner-actions';
+ const existing=await findSubmittedRunByClientRunId(clientId,{text:identity,sessionId});
+ if(existing&&flowResult(existing).state!=='failed')return flowResult(existing);
+ if(await protectedActivity())throw nativeError('protected_owner_activity',409);
+ const [owner,defaults]=await Promise.all([readModelOwnerFresh(),sessionDefaults()]);const config=configObject(owner.raw);
+ if(owner.raw.hash!==body.revision)throw nativeError('agent_config_revision_changed',409);
+ if(!isExecutorModelFlow(flow)&&!config.agents?.entries?.main||!config.plugins?.entries?.['openclaw-plugin-mobile-ui']||config.plugins.entries['openclaw-plugin-mobile-ui'].enabled===false||flow==='whatsapp'&&CONTACT_MODEL_AGENTS.some(id=>!config.agents?.entries?.[id]))throw nativeError('model_flow_owner_shape_unsupported',409);
+ const models=selectedFlowModels(owner,flow,defaults);if(!models.length)throw nativeError('included_model_policy_unavailable',409);
+ const previous=flowSnapshot(config,flow),next=JSON.parse(JSON.stringify(config));
+ assertFlowRestorable(previous,owner,models);
+ if(mode==='set'){
+  const model=canonicalFlowReference(body.model,owner,models),fallbacks=Array.isArray(body.fallbacks)?body.fallbacks.map((ref:string)=>canonicalFlowReference(ref,owner,models)):[];
+  const choice=models.find(row=>row.ref===publicModelRef(model));
+  if(!choice||!isExecutorModelFlow(flow)&&flow!=='conversation_summary'&&(!choice.thinkingLevels.includes(body.thinking)||body.fastMode&&!choice.fastModeSupported))throw nativeError('model_flow_options_unsupported',409);
+  if(isExecutorModelFlow(flow))setFlowPath(next,modelFlowSettingPaths(flow)[0],{version:1,model:{primary:model,fallbacks}});
+  else if(flow==='conversation_summary')setFlowPath(next,['agents','defaults','compaction','model'],model);
+  else{
+   const selection={model:{primary:model,fallbacks},thinkingDefault:body.thinking,fastModeDefault:body.fastMode};
+   for(const id of flow==='brain'?['main']:[...CONTACT_MODEL_AGENTS])for(const field of ['model','thinkingDefault','fastModeDefault'])setFlowPath(next,['agents','entries',id,field],(selection as any)[field]);
+   if(flow==='whatsapp')setFlowPath(next,['plugins','entries','openclaw-plugin-mobile-ui','config','whatsappModelFlow'],{version:1,...selection});
+  }
+ }else if(mode==='inherit'){
+  for(const row of flowPaths(flow))setFlowPath(next,row,undefined,false);
+ }else{
+  const stored=flowResult(await getRunStatus(body.restoreRunId));
+  if(stored.state!=='completed'||stored.receipt.flow!==flow||stored.receipt.appliedHash!==flowHash(previous))throw nativeError('model_flow_previous_version_changed',409);
+  for(const row of flowPatchRows(flow,stored.receipt.previous)){
+   if(row.container){normalizeFlowProvenance(next);if(!row.present){const current=objectAt(next,row.path);if(current.present&&Object.keys((current as any).value||{}).length){if(row.path.join('.')==='plugins.entries.openclaw-plugin-mobile-ui.config'&&Object.keys((current as any).value).every(key=>key==='modelFlowSelection'))continue;throw nativeError('model_flow_parent_changed',409);}setFlowPath(next,row.path,undefined,false);}}
+   else setFlowPath(next,row.path,row.present?restoreFlowValue(row.value,owner,models):undefined,row.present);
+  }
+ }
+ const conversationFlow=!isExecutorModelFlow(flow);
+ if(conversationFlow){
+  if(mode!=='revert')setFlowPath(next,provenancePath(flow),{version:1,fieldsHash:modelFlowSettingHash(next,flow)});
+  normalizeFlowProvenance(next);
+  if(objectAt(next,[...MODEL_FLOW_PROVENANCE_PATH]).present)verifiedModelFlowProvenance(next,flow);
+ }
+ validateEffectiveFlow(next,flow,owner,models);
+ const applied=flowSnapshot(next,flow);
+ if(Buffer.byteLength(JSON.stringify({previous,applied}))>48000)throw nativeError('model_flow_snapshot_too_large',409);
+ const priorAccounts=previousFlowAccounts(config,flow,owner),afterAccounts=flowAccountSet(configuredModelFlow(next,flow,owner.policy),owner);
+ const expanded=[...afterAccounts].some(account=>!priorAccounts.has(account));
+ if(expanded){
+  const challenge={scope:'agent.config.expand_fallbacks',reference:'flow:'+flow,payloadHash};
+  if(typeof body.confirmationId!=='string')throw Object.assign(nativeError('confirmation_required',403),{confirmation:challenge});
+  const record=await confirmations.status(body.confirmationId);
+  await confirmations.consume(body.confirmationId,{audience:'confirmation',action:{type:challenge.scope,reference:challenge.reference,payloadHash},presentation:record.intent.presentation,origin:record.intent.origin});
+ }
+ const reserved=await reserveSubmittedRun(identity,sessionId,clientId,{requestText:identity,executionSource:'capability_first',decision:{version:2,type:'EXECUTE',capability:'agent.config',modelFlow:flow}});
+ if(!reserved.created&&flowResult(reserved.status).state!=='failed')return flowResult(reserved.status);
+ const preparedReceipt={version:2,action:'agent.config',flow,target,operationId:body.operationId,runId:reserved.status.runId,at:reserved.status.submittedAt,previous,appliedHash:flowHash(applied)};
+ await checkpointModelFlowConfiguration(reserved.status.runId,{success:false,state:'prepared',receipt:preparedReceipt});
+ let state='indeterminate',artifact:any,dispatchAttempted=false,preservedSessions=0;
+ try{
+  if(await protectedActivity())state='refused';
+  else{
+   // Executor flows change no agent or session model: there is no conversation to pin.
+   const preservation=conversationFlow?await preserveModelFlowSessions(flow as 'brain'|'conversation_summary'|'whatsapp',config,body.operationId):{state:'verified' as const,preserved:0};
+   if(preservation?.state!=='verified')throw nativeError('model_flow_new_session_policy_unverified',409);
+   preservedSessions=preservation.preserved;
+   const fresh=await callOpenClawGateway('config.get',{}, {hardTimeoutMs:3000});if(fresh?.hash!==body.revision)throw nativeError('agent_config_revision_changed',409);
+   const patch:any={};for(const path of flowPaths(flow)){const value=objectAt(next,path);setFlowPath(patch,path,value.present?(value as any).value:null);}for(const path of flowContainers(flow))if(!objectAt(next,path).present)setFlowPath(patch,path,null);
+   const admission=objectAt(next,[...MODEL_FLOW_PROVENANCE_PATH]);if(!conversationFlow){/* no R6 proof for executor flows */}else if(!admission.present)setFlowPath(patch,[...MODEL_FLOW_PROVENANCE_PATH],null);else setFlowPath(patch,[...MODEL_FLOW_PROVENANCE_PATH,'version'],1);
+   await checkpointModelFlowConfiguration(reserved.status.runId,{success:false,state:'dispatching',receipt:preparedReceipt,artifact:{preservedSessions:preservation.preserved}});
+   dispatchAttempted=true;
+   let dispatchError:any;try{await callOpenClawGateway('config.patch',{baseHash:body.revision,raw:JSON.stringify(patch),replacePaths:flowPaths(flow).map(row=>row.join('.'))});}catch(error){dispatchError=error;}
+   const observed=await callOpenClawGateway('config.get',{}, {hardTimeoutMs:4000});
+   if(flowHash(flowSnapshot(configObject(observed),flow))===flowHash(applied)){
+    state='completed';invalidateAgentConfigCache();invalidateSessionDefaults();observeVerifiedModelOwnerConfig({...owner,raw:observed});
+    let continuity='pending';try{const event=await memoryRemember({surface:'app',kind:'completed_action',text:'Modèles par flux : configuration '+flow+' vérifiée ; reçu '+reserved.status.runId+'. Aucun droit ni contexte de contact modifié.'});if(event.state==='recorded')continuity='recorded';}catch{}
+    artifact={configurationRevision:observed.hash,flow,preservedSessions:preservation.preserved,continuity};
+   }else if(dispatchError&&/baseHash|hash mismatch|config.*changed|revision.*conflict/i.test(String(dispatchError?.message||''))){state='refused';artifact={reason:'agent_config_revision_changed'};}
+   else if(dispatchError&&['ECONNREFUSED','ENOENT'].includes(String(dispatchError?.code||''))){state='failed';artifact={reason:'gateway_unreachable',effectNotStarted:true};}
+  }
+ }catch(error:any){if(error?.statusCode===409&&/^(agent_config_revision_changed|model_flow_[a-z_]+|conversation_[a-z_]+)$/.test(error?.message||'')){state='refused';artifact={reason:error.message};}}
+ if(state==='indeterminate')artifact={...artifact,dispatchAttempted,preservedSessions};
+ const result={success:state==='completed',state,...(artifact?{artifact}:{}),receipt:{version:2,action:'agent.config',flow,target,operationId:body.operationId,runId:reserved.status.runId,state,at:reserved.status.submittedAt,previous,appliedHash:flowHash(applied)}};
+ await settleSubmittedRun(reserved.status.runId,'done',JSON.stringify(result));
+ const saved=await findSubmittedRunByClientRunId(clientId,{text:identity,sessionId});return saved?flowResult(saved):{success:false,state:'indeterminate',receipt:null};
 }

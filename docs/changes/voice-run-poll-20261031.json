@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "id": "voice-run-poll-20261031",
+  "date": "2026-10-31",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The voice capability route reads its brain run through voiceRunStatus every 100 ms instead of getRunStatus every 500 ms: a run this process follows on its Gateway socket and not yet terminal is answered from the same memory row observedRunStatus uses, with no runs.json read; terminal, reconcile, expired and unknown runs keep the full getRunStatus. voiceBrainDelegation.ts is unchanged (deps from server.ts). The change note also lists, with code references, the other fixed costs of a no-tool voice turn, left for measurement with [voice-stages].",
+  "reason": "S24 31/10 brain-only voice bench: 6.2 s from t25 to t30 for a no-tool turn with a ~3 s model step. The 500 ms poll added 250 ms on average after the answer landed, and every poll parsed runs.json several times on the event loop that also relays Gemini Live audio (28 registry reads for a 6.2 s turn in the test).",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-run-poll.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-brain-delegation.cjs",
+    "docs/changes/voice-run-poll-20261031.json",
+    "docs/changes/voice-run-poll-20261031.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-voice-run-poll.cjs",
+      "status": "passed",
+      "evidence": "New, in ci.yml. 50 voice polls of a followed run read runs.json 0 times; terminal/unknown/expired take the full path with the verified text; three voice turns settling at the real S24 instants (12,846 ms on 26/10, 26,563 ms on 25/10) and 6,230 ms: wait after the answer 154/437/270 ms -> 54/37/70 ms, registry reads 54/110/28 -> 4; the route wires voiceRunStatus and pollMs 100."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-voice-brain-delegation.cjs",
+      "status": "passed",
+      "evidence": "Server wiring assertion updated to the new status and poll; every other case unchanged."
+    },
+    {
+      "name": "test-voice-*, test-warm-*, test-gateway-*, test-claw-live-*, test-run*, test-owner-*, test-brain-*, test-typed-*, test-canonical-*, test-intent-*; tsc",
+      "status": "passed",
+      "evidence": "Green in the container on this branch (test-conversation-continuity, not in ci.yml, fails identically without this commit)."
+    }
+  ],
+  "documentation": ["docs/changes/voice-run-poll-20261031.md"],
+  "capabilities": {"impact": "none", "reason": "Same route, same run owner, same receipts; only how often and from where the voice reads a followed run's state."},
+  "architecture": {"changed": false, "reason": "Reads the run registry's existing in-memory row; no new store, cache, scheduler or route."},
+  "mcp_owner_parity": {
+    "tools": {"claw_context": "verified_no_impact", "claw_resolve": "verified_no_impact", "claw_execute": "verified_no_impact", "claw_exec": "verified_no_impact", "claw_status": "verified_no_impact", "claw_artifact_read": "verified_no_impact"},
+    "attached": {"schemas": "verified_no_impact", "adapters": "verified_no_impact", "documentation": "verified_impacted", "tests": "verified_impacted", "runtime": "verified_impacted"},
+    "evidence": ["Companion voice route internals only."]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Saves about 200 ms on average per brain voice turn (up to 400 ms) plus the registry parses during the brain run; the bigger fixed costs (two full registry writes before the Gateway request, per-turn python3 context producer, Gateway preparation) are described, not fixed.",
+    "The deferred follow after the voice budget keeps its own 1 s cadence; it now also skips the registry read while the run is followed."
+  ],
+  "rollback": "Revert this commit and redeploy the previous core with companion-deploy.sh; the voice polls getRunStatus every 500 ms again."
+}

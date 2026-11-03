@@ -6,9 +6,25 @@ from pathlib import Path
 HOME=Path.home()
 STATE=Path(os.environ.get("CLAW_LEARNING_GATE_ROOT", HOME/".openclaw"/"learning-gate"))
 WORKSPACE=Path(os.environ.get("CLAW_WORKSPACE", HOME/".openclaw"/"workspace"))
-REGISTRY=WORKSPACE/"ui-playbooks"/"capabilities"/"registry.json"
-HOWTO_ROOT=WORKSPACE/"ui-playbooks"/"capabilities"/"howto"
-JOURNAL=WORKSPACE/"context"/"DEVELOPMENT_JOURNAL.md"
+def _registry_path():
+    """Single code root (02/11): read the registry of the activated playbooks pin; the workspace copy is an
+    alerted fallback. CLAW_WORKSPACE stays an explicit override (tests, other workspaces)."""
+    if "CLAW_WORKSPACE" not in os.environ:
+        try:
+            import sys
+            sys.path.insert(0,str(Path(__file__).resolve().parent))
+            from code_root import ui_playbooks_root
+            root=ui_playbooks_root("learning_gate","capabilities/registry.json",(os.environ.get("CLAW_UI_PLAYBOOKS_ROOT",""),))
+            if root is not None:
+                return root/"capabilities"/"registry.json"
+        except Exception:
+            pass
+    return WORKSPACE/"ui-playbooks"/"capabilities"/"registry.json"
+REGISTRY=_registry_path()
+# Instant capture stays, outside any repository tree: the gate never edits a checkout (single code root, 02/11).
+# HOW-TO and journal are data of the gate; a registry change is only a candidate (REGISTRY_CANDIDATES below).
+HOWTO_ROOT=STATE/"howto"
+JOURNAL=STATE/"journal"/"DEVELOPMENT_JOURNAL.md"
 INCIDENT_DB=Path(os.environ.get("CLAW_INCIDENT_DB", HOME/".openclaw"/"incidents"/"orchestrator.db"))
 RECEIPTS=STATE/"receipts"
 LEDGERS=STATE/"capabilities"
@@ -193,27 +209,26 @@ def write_howto(record):
     block=f"{header}\n<!-- {marker} -->\n## {record['created_at'][:10]} — {clean(record['reusable_learning'],500)}\n{bullets}\n"
     return append_once(path,marker,block)
 
-def apply_registry(record):
+def registry_proposal(record):
+    """What a reviewed PR would change in capabilities/registry.json; never written here (single code root, 02/11).
+    The registry reaches production only through PR, CI, recette and activation of the playbooks pin."""
     if record.get("confidence")!="stable" or not record.get("truth_changed") or not record.get("capability_id"):
-        return False
+        return None
     value=load_json(REGISTRY,{})
     items=value.get("capabilities",[]) if isinstance(value,dict) else []
     target=next((item for item in items if item.get("id")==record["capability_id"]),None)
     if target is None:
-        return False
-    changed=False
+        return None
+    proposal={}
     note=clean(record.get("registry_note"),1200)
     if note and note not in str(target.get("notes","")):
-        target["notes"]=(str(target.get("notes","")).rstrip()+" "+note).strip()
-        changed=True
+        proposal["notes_append"]=note
     rel=f"capabilities/howto/{safe(record['capability_id'])}.md"
-    evidence=target.setdefault("evidence",[])
-    if (HOWTO_ROOT/(safe(record["capability_id"])+".md")).exists() and rel not in evidence:
-        evidence.append(rel); changed=True
-    if changed:
-        value["last_verified"]=dt.date.today().isoformat()
-        atomic_json(REGISTRY,value)
-    return changed
+    howto=HOWTO_ROOT/(safe(record["capability_id"])+".md")
+    if howto.exists() and rel not in (target.get("evidence") or []):
+        proposal["evidence_append"]=rel
+        proposal["howto_source"]=str(howto)
+    return proposal or None
 
 def normalize_list(value):
     if value is None:
@@ -296,6 +311,7 @@ def close(args):
             with ledger.open("a") as handle:
                 handle.write(json.dumps(record,ensure_ascii=False,separators=(",",":"))+"\n")
         if record["truth_changed"] and capability:
+            proposal=registry_proposal(record)
             candidate={
                 "capability_id":capability,
                 "receipt_id":receipt_id,
@@ -303,9 +319,12 @@ def close(args):
                 "evidence":record["evidence"],
                 "confidence":confidence,
             }
+            if proposal:
+                candidate["proposal"]=proposal
             atomic_json(REGISTRY_CANDIDATES/f"{receipt_id}.json",candidate)
-            record["registry_updated"]=apply_registry(record)
-            record["registry_update_required"]=not record["registry_updated"]
+            record["registry_updated"]=False
+            record["registry_update_required"]=proposal is not None
+            record["registry_candidate"]=str(REGISTRY_CANDIDATES/f"{receipt_id}.json")
         else:
             record["registry_updated"]=False
             record["registry_update_required"]=False

@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "sdkVersion": "2026.9.6",
+  "source": "Public openclaw@2026.9.6 tar; the two complete modules match fresh S24 non-symlink SHA256 exactly before patching. No private SDK runtime log, config, auth or transcript included.",
+  "publicTarSha256": "1a7355691bc0e605222ba818f1f72c1787253c78dfeb0df6be2086ec73b71e63",
+  "nativeModules": [
+    {
+      "name": "openclaw-tools-thu-J91q.mjs",
+      "isSymlink": false,
+      "bytes": 794069,
+      "sha256": "313924b5de456a7eb532e4e1921af14092f15b63aa7cfa63b4bbf9f03ef8eb5a"
+    },
+    {
+      "name": "tools-CvXdkvXK.mjs",
+      "isSymlink": false,
+      "bytes": 26994,
+      "sha256": "a31975686eddc6a779865ff896b145b3b41bd7c659ac21761448da6861b0d926"
+    },
+    {
+      "name": "builtin-openclaw-q1hiFm14.mjs",
+      "bytes": 957512,
+      "sha256": "e4504516aef56cd293e11369e420148c5ad60c80e60128ed64bfb57fb7239e25",
+      "isSymlink": false,
+      "parityEvidence": "Native source hash already qualified by root; e4504516\u2026 retained for the exact SDK source owner."
+    }
+  ],
+  "receiptSha256": {
+    "prep-split-native-hashes-receipt.json": "1a2a7a2bfad2b17d0112b87ae86606f1bf91183344bda97f16bb1f1f18221cb2",
+    "probe-exact-prep-parsed-receipt.json": "cdc3607ad3683337e1c9fe51b28fe9762681f8e3b310eb581a71f1d28a8462f3",
+    "probe-factory-costs-receipt.json": "f9b82de0272d54e743fbe789064034e9256a1ab93214be03ecfdb6f51bdb3b5e",
+    "probe-exact-sdk-trajectory-receipt.json": "9ed70e955c338cb26479db563fa1605e843ec108b479b2541edc453f2300f8c2",
+    "observe-probe1440-receipt.json": "b0f38ade1721ca6f25f08a42666fd7b7b87965a40f4459e794de49570e93b5ee"
+  },
+  "scope": "Single public native Bonjour diagnostic; plugin span 11154ms, factory summary16ms/53factories, system-prompt3496ms. No inference of cache miss or specific expensive function yet.",
+  "trackerPublicSourceSha256": "1d8cfb8dd0717d5198b6cd0ee4a821175a92bcab254ce2ae72b73dc77ad11a38"
+}

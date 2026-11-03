@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "id": "deploy-parcours-fresh-session-20261031",
+  "date": "2026-10-31",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The deploy parcours opens one fresh owner session per run (agent:main:recette-deploy:<UTC stamp>) instead of reusing agent:main:recette-deploy, and treats « est indisponible », « est toujours indisponible » and « est momentanément indisponible » as a broken reply.",
+  "reason": "S24 31/10 00:50 Tunis: deploying aff8fe95 (#475, #476, #479) was rolled back on write_recap. The reused recette session still held the refused agenda calls of the dbe0f455 run; the brain answered « l’accès Agenda est toujours indisponible » without calling any tool, so the run judged the session history, not the deployed code. owner_read passed on « est indisponible pour le moment ».",
+  "files": [
+    "installer/termux-lite/deploy-parcours.py",
+    "installer/termux-lite/test-deploy-parcours.py",
+    "docs/changes/deploy-parcours-fresh-session-20261031.json",
+    "docs/changes/deploy-parcours-fresh-session-20261031.md"
+  ],
+  "tests": [
+    {"name": "installer/termux-lite/test-deploy-parcours.py", "status": "passed",
+     "evidence": "8 tests (2 new): the two S24 replies of 31/10 are broken_reply; two runs use two distinct session keys. Already registered in ci.yml."}
+  ],
+  "documentation": ["docs/changes/deploy-parcours-fresh-session-20261031.md"],
+  "capabilities": {"impact": "none", "reason": "Deployment acceptance only; no route or capability."},
+  "architecture": {"changed": false, "reason": "Same parcours owner and paths; one session key per run instead of a shared one."},
+  "mcp_owner_parity": {
+    "tools": {"claw_context": "verified_no_impact", "claw_resolve": "verified_no_impact", "claw_execute": "verified_no_impact", "claw_exec": "verified_no_impact", "claw_status": "verified_no_impact", "claw_artifact_read": "verified_no_impact"},
+    "attached": {"schemas": "verified_no_impact", "adapters": "verified_no_impact", "documentation": "verified_no_impact", "tests": "verified_no_impact", "runtime": "verified_no_impact"},
+    "evidence": ["Deployment acceptance script only."]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": ["One short owner session per deployment; existing session pruning (7 days) removes them."],
+  "rollback": "Revert this commit; the next deployment reuses the shared session again."
+}

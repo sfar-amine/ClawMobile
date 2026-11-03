@@ -46,7 +46,7 @@ wifi_up(){
 }
 notify_info(){ "$RUNTIME_DIR/incident-notify.sh" info "$1"; }
 
-readiness_try_repair(){
+readiness_try_repair_effect(){
   reason="$1"
   case "$reason" in
     wifi_disabled_recovery_standby)
@@ -97,12 +97,18 @@ readiness_arm_due(){
   [ $((now-last)) -ge "$READINESS_ARM_INTERVAL" ]
 }
 
-readiness_arm_primary(){
-  reason="$1"
-  case "$reason" in
-    wireless_debugging_disabled|wireless_debugging_disabled_primary_healthy) ;;
+# Only a disabled Wireless Debugging can be armed. With Wi-Fi off the arm cannot work, and
+# asking the model first opened incidents no repair could close (S24 26/10, a3e972e2).
+readiness_armable(){
+  case "$1" in
+    wireless_debugging_disabled|wireless_debugging_disabled_primary_healthy) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+readiness_arm_primary_effect(){
+  reason="$1"
+  readiness_armable "$reason" || return 1
   readiness_arm_due || return 1
   date +%s >"$READINESS_ARM_LAST"
   log INFO readiness arm_attempt "primary ADB healthy; enabling Wireless Debugging for future recovery"
@@ -206,7 +212,7 @@ readiness_tick(){
   esac
 }
 
-recover_adb(){
+recover_adb_effect(){
   adb 9>&- start-server >/dev/null 2>&1 || true
   adb 9>&- connect "127.0.0.1:$STABLE_PORT" >/dev/null 2>&1 || true
   adb_up && return 0
@@ -242,6 +248,16 @@ $candidates
 EOF
   return 1
 }
+if [ -f "$RUNTIME_DIR/immune-action.sh" ]; then . "$RUNTIME_DIR/immune-action.sh"; else
+ immune_action(){ return 75; }; immune_observe(){ :; }
+fi
+recover_adb(){ IMMUNE_OBSERVATION="adb 127.0.0.1:$STABLE_PORT is not in device state. The bounded operation restarts the ADB server, reconnects the stable port, then retries only the last trusted endpoint and the mDNS endpoint of the expected serial." immune_action adb bounded-trusted-adb-recovery recover_adb_effect "$@"; }
+readiness_try_repair(){ IMMUNE_OBSERVATION="ADB recovery readiness is degraded: reason=${1:-unknown}. The bounded operation repairs only the wireless debugging recovery path, then rechecks readiness." immune_action device.adb.recovery_readiness bounded-wireless-readiness-repair readiness_try_repair_effect "$@"; }
+readiness_arm_primary(){
+ readiness_armable "${1:-}" || return 1
+ readiness_arm_due || return 1
+ IMMUNE_OBSERVATION="ADB recovery readiness is not armed: reason=${1:-unknown}. The bounded operation arms only wireless debugging as the recovery path while primary ADB is used, then rechecks readiness." immune_action device.adb.recovery_readiness bounded-wireless-readiness-arm readiness_arm_primary_effect "$@"
+}
 prev="$(cat "$STATE" 2>/dev/null || printf unknown)"
 recovery_tries=0
 loops=0
@@ -250,12 +266,12 @@ while :; do
   loops=$((loops+1))
   printf '%s' "$(date +%s)" >"$HOME_DIR/.openclaw/health/adb-watchdog.heartbeat"
   if adb_up; then
+    immune_observe adb --healthy
     readiness_tick
     if [ "$prev" != up ]; then
       log INFO recovered ok "ADB operational"
       notify_info "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée." && rm -f "$HELP_NOTIFY"
       "$RUNTIME_DIR/capability-recovered.py" device.adb >/dev/null 2>&1 || log WARN recovery_dispatch failed "device.adb recovery dispatch failed"
-      "$RUNTIME_DIR/chat-continuity-restore.sh" >/dev/null 2>&1 || log WARN continuity_restore failed "deferred ChatGPT restore failed"
     fi
     printf up >"$STATE"; prev=up; recovery_tries=0
   elif ! wifi_up; then
@@ -274,7 +290,6 @@ while :; do
       printf up >"$STATE"; prev=up; recovery_tries=0
       notify_info "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée." && rm -f "$HELP_NOTIFY"
       "$RUNTIME_DIR/capability-recovered.py" device.adb >/dev/null 2>&1 || log WARN recovery_dispatch failed "device.adb recovery dispatch failed"
-      "$RUNTIME_DIR/chat-continuity-restore.sh" >/dev/null 2>&1 || log WARN continuity_restore failed "deferred ChatGPT restore failed"
     else
       if [ "$prev" != recovery_needed ]; then log WARN recovery pending "trusted automatic ADB recovery did not succeed"; fi
       if [ "$recovery_tries" -eq "$HELP_AFTER" ]; then

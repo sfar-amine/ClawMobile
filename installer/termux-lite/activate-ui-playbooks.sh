@@ -38,20 +38,48 @@ if [ "${1:-}" = "--rollback" ]; then
   echo "ROLLED_BACK current=$(basename "$prev")"; exit 0
 fi
 [ -n "${1:-}" ] || { echo "usage: $0 <commit>|--rollback" >&2; exit 2; }
-sha=$(git -C "$W" rev-parse --verify "$1^{commit}")
+# A commit merged moments ago is not in the workspace yet (S24 25/10: « fatal: Needed a single revision » on a fresh
+# merge): fetch it from origin, by SHA first, then the default refs, before giving up.
+sha=$(git -C "$W" rev-parse -q --verify "$1^{commit}" 2>/dev/null) || {
+  git -C "$W" fetch -q origin "$1" 2>/dev/null || git -C "$W" fetch -q origin 2>/dev/null || true
+  sha=$(git -C "$W" rev-parse --verify "$1^{commit}")
+}
 [ -d "$D/$sha" ] || git -C "$W" worktree add -q --detach "$D/$sha" "$sha"
 link_deps "$D/$sha" || exit 3
-(cd "$D/$sha" && PYTHONPATH=. python3 -B -m unittest -q tests.test_capability_decision_contract tests.test_composed_reads)
+# Recorded owner requests replayed without any write (Amine 28/10, reco 3): a dialogue regression blocks activation.
+(cd "$D/$sha" && PYTHONPATH=. python3 -B -m unittest -q tests.test_capability_decision_contract tests.test_composed_reads tests.test_dialogue_replay)
 # Global rules follow the activated playbooks (S24 12/10: the no-invention rule had to be installed by hand).
 rules_rc=0
 if [ -f "$D/$sha/tools/install_interaction_rules.py" ]; then
   python3 "$D/$sha/tools/install_interaction_rules.py" --apply >/dev/null 2>&1 || { echo "interaction_rules_install_failed" >&2; rules_rc=4; }
 fi
+# Single code root (02/11): scheduled jobs run the pin (idempotent, read back; a job left on the workspace copy
+# keeps running and is reported by runtime-sync.sh --check), and the skills baseline follows the activation.
+# Never fatal for the switch, always reported; the next activation or deploy retries.
+code_root_follow(){
+  local here; here="$(dirname "$0")"
+  [ -f "$here/job_code_root.py" ] && { python3 "$here/job_code_root.py" --apply 2>/dev/null | sed 's/^/JOBS /' || echo "job_code_root_attention" >&2; }
+  [ -f "$here/code_root.py" ] && { python3 "$here/code_root.py" baseline --source activation --playbooks "$sha" >/dev/null 2>&1 || echo "code_root_baseline_failed" >&2; }
+  return 0
+}
 cur=$(readlink "$D/current" 2>/dev/null || true)
-if [ "$cur" = "$D/$sha" ]; then compile_views; echo "ALREADY_ACTIVE $sha"; exit "$rules_rc"; fi
+if [ "$cur" = "$D/$sha" ]; then compile_views; code_root_follow; echo "ALREADY_ACTIVE $sha"; exit "$rules_rc"; fi
+oldprev=$(readlink "$D/previous" 2>/dev/null || true)
 [ -n "$cur" ] && swap previous "$cur"
 swap current "$D/$sha"
 compile_views
+# Amine 29/10: the five deployment paths run on the switched snapshot; a failed path switches back (exit 5),
+# a provider outage (exit 3) keeps the snapshot.
+PARCOURS="${CLAW_DEPLOY_PARCOURS:-$(dirname "$0")/deploy-parcours.py}"
+if [ -f "$PARCOURS" ]; then
+  prc=0; parcours=$(python3 "$PARCOURS") || prc=$?
+  echo "PARCOURS $parcours"
+  if [ "$prc" -eq 1 ]; then
+    if [ -n "$cur" ]; then swap current "$cur"; [ -n "$oldprev" ] && swap previous "$oldprev"; compile_views; fi
+    echo "PARCOURS_FAILED kept=$(basename "${cur:-none}")" >&2; exit 5
+  fi
+fi
+code_root_follow
 echo "ACTIVATED $sha previous=$(basename "${cur:-none}")"
 # « Projet Samantha » WhatsApp room: refresh its read-only snapshot when the room exists (never fatal).
 [ -d "$HOME/.openclaw/workspace-projet" ] && { python3 "$(dirname "$0")/project-room.py" build >/dev/null 2>&1 || echo "project_room_refresh_failed" >&2; }

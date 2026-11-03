@@ -1,0 +1,73 @@
+{
+  "source": "S24 prod, read-only capture 2026-11-01 21:40-21:50 UTC; home shown as ~, no secret, no user text",
+  "deploy": {
+    "receipt": "~/.openclaw/deploys/companion-20261101T222449.json",
+    "target": "3543780db3a5a9992521ec6d7978b0d42ae4934d",
+    "previous": "76ed33cd343e6314f0760b6ce1c9447b40be0bb4",
+    "state": "rollback_failed",
+    "detail": "runtime_sync_failed",
+    "runtime_restart_verdict": "Restarted OpenClaw gateway. Targets: 1 (adopted 1); descendants stopped: 0.",
+    "promote_errors": ["activation_readiness_failed", "activation_readiness_failed"]
+  },
+  "activation_readiness_s": 120,
+  "promotions": [
+    {
+      "release": "20261101T222851-d3beb769",
+      "source_commit": "3543780d",
+      "role": "deploy target",
+      "release_created_at": "2026-11-01T21:28:51Z",
+      "guardian_started_at": "2026-11-01T21:29:03Z",
+      "guardian_rows": [
+        "2026-11-01T22:29:21+01:00 event=health_manager-missing action=start",
+        "2026-11-01T22:29:23+01:00 event=health_manager-start result=ok",
+        "2026-11-01T22:29:38+01:00 event=incident_orchestrator-restore action=wait reason=ai_gate_refused",
+        "2026-11-01T22:30:54+01:00 event=incident_orchestrator-missing action=direct_start reason=ai_gate_unreachable",
+        "2026-11-01T22:30:56+01:00 event=incident_orchestrator-start result=ok"
+      ],
+      "orchestrator_start_ok_epoch": 1793568656,
+      "activation_deadline_epoch_lower_bound": 1793568651,
+      "note": "activation_started_epoch of this promotion was overwritten by the next one; its deadline is at least release creation + 120 s; the promotion failed, so the orchestrator came up after it"
+    },
+    {
+      "release": "20261101T223552-d3beb769",
+      "source_commit": "76ed33cd",
+      "role": "deploy rollback",
+      "activation_started_epoch": 1793568953,
+      "activation_deadline_epoch": 1793569073,
+      "guardian_rows": [
+        "2026-11-01T22:36:04+01:00 event=start result=ok",
+        "2026-11-01T22:36:23+01:00 event=health_manager-restore action=wait reason=ai_gate_refused",
+        "2026-11-01T22:36:37+01:00 event=incident_orchestrator-restore action=wait reason=ai_gate_refused",
+        "2026-11-01T22:37:43+01:00 event=health_manager-missing action=start",
+        "2026-11-01T22:38:02+01:00 event=incident_orchestrator-missing action=start",
+        "2026-11-01T22:38:05+01:00 event=incident_orchestrator-start result=ok"
+      ],
+      "orchestrator_start_ok_epoch": 1793569085,
+      "health_at_failure": {
+        "runtime_root": "~/.openclaw/releases/20261101T223552-d3beb769/termux-lite",
+        "immune.root_guardian": "healthy",
+        "immune.health_manager": "healthy",
+        "immune.incident_orchestrator": "down (process missing)",
+        "gateway": "healthy",
+        "companion": "healthy",
+        "transactions.runtime": "healthy"
+      }
+    }
+  ],
+  "tier0_state_after": {
+    "current": "20261101T223552-d3beb769",
+    "soak_state": "activation_failed",
+    "activation_failure": "critical_readiness_unverified",
+    "last_known_good": "20261101T222851-d3beb769",
+    "lkg_confirmed_at": 1793510994.3314488
+  },
+  "lkg_before_tonight": {
+    "release": "20261101T000615-d3beb769",
+    "source_commit": "361df3ff",
+    "why": "lkg_confirmed_at 2026-11-01T05:29:54Z = 6 h hold after its promotion; later releases e0093963, 5011ebb1, 76ed33cd were promoted while in their hold (lkg_candidate), so the link stayed until the rollback promotion of 22:35 replaced it with the release that had just failed activation"
+  },
+  "earlier_switches_without_gate_refusal": [
+    "2026-10-29T22:38:43+01:00 incident_orchestrator-missing action=start (gate accepted, 31 s after guardian start)",
+    "2026-10-31T22:36:59+01:00 incident_orchestrator-missing action=start (gate accepted, 33 s after guardian start)"
+  ]
+}

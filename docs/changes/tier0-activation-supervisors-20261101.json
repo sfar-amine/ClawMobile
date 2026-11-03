@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "id": "tier0-activation-supervisors-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "During the tier0 activation window of the release it runs from (soak_state activating, before activation_deadline_epoch, current == its own release), the root guardian starts or replaces its supervisors directly instead of proposing the restore to the AI gate; and tier0 promote no longer makes a release that never passed its soak (activating, activation_failed, running, failed_no_lkg) the last-known-good.",
+  "reason": "S24 01/11 22:28 and 22:35 (first deploy after the OpenClaw 2026.10.9 switch): companion-deploy 3543780d and its rollback both ended activation_readiness_failed (receipt rollback_failed / runtime_sync_failed) although the Gateway restart itself succeeded (1 target, adopted). The AI gate, whose model answers through the Gateway the deploy restarts, refused the incident-orchestrator restore; the guardian only started it once the gate became unreachable, after the 120 s readiness window (rollback: 12 s late). The rollback promotion then linked last-known-good to the 3543780d release that had just failed activation.",
+  "rollback": "Revert this commit and redeploy the previous commit with companion-deploy.sh; promotions then depend again on the AI gate answering within 120 s and a failed release can again become last-known-good.",
+  "files": [
+    "installer/termux-lite/samantha-root-guardian.sh",
+    "installer/termux-lite/test-root-guardian-gate.py",
+    "installer/termux-lite/tier0-control.py",
+    "installer/termux-lite/test-tier0-activation-readiness.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-tier0-activation-1009/capture.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-tier0-activation-1009/README.md",
+    "docs/changes/tier0-activation-supervisors-20261101.md",
+    "docs/changes/tier0-activation-supervisors-20261101.json"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-root-guardian-gate.py (ci.yml)",
+      "status": "passed",
+      "evidence": "10 tests: missing supervisor started and previous-release supervisor replaced during this release's activation with zero gate calls; expired window, running/activation_failed state, other release and unreadable state keep the gate; S24 capture replayed; the 2 new activation tests fail on the previous guardian."
+    },
+    {
+      "name": "installer/termux-lite/test-tier0-activation-readiness.py (ci.yml)",
+      "status": "passed",
+      "evidence": "20 tests: promotion over a release in activating/activation_failed/running/failed_no_lkg keeps the confirmed LKG (4 subtests fail on the previous tier0-control), a stable release still becomes LKG."
+    },
+    {
+      "name": "installer/termux-lite/test-tier0-lkg-hold.py, test-tier0-control.py",
+      "status": "passed",
+      "evidence": "10 and 15 tests unchanged and green."
+    }
+  ],
+  "documentation": [
+    "docs/changes/tier0-activation-supervisors-20261101.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Deployment/activation owner repair only; no agent, voice or app capability is added or changed.",
+    "ids": []
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same root guardian, same tier0 control and state file; the guardian only reads tier0 state.json, bounded by the existing 120 s activation window. No new store, daemon, scheduler or retry."
+  },
+  "fixtures": [
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-tier0-activation-1009/ (S24 prod, read-only, 2026-11-01 21:40-21:50 UTC, cleaned)"
+  ],
+  "limitations": [
+    "The S24 last-known-good link written by the 22:35 promotion must be repaired once by hand (owner action, recorded in S24 memory); this change only prevents it from recurring.",
+    "Outside an activation window the guardian keeps proposing restores to the AI gate, unchanged."
+  ]
+}

@@ -10,12 +10,20 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 from pathlib import Path
 root=Path(__file__).parent;spec=importlib.util.spec_from_file_location('real_people',${JSON.stringify(canonical)});m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 m.ROOT=root/'people';m.DB=m.ROOT/'directory.db';m.CONTACTS=root/'workspace/memory/whatsapp/contacts';m.CONFIG=root/'config.json';m.SESSION_DB=root/'sessions.sqlite'
+# S24 Gateway config.patch (OpenClaw 2026.9.6 applyMergePatch, RFC 7396): objects merge, null removes.
+def merge(base,patch):
+ if not isinstance(patch,dict):return patch
+ out=dict(base) if isinstance(base,dict) else {}
+ for k,v in patch.items():
+  if v is None:out.pop(k,None)
+  else:out[k]=merge(out.get(k),v)
+ return out
 def gw(method,params=None,timeout_ms=7000):
  before=m.CONFIG.read_text();cfg=json.loads(before);revision=hashlib.sha256(before.encode()).hexdigest()
  if method=='config.get':return {'config':cfg,'hash':revision}
  if method!='config.patch':raise RuntimeError('unsupported fixture method')
  assert params['baseHash']==revision
- raw=json.loads(params['raw']);fields=raw['channels']['whatsapp'];cfg['channels']['whatsapp'].update(fields)\n if 'agents' in raw:cfg['agents']['entries'].update(raw['agents']['entries'])\n if 'bindings' in raw:cfg['bindings']=raw['bindings']\n m.CONFIG.write_text(json.dumps(cfg));count=json.loads((root/'counter.json').read_text());count['patches']+=1;(root/'counter.json').write_text(json.dumps(count));return {'config':cfg}
+ raw=json.loads(params['raw'])\n if 'bindings' in raw:assert 'bindings' in params['replacePaths']\n cfg=merge(cfg,raw)\n m.CONFIG.write_text(json.dumps(cfg));count=json.loads((root/'counter.json').read_text());count['patches']+=1;(root/'counter.json').write_text(json.dumps(count));return {'config':cfg}
 def send(*args):
  count=json.loads((root/'counter.json').read_text());count['messages']+=1;(root/'counter.json').write_text(json.dumps(count));raise AssertionError('silent operation sent a message')
 m.gateway_call=gw;m.whatsapp_send=send

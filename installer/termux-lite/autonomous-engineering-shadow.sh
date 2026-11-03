@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
-UI="$HOME/.openclaw/workspace/ui-playbooks"
+UI="$HOME/.openclaw/runtime-ui-playbooks/current"
 BASE="$HOME/.openclaw/autonomous-engineering"
 SHADOW="$BASE/shadow"
 LOCKS="$BASE/locks"
@@ -68,9 +68,8 @@ PY
 
 tmp="$output.tmp"
 cd "$UI"
-# RDC uses the existing four-call incident budget so a diagnostic follow-up can still reach Sol -> Luna -> Google Free on availability failure.
-max_calls=1
-[ "$component" = remote_desktop ] && max_calls=4
+# Immune decisions use the existing bounded budget and Sol -> Luna only.
+max_calls=4
 set +e
 PYTHONPATH=. timeout 120 python -m skill_intelligence.cli diagnose   persistent_health_failure   --target "$component"   --incident-id "$incident_id"   --evidence-file "$evidence"   --max-calls "$max_calls" >"$tmp" 2>"$errfile"
 rc=$?

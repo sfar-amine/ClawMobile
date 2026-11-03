@@ -1,3 +1,5 @@
+import {nativeTurnProgressHooks} from "./nativeTurnProgress";
+import {ownerFoundationHook} from "./ownerBootstrapContext";
 import {
   android_health,
   android_screenshot,
@@ -11,6 +13,7 @@ import {
   android_ocr_dump,
 } from "./tools/android";
 import { signalComplete as android_signal_complete } from "./tools/attention";
+import { INTERPRET_METHOD, createInterpretHandler } from "./intentInterpreterPort";
 import {
   adb_devices,
   adb_keyevent,
@@ -47,12 +50,12 @@ import { getSkillStatus as clawmobile_skill_status } from "./trace_induction/sta
 import { runSkillFastPath as clawmobile_skill_run_fast_path } from "./trace_induction/fastpath";
 import { reflectFastPathFailure as clawmobile_skill_reflect_fast_path_failure } from "./trace_induction/repair";
 import { clawmobile_batch_execute } from "./tools/batch";
-import { handleOwnerBeforeDispatch, handleOwnerFastPath } from "./modelFastPath";
-import { handlePulseRoomBeforeDispatch } from "./pulseRoomFastPath";
-import { createCapabilityTool } from "./capabilityTool";
-import { agentCapabilityHook } from "./capabilityAgentGuard";
+import { createRoomTools, roomSession } from "./roomBrain";
+import { runtimeNoticeSendingHook } from "./runtimeNotices";
+import {conversationModelProfileHooks} from "./companion/conversationModelProfile";
+import {createTypedCapabilityTools, readTypedToolCatalogue} from "./typedCapabilityTools";
+import { agentCapabilityHook,ROOM_TOOLS,TYPED_CONTROL_ADMISSION_METHOD,typedControlAdmissionHandler } from "./capabilityAgentGuard";
 import { createContactTool } from "./contactTools";
-import { handleContactRoomBeforeDispatch } from "./contactRoomFastPath";
 import { handleQaContactMediaReceived } from "./qaContactMediaOwner";
 
 type JsonSchema = Record<string, any>;
@@ -185,44 +188,49 @@ function register(api: any) {
   // mobile runtime implementation below.
 
   api.on("before_tool_call", agentCapabilityHook);
+  const nativeProgress=nativeTurnProgressHooks();
+  // Existing public SDK event; only native committed user metadata is observed, with no text copied.
+  const transcriptUpdates=api.runtime?.events?.onSessionTranscriptUpdate;
+  if(typeof transcriptUpdates==='function'){
+    const unsubscribe=transcriptUpdates((event:any)=>{void nativeProgress.transcript(event).catch(()=>{});});
+    if(typeof unsubscribe==='function')api.on("gateway_stop",()=>{unsubscribe();});
+  }
+  api.on("agent_end",nativeProgress.ended);
+  api.on("message_sent",nativeProgress.sent);
+  api.on("message_sending",runtimeNoticeSendingHook);
+  api.on("model_call_ended",(event:any,ctx:any)=>nativeProgress.stage(event,ctx,"model"));
+  api.on("after_tool_call",(event:any,ctx:any)=>nativeProgress.stage(event,ctx,"tool"));
+  const modelProfiles=conversationModelProfileHooks(api);
+  api.session?.state?.registerSessionExtension?.(modelProfiles.extension);
+  api.on("before_model_resolve",modelProfiles.resolve,{priority:1000});
+  api.on("before_agent_run",modelProfiles.admit,{priority:1000});
+  // Same authenticated Gateway transport as the existing warm port. This method
+  // only checks a live SDK callback; Companion remains the sole runs.json writer.
+  api.registerGatewayMethod?.(TYPED_CONTROL_ADMISSION_METHOD,typedControlAdmissionHandler,
+    {scope:"operator.write",profileAccess:"independent"});
+  api.on("before_prompt_build", ownerFoundationHook);
 
   // SDK 2026.9.6 emits this accepted-turn observation without awaiting it.
   // Private QA owners admit an existing DRAFT before any staged bytes are read.
   api.on("message_received", async (event:any,ctx:any) => {
+    await nativeProgress.received(event,ctx);
     await handleQaContactMediaReceived(event,ctx);
   });
 
-  api.on("inbound_claim", async (event: any, ctx: any) => {
-    const result = await handleOwnerFastPath(event, ctx);
-    if (result.handled) {
-      api.logger?.debug?.("[capability-first] owner capability handled before model");
-      return result;
-    }
-    return result;
-  });
-
-  // Pièce Pulse (fichier 52 §5): only a contact routed to a Pulse room agent, closed to the Pulse family.
-  // before_dispatch, not inbound_claim: the Gateway runs inbound_claim only for plugin-bound conversations (S24 12/10).
-  api.on("before_dispatch", async (event: any, ctx: any) => {
-    // Owner WhatsApp turns: same capability-first path as the app (inbound_claim never fires for them).
-    const owner = await handleOwnerBeforeDispatch(event, ctx);
-    if (owner.handled) {
-      api.logger?.debug?.("[capability-first] owner capability handled before model");
-      return owner;
-    }
-    const contactRoom = await handleContactRoomBeforeDispatch(event, ctx);
-    if (contactRoom.handled) return contactRoom;
-    const room = await handlePulseRoomBeforeDispatch(event, ctx);
-    if (room.handled) api.logger?.debug?.("[capability-first] pulse room handled before model");
-    return room.handled ? room : undefined;
-  });
+  // Chantier 1 (doc 71): one warm interpreter for every surface, Gemini then Luna.
+  api.registerGatewayMethod?.(INTERPRET_METHOD,
+    createInterpretHandler(() => api.runtime?.llm?.complete?.bind(api.runtime.llm)),
+    // Reads and writes no durable user or session state: operator scope only.
+    { scope: "operator.write", profileAccess: "independent" });
 
   // The factory receives OpenClaw's trusted current-turn context. The first
   // execute argument is a tool-call id, not an authorization context.
-  api.registerTool(
-    (ctx: any) => createCapabilityTool(ctx),
-    { name: "clawmobile_capability" },
-  );
+  // One typed factory (ADR 02/11, step 3): a room contact's session gets the typed tools of its rooms only (roomBrain);
+  // the owner's main agent gets the owner typed tools. No contact room and no owner turn is intercepted before the brain.
+  const typedNames = new Set<string>(ROOM_TOOLS);
+  for (const name of [...readTypedToolCatalogue().map(tool => tool.name), "samantha_catalogue"]) typedNames.add(name);
+  api.registerTool({contextVersion: 2, create: (ctx: any) => roomSession(ctx) ? createRoomTools(ctx)
+    : createTypedCapabilityTools(ctx)}, {names: [...typedNames]});
   api.registerTool((ctx: any) => createContactTool("transmettre_a_amine", ctx), { name: "transmettre_a_amine" });
   api.registerTool((ctx: any) => createContactTool("noter_contact", ctx), { name: "noter_contact" });
 

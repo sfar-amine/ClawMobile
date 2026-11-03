@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "id": "revert-plugin-host-capture-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Revert of PR #510 (plugin host capture, d55ad8f6): with that plugin actually loaded by the OpenClaw 2026.10.9 Gateway, every typed samantha_* tool call was refused with typed_host_admission_required.",
+  "reason": "S24 01/11 22:33 UTC, deploy 9862fd25 (first time the #510 plugin was really loaded: the earlier d55ad8f6 deploy never restarted the Gateway, whose in-memory pre-#510 plugin answered its owner_read): the parcours owner_read and write_recap failed with broken_reply; the recette transcript shows samantha_agenda agenda.event.read and agenda.event.create both returning state unverified, reason typed_host_admission_required. The typed invocation proof recorded by the before_tool_call hook was not found by the tool execute, consistent with the hook and the tool running in different module instances after the capture change. No write happened.",
+  "rollback": "Re-apply PR #510 (revert this revert) only with a test proving that the before_tool_call hook and the typed tools share one module instance under the 2026.10.9 capture.",
+  "files": [
+    "installer/termux-lite/lib.sh",
+    "installer/termux-lite/runtime-sync.sh",
+    "installer/termux-lite/test-plugin-install-noninteractive.sh",
+    "installer/termux-lite/test-runtime-sync.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-plugin-capture/capture-after-498.json",
+    "openclaw-plugin-mobile-ui/scripts/test-plugin-capture-size.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/memoSttOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/officialGatewayOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/openclawSdkVersions.ts",
+    "openclaw-plugin-mobile-ui/src/companion/ownerTurnGateway.ts",
+    "docs/changes/revert-plugin-host-capture-20261101.md",
+    "docs/changes/revert-plugin-host-capture-20261101.json"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "full local CI (ci.yml)",
+      "status": "passed",
+      "evidence": "The reverted tree is the pre-#510 plugin and installer, which passed the 21:06-22:28 production run under OpenClaw 2026.10.9 and the CI of #507/#511; this PR's local CI runs the whole suite."
+    }
+  ],
+  "documentation": [
+    "docs/changes/revert-plugin-host-capture-20261101.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Restores the previous plugin capture behaviour; no capability is added or removed.",
+    "ids": []
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Pure revert to the previous owners."
+  },
+  "fixtures": [
+    "S24 recette transcript agent:main:recette-deploy:20261101t223304z (tool results only, quoted in the .md; no user text)"
+  ],
+  "limitations": [
+    "#126 (first agent turn after a Gateway restart, 72 s capture) is open again; a new attempt must keep one module instance for the guard and the tools."
+  ]
+}

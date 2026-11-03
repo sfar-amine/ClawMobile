@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "id": "typed-question-verbatim-20261028",
+  "date": "2026-10-28",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Each typed domain tool now says that a question in its receipt is asked as it is, without an added format, example or answering instruction.",
+  "reason": "Amine 28/10 about the Pulse creation question: « pas la peine de dire ça, le user fera ce qu'il lui semble bon, ne rien mentionner ». S24 28/10 16:41Z and 17:37Z, Sadok's creation message in Amine's self-chat: the receipt's question was rewritten by the model with « réponds en un seul message avec », then « envoie les informations manquantes dans ce format » and an invented example, although the description already said « Reproduis la réponse prête du reçu ».",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+    "docs/changes/typed-question-verbatim-20261028.json",
+    "docs/changes/typed-question-verbatim-20261028.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+      "status": "passed",
+      "evidence": "Every domain tool of the S24 fixture carries the rule (new assertion)."
+    },
+    {
+      "name": "test-google-typed-schema, test-voice-relay-brain-only, test-owner-foundation; tsc",
+      "status": "passed",
+      "evidence": "Unchanged, still green."
+    }
+  ],
+  "documentation": [
+    "docs/changes/typed-question-verbatim-20261028.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Tool description text only; same actions and parameters."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same tools and host."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_impacted",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Typed tool descriptions of the owner agent only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "A model instruction, not a host guarantee: live proof is the same message in Amine's self-chat answered with the receipt's question only.",
+    "The tool descriptions belong to the cached prompt prefix: the first turn after deploy misses that part of the cache once."
+  ],
+  "rollback": "Revert this commit and redeploy the core."
+}

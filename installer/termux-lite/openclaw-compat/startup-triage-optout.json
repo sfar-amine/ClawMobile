@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "package_version": "2026.9.6",
+  "purpose": "Explicit opt-out of OpenClaw's automatic Gateway startup triage: with OPENCLAW_STARTUP_TRIAGE=off, triageAfterFailure returns before any triage process, managed-handoff claim, embedded repair turn or external coding agent (claude -p, codex) for a gateway-startup failure. Update-failure triage and every other path are unchanged; without the variable the original code runs. Set by gateway-start.sh only once this set is applied and verified.",
+  "files": [
+    {
+      "root": "openclaw",
+      "path": "dist/triage-failure-BI1ymYSt.mjs",
+      "original": "79f504495127a59f632c62c67e70575c41a1c55df122996fd928a497d29afac1",
+      "patched": "ccffc43c1ebdf34f947c213fd10ab4c41bf8626ef9bb7e3b17863fb9836d92ca",
+      "replacements": [
+        [
+          "async function triageAfterFailure(runtime, failure, signal, updateResultPath) {\n\tif (process.env.OPENCLAW_SHELL === \"exec\" || process.env.CODEX_THREAD_ID || isGatewayExternallySupervised() || signal?.aborted) return;",
+          "async function triageAfterFailure(runtime, failure, signal, updateResultPath) {\n\tif (failure.kind === \"gateway-startup\" && process.env.OPENCLAW_STARTUP_TRIAGE === \"off\") {\n\t\truntime.error(\"Automatic startup triage is off (OPENCLAW_STARTUP_TRIAGE=off): no triage process, claim or repair agent was started. Run `openclaw triage` manually if needed.\");\n\t\treturn;\n\t}\n\tif (process.env.OPENCLAW_SHELL === \"exec\" || process.env.CODEX_THREAD_ID || isGatewayExternallySupervised() || signal?.aborted) return;"
+        ]
+      ]
+    }
+  ],
+  "packages": {
+    "2026.10.9": {
+      "files": [
+        {
+          "root": "openclaw",
+          "path": "dist/triage-failure-DoR3aje_.mjs",
+          "original": "a19382f04ad71666a75e3c58c22b0d55b8e1496dbcfdb066ed3908003e8ca746",
+          "patched": "5a105ff11dd208662dd62b3837170a6296ad39dcbbda53b161d005525fef2975",
+          "replacements": [
+            [
+              "async function triageAfterFailure(runtime, failure, signal, updateResultPath) {\n\tif (process.env.OPENCLAW_SHELL === \"exec\" || process.env.CODEX_THREAD_ID || isGatewayExternallySupervised() || signal?.aborted) return;",
+              "async function triageAfterFailure(runtime, failure, signal, updateResultPath) {\n\tif (failure.kind === \"gateway-startup\" && process.env.OPENCLAW_STARTUP_TRIAGE === \"off\") {\n\t\truntime.error(\"Automatic startup triage is off (OPENCLAW_STARTUP_TRIAGE=off): no triage process, claim or repair agent was started. Run `openclaw triage` manually if needed.\");\n\t\treturn;\n\t}\n\tif (process.env.OPENCLAW_SHELL === \"exec\" || process.env.CODEX_THREAD_ID || isGatewayExternallySupervised() || signal?.aborted) return;"
+            ]
+          ]
+        }
+      ]
+    }
+  }
+}

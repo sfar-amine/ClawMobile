@@ -120,6 +120,7 @@ export type IntentSubmitResponse = {
 };
 
 export type CompanionRunStatus = {
+  turnMeasurement?: import("./turnBudget").TurnMeasurement;
   web?: import("./runWeb").RunWebResult;
   /** P1 : tour admis par preuve native, et connexion Gateway finalement utilisée. */
   ownerAdmitted?: boolean;
@@ -189,6 +190,10 @@ export type CompanionRunProgress = {
   events: CompanionRunProgressEvent[];
   /** HS5: real steps derived on read (runProgress.ts); absent for voice runs. */
   steps?: import("./runProgress").RunStep[];
+  /** Agent-authored, user-oriented progress card of this run's session (runs.ts readRunProgressCard). */
+  card?: import("./runs").RunProgressCard;
+  /** Latest typed Samantha tool started by the run (name and action only): the voice's waiting phrase (runProgress.ts). */
+  activity?: import("./runProgress").RunActivity;
   failedStep?: string;
   cause?: string;
   effect?: {debited: "unknown"; source: "receipt"};
@@ -200,6 +205,12 @@ export type CompanionRunProgressEvent = {
   detail?: string;
   at?: number;
   seq?: number;
+  /** Tool call/result correlation of a transcript event (never shown). */
+  callId?: string;
+  /** Title the agent wrote for this tool call (`arguments.title`), user-oriented; the only label shown for a tool call. */
+  title?: string;
+  /** A start-up read of the canonical context files (rules, memory view): shown at most as one « preparing » line. */
+  context?: boolean;
 };
 
 export type RuntimeCommandResponse = {

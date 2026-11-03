@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "id": "revert-model-profile-host-session-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Revert du code de la PR #516 (hooks de profil via api.runtime) : chargé par la Gateway 2026.10.9, chaque appel d'outil typé samantha_* était refusé (typed_host_admission_required), comme avec #510. La recette de déploiement échoue désormais sur ce refus au lieu de juger la phrase. Le retour arrière de companion-deploy ramène désormais toujours le plugin de la Gateway et la release Tier0 au commit précédent, même si la santé du Companion n'est pas prête. Cause racine des refus : OpenClaw 2026.10.9 charge le plugin plusieurs fois dans la Gateway ; la preuve d'admission typée et son sceau deviennent communs au processus (globalThis, Symbol.for) pour que le hook et l'outil se retrouvent quelle que soit la copie.",
+  "reason": "S24 02/11 09:44 UTC, déploiement 20e36415 : write_recap failed (not_stopped_at_recap) et rollback automatique vers 0c5a9b46. Le transcript agent:main:recette-deploy:20261102t084441z montre samantha_agenda agenda.event.read puis agenda.event.create en state unverified, reason typed_host_admission_required ; owner_read avait été jugé passé sur la phrase générique « Je n'ai pas de résultat vérifié… ». Aucune écriture. Après ce rollback, la santé du Companion n'était pas prête à temps : runtime-sync, placé en fin de chaîne &&, n'a pas tourné et la Gateway a gardé le plugin #516 en mémoire et sur disque ; outils typés refusés en production environ 50 min, jusqu'au runtime-sync manuel de 10:25 (ok:true, plugin synced, gateway restarted). Même après le runtime-sync de 10:24 (plugin 0c5a9b46), la recette restait refusée : la capture de la Gateway contenait trois copies du plugin (10:25:19, 10:25:56, 10:28:48), le hook before_tool_call d'une copie écrivait sa preuve dans une Map invisible pour l'outil d'une autre ; à 00:20 l'ordre de chargement avait permis le 5/5.",
+  "rollback": "Ré-appliquer #516 (revert de ce revert) seulement avec une preuve que le hook before_tool_call et les outils typés partagent la même instance de module sous la Gateway 2026.10.9.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/scripts/test-model-profile-host-session.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/conversationModelProfile.ts",
+    "openclaw-plugin-mobile-ui/src/companion/openclawSdkVersions.ts",
+    "openclaw-plugin-mobile-ui/src/companion/ownerTurnGateway.ts",
+    "installer/termux-lite/deploy-parcours.py",
+    "installer/termux-lite/test-deploy-parcours.py",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/test-companion-rollback-identity.py",
+    "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-admission-shared-instances.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-plugin-copies/capture-builds.json",
+    "docs/changes/revert-model-profile-host-session-20261102.json",
+    "docs/changes/revert-model-profile-host-session-20261102.md"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "Admission typée partagée entre copies du plugin",
+      "status": "passed",
+      "evidence": "node scripts/test-typed-admission-shared-instances.cjs : deux copies de dist chargées côte à côte, hook dans A, exécution dans B → admis une fois ; rejeu, appel sans preuve et arguments modifiés toujours refusés. Sans le correctif, le même test échoue avec typed_host_admission_required (reproduction de la prod). Suites voisines vertes : agent-capability-guard 39, typed-capability-tools, typed-direct-call-id 20, typed-device-direct, typed-tools-direct-visible, generation-interrupt, voice-relay-brain-only."
+    },
+    {
+      "name": "Recette de déploiement",
+      "status": "passed",
+      "evidence": "python3 installer/termux-lite/test-deploy-parcours.py : 13 tests verts, dont le refus d'admission typé du 02/11 (owner_read et write_recap → failed typed_admission_refused)."
+    },
+    {
+      "name": "Retour arrière companion-deploy",
+      "status": "passed",
+      "evidence": "python3 installer/termux-lite/test-companion-rollback-identity.py : 6 tests verts ; santé jamais prête → runtime-sync quand même appelé sur le commit précédent (runtime_restored) ; runtime-sync en échec → rollback_failed + alerte."
+    },
+    {
+      "name": "CI locale complète (ci.yml)",
+      "status": "passed",
+      "evidence": "L'arbre plugin revient à 0c5a9b46, en production saine (recette 5/5 du 02/11 00:20) ; la CI locale de cette PR rejoue toute la suite."
+    }
+  ],
+  "documentation": [
+    "docs/changes/revert-model-profile-host-session-20261102.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Rétablit le chargement précédent du SDK de session et durcit le verdict de la recette ; aucune capacité ajoutée ni retirée.",
+    "ids": []
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Revert vers les propriétaires précédents ; la recette garde son lecteur de transcript en lecture seule ; le rollback réutilise runtime-sync.sh (propriétaire existant) sans nouvel ordre ni nouveau service."
+  },
+  "fixtures": [
+    "Transcript de recette S24 agent:main:recette-deploy:20261102t084441z (résultats d'outils seulement, cités dans le .md ; aucun texte utilisateur)",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-plugin-copies/capture-builds.json (relevé S24 en lecture seule des builds de capture, noms et heures)"
+  ],
+  "limitations": [
+    "#126 (premier tour 72–90 s) reste ouvert. La cause des refus de #510/#516 est établie (plusieurs copies du plugin, preuve propre à chaque module) et corrigée ici ; #516 pourra être retentée après ce correctif.",
+    "La note model-profile-host-session-20261102 et ses fixtures sont conservées (le contrat de livraison refuse la suppression d'une note).",
+    "Le registre de preuves est accessible à tout code du processus Gateway (Symbol.for) ; les plugins de ce processus partagent déjà le même domaine de confiance (aucune isolation Node entre eux). Il ne peut être ni remplacé ni énuméré."
+  ]
+}

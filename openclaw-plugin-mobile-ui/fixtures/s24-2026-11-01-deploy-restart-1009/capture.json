@@ -1,0 +1,43 @@
+{
+ "source": "S24 prod, 2026-11-01 20:25-20:31 UTC, read-only captures after the failed companion-deploy d55ad8f6 (receipt companion-20261101T210607); paths under the home shortened to ~",
+ "gateway": {
+  "openclaw": "2026.10.9",
+  "node": "24.22.2",
+  "started_by": "openclaw-upgrade 20261101T204745 (phase start: Popen gateway-start.sh, start_new_session; the upgrade then exited)",
+  "ps_ef_row": "u0_a554  22573     1 26  2022 ?        00:09:36 /data/data/com.termux/files/usr/glibc/lib/ld-linux-aarch64.so.1 --library-path /data/data/com.termux/files/usr/glibc/lib openclaw-gateway",
+  "pid": 22573,
+  "ppid": 1,
+  "proc_stat_starttime": 44781346,
+  "environ_subset": {"OPENCLAW_STATE_DIR": "~/.openclaw", "OPENCLAW_STARTUP_TRIAGE": "off"},
+  "children_ps_ef_rows": [
+   "u0_a554  22931 22573  0  2022 ?        00:00:01 /data/data/com.termux/files/usr/glibc/lib/ld-linux-aarch64.so.1 --library-path /data/data/com.termux/files/usr/glibc/lib /data/data/com.termux/files/home/.openclaw-android/node/bin/node.real /data/data/com.termux/files/usr/lib/node_modules/openclaw/dist/process/spawn-broker/worker.js",
+   "u0_a554  23598 22573  0  2022 ?        00:00:02 /data/data/com.termux/files/usr/glibc/lib/ld-linux-aarch64.so.1 --library-path /data/data/com.termux/files/usr/glibc/lib /data/data/com.termux/files/home/.openclaw-android/node/bin/node.real /data/data/com.termux/files/usr/lib/node_modules/openclaw/dist/process/spawn-broker/worker.js",
+   "u0_a554  25720 23598  0  2022 ?        00:00:01 /data/data/com.termux/files/usr/glibc/lib/ld-linux-aarch64.so.1 --library-path /data/data/com.termux/files/usr/glibc/lib /data/data/com.termux/files/home/.openclaw-android/node/bin/node.real /data/data/com.termux/files/usr/lib/node_modules/openclaw/dist/infra/sqlite-readonly-location.worker.js --openclaw-sqlite-readonly-child session"
+  ],
+  "cli_short_lived_ps_ef_row": "u0_a554   8636  8635 14  2022 ?        00:00:00 /data/data/com.termux/files/usr/glibc/lib/ld-linux-aarch64.so.1 --library-path /data/data/com.termux/files/usr/glibc/lib /data/data/com.termux/files/home/.openclaw-android/node/bin/node.real /data/data/com.termux/files/usr/lib/node_modules/openclaw/openclaw.mjs channels status",
+  "respawn": "foreground `openclaw gateway` skips the CLI respawn in 2026.10.9 (dist/entry.respawn-*.mjs, shouldSkipStartupEnvironmentRespawnForArgv): the launched pid is the Gateway"
+ },
+ "state_leases": {
+  "sql": "CREATE TABLE \"state_leases\" (\n  scope TEXT NOT NULL,\n  lease_key TEXT NOT NULL,\n  owner TEXT NOT NULL,\n  expires_at INTEGER,\n  heartbeat_at INTEGER,\n  payload_json TEXT,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL,\n  PRIMARY KEY (scope, lease_key)\n) STRICT",
+  "gateway_owner_row": {
+   "scope": "gateway-owner",
+   "lease_key": "global",
+   "owner": "<owner-uuid>",
+   "expires_at": 1793565467288,
+   "heartbeat_at": 1793565167288,
+   "payload_json": {"owner": {"pid": 22573, "host": "<host>", "processNamespace": {"platform": "linux", "identity": "<namespace-uuid>", "host": "localhost", "pidNsInode": "unavailable"}, "startedAt": 44781346}, "port": 18789, "mode": "foreground", "supervisor": null, "listeningAt": 1793563085462},
+   "created_at": 1793563064882,
+   "updated_at": 1793565167288
+  }
+ },
+ "companion_pidfile": {"path": "~/.openclaw/workspace/logs/companion-openclaw-gateway.pid", "content": "26995\n", "mtime": "2026-11-01T19:33:18Z", "alive": false, "note": "9.6 Gateway started by the deploy restart of 76ed33cd, stopped by openclaw-upgrade at 19:49 UTC"},
+ "stop_selection_replay": {"candidates": [{"pid": 22573, "ppid": 1}], "recorded_pid": 26995, "targets_as_companion": [], "targets_as_deploy_cli": []},
+ "post_runtime_restart": {
+  "at": "2026-11-01T20:28:54Z",
+  "http": 500,
+  "seconds": 11.05,
+  "body": {"success": false, "state": "running", "message": "Unable to restart runtime: Stop command ran, but OpenClaw gateway is still reachable.", "gateway": {"host": "127.0.0.1", "port": 18789, "reachable": true, "message": "OpenClaw gateway is reachable at 127.0.0.1:18789."}},
+  "gateway_pid_after": 22573
+ },
+ "start_timings_ms": {"health_http_after_start": 69641, "gateway_ready_total": 91999, "first_cold_turn": 188934}
+}

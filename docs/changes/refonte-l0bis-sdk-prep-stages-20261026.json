@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "id": "refonte-l0bis-sdk-prep-stages-20261026",
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Split proven slow plugin and system-prompt preparation through existing SDK callbacks/explicit spans and an independently reversible compatibility owner.",
+  "reason": "Exact public native run: plugin-tools11154ms but53factories total16ms, system-prompt3496ms. Native source needs closed sub-owner attribution before a performance fix; explicit prompt spans preserve the original aggregate checkpoint.",
+  "rollback": "Use the same pinned whatsapp-network-recovery.py --patch-set gateway-prep-stages --rollback, restart through the existing Gateway owner, verify all three original hashes and new ready PID. No runtime config rollback or business-data deletion.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
+    "installer/termux-lite/openclaw-compat/gateway-prep-stages.json",
+    "installer/termux-lite/test-gateway-prep-stages.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/resolver-prompt-harness.cjs",
+    "docs/work/samantha-refonte/L0bis-sdk-prep-stage-splits-20261026.md",
+    "docs/changes/refonte-l0bis-sdk-prep-stages-20261026.json",
+    "docs/changes/refonte-l0bis-sdk-prep-stages-20261026.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/native-timings.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/openclaw-tools-thu-J91q.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/provenance.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/tools-CvXdkvXK.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/builtin-openclaw-q1hiFm14.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/stage-timing-BUG4Fnsv.mjs"
+  ],
+  "documentation": [
+    "docs/work/samantha-refonte/L0bis-sdk-prep-stage-splits-20261026.md",
+    "docs/changes/refonte-l0bis-sdk-prep-stages-20261026.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/README.md"
+  ],
+  "tests": [
+    {
+      "name": "Pinned public SDK atomic compatibility transaction and exact resolver/system-prompt VM",
+      "status": "passed",
+      "evidence": "Source2f80fdafa5ac2554804197a1dc5ee73accaed02f, canonical Node26.11.1, isolated4CPU:5Python tests PASS in1.526s, exit0, including original/patched exact resolver and async prompt VM, application/check/idempotence/rollback, unknown version/hash/symlink refusal, paths disjoint and no automatic hook. Fakeclock parent75ms stays75ms despite71ms overlapping child spans. VM environment is a frozen empty env and public argv constants, never host process. Log core425-prep-complement-29446-20261026.log SHA2565f6648d1b2e7c07b98e4bb1b1f84651f5372b82804163acb89baa282e27d0a83. Earlier VM fixture failures async/process remain preserved. No SDK/S24/model/auth effect, performance gain or final combined-head canonical CI claimed."
+    }
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "NO_CAPABILITY: transient explicit patch-set of existing private compatibility owner only, no new public route/tool/setting, admission or MCP primitive."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuse recordToolPrepStage, prepStages.measure/measureSync, existing tracker/logging and hash-gated atomic compatibility transaction. No new registry/cache/router/daemon/profiler/timer or retry."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Only optional internal closed stage callbacks. No public MCP or HTTP schema, adapter, business effect or payment boundary changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "canonical_ci": "pending_final_combined_head",
+  "native_acceptance": "pending_root_owned_isolated_measurement_no_gain_claim"
+}

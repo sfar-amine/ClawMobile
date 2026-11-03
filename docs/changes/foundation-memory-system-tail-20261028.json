@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "id": "foundation-memory-system-tail-20261028",
+  "date": "2026-10-28",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The owner foundation hook appends the memory view at the end of the system prompt (appendSystemContext) instead of sending it with the current turn (prependContext). Stable rules still open the system prompt (prependSystemContext) and the SOUL.md/AGENTS.md de-duplication of interactive WhatsApp turns is kept; Companion keeps its stable extraSystemPrompt and gets the memory view the same way.",
+  "reason": "S24 28/10 recipe after deploying 3f4758c6 (Gateway trajectory usage, WhatsApp self-chat): every turn's first model call read exactly 14 976 cached tokens and re-read 54-57k without cache (13:47-13:48 before the deploy: 63 232 cached on the first call). Two turns with an identical memory view (16:46, 16:47) still missed. OpenClaw does not persist prependContext, so the previous user message is resent without the memory view and no longer matches the request that was cached; the cache chain breaks at every turn. At the end of the system prompt, a memory change re-reads only the history and an unchanged memory keeps the whole prefix.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/ownerBootstrapContext.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-foundation.cjs",
+    "docs/changes/foundation-memory-system-tail-20261028.json",
+    "docs/changes/foundation-memory-system-tail-20261028.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-owner-foundation.cjs",
+      "status": "passed",
+      "evidence": "WhatsApp, cron/subagent/heartbeat and Companion hooks return appendSystemContext with the memory view and never prependContext; fails on 3f4758c6."
+    },
+    {
+      "name": "test-canonical-agent-bootstrap, test-mcp-foundation, test-voice-brain-delegation, test-voice-relay-brain-only",
+      "status": "passed",
+      "evidence": "Unchanged, still green; tsc OK."
+    }
+  ],
+  "documentation": [
+    "docs/changes/foundation-memory-system-tail-20261028.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same context text, only its position in the prompt."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same hook and producer; no store, router or cache added."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Gateway prompt hook only; MCP primitives unchanged."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Live proof: first-call cached tokens per WhatsApp turn back to the whole prefix when the memory revision is unchanged; app turns measured the same way."
+  ],
+  "rollback": "Revert this commit and redeploy with companion-deploy.sh; the hook returns to prependContext."
+}

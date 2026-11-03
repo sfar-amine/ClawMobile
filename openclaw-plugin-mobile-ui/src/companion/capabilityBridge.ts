@@ -2,10 +2,19 @@ import {runtimeFile} from "../runtimeRoot";
 import { execFile } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
 import {PUBLIC_WEB_BUDGET_MS} from "./runWeb";
 
-const execFileAsync = promisify(execFile);
+/** REQ-3278 (S24 26/10): the Termux glibc shim replaces execFile without its promisify form, so the promise had no
+ * `.child`: the private input was never written and the orphaned rejection restarted the Gateway. The callback form
+ * returns the child on every Node build (same cause as gemini-public-synthesis.mjs, 17/10). */
+function execFileWithChild(file: string, args: string[], options: Parameters<typeof execFile>[2]) {
+  let child!: ReturnType<typeof execFile>;
+  const promise = new Promise<{stdout:string;stderr:string}>((resolve, reject) => {
+    child = execFile(file, args, {...options, encoding:"utf8"}, (error, stdout, stderr) =>
+      error ? reject(Object.assign(error, {stdout, stderr})) : resolve({stdout, stderr}));
+  });
+  return {promise, child};
+}
 
 /** Existing helper transport, with optional bounded read cancellation. A process group includes Python/Graph children. */
 export async function runCapabilityHelperProcess(args: string[], options: {
@@ -18,11 +27,10 @@ export async function runCapabilityHelperProcess(args: string[], options: {
   // Also establish the group in the Python leader: hosted launchers may strip Node's detached flag.
   const groupLeader = "import os,sys; os.getpgrp()==os.getpid() or os.setsid(); os.execv(sys.executable,[sys.executable,*sys.argv[1:]])";
   const commandArgs = options.killGroup ? ["-c",groupLeader,...args] : args;
-  const promise = execFileAsync("python3", commandArgs, {
+  const {promise, child} = execFileWithChild("python3", commandArgs, {
     timeout:options.killGroup?0:options.timeoutMs,maxBuffer:options.maxBuffer,env:options.env,
     ...(options.killGroup?{detached:true,killSignal:"SIGTERM" as const}:options.signal?{signal:options.signal}:{}),
   });
-  const child = promise.child;
   if(options.privateInput!==undefined){
     child.stdin?.on('error',()=>{});
     child.stdin?.end(options.privateInput);
@@ -72,10 +80,12 @@ export async function capabilityBridge(
     targetHint?: string;
     helperPath?: string;
     decision?: Record<string, unknown>;
+    dialogueReadHandoff?: Record<string, unknown>;
+    typedSelection?: Record<string, unknown>;
   } = {},
 ): Promise<Record<string, unknown>> {
-  const text = String(request || "").trim();
-  if (!text) return { success: false, error: "request_required" };
+  const text = options.dialogueReadHandoff!==undefined?String(request||""):String(request || "").trim();
+  if (!text.trim()) return { success: false, error: "request_required" };
   if (text.length > 12000) return { success: false, error: "request_too_large" };
 
   const execute = options.execute === true;
@@ -99,12 +109,21 @@ export async function capabilityBridge(
   for (const helper of candidates) {
     try {
       const prepared = execute && options.decision && typeof options.decision === "object";
-      const argv = prepared
+      const typed = options.typedSelection;
+      if (typed && (!options.requestId || Buffer.byteLength(JSON.stringify(typed)) > 32768)) return {success: false, error: "typed_input_invalid"};
+      const argv = typed
+        ? [helper, execute ? "typed-execute" : "typed-resolve", text, "--selection-stdin", "--surface", surface,
+           "--caller", caller, "--request-id", options.requestId!, "--timeout", String(timeout)]
+        : prepared
         ? [helper, "execute-decision", text, "--decision-b64", Buffer.from(JSON.stringify(options.decision), "utf8").toString("base64"), "--timeout", String(timeout)]
         : [helper, execute ? "execute" : "resolve", text, "--surface", surface, "--caller", caller];
       if (!prepared && targetHint) argv.push("--target", targetHint);
       if (!prepared && execute) argv.push("--timeout", String(timeout));
-      if (execute && options.readOnly === true) argv.push("--read-only");
+      if (execute && options.readOnly === true && !typed) argv.push("--read-only");
+      if(options.dialogueReadHandoff!==undefined){
+        if(!prepared||options.readOnly!==true||caller!=="owner"||!options.dialogueReadHandoff||Array.isArray(options.dialogueReadHandoff)||typeof options.dialogueReadHandoff!=="object"||Buffer.byteLength(JSON.stringify(options.dialogueReadHandoff))>2048)return {success:false,error:"intent_read_handoff_invalid"};
+        argv.push("--dialogue-read-handoff",JSON.stringify(options.dialogueReadHandoff));
+      }
       if(options.requestId)argv.push("--request-id",options.requestId);
       if(execute&&options.runId)argv.push("--run-id",options.runId);
       if(execute&&options.sessionId)argv.push("--session-id",options.sessionId);
@@ -115,6 +134,7 @@ export async function capabilityBridge(
         timeoutMs: remaining===undefined?(timeout+8)*1000:remaining,
         maxBuffer: bounded?128*1024:2*1024*1024,
         env: { ...process.env },signal:options.signal,killGroup:bounded||checkBounded,
+        ...(typed ? {privateInput: JSON.stringify(typed)} : {}),
       });
       const stdout = typeof raw === "string" ? raw : String(raw?.stdout ?? "");
       const parsed = JSON.parse(stdout || "{}");

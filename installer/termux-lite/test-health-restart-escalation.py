@@ -49,7 +49,10 @@ class RestartEscalationTests(unittest.TestCase):
             control.chmod(0o700)
             prefix = MANAGER.read_text().split("log 'event=start", 1)[0]
             probe = home / "probe.sh"
-            probe.write_text(prefix + "\n" + body)
+            # This suite exercises the bounded workflow after AI selection;
+            # refusal/admission is exercised by test-immune-action.py.
+            selected = 'immune_action(){ shift 2; "$@"; }; immune_observe(){ :; }\n'
+            probe.write_text(prefix + "\n" + selected + body)
             env = dict(
                 os.environ,
                 HOME=str(home),

@@ -1,0 +1,73 @@
+{
+  "version": 2,
+  "id": "incident-stale-review-20261026",
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "An incident parked in awaiting_deterministic_recovery for more than 24 h is escalated to the owner once, and health-verdict flags live-healthy incidents with the same resolver as recent failures (namespaced capabilities, Slack bridge).",
+  "reason": "S24 26/10: seven active incidents had no follow-up; three route incidents waited since 17-20/10 with next_retry 0 and no transition out; the live mismatch ignored slack_bridge.",
+  "files": [
+    "installer/termux-lite/incident-orchestrator.py",
+    "installer/termux-lite/incident-orchestrator-worker.sh",
+    "installer/termux-lite/health-verdict.py",
+    "installer/termux-lite/test-incident-orchestrator.py",
+    "installer/termux-lite/test-health-verdict.py",
+    "docs/changes/incident-stale-review-20261026.json",
+    "docs/changes/incident-stale-review-20261026.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-incident-orchestrator.py",
+      "status": "passed",
+      "evidence": "11 tests; 2 new: parked incident escalates once after the bound and still recovers, immune interventions keep their own review. Offline temporary DB."
+    },
+    {
+      "name": "installer/termux-lite/test-health-verdict.py test-health-verdict-f5.py",
+      "status": "passed",
+      "evidence": "24 tests; new mismatch test with immune.adb_watchdog healthy, slack receipt healthy, remote_watchdog down."
+    },
+    {
+      "name": "incident/immune/rdc suites",
+      "status": "passed",
+      "evidence": "test-incident-deterministic-recovery, -continuation, -correlation, test-rdc-incident-loop, test-immune-action and test-incident-runtime-hardening.sh pass."
+    }
+  ],
+  "documentation": [
+    "docs/changes/incident-stale-review-20261026.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Incident lifecycle and health projection only; no route or capability change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same orchestrator, worker loop and notification queue; the review runs inside the existing worker every 5 min."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: no MCP schema, adapter, endpoint or runtime protocol changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Live proof requires companion-deploy, then the three parked route incidents moving to human_required with one notice each."
+  ],
+  "rollback": "Revert this commit; parked incidents return to waiting without review. Incidents already escalated stay human_required until recovered or closed."
+}

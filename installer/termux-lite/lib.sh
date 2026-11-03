@@ -4,6 +4,36 @@ clawmobile_release_root() {
   printf '%s\n' "$HOME/.openclaw/releases/current"
 }
 
+# Uncommitted or untracked source under the given paths of a checkout (run.sh schema repair, Companion start).
+clawmobile_source_dirty() {
+  local repo="$1"; shift
+  [ -n "$(git -C "$repo" status --porcelain --untracked-files=all -- "$@" 2>/dev/null)" ]
+}
+
+# Single code root (Amine 02/11/2026): a Companion restart may rebuild its plugin and re-seed the workspace only
+# from the deployed commit, so an edit or a commit in the checkout is never a silent deploy. One word on stdout,
+# never a failure: ok | dirty | head_differs | release_unreadable. Without any Tier0 release (fresh install, dev
+# host) or outside a git checkout the previous behaviour stays (ok). companion-deploy.sh exports its candidate
+# commit for the restart it performs itself (CLAWMOBILE_DEPLOY_CANDIDATE), the reviewed path.
+clawmobile_code_root_state() {
+  local repo="$1" head release
+  git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || { echo ok; return 0; }
+  if [ -n "$(git -C "$repo" status --porcelain --untracked-files=no 2>/dev/null)" ] \
+     || clawmobile_source_dirty "$repo" openclaw-plugin-mobile-ui installer/workspace-seed-lite; then
+    echo dirty; return 0
+  fi
+  head="$(git -C "$repo" rev-parse HEAD 2>/dev/null || true)"
+  if [ -n "${CLAWMOBILE_DEPLOY_CANDIDATE:-}" ] && [ "$CLAWMOBILE_DEPLOY_CANDIDATE" = "$head" ]; then echo ok; return 0; fi
+  [ -e "$(clawmobile_release_root)" ] || { echo ok; return 0; }
+  release="$(python3 -c 'import json,sys
+try: print(json.load(open(sys.argv[1])).get("source_commit") or "")
+except (OSError,ValueError): print("")' "$(clawmobile_release_root)/manifest.json" 2>/dev/null || true)"
+  if [ -z "$release" ]; then echo release_unreadable
+  elif [ "$release" = "$head" ]; then echo ok
+  else echo head_differs
+  fi
+}
+
 clawmobile_runtime_root() {
   if [ -n "${CLAW_RUNTIME_ROOT:-}" ]; then
     case "$CLAW_RUNTIME_ROOT" in
@@ -742,7 +772,15 @@ clawmobile_enable_plugin() {
 
   openclaw plugins enable "$plugin_id" </dev/null >/dev/null 2>&1 || true
   openclaw config set "plugins.entries[\"$plugin_id\"].enabled" true </dev/null >/dev/null 2>&1 || true
+  clawmobile_grant_plugin_conversation_hooks "$plugin_id"
   openclaw plugins registry --refresh </dev/null >/dev/null 2>&1 || true
+}
+
+# OpenClaw 2026.9.6 drops a non-bundled plugin's conversation hooks (agent_end, before_prompt_build,
+# before_model_resolve, before_agent_run) unless this grant is set (S24 28/10: "typed hook ... blocked").
+# Without them the owner foundation is never injected and every WhatsApp turn got a late "Je reviens vers toi.".
+clawmobile_grant_plugin_conversation_hooks() {
+  openclaw config set "plugins.entries[\"$1\"].hooks.allowConversationAccess" true </dev/null >/dev/null 2>&1 || true
 }
 
 clawmobile_plugin_needs_install() {
@@ -802,6 +840,7 @@ clawmobile_install_plugin() {
       --exclude '.openclaw-plugin-installed-lite.stamp' \
       "$plugin_dir/" "$extension_dir/"
     openclaw config set "plugins.entries[\"$plugin_id\"].enabled" true </dev/null >/dev/null 2>&1 || true
+    clawmobile_grant_plugin_conversation_hooks "$plugin_id"
     touch "$install_stamp"
     return 0
   fi

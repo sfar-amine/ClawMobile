@@ -9,6 +9,9 @@ ROLLBACK_GRACE_S="${HEALTH_ROLLBACK_GRACE_S:-120}"
 case "$RESTART_BUDGET_N:$RESTART_WINDOW_S:$STABILITY_RESET_S:$ROLLBACK_GRACE_S" in *[!0-9:]*) exit 64;; esac
 [ "$RESTART_BUDGET_N" -ge 1 ] && [ "$RESTART_WINDOW_S" -ge 1 ] && [ "$STABILITY_RESET_S" -ge 1 ] && [ "$ROLLBACK_GRACE_S" -ge 1 ] || exit 64
 WHATSAPP_READINESS_GRACE_S=120
+if [ -f "$ROOT/immune-action.sh" ]; then . "$ROOT/immune-action.sh"; else
+ immune_action(){ return 75; }; immune_observe(){ :; }
+fi
 exec 9>"$D/health.lock"; flock -n 9 || exit 0
 log(){ python3 "$ROOT/bounded-log.py" "$LOG" --append "$(date -Iseconds) component=health-manager $*"; }
 proc(){ pgrep -f "$1" 9>&- >/dev/null 2>&1; }; http(){ timeout 3 curl -fsS "$1" 9>&- >/dev/null 2>&1; }; adb_ok(){ timeout 3 adb 9>&- -s 127.0.0.1:5556 get-state 2>/dev/null|grep -qx device 9>&-; }
@@ -21,6 +24,7 @@ reset_restart_budget(){
  put "$n" failures 0; put "$n" next 0
 }
 healthy(){
+ immune_observe "$1" --healthy
  n="$1"; prev=$(get "$n" status unknown); old=$(get "$n" failures 0); t=$(now); since=$(get "$n" stable_since 0)
  if [ "$prev" != healthy ]; then log "service=$n state=healthy"; put "$n" stable_since "$t"; since="$t"; fi
  put "$n" status healthy
@@ -84,20 +88,28 @@ $opened
 EOF
  log "service=$n action=incident_opened incident_id=$iid correlation_id=$correlation_id"; if "$ROOT/incident-orchestrator.py" handled "$n" 9>&- >/dev/null 2>&1; then "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source health-manager --reason "deterministic recovery exhausted; managed handler available" >/dev/null 2>&1 || true; shadow "$n" "$c" "$iid"; else "$ROOT/incident-orchestrator.py" transition "$iid" awaiting_deterministic_recovery --source health-manager --reason "no managed handler; waiting for health-manager verification" >/dev/null 2>&1 || true; log "service=$n state=awaiting_deterministic_recovery reason=no_repair_handler incident_id=$iid correlation_id=$correlation_id"; fi; fi; }
 due(){ [ "$(now)" -ge "$(get "$1" next 0)" ]; }
-start(){ nohup "$2" 9>&- >>"$D/$1.stderr.log" 2>&1 </dev/null & }
+start(){ nohup "${@:2}" 9>&- >>"$D/$1.stderr.log" 2>&1 </dev/null & }
+# Extra arguments after the script (e.g. --gateway-only) are part of the supervisor's identity: a process
+# running the same script without them is another mode and is replaced like a stale release.
 process_uses_script(){
-  pat="$1"; script="$2"
+  pat="$1"; script="$2"; shift 2
+  local found want missing argv
   for pid in $(pgrep -f "$pat" 9>&- 2>/dev/null); do
     [ -r "/proc/$pid/cmdline" ] || continue
+    found=; argv=$'\n'
     while IFS= read -r -d '' arg; do
-      [ "$arg" = "$script" ] && return 0
+      [ "$arg" = "$script" ] && found=1
+      argv+="$arg"$'\n'
     done <"/proc/$pid/cmdline" 2>/dev/null
+    [ -n "$found" ] || continue
+    missing=; for want in "$@"; do [[ "$argv" == *$'\n'"$want"$'\n'* ]] || missing=1; done
+    [ -z "$missing" ] && return 0
   done
   return 1
 }
-supervisor_on_current_root(){ process_uses_script "$1" "$2"; }
+supervisor_on_current_root(){ process_uses_script "$@"; }
 stop_supervisor(){ pat="$1"; pkill -TERM -f "$pat" 9>&- 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt 8 ]; do sleep 1 9>&-; waited=$((waited+1)); done; if proc "$pat"; then log "service=supervisor state=stop_timeout pattern=$pat action=kill_stale"; pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; sleep 1 9>&-; fi; }
-supervisor_lock(){ case "$1" in adb_watchdog) printf '%s' "$HOME/.openclaw/watchdogs/adb-recovery.lock";; remote_watchdog) printf '%s' "$HOME/.openclaw/watchdogs/remote-desktop.lock";; incident_manager) printf '%s' "$HOME/.openclaw/incidents/manager.lock";; *) return 1;; esac; }
+supervisor_lock(){ case "$1" in adb_watchdog) printf '%s' "$HOME/.openclaw/watchdogs/adb-recovery.lock";; remote_watchdog) printf '%s' "$HOME/.openclaw/watchdogs/remote-desktop.lock";; core_services_watchdog) printf '%s' "$HOME/.openclaw/watchdogs/core-services.lock";; incident_manager) printf '%s' "$HOME/.openclaw/incidents/manager.lock";; *) return 1;; esac; }
 wait_supervisor_lock(){
  n="$1"; lock=$(supervisor_lock "$n") || return 0; waited=0
  while :; do
@@ -115,7 +127,7 @@ wait_supervisor_lock(){
 # 4 déploiements en 17 min ont épuisé 3/3, déclenché un rollback Tier0 puis 4 incidents human_required,
 # et ~490 restart_refused par superviseur, sans fin, sur des processus qui tournaient). Un superviseur
 # ABSENT reste une panne et passe par restart_gate.
-check_supervisor(){ n="$1"; pat="$2"; script="$3"; if proc "$pat" && supervisor_on_current_root "$pat" "$script"; then healthy "$n"; return; fi; unstable "$n"; due "$n" || return; if proc "$pat"; then log "service=$n state=stale_runtime action=replace expected=$script budget=exempt"; stop_supervisor "$pat"; wait_supervisor_lock "$n" || { fail "$n"; return; }; else restart_gate "$n" || return; log "service=$n action=start"; fi; start "$n" "$script"; sleep 3 9>&-; proc "$pat" && supervisor_on_current_root "$pat" "$script" && healthy "$n" || fail "$n"; }
+check_supervisor_effect(){ n="$1"; pat="$2"; script="$3"; local -a sargs=("${@:4}"); if proc "$pat" && supervisor_on_current_root "$pat" "$script" "${sargs[@]}"; then healthy "$n"; return; fi; unstable "$n"; due "$n" || return; if proc "$pat"; then log "service=$n state=stale_runtime action=replace expected=$script budget=exempt"; stop_supervisor "$pat"; wait_supervisor_lock "$n" || { fail "$n"; return; }; else restart_gate "$n" || return; log "service=$n action=start"; fi; start "$n" "$script" "${sargs[@]}"; sleep 3 9>&-; proc "$pat" && supervisor_on_current_root "$pat" "$script" "${sargs[@]}" && healthy "$n" || fail "$n"; }
 # A Companion deploy stops and restarts the server itself: never "repair" it meanwhile (S24 11/10: EADDRINUSE,
 # 15 concurrent repairs a day, each one cutting the Remote Bridge). The canonical mode also closes the race
 # between the outer loop and this repair boundary.
@@ -153,7 +165,7 @@ with_repair_lease() (
  "$@"; rc=$?
  return "$rc"
 )
-repair_http_under_lease(){
+repair_http_effect_under_lease(){
  local n="$1" url="$2" pat="$3" script="$4" grace="$5" stop_wait="$6" waited=0
  # The check and every stop/start remain under the same EX lease. A healthy
  # service discovered here consumes no restart budget.
@@ -187,13 +199,15 @@ check_http(){
  fi
  # Idle proof is outside EX to avoid conflicting with our own lease. A campaign
  # starting after this observation prevents the exclusive acquisition below.
- if [ "$n" = companion ] && ! companion_idle_proven; then
+ # It protects work owned by a live Companion only: with no Companion process there is
+ # nothing to interrupt, and requiring it kept a dead Companion down (S24 27/10).
+ if [ "$n" = companion ] && proc "$pat" && ! companion_idle_proven; then
   log "service=$n state=idle_unproven action=skip_repair"; put "$n" next $(( $(now)+15 )); return
  fi
  with_repair_lease repair_http_under_lease "$n" "$url" "$pat" "$script" "$grace" "$stop_wait"
 }
 
-check_adb(){ if adb_ok; then prev=$(get adb status unknown); healthy adb; [ "$prev" = healthy ] || { "$ROOT/capability-recovered.py" device.adb 9>&- >/dev/null 2>&1 || true; "$ROOT/chat-continuity-restore.sh" 9>&- >/dev/null 2>&1 || true; }; return; fi; unstable adb; due adb || return; restart_gate adb || return; log 'service=adb action=fast_reconnect'; timeout 4 adb 9>&- connect 127.0.0.1:5556 >/dev/null 2>&1||true; sleep 1 9>&-; adb_ok && healthy adb || fail adb; }
+check_adb_effect(){ if adb_ok; then prev=$(get adb status unknown); healthy adb; [ "$prev" = healthy ] || "$ROOT/capability-recovered.py" device.adb 9>&- >/dev/null 2>&1 || true; return; fi; unstable adb; due adb || return; restart_gate adb || return; log 'service=adb action=fast_reconnect'; timeout 4 adb 9>&- connect 127.0.0.1:5556 >/dev/null 2>&1||true; sleep 1 9>&-; adb_ok && healthy adb || fail adb; }
 verdict_field(){ python3 - "$D/current.json" "$1" "$2" <<'PY'
 import json,sys
 try:
@@ -203,12 +217,17 @@ except Exception: print('')
 PY
 }
 check_gateway(){ if http http://127.0.0.1:18789/healthz; then put gateway first_down 0; healthy gateway; return; fi; due gateway || return; first=$(get gateway first_down 0); if [ "$first" -le 0 ]; then first=$(now); put gateway first_down "$first"; put gateway next $((first+30)); log 'service=gateway state=unhealthy owner=companion grace_s=180'; return; fi; age=$(( $(now)-first )); if [ "$age" -lt 180 ]; then put gateway next $(( $(now)+30 )); return; fi; fail gateway; }
-check_whatsapp(){
+check_whatsapp_effect(){
  st=$(verdict_field notification.whatsapp state); reason=$(verdict_field notification.whatsapp reason); prev=$(get whatsapp status unknown)
  if [ "$st" = healthy ]; then
   if [ "$prev" = human_required ]; then "$ROOT/incident-orchestrator.py" recover whatsapp runtime --source health-manager --reason "WhatsApp channel verified connected after relink" >/dev/null 2>&1 || true; "$ROOT/incident-close.sh" WhatsApp "Samantha — WhatsApp est de nouveau connecté et vérifié." || true; fi
   put whatsapp unready_since 0; put whatsapp terminal_notified 0; healthy whatsapp; return
  fi
+ # `channel_status_unreadable`: the status CLI did not answer within its budget, which says nothing about
+ # the channel (S24 28/10-02/11: 97 % of the `channel_not_connected` episodes were this, 24 false
+ # incidents). It neither opens, resets nor escalates an outage; an outage already being measured keeps its
+ # start, so the next real reading that is not connected escalates without a new grace.
+ [ "$st" = unverified ] && [ "$reason" = channel_status_unreadable ] && return
  # WhatsApp is an external readiness dependency, not process liveness. A
  # transient channel flap is observed as degraded and cannot trigger a repair
  # or incident. Only a continuous 120 s outage may enter the existing
@@ -232,7 +251,7 @@ EOF
  due whatsapp || return
  if [ "$reason" = channel_not_connected ]; then
   unstable whatsapp
-  lock_out=$("$ROOT/whatsapp-lock-recovery.py" --grace-seconds 120 2>&1); lock_rc=$?
+  lock_out=$(immune_action whatsapp bounded-stale-lock-quarantine "$ROOT/whatsapp-lock-recovery.py" --grace-seconds 120 2>&1); lock_rc=$?
   if [ "$lock_rc" -eq 10 ]; then
    restart_gate whatsapp || return
    log "service=whatsapp state=stale_lock_quarantined action=gateway_restart detail=$lock_out"
@@ -246,26 +265,68 @@ EOF
   fi
   if [ "$lock_rc" -eq 30 ]; then log "service=whatsapp state=lock_recovery_refused detail=$lock_out"; fail whatsapp; return; fi
  fi
+ [ "$reason" = channel_stopped ] && whatsapp_channel_start "$unavailable_for"
  fail whatsapp
+}
+# Safe reconnect for a stopped WhatsApp account: OpenClaw's own `channels.start` (what `channels login` calls
+# after a relink). It starts whatsapp/default only when no task owns it; a running or reconnecting channel
+# answers retry/task-owned and is left alone. No Gateway restart, no session or QR change. The caller's
+# `fail` paces it (15 s .. 8 min) and still opens the incident at the 3rd failure if it does not come back.
+whatsapp_channel_start_effect(){
+ timeout --kill-after=2 25 openclaw gateway call channels.start --timeout 20000 --json \
+   --params '{"channel":"whatsapp","accountId":"default"}' 9>&- 2>/dev/null
+}
+whatsapp_channel_start(){
+ local out rc mode outcome
+ mode=$(canonical_mode)
+ if [ "$mode" != normal ]; then log "service=whatsapp state=${mode:-canonical_mode_unknown} action=skip_channel_start"; return 0; fi
+ out=$(IMMUNE_OBSERVATION="openclaw channels status reports WhatsApp default enabled but stopped for ${1:-0} s: no OpenClaw task owns its reconnection. The bounded operation calls the Gateway method channels.start for whatsapp/default only; a running or reconnecting channel is left untouched; no Gateway restart." immune_action whatsapp bounded-channel-start whatsapp_channel_start_effect); rc=$?
+ if [ "$rc" -eq 75 ]; then
+  # Same rule as the Companion repair: the AI gate is reached through the Companion; without it the
+  # idempotent start runs directly. With a live Companion a refusal waits for the next paced attempt.
+  if proc 'dist/companion/[s]erver.js'; then log "service=whatsapp state=ai_gate_refused action=wait_channel_start"; return 0; fi
+  log "service=whatsapp action=direct_repair reason=ai_gate_unreachable"
+  out=$(whatsapp_channel_start_effect); rc=$?
+ fi
+ outcome=$(printf '%s' "$out" | python3 -c 'import json,re,sys
+try:
+ o=json.load(sys.stdin); oc=(o.get("outcome") or {}) if isinstance(o,dict) else {}
+ ok=lambda v:isinstance(v,str) and re.fullmatch(r"[a-z-]{1,24}",v)
+ v=oc.get("status") if isinstance(oc,dict) else None; r=oc.get("reason") if isinstance(oc,dict) else None
+ print((v+(":"+r if ok(r) else "")) if ok(v) else ("error" if isinstance(o,dict) and o.get("ok") is False else "unknown"))
+except Exception: print("unreadable")' 2>/dev/null)
+ log "service=whatsapp action=channel_start rc=$rc outcome=${outcome:-unreadable}"
+ return 0
 }
 # P0-4: Gateway memory guard (measured thresholds, sustained 10 min, idle proof, 6 h cooldown,
 # receipt health/gateway-memory-guard.json). Graceful restart through the existing Companion route.
-check_gateway_memory(){
+gateway_memory_restart_selected(){
+ local out
+ # Revalidate pressure, idle proof and cooldown after the model's decision.
+ out=$(timeout 15 python3 "$ROOT/gateway-memory-guard.py" 9>&- 2>/dev/null) || return 1
+ case "$out" in *'"action": "restart_requested"'*) ;; *) return 0;; esac
+ restart_gate gateway_memory || return
+ log "service=gateway_memory state=restart_requested owner=companion detail=$out"
+ ( set -o pipefail
+   timeout --kill-after=5 240 curl -fsS --max-time 230 \
+      -X POST -H 'Content-Type: application/json' -d '{}' \
+      http://127.0.0.1:8765/v1/runtime/restart 2>&1 \
+   | python3 "$ROOT/bounded-log.py" "$D/gateway-memory-restart.log" --stream
+ )
+}
+check_gateway_memory_effect(){
  due gateway_memory || return
  put gateway_memory next $(( $(now)+60 ))
- out=$(timeout 15 python3 "$ROOT/gateway-memory-guard.py" 9>&- 2>/dev/null) || { log "service=gateway_memory state=guard_failed"; return; }
+ # Observation alone neither authorizes a restart nor consumes its cooldown.
+ out=$(timeout 15 python3 "$ROOT/gateway-memory-guard.py" --observe 9>&- 2>/dev/null) || return
  case "$out" in
-  *'"action": "restart_requested"'*)
-   restart_gate gateway_memory || return
-   log "service=gateway_memory state=restart_requested owner=companion detail=$out"
-   ( timeout --kill-after=5 240 curl -fsS --max-time 230 \
-       -X POST -H 'Content-Type: application/json' -d '{}' \
-       http://127.0.0.1:8765/v1/runtime/restart 2>&1 \
-     | python3 "$ROOT/bounded-log.py" "$D/gateway-memory-restart.log" --stream ) 9>&- </dev/null >/dev/null 2>&1 &
+  *'"action": "observe_only"'*)
+   immune_action gateway_memory bounded-idle-gateway-restart gateway_memory_restart_selected 9>&- </dev/null >/dev/null 2>&1 &
    ;;
   *'"pressure": ["'*) log "service=gateway_memory state=pressure detail=$out";;
  esac
 }
+
 check_smtp(){ due smtp || return; if timeout 25 "$ROOT/incident-email.sh" --probe 9>&- >/dev/null 2>&1; then healthy smtp; put smtp next $(( $(now)+300 )); else fail smtp; fi; }
 # Le check restaure tout bail réseau dont le garde est mort ou dont le TTL est échu (ligne de reçu
 # écrite par le garde dans ce journal). Wi-Fi coupé SANS bail : jamais réactivé automatiquement
@@ -290,7 +351,7 @@ check_android_phantom_headroom(){
  if [ "$effective" -ge "$PHANTOM_HEADROOM_TARGET" ]; then healthy android_phantom_headroom; put android_phantom_headroom next $(( $(now)+PHANTOM_HEADROOM_CHECK_S )); return; fi
  override=$(exec 9>&-; timeout 3 adb -s 127.0.0.1:5556 shell device_config get activity_manager max_phantom_processes 2>/dev/null | tr -d '\r\n')
  log "service=android_phantom_headroom state=drift override=${override:-unknown} effective=$effective target=$PHANTOM_HEADROOM_TARGET action=restore"
- if timeout 5 adb 9>&- -s 127.0.0.1:5556 shell device_config put activity_manager max_phantom_processes "$PHANTOM_HEADROOM_TARGET" >/dev/null 2>&1; then
+ if immune_action android_phantom_headroom bounded-phantom-limit-restore timeout 5 adb 9>&- -s 127.0.0.1:5556 shell device_config put activity_manager max_phantom_processes "$PHANTOM_HEADROOM_TARGET" >/dev/null 2>&1; then
    verified=$(exec 9>&-; timeout 4 adb -s 127.0.0.1:5556 shell dumpsys activity settings 2>/dev/null | sed -n 's/.*max_phantom_processes=\([0-9][0-9]*\).*/\1/p' | head -n 1)
    case "$verified" in ''|*[!0-9]*) verified=0;; esac
    if [ "$verified" -ge "$PHANTOM_HEADROOM_TARGET" ]; then
@@ -303,7 +364,7 @@ check_android_phantom_headroom(){
  fail android_phantom_headroom
 }
 ssh_ok(){ timeout 2 bash -c 'exec 3<>/dev/tcp/127.0.0.1/8022' 9>&- >/dev/null 2>&1; }
-check_sshd(){
+check_sshd_effect(){
  if ssh_ok; then healthy sshd; return; fi
  unstable sshd
  due sshd || return
@@ -315,7 +376,7 @@ check_sshd(){
 }
 slack_bridge_on_current_root(){ process_uses_script '[c]law-slack-bridge.mjs' "$ROOT/claw-slack-bridge.mjs"; }
 stop_slack_bridge(){ pkill -TERM -f '[c]law-slack-bridge.mjs' 2>/dev/null || true; waited=0; while proc '[c]law-slack-bridge.mjs' && [ "$waited" -lt 8 ]; do sleep 1 9>&-; waited=$((waited+1)); done; if proc '[c]law-slack-bridge.mjs'; then log "service=slack_bridge state=stop_timeout waited_s=$waited action=kill_stale"; pkill -KILL -f '[c]law-slack-bridge.mjs' 2>/dev/null || true; sleep 1 9>&-; fi; }
-check_slack_bridge(){
+check_slack_bridge_effect(){
  "$ROOT/claw-slack-bridge-health.py" 9>&- >/dev/null 2>&1; rc=$?
  if [ "$rc" -eq 2 ]; then
    proc '[c]law-slack-bridge.mjs' && stop_slack_bridge
@@ -396,7 +457,84 @@ except Exception:print("UNAVAILABLE 0 0")
  fi
  return 0
 }
+check_supervisor(){
+ local rc=0
+ if proc "$2" && supervisor_on_current_root "$2" "$3" "${@:4}"; then healthy "$1"; return; fi
+ IMMUNE_OBSERVATION="$(immune_supervisor_facts "$1" "$2" "$3" 2>/dev/null)" immune_action "$1" bounded-supervisor-restore check_supervisor_effect "$@" || rc=$?
+ # core-services-watchdog --gateway-only covers the Gateway precisely while no Companion process exists,
+ # which is also when the AI gate (reached through the Companion) cannot answer. Same rule as the Companion
+ # repair below: with no Companion process the bounded effect runs directly (restart budget, backoff).
+ if [ "$rc" -eq 75 ] && [ "$1" = core_services_watchdog ] && ! proc 'dist/companion/[s]erver.js'; then
+  log "service=$1 action=direct_repair reason=ai_gate_unreachable"
+  check_supervisor_effect "$@" || true
+ fi
+ return 0
+}
+# The AI gate reaches its models only through the Companion itself (/v1/intent/interpret): with no
+# Companion process the gate always answers unavailable, whether the Gateway runs or not, and the
+# Companion never came back (S24 27/10, after a reboot and again at 22:27 with the Gateway up).
+# With no Companion process the existing bounded repair runs directly (same lease, restart budget
+# and canonical mode); a live Companion is never replaced without the AI.
+repair_http_under_lease(){
+ local rc
+ if http "$2"; then healthy "$1"; return; fi
+ IMMUNE_OBSERVATION="$1 HTTP probe failed: $2 did not answer within 3 s (curl -fsS). The bounded operation restarts only this service under the existing lease and budget, then probes it again." immune_action "$1" bounded-http-service-restore repair_http_effect_under_lease "$@"; rc=$?
+ [ "$rc" -eq 75 ] || return 0
+ if [ "$1" = companion ] && ! proc "$3"; then
+  log "service=$1 action=direct_repair reason=ai_gate_unreachable"
+  repair_http_effect_under_lease "$@"; return 0
+ fi
+ log "service=$1 state=ai_gate_refused action=wait retry_in_s=60"; put "$1" next $(( $(now)+60 ))
+}
+check_adb(){
+ if adb_ok; then check_adb_effect; return; fi
+ IMMUNE_OBSERVATION="adb -s 127.0.0.1:5556 get-state did not return device within 3 s. The bounded operation reconnects only the trusted local ADB endpoint, then checks get-state again." immune_action adb bounded-trusted-adb-reconnect check_adb_effect || true
+}
+check_whatsapp(){
+ # Readiness is observed by the existing owner; only its mutating recovery branch
+ # is gated below, so healthy checks and human auth boundaries remain available.
+ check_whatsapp_effect
+}
+check_gateway_memory(){ check_gateway_memory_effect; }
+
+check_sshd(){
+ if ssh_ok; then healthy sshd; return; fi
+ IMMUNE_OBSERVATION="sshd probe failed: the local SSH server did not answer. The bounded operation restarts only sshd under the existing budget, then probes it again." immune_action sshd bounded-sshd-restore check_sshd_effect || true
+}
+check_slack_bridge(){
+ local readiness
+ "$ROOT/claw-slack-bridge-health.py" 9>&- >/dev/null 2>&1; readiness=$?
+ if { [ "$readiness" -eq 0 ] || [ "$readiness" -eq 3 ]; } && slack_bridge_on_current_root; then
+   check_slack_bridge_effect; return
+ fi
+ if [ "$readiness" -eq 2 ] && ! proc '[c]law-slack-bridge.mjs'; then check_slack_bridge_effect; return; fi
+ IMMUNE_OBSERVATION="slack_bridge readiness probe exit=$readiness (0 ready, 2 down, 3 degraded); bridge process present=$(proc '[c]law-slack-bridge.mjs' && echo yes || echo no). The bounded operation restarts only the Slack bridge on the current release, then probes readiness again." immune_action slack_bridge bounded-slack-bridge-restore check_slack_bridge_effect || true
+}
+
+# Service states and backoffs describe processes of the boot that wrote them. After a
+# reboot they said "healthy" for dead services and kept a 15 min backoff (S24 27/10):
+# on a new boot each service state becomes unknown and is checked again at once.
+reset_states_on_new_boot(){
+ local boot previous f n
+ boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null) || return 0
+ [ -n "$boot" ] || return 0
+ previous=$(cat "$S/boot_id" 2>/dev/null)
+ [ "$previous" = "$boot" ] && return 0
+ # No record yet (first start of this version): the states' boot is unknown, keep them.
+ if [ -z "$previous" ]; then printf '%s' "$boot" >"$S/boot_id"; return 0; fi
+ for f in "$S"/*.status; do
+  [ -e "$f" ] || continue
+  case "$(cat "$f" 2>/dev/null)" in
+   healthy|degraded) n=$(basename "$f" .status); put "$n" status unknown; put "$n" failures 0; put "$n" next 0;;
+  esac
+ done
+ printf '%s' "$boot" >"$S/boot_id"
+ log 'event=new_boot action=reset_service_states'
+}
+reset_states_on_new_boot
+
 log 'event=start result=ok state=persistent_backoff'
+
 while :; do
  printf '%s' "$(date +%s)" >"$D/health-manager.heartbeat"
  mode=$(canonical_mode); [ -n "$mode" ] || mode=unknown
@@ -413,6 +551,11 @@ while :; do
  check_supervisor adb_watchdog '[a]db-recovery-watchdog.sh' "$ROOT/adb-recovery-watchdog.sh"
  check_allowlist_expiry
  check_supervisor remote_watchdog '[r]emote-desktop-watchdog.sh' "$ROOT/remote-desktop-watchdog.sh"
+ check_allowlist_expiry
+ # Gateway fallback while no Companion lives (the Companion's own watchdog owns it otherwise); never the
+ # Companion itself, which check_http below owns. Anchored pattern: test-core-services-watchdog.sh (CI, or
+ # a localci-s24 diagnostic on this phone) must never count as this supervisor, nor be stopped as stale.
+ check_supervisor core_services_watchdog '/[c]ore-services-watchdog[.]sh( |$)' "$ROOT/core-services-watchdog.sh" --gateway-only
  check_allowlist_expiry
  check_supervisor incident_manager '[i]ncident-manager.sh' "$ROOT/incident-manager.sh"
  check_allowlist_expiry

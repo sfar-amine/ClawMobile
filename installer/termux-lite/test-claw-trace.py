@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """F3 (doc 62): one command rebuilds a window across the owners, in order, without the user's text."""
-import copy, json, os, runpy, sqlite3, subprocess, tempfile, unittest
+import copy, json, os, re, runpy, sqlite3, subprocess, tempfile, unittest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -16,6 +16,20 @@ class ClawTraceTests(unittest.TestCase):
         self.assertEqual(list(owner['VOICE_DIAGNOSTIC_EVENTS']),contract['events'])
         self.assertEqual(list(owner['VOICE_DIAGNOSTIC_FAILURE_FAMILIES']),contract['failureFamilies'])
         self.assertIn('S24 18/10/2026',contract['provenance'])
+
+    def test_voice_turn_id_copy_matches_runs_owner_and_accepts_readback(self):
+        owner=runpy.run_path(str(HERE/'claw-trace.py'))
+        source=(HERE.parents[1]/'openclaw-plugin-mobile-ui/src/companion/runs.ts').read_text()
+        match=re.search(r'export const VOICE_TURN_ID_RE = /\^(.+)\$/;',source)
+        self.assertIsNotNone(match)
+        self.assertEqual(owner['VOICE_TURN_ID_PATTERN'],match.group(1))
+        project=owner['voice_diagnostics'];contract=self.diagnostics_contract()
+        lo=contract['example']['startedAtMs'];hi=lo+30000
+        for run_id in ('voice-00000000-0000-4000-8000-00000000f003','voice-greeting-00000000-0000-4000-8000-00000000f003',
+                       'voice-readback-00000000-0000-4000-8000-00000000f003'):
+            self.assertEqual(len(project({'runId':run_id,'modality':'voice','voiceDiagnostics':contract['example']},lo,hi)),3,run_id)
+        for run_id in ('voice-other-00000000-0000-4000-8000-00000000f003','voice-readback-PRIVATE','readback-00000000-0000-4000-8000-00000000f003'):
+            self.assertEqual(project({'runId':run_id,'modality':'voice','voiceDiagnostics':contract['example']},lo,hi),[],run_id)
 
     def test_selected_voice_checkpoint_is_correlated_without_adb_or_private_content(self):
         contract=self.diagnostics_contract();start=contract['example']['startedAtMs']

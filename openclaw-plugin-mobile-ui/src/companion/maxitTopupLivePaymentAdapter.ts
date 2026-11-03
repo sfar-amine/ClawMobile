@@ -6,6 +6,7 @@ import type {
   PaymentAdapter,PaymentContinuation,PaymentExecutionContext,PaymentExecutionResult,
   PaymentQuote,PaymentTraceSink
 } from "./paymentTypes";
+import {playbooksRootFor} from "./playbooksRoot";
 
 type ExecJsonFn=(file:string,args:string[],timeoutMs:number)=>Promise<any>;
 type LiveRunFn=(script:string,payload:Record<string,unknown>,timeoutMs:number,onEvent?:(event:any)=>Promise<void>|void)=>Promise<any>;
@@ -126,7 +127,8 @@ function mapResult(result:any,requestId:string):PaymentExecutionResult{
 }
 
 export function createMaxitTopupLivePaymentAdapter(options:MaxitTopupLivePaymentAdapterOptions={}):PaymentAdapter{
-  const uiRoot=options.uiRoot??path.join(os.homedir(),".openclaw","workspace","ui-playbooks");
+  // Single code root (02/11): the activated playbooks pin; the workspace copy only as an alerted fallback.
+  const uiRoot=options.uiRoot??playbooksRootFor("payment_maxit_topup","billing/direct-runtime/maxit-topup-live-cli.mjs");
   const stateDir=options.stateDir??process.env.OPENCLAW_STATE_DIR??path.join(os.homedir(),".openclaw");
   const liveCli=path.join(uiRoot,"billing","direct-runtime","maxit-topup-live-cli.mjs");
   const cardCli=path.join(uiRoot,"billing","direct-runtime","payment-card-cli.mjs");

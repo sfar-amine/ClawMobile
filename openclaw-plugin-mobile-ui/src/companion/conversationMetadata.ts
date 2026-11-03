@@ -1,6 +1,6 @@
 import {conversationContext} from "./conversationContext";
 import {observeConversationOwnerRow,observeSessionDefaults,readConversationOwnerRow} from "./conversationOwnerIndex";
-import {configuredModelAllow,readModelOwnerFresh,peekModelOwner,readModelOwnerCached} from "./modelOwner";
+import {configuredModelAllow,modelReferenceAllowed,includedModelAccounts,readModelOwnerFresh,peekModelOwner,readModelOwnerCached} from "./modelOwner";
 import {accountAlias,accountView,knownProfiles,publicModelRef,resolveModelRef} from "./accountIdentity";
 import {createHash} from "crypto";
 import {callOpenClawGateway,expectedCompanionSessionKey} from "./openclawAgentClient";
@@ -42,7 +42,7 @@ function projection(id:string,row:any){
   mutationAvailable:typeof row.sessionId==='string'&&/^[A-Za-z0-9_.-]{1,128}$/.test(row.sessionId),
   issues:[...(!('authProfileOverride' in row)?['conversation_auth_profile_unknown']:[]),...(pinned===null?['conversation_pin_unknown']:[]),...(!model?['conversation_model_unknown']:[])]};
 }
-function modelCatalogFrom({raw:configRaw,catalog,auth}:any){
+function modelCatalogFrom({raw:configRaw,catalog,auth,policy}:any){
  const config=configRaw?.config,allow=configuredModelAllow(config);
  if(!Array.isArray(allow)||!Array.isArray(catalog?.models)||catalog.models.length>2000||auth?.unavailable||!Array.isArray(auth?.providers))throw nativeError('conversation_model_catalog_unavailable',503);
  const usable=(provider:string,profile?:string)=>{
@@ -53,7 +53,12 @@ function modelCatalogFrom({raw:configRaw,catalog,auth}:any){
  for(const row of catalog.models){
   if(typeof row?.provider!=='string'||typeof row?.id!=='string')continue;
   const id=ref(row.provider,row.id),base=id.split('@')[0];
-  if(!modelPattern.test(id)||!allow.includes(base)||row.available!==true||config.plugins?.entries?.[row.provider]?.enabled===false||!usable(row.provider))continue;
+  if(!modelPattern.test(id)||!modelReferenceAllowed(allow,base)||row.available!==true||config.plugins?.entries?.[row.provider]?.enabled===false||!usable(row.provider))continue;
+  if(config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.modelFlowSelection!==undefined){
+   models.push(...includedModelAccounts(base,auth,policy).map(account=>account.reference));
+   if(models.length>256)throw nativeError('conversation_model_catalog_unavailable',503);
+   continue;
+  }
   models.push(id);
   for(const profile of auth.providers.find((x:any)=>x.provider===row.provider)?.profiles||[]){
    const explicit=base+'@'+profile.profileId;
@@ -94,7 +99,7 @@ export async function readConversationMetadata(id:string){
  // Never leave the composer on an aging snapshot: start the shared single-flight refresh, do not wait for it.
  if(!cached||cached.stale||age>=60000)void readModelOwnerCached().catch(()=>{});
  let catalog:string[]|null=null;
- if(cached)try{catalog=modelCatalogFrom({raw:{config:cached.config},catalog:cached.catalog,auth:cached.auth});}catch{}
+ if(cached)try{catalog=modelCatalogFrom({raw:{config:cached.config},catalog:cached.catalog,auth:cached.auth,policy:cached.policy});}catch{}
  // The snapshot itself is a successful read: a later failed refresh (`stale`) does not void it inside the window.
  const catalogFresh=!!cached&&age<CATALOG_SERVE_MS;
  return publicMetadata({...value,models:catalog||[],thinkingChangeAvailable:value.thinkingChangeAvailable&&owner.state!=='pending',modelChangeAvailable:owner.state!=='pending'&&catalogFresh&&catalog!==null&&catalog.length>0&&owner.row.hasActiveRun===false&&owner.row.permissionModePending===false,
@@ -185,4 +190,9 @@ async function changeOnce(id:string,body:any){
  const result={success:state==='completed',state,...(errorCode?{error:errorCode}:{}),...(httpStatus?{httpStatus}:{}),...(state==='completed'?{artifact:{sessionId:id}}:{}),receipt:{version:1,action,target,operationId:body.operationId,runId:reserved.status.runId,state,at:reserved.status.submittedAt}};
  await settleSubmittedRun(reserved.status.runId,'done',JSON.stringify(result));
  return await storedNativeOperationResult(reserved.status.runId)||{success:false,state:'indeterminate',receipt:null};
+}
+/** Replaced by the qualified native session-extension integration before L5 activation.
+ * Refuse explicitly: preserving old conversations must never be an assumed no-op. */
+export async function preserveModelFlowSessions(_flow:'brain'|'whatsapp'|'conversation_summary',_beforeConfig:any,_operationId:string):Promise<{state:'verified';preserved:number}>{
+ return (await import("./conversationModelProfile")).preserveConversationModelProfiles(_flow,_beforeConfig,_operationId);
 }

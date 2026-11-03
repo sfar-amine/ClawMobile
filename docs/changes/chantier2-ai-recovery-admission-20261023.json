@@ -1,0 +1,92 @@
+{
+  "version": 2,
+  "id": "chantier2-ai-recovery-admission-20261023",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Require existing Sol/Luna admission before deterministic autonomous recovery owners",
+  "reason": "Direct owner decision: AI chooses every repair action; existing deterministic owners execute and verify.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/chantier2-ai-recovery-admission-20261023.json",
+    "docs/changes/chantier2-ai-recovery-admission-20261023.md",
+    "installer/termux-lite/adb-recovery-watchdog.sh",
+    "installer/termux-lite/autonomous-engineering-shadow.sh",
+    "installer/termux-lite/engineering-incident-result.py",
+    "installer/termux-lite/engineering-repair.sh",
+    "installer/termux-lite/immune-action.sh",
+    "installer/termux-lite/immune_action.py",
+    "installer/termux-lite/incident-orchestrator-worker.sh",
+    "installer/termux-lite/incident-orchestrator.py",
+    "installer/termux-lite/remote-desktop-control.py",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/samantha-root-guardian.sh",
+    "installer/termux-lite/test-adb-recovery-readiness-watchdog.sh",
+    "installer/termux-lite/test-android-phantom-headroom.py",
+    "installer/termux-lite/test-engineering-runtime-bridge.py",
+    "installer/termux-lite/test-gateway-memory-guard.py",
+    "installer/termux-lite/test-health-deploy-lock.py",
+    "installer/termux-lite/test-health-restart-escalation.py",
+    "installer/termux-lite/test-immune-action.py",
+    "installer/termux-lite/test-qa-restart-protection.py",
+    "installer/termux-lite/test-remote-desktop-watchdog.py",
+    "installer/termux-lite/test-tier0-distinct-health.py",
+    "installer/termux-lite/tier0-control.py",
+    "installer/termux-lite/tier0-watchdog.py"
+  ],
+  "tests": [
+    {
+      "name": "Native recovery adapters with controlled selected/refused model ports",
+      "status": "passed",
+      "evidence": "test-immune-action.py 5 PASS, HTTP deployment lock4 PASS, RDC21 PASS, Tier0 distinct proof9 PASS, phantom headroom3 PASS, ADB readiness shell PASS. Full canonical CI required."
+    },
+    {
+      "name": "Existing health workflow fixtures with explicit AI selection",
+      "status": "passed",
+      "evidence": "Restart repair lease/descriptors15 PASS, restart escalation9 PASS, memory pressure19 PASS; original safety assertions preserved with explicit selected callback fixture port. Exact CI remains required."
+    },
+    {
+      "name": "Pinned native engineering code and policy entrypoints",
+      "status": "passed",
+      "evidence": "Runtime bridge5 PASS; both shell entrypoints select runtime-ui-playbooks/current and cannot load stale mutable workspace policy. Prior head187441b3 canonical CI3jobs153steps PASS; new exact-head CI required."
+    }
+  ],
+  "documentation": [
+    "docs/changes/chantier2-ai-recovery-admission-20261023.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Internal recovery owner admission; no new application route, capability schema or MCP primitive."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing pool, task_checkpoint, RepairWorkflow and engineering maintenance owners only. No additional store, scheduler or retry engine."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "Unchanged six primitive schemas and canonical read routing; registry metadata and generated documentation updated. tests.test_mcp_delivery_parity and tests.test_capability_graph must pass before publication."
+    ]
+  },
+  "rollback": "Deploy compatible paired Core and playbooks releases through existing owners. Preserve checkpoints, unknown effects and original incident IDs; do not enable unselected repair as fallback.",
+  "limitations": [
+    "Source preparation only; exact-head canonical CI and installed pairing not yet qualified.",
+    "Legacy open tickets require source-backed review; no physical purge."
+  ]
+}

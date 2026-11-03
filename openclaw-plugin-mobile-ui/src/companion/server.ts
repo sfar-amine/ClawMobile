@@ -1,5 +1,7 @@
+import {createNativeTurnProgressOwner} from "../nativeTurnProgressOwner";
 import {readAutomationRuns,invalidateAutomationViews} from "./automationRunsPreparation";
-import { closeOpenClawGateway } from "./openclawAgentClient";
+import { callOpenClawGateway, closeOpenClawGateway,expectedCompanionSessionKey } from "./openclawAgentClient";
+import { INTERPRET_METHOD, IMMUNE_PURPOSE } from "../intentInterpreterPort";
 import {discoverLifx,readLifx,setLifx} from "./lifxLocal";
 import {changeConversationArchive} from "./conversationArchive";
 import {serverLanguage,localizedRoute,localizeServerPresentation,ServerLanguage} from "./serverLocale";
@@ -13,11 +15,13 @@ import {writeAgentFile} from "./agentFileWritePlan";
 import {prewarmUsage,readUsage,readUsageDetails} from './usage';
 import {readProviders} from './providers';
 import {memoryRead,memoryForget,memoryImport} from "./memoryControl";
-import {capabilityDetail} from "./capabilityControl";
+import {capabilityDetail,interruptConversationGeneration,activeConversationGenerations,interruptNativeWhatsAppGeneration} from "./capabilityControl";
+import {TYPED_CONTROL_ADMISSION_METHOD} from '../capabilityAgentGuard';
+import {createHash} from 'node:crypto';
 import {updatesRead} from "./updatesControl";
 import {saveAttachments,purgeAttachments,attachmentContent,attachmentDigest} from "./attachmentStorage";
-import {withAttachmentReferences} from "./runs";
-import {readAgentConfig,changeAgentConfig} from "./agentConfig";
+import {withAttachmentReferences, voiceRunStatus} from "./runs";
+import {readAgentConfig,changeAgentConfig,reconcileModelFlowRunStatus} from "./agentConfig";
 import {engineeringRead} from "./engineeringRead";
 import {learningForget, learningList, learningNotThis} from "./learning";
 import {cancelControlRequest} from "./controlActions";
@@ -43,19 +47,26 @@ import { submitIntent } from "./intent";
 import {securitySurfaces} from "./securitySurfaces";
 import { payments } from "./payments";
 import { confirmations } from "./confirmations";
+import { roomSendApprovals } from "./roomSendApprovals";
 import { turnAdmission, legacyLoopbackOwnerContextEnabled, publicAdmission } from "./ownerTurnAdmission";
 import {normalizeCompanionSessionId} from "./openclawAgentClient";
 import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
+import { routeVoiceTurnToBrain, voiceTurnLogLine } from "./voiceBrainDelegation";
+/**
+ * Voice brain turn reads (S24 31/10 latency): voiceRunStatus answers a followed run from memory, so the voice reads every
+ * 100 ms instead of VOICE_BRAIN_POLL_MS = 500 (mean wait after the answer lands: 50 ms, was 250 ms).
+ */
+const VOICE_RUN_POLL_MS = 100;
 import { dialogueConversationId } from "../dialogueSurface";
-import { clawLiveCapabilityTurn, createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
+import { createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
 import { clawLiveCapability, clawLiveDecision } from "./clawLiveUnderstanding";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
-import { archiveSession, deleteSession, deleteRun, getRunStatus, getRunStatusByClientRunId, listRuns, listRunSummaries, getConversationTurns, saveVoiceTurn, conversationSummariesPage, conversationTurnsPage, subscribeConversationChanges } from "./runs";
+import { archiveSession, deleteSession, deleteRun, getRunStatus, getRunStatusByClientRunId, listRuns, listRunSummaries, getConversationTurns, saveVoiceTurn, recordTurnMeasurement, conversationSummariesPage, conversationTurnsPage, subscribeConversationChanges } from "./runs";
 import { getWorkspaceSkill, listWorkspaceSkills, previewWorkspaceSkill, routeWorkspaceSkills, runWorkspaceFastPath, runWorkspaceSkill } from "./skills";
 import { acceptSkillImport, createSkillSharePackage, listPendingSkillImports, rejectSkillImport, storePendingSkillImport } from "./skillSharing";
 import type { CompanionHealth, CompanionRunStatus, IntentAttachment, RunCreateRequest, TerminalCommandRequest, TerminalCommandResponse, TerminalSessionRequest, TerminalSessionResponse } from "./types";
@@ -71,6 +82,7 @@ const TERMINAL_COMMAND_TIMEOUT_MS = 30_000;
 const MAX_TERMINAL_SESSION_OUTPUT_CHARS = 128 * 1024;
 const DEFAULT_WHATSAPP_LISTENER_WATCHDOG_MS = 15_000;
 let whatsappListenerWatchdogBusy = false;
+const nativeTurnProgressOwner=createNativeTurnProgressOwner();
 const CWD_SENTINEL_PREFIX = "__CLAWMOBILE_CWD:";
 const CWD_SENTINEL_SUFFIX = "__";
 
@@ -81,6 +93,8 @@ type TerminalShellSession = {
   running: boolean;
   updatedAt: number;
 };
+
+
 
 /** Une relecture refusée (source absente, active, déjà remplacée…) n'a rien soumis : 404/409 plutôt que 503. */
 export function replayRefusalStatusCode(result: { success?: boolean; submissionState?: string; message?: string }) {
@@ -281,6 +295,20 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       success: false,
       message: "This endpoint is restricted to local companion app requests.",
     });
+    return;
+  }
+
+  // Chantier 1 (doc 71): loopback owners (the playbooks dialogue/interpreter) reach the single warm
+  // interpreter in the Gateway. No browser, no remote caller, no model or credential choice here.
+  if(routePath==="/intent/interpret"){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||req.headers["x-clawmobile-owner-flow"]!=="v1"){writeJson(res,403,{success:false,error:"native_loopback_owner_required"});return;}
+    if(method!=="POST"){writeJson(res,405,{success:false,error:"method_not_allowed"});return;}
+    res.setHeader("Cache-Control","no-store");
+    let body:any;
+    try{body=await readJsonBody(req,128*1024);}catch{writeJson(res,400,{success:false,error:"INVALID_ARGUMENT"});return;}
+    const budget=body?.purpose===IMMUNE_PURPOSE ? Math.min(92_000,Math.max(1000,(typeof body.totalTimeoutMs==='number'&&Number.isFinite(body.totalTimeoutMs)?body.totalTimeoutMs:60_000)+2000)) : 15_000;
+    try{writeJson(res,200,{success:true,result:await callOpenClawGateway(INTERPRET_METHOD,body,{timeoutMs:budget})});}
+    catch(error:any){writeJson(res,200,{success:false,error:String(error?.code||"gateway_dispatch_indeterminate")});}
     return;
   }
 
@@ -506,6 +534,66 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  const activeGenerations=/^\/conversations\/([^/]+)\/active-generations$/.exec(routePath);
+  if(activeGenerations){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']){
+      writeJson(res,403,{success:false,error:'native_owner_flow_required'});return;
+    }
+    if(method!=='GET'){res.setHeader('Allow','GET');writeJson(res,405,{success:false,error:'method_not_allowed'});return;}
+    try{
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      let id:string;try{id=decodeURIComponent(activeGenerations[1]);}catch{throw Object.assign(new Error(),{statusCode:400});}
+      res.setHeader('Cache-Control','no-store');writeJson(res,200,await activeConversationGenerations(id));
+    }catch(error:any){writeJson(res,error?.statusCode===400?400:503,{success:false,state:'unavailable',items:[]});}
+    return;
+  }
+
+  const conversationInterrupt=/^\/conversations\/([^/]+)\/interrupt$/.exec(routePath);
+  if(conversationInterrupt){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']){
+      writeJson(res,403,{success:false,state:'refused',receipt:null,error:'owner_admission_required'});return;
+    }
+    if(method!=='POST'){res.setHeader('Allow','POST');writeJson(res,405,{success:false,error:'method_not_allowed'});return;}
+    try{
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      let id:string;try{id=decodeURIComponent(conversationInterrupt[1]);}catch{throw Object.assign(new Error(),{statusCode:400});}
+      const raw=await readRawBody(req,2048);
+      let body:any;try{body=JSON.parse(raw.toString('utf8'));}catch{throw Object.assign(new Error(),{statusCode:400});}
+      if(body?.sdk!==undefined){
+        const sdk=body.sdk;
+        if(Object.keys(body).length!==3||!sdk||typeof sdk!=='object'||Array.isArray(sdk)||Object.keys(sdk).length!==3||
+           typeof sdk.invocationId!=='string'||!/^[A-Za-z0-9_.:-]{1,200}$/.test(sdk.invocationId)||
+           typeof sdk.currentRunId!=='string'||!/^[A-Za-z0-9_.:-]{1,200}$/.test(sdk.currentRunId)||
+           typeof sdk.sessionKey!=='string'||sdk.sessionKey.length>512||sdk.currentRunId===body.runId||
+           (id!=='current'&&sdk.sessionKey!==expectedCompanionSessionKey(id)))throw new HttpError(403,'owner_admission_required');
+        const expected={invocationId:sdk.invocationId,operationId:body.operationId,paramsHash:createHash('sha256').update(raw).digest('hex')};
+        // The body is correlation only. The authenticated Gateway rereads a
+        // live SDK guard callback and immutable selection; no model/HTTP bool grants authority.
+        const assertCurrent=async()=>{
+          let proof:any;try{proof=await callOpenClawGateway(TYPED_CONTROL_ADMISSION_METHOD,expected,{timeoutMs:800,hardTimeoutMs:800});}
+          catch{throw new HttpError(403,'owner_admission_required');}
+          if(proof?.version!==1||proof.invocationId!==expected.invocationId||proof.operationId!==expected.operationId||
+             proof.paramsHash!==expected.paramsHash||typeof proof.expiresAt!=='number'||proof.expiresAt<=Date.now())throw new HttpError(403,'owner_admission_required');
+        };
+        const effectBody={operationId:body.operationId,runId:body.runId};
+        const result=id==='current'?await interruptNativeWhatsAppGeneration(sdk.sessionKey,sdk.currentRunId,effectBody,assertCurrent):
+          await interruptConversationGeneration(id,effectBody,assertCurrent);
+        res.setHeader('Cache-Control','no-store');writeJson(res,200,result);return;
+      }
+      const admission=turnAdmission.verifyRequest({method,path:requestUrl.pathname,headers:req.headers,rawBody:raw,
+        clientRunId:body?.operationId,sessionId:id});
+      if(!admission.admitted){writeJson(res,403,{success:false,state:'refused',receipt:null,error:'owner_admission_required'});return;}
+      const assertCurrent=()=>{if(!turnAdmission.isCurrent(admission.ticket,{clientRunId:body.operationId,sessionId:id}))throw new HttpError(403,'owner_admission_required');};
+      const result=await interruptConversationGeneration(id,body,assertCurrent);
+      res.setHeader('Cache-Control','no-store');writeJson(res,200,result);
+    }catch(error:any){
+      const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;
+      writeJson(res,status,{success:false,state:status===503?'unverified':'refused',receipt:null,
+        error:status===400?'invalid_generation_interrupt':status===403?'generation_target_not_admitted':status===409?'protected_owner_activity':'generation_interrupt_unverified'});
+    }
+    return;
+  }
+
   const conversationMetadata=/^\/conversations\/([^/]+)\/metadata$/.exec(routePath);
   if(conversationMetadata){
     if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||(method!=="GET"&&req.headers["x-clawmobile-owner-flow"]!=="v1")){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_flow_required"});return;}
@@ -577,14 +665,20 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     res.setHeader("Cache-Control","no-store");
     if(!['GET','POST'].includes(method)){writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
     try{
-      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
-      const value=method==='GET'?await readAgentConfig():await changeAgentConfig(await readJsonBody(req,2048));
+      let flow:any;
+      if(method==='GET'){
+        for(const [key] of requestUrl.searchParams)if(key!=='flow'||requestUrl.searchParams.getAll(key).length!==1)throw Object.assign(new Error(),{statusCode:400});
+        if(requestUrl.searchParams.has('flow')){flow=requestUrl.searchParams.get('flow');if(!['brain','conversation_summary','whatsapp','intent_interpreter','web_search','voice_memos','immune_system','engineering_learning'].includes(flow))throw Object.assign(new Error(),{statusCode:400});}
+      }else if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      const value=method==='GET'?await readAgentConfig(flow):await changeAgentConfig(await readJsonBody(req,2048));
       writeJson(res,value.state==='refused'?409:200,value);
     }catch(error:any){
       const challenge=error?.confirmation;
-      if(error?.statusCode===403&&error?.message==='confirmation_required'&&challenge?.scope==='agent.config.expand_fallbacks'&&challenge.reference==='main'&&/^[a-f0-9]{64}$/.test(challenge.payloadHash)){
+      if(error?.statusCode===403&&error?.message==='confirmation_required'&&challenge?.scope==='agent.config.expand_fallbacks'&&(challenge.reference==='main'||/^flow:(brain|conversation_summary|whatsapp|intent_interpreter|web_search|voice_memos|immune_system|engineering_learning)$/.test(challenge.reference))&&/^[a-f0-9]{64}$/.test(challenge.payloadHash)){
         writeJson(res,403,{success:false,state:'refused',receipt:null,error:'confirmation_required',scope:challenge.scope,reference:challenge.reference,payloadHash:challenge.payloadHash});
-      }else{const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable'});}
+      }else{const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;
+        const modelFlowReason=typeof error?.message==='string'&&/^(?:model_flow_(?:required|not_active|model_not_included|account_unavailable|options_unsupported|previous_version_(?:changed|unavailable)|parent_changed|owner_shape_unsupported|snapshot_too_large|receipt_invalid)|included_model_policy_unavailable)$/.test(error.message)?error.message:undefined;
+        writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:modelFlowReason??(status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable')});}
     }
     return;
   }
@@ -659,16 +753,37 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if (method === "GET" && !action) {writeJson(res,200,await confirmations.status(id)); return;}
       if (method === "GET" && action === "challenge") {writeJson(res,200,await confirmations.challenge(id)); return;}
       if (method === "POST" && action === "owner-confirmation") {
-        writeJson(res,200,await confirmations.confirm(id,await readJsonBody(req,2048))); return;
+        const confirmed=await confirmations.confirm(id,await readJsonBody(req,2048));
+        // A room contact's WhatsApp send waiting for this very confirmation runs now, once (roomSendApprovals).
+        void roomSendApprovals().decided(id).catch(()=>{});
+        writeJson(res,200,confirmed); return;
       }
       if (method === "POST" && action === "cancel") {
         const body=await readJsonBody(req,256);
         if (!body || typeof body!=="object" || Array.isArray(body) || Object.keys(body).length)
           throw new HttpError(400,"invalid_cancellation_request");
-        writeJson(res,200,await confirmations.cancel(id)); return;
+        const cancelled=await confirmations.cancel(id);
+        void roomSendApprovals().decided(id).catch(()=>{});
+        writeJson(res,200,cancelled); return;
       }
     }
     writeJson(res,404,{success:false,message:"confirmation_route_not_found"}); return;
+  }
+
+  // Amine 02/11: the messages-room host asks Amine's confirmation of one prepared WhatsApp send (nothing runs here).
+  if (routePath === "/whatsapp/rooms/send-approvals") {
+    res.setHeader("Cache-Control","no-store");
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||req.headers["x-clawmobile-owner-flow"]!=="v1"){
+      writeJson(res,403,{success:false,state:"refused",reason:"native_owner_flow_required"});return;}
+    if(method!=="POST"||requestUrl.search){writeJson(res,method!=="POST"?405:400,{success:false,state:"refused"});return;}
+    try{writeJson(res,200,await roomSendApprovals().request(await readJsonBody(req,8192)));}
+    catch(error:any){
+      const reason=["invalid_room_send_request","owner_confirmation_capacity","room_grant_revoked","owner_confirmation_not_presentable",
+        "owner_confirmation_not_pending","confirmation_request_key_conflict","confirmation_registry_capacity_reached"].includes(error?.message)?error.message:"owner_confirmation_unavailable";
+      const code=[400,403,409].includes(error?.statusCode)?error.statusCode:503;
+      writeJson(res,code,{success:false,state:code===503?"failed":"refused",reason});
+    }
+    return;
   }
 
   if (routePath === "/payments/capabilities" || routePath === "/payments" || routePath.startsWith("/payments/")) {
@@ -757,6 +872,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/confirmations",
         "/v1/confirmations/:requestId/challenge",
         "/v1/confirmations/:requestId/owner-confirmation",
+        "/v1/whatsapp/rooms/send-approvals",
         "/v1/owner-admission",
         "/v1/owner-admission/enrollment",
         "/v1/payments",
@@ -934,13 +1050,8 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "POST" && routePath === "/claw-live/decision") {
     const body = await readJsonBody<any>(req);
-    // Lot 41 V2: a listed correction gesture after a voice turn needs no resolver call.
-    const result: any = await clawLiveDecision(clawLiveWarmCore, String(body?.request || ""), () => capabilityBridge(String(body?.request || ""), {
-      execute: false,
-      surface: "claw_live",
-      caller: "owner",
-      timeoutSeconds: 10,
-    }),body?.phoneDateTime);
+    // Every turn goes to the brain (ADR 02/11, step 3); only the kept social reflexes stay with the voice interface.
+    const result: any = clawLiveDecision(String(body?.request || ""));
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, result);
     return;
@@ -969,16 +1080,16 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     if (body.clarificationId !== undefined && body.clarificationId !== clarificationId) {
       writeJson(res,400,{success:false,error:"clarification_session_mismatch"}); return;
     }
-    // The same ephemeral ticket guards resolution, prepared execution and the final bridge.
-    // A stored clarification never grants admission to a following request.
-    const execute = (request: string) => clawLiveCapabilityTurn(
-      {request, clarificationId, originId: body.clientRunId,sessionId, assertCurrent},
-      (text) => {
-        assertCurrent();
-        return capabilityBridge(text, {execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35});
-      },
-    );
+    // The ephemeral ticket is revalidated before the brain submission; a stored clarification never grants admission.
+    const execute = (text: string) => {
+      assertCurrent();
+      return routeVoiceTurnToBrain(text, {sessionId, clientRunId: String(body.clientRunId || ""), admission: admission.ticket, assertCurrent}, {
+        submit: submitIntent, status: voiceRunStatus, pollMs: VOICE_RUN_POLL_MS, deferred: clawLiveWarmCore.voiceDeferredOwner(body?.voiceTurn),
+      });
+    };
+    const turnStarted = Date.now();
     const result: any = await clawLiveCapability(clawLiveWarmCore, body, execute, {assertCurrent});
+    console.log(voiceTurnLogLine(result, Date.now() - turnStarted));
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, {...result,ownerAdmission:publicAdmission(admission)});
     return;
@@ -1068,7 +1179,6 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         authority,
         admission: admission.admitted ? admission.ticket : undefined,
         ...((body as any)?.voiceDelegation === true ? {voiceDelegation:true as const} : {}),
-        ...((body as any)?.phoneDateTime !== undefined ? {phoneDateTime:(body as any).phoneDateTime} : {}),
         ...(replayOf?{replayOf}:{}),
       },
     );
@@ -1532,6 +1642,33 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  const measurementMatch = routePath.match(/^\/runs\/([^/]+)\/measurement$/);
+  if (measurementMatch) {
+    if (!isLoopback || req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"] ||
+        req.headers["x-clawmobile-owner-flow"] !== "v1") {
+      writeJson(res, 403, {success: false, error: "native_loopback_owner_required"}); return;
+    }
+    if (method !== "POST") {writeJson(res, 405, {success: false, error: "method_not_allowed"}); return;}
+    try {
+      const body = await readJsonBody<any>(req, 4096);
+      let result;
+      if(body?.operation) result=await nativeTurnProgressOwner.observe(decodeURIComponent(measurementMatch[1]),body);
+      else {
+        if (!body || typeof body !== "object" || Array.isArray(body) ||
+            Object.keys(body).length !== 2 || typeof body.sessionId !== "string" || !body.measurement)
+          throw Object.assign(new Error("invalid_turn_measurement"), {statusCode: 400});
+        result = await recordTurnMeasurement(decodeURIComponent(measurementMatch[1]), body.sessionId, body.measurement);
+      }
+      res.setHeader("Cache-Control", "no-store"); writeJson(res, 200, result);
+    } catch (e: any) {
+      const status = [400, 403, 404, 409].includes(e?.statusCode) ? e.statusCode : 503;
+      const error = ["invalid_turn_measurement", "run_not_found", "turn_measurement_identity_conflict",
+        "turn_measurement_already_final", "turn_measurement_not_final", "native_turn_observation_disabled", "native_turn_owner_required"].includes(e?.message) ? e.message : "turn_measurement_unavailable";
+      writeJson(res, status, {success: false, error});
+    }
+    return;
+  }
+
   const byClientRunMatch = routePath.match(/^\/runs\/by-client\/([^/]+)$/);
   const deleteRunMatch = routePath.match(/^\/runs\/([^/]+)$/);
   if (method === "DELETE" && deleteRunMatch) {
@@ -1556,7 +1693,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   }
   if (method === "GET" && byClientRunMatch) {
     const clientRunId = decodeURIComponent(byClientRunMatch[1]);
-    const result = await getRunStatusByClientRunId(clientRunId);
+    const result = await reconcileModelFlowRunStatus(await getRunStatusByClientRunId(clientRunId));
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success || result.state !== "unknown" ? 200 : 404, result);
     return;
@@ -1564,7 +1701,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "GET" && routePath.startsWith("/runs/")) {
     const runId = decodeURIComponent(routePath.slice("/runs/".length));
-    const result = await getRunStatus(runId);
+    const result = await reconcileModelFlowRunStatus(await getRunStatus(runId));
     writeJson(res, result.success || result.state !== "unknown" ? 200 : 404, result);
     return;
   }

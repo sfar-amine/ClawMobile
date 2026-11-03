@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "capture": {
+    "runtimeCapture": true,
+    "sanitized": true,
+    "device": "S24",
+    "date": "2026-10-25",
+    "kind": "installed SDK code contract; not traffic or conversations",
+    "openclaw": "2026.9.6"
+  },
+  "parts": [
+    {
+      "module": "client-CpsABkfT.mjs",
+      "sha256": "4947be1984840738cea07b0ef433c7bb658adf815fab90b40127f81e41b0cf19",
+      "term": "pending.expectFinal",
+      "found": true,
+      "excerpt": "ng(error)));\n\t\t\t}\n\t\t});\n\t}\n\thandleResponse(frame) {\n\t\tconst pending = this.pending.get(frame.id);\n\t\tif (!pending) return;\n\t\tconst status = frame.payload?.status;\n\t\tif (frame.ok && pending.expectFinal && status === \"accepted\") {\n\t\t\tif (!pending.acceptedNotified) {\n\t\t\t\tpending.acceptedNotified = true;\n\t\t\t\tthis.invoke(\"accepted\", () => pending.onAccepted?.(frame.payload));\n\t\t\t}\n\t\t\treturn;\n\t\t}\n\t\tthis.pending.delete(frame.id);\n\t\tpending.cleanup?.();\n\t\tif (frame.ok) {\n\t\t\tthis.finishTiming(frame.id, pending, true);\n\t\t\tpending.resolve(frame.payload);\n\t\t\treturn;\n\t\t}\n\t\tthis.finishTiming(frame.id, pending, false, frame.error?.code);\n\t\tconst error = this.opts.createRequestError?.(frame.error ?? {}) ?? new GatewayProtocolRequestError(frame.error ?? {});\n\t\tretainGatewayResponsePayloa"
+    },
+    {
+      "module": "agent-turn-service-BfYSuxip.mjs",
+      "sha256": "1569e6c53e3365e9ab55cafcd2774542464aff8f1ba55ea56a87a951b590254a",
+      "term": "status: responseStatus",
+      "found": true,
+      "excerpt": "ted\" : responseStatus === \"error\" ? \"failed\" : \"completed\",\n\t\t\tendedAt: Date.now()\n\t\t});\n\t\tif (taskSettlement) await taskSettlement;\n\t\tconst payload = {\n\t\t\trunId: params.runId,\n\t\t\tstatus: responseStatus,\n\t\t\tsummary: responseStatus === \"timeout\" ? \"aborted\" : responseStatus === \"error\" ? \"failed\" : \"completed\",\n\t\t\t...responseStatus !== \"ok\" && terminalOutcome.stopReason ? { stopReason: terminalOutcome.stopReason } : {},\n\t\t\t...responseStatus === \"timeout\" && terminalOutcome.timeoutPhase ? { timeoutPhase: terminalOutcome.timeoutPhase } : {},\n\t\t\t...responseStatus === \"timeout\" && terminalOutcome.providerStarted !== void 0 ? { providerStarted: terminalOutcome.providerStarted } : {},\n\t\t\tresult\n\t\t};\n\t\tconst inputProcessingCompleted = recordedInputCompletion?.reason === \"completed\" && responseStatus === \"ok\";\n\t\tconst persistTerminalDedupe = () => {\n\t\t\tsetGatewayDedupeEntries({\n\t\t\t\tdedupe: params.context.dedupe,\n\t\t\t\tkeys: params.dedupeKeys,\n\t\t\t\tsession: captureAgentJobSession(jobSessionBinding),\n\t\t\t\tentry: {\n\t\t\t\t\tts: Date.now(),\n\t\t\t\t\tok: true,\n\t\t\t\t\tpayload: {\n\t\t\t\t\t\t...payload,\n\t\t\t\t\t\t...inputProcessingCompleted ? { inputProcessingCompleted: true } : {}\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t});\n\t\t};\n\t\tconst settled = await settle({\n\t\t\tterminalOutcome,\n\t\t\tonRecovered: persistTerminalDedupe\n\t\t});\n\t\tif (!settled) {\n\t\t\tconst summary = \"failed to persist cron continuation settlement\";\n\t\t\tconst error = errorShape(ErrorCodes.UNAVAILABLE, summary);\n\t\t\tconst failedPayload = {\n\t\t\t\trunId: params.runId,\n\t\t\t\tstatus: \"error\",\n\t\t\t\tsummary\n\t\t\t};\n\t\t\tsetGatewayDedupeEntries({\n\t\t\t\tdedupe: params.context.d"
+    },
+    {
+      "module": "agent-run-result-ecnMVuqT.mjs",
+      "sha256": "05ddf9165a20474c7abc169b70f12391473903695e133d1e32364043db891904",
+      "term": "function extractAgentRunText",
+      "found": true,
+      "excerpt": "function extractAgentRunText(result) {\n\tconst visibleText = result.meta?.finalAssistantVisibleText?.trim();\n\tif (visibleText) return isSilentReplyPayloadText(visibleText) ? void 0 : visibleText;\n\treturn result.payloads?.filter((payload) => payload.visible !== false && payload.isError !== true && isReplyPayloadTerminalContent(payload)).map((payload) => payload.text?.trim()).filter((text) => Boolean(text) && !isSilentReplyPayloadText(text)).join(\"\\n\") || void 0;\n}\nfunction extractAgentRunTerminalError(result) {\n\tconst errorPayload = result.payloads?.find((payload) => payload.isError === true)?.text?.trim();\n\tconst error = result.meta?.error?.message?.trim() || errorPayload;\n\tconst outcome = buildAgentRunTerminalOutcomeFromLifecycleEvent({\n\t\tphase: errorPayload || result.meta?.error ? \"error\" : \"end\",\n\t\tdata: {\n\t\t\t...result.meta,\n\t\t\terror\n\t\t}\n\t});\n\tif (outcome.status === \"ok\") return;\n\tretu"
+    },
+    {
+      "module": "reply-payload-B2ZQhznY.mjs",
+      "sha256": "304475584c29097e44f82269e08db5fba20d6a13eaf4a3ba38cf3f3a1b85d256",
+      "term": "const isReplyPayloadTerminalContent",
+      "found": true,
+      "excerpt": "const isReplyPayloadTerminalContent = (payload) => {\n\tconst supplement = getReplyPayloadTtsSupplement(payload);\n\treturn payload.isReasoning !== true && payload.isCommentary !== true && (!isReplyPayloadStatusNotice(payload) || getReplyPayloadMetadata(payload)?.commandReply === true) && (!supplement || supplement.visibleTextAlreadyDelivered !== true && Boolean(readNonBlankString(payload.text)));\n};\n//#endregion\nexport { readPairingQrReplyChannelData as C, stripReplyMediaFailureFallback as D, shouldSuppressReasoningPayload as E, readAskUserQuestionId as S, setReplyPayloadMetadata as T, isReplyPayloadTerminalContent as _, copyReplyPayloadMetadata"
+    }
+  ]
+}
+

@@ -194,6 +194,25 @@ class IdleProofOnCapture(unittest.TestCase):
                 busy, _ = guard.idle_proof(now, build_oc(td, now, **kwargs))
                 self.assertEqual(busy[key], 1, key)
 
+    def test_receipts_from_before_boot_are_not_read(self):
+        # S24 27/10: 31 366 receipts, all written before the reboot, exceeded the 3 s deadline
+        # (remote_bridge_scan_partial). Their owners died with the previous boot.
+        now = time.time()
+        with tempfile.TemporaryDirectory() as td:
+            oc = build_oc(td, now, bridge_live=True)
+            req = oc / "remote-bridge/requests"
+            for path in req.iterdir():
+                os.utime(path, (now - 7200, now - 7200))
+            busy, why = guard.idle_proof(now, oc, boot=now - 3600)
+            self.assertIsNone(why)
+            self.assertEqual(busy["remote_bridge"], 0)
+            busy, why = guard.idle_proof(now, oc, deadline_s=0.0, boot=now - 3600)
+            self.assertEqual(why, "remote_bridge_scan_partial")
+            (req / "live.json").write_text(json.dumps({"requestId": "live", "state": "running",
+                                                       "instanceId": f"{os.getpid()}-1-abcdef01"}))
+            busy, why = guard.idle_proof(now, oc, boot=now - 3600)
+            self.assertEqual(busy["remote_bridge"], 1)
+
     def test_deploy_lock_and_unreadable_sources(self):
         now = time.time()
         with tempfile.TemporaryDirectory() as td:
@@ -274,11 +293,13 @@ class Main(unittest.TestCase):
     def test_health_manager_wiring(self):
         hm = (HERE / "samantha-health-manager.sh").read_text()
         self.assertIn('check_gateway_memory\n', hm.split("while :; do")[-1])
-        body = hm.split("check_gateway_memory(){", 1)[1].split("\n}\n", 1)[0]
+        body = hm.split("check_gateway_memory_effect(){", 1)[1].split("\n}\n", 1)[0]
         self.assertIn("put gateway_memory next $(( $(now)+60 ))", body)
-        self.assertIn("http://127.0.0.1:8765/v1/runtime/restart", body)
-        self.assertIn('"action": "restart_requested"', body)
-        self.assertIn("bounded-log.py", body)
+        self.assertIn("immune_action gateway_memory bounded-idle-gateway-restart gateway_memory_restart_selected", body)
+        selected = hm.split("gateway_memory_restart_selected(){", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("http://127.0.0.1:8765/v1/runtime/restart", selected)
+        self.assertIn('"action": "restart_requested"', selected)
+        self.assertIn("bounded-log.py", selected)
 
 
 if __name__ == "__main__":

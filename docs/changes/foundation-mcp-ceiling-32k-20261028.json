@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "id": "foundation-mcp-ceiling-32k-20261028",
+  "date": "2026-10-28",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The Companion's two L2 foundation byte guards follow the 8000-token ceiling raised in playbooks #330: the claw_context MCP response (mcpBridge.ts) and the owner bootstrap text injected into Gateway turns (ownerBootstrapContext.ts) go from 24000 to 32000 UTF-8 bytes (8000 tokens x 4). Nothing is trimmed; a larger foundation is still refused.",
+  "reason": "S24 28/10 10:12: after playbooks df17e8a3 (#330, ceiling 8000) and L2 re-activation, claw_context failed with foundation_mcp_response_budget_exceeded: the producer now serves 6171 tokens (about 24.7 kB) but the Companion transport still refused above 24000 bytes. Amine 28/10: raise the ceiling (S24 decision acbe6fb3).",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/ownerBootstrapContext.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-foundation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-foundation.cjs",
+    "docs/changes/foundation-mcp-ceiling-32k-20261028.json",
+    "docs/changes/foundation-mcp-ceiling-32k-20261028.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-mcp-foundation.cjs",
+      "status": "passed",
+      "evidence": "A 24700-byte foundation (the S24 6171-token case) is delivered; 32001 bytes is still refused with foundation_mcp_response_budget_exceeded; the missing-body refusal is unchanged."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-owner-foundation.cjs",
+      "status": "passed",
+      "evidence": "A 24700-byte foundation is injected; 32001 bytes is refused with owner_foundation_budget_exceeded."
+    }
+  ],
+  "documentation": [
+    "docs/changes/foundation-mcp-ceiling-32k-20261028.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Transport size guard of an existing context response."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same guards, value aligned with the producer ceiling; no new store or owner."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_impacted",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_impacted",
+      "documentation": "verified_no_impact",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "claw_context foundation responses up to 32000 bytes are relayed instead of refused above 24000; schema unchanged."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Live proof: claw_context on the S24 with SAMANTHA_CONTEXT_FOUNDATION=1 after deployment."
+  ],
+  "rollback": "Revert this commit, or set SAMANTHA_CONTEXT_FOUNDATION=0."
+}

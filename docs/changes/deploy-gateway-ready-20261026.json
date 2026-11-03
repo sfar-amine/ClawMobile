@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "id": "deploy-gateway-ready-20261026",
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "companion-deploy.sh judges the release only once a Gateway-backed read (/v1/agent/config) answers 200 as well as /v1/control/health, with a 3-minute bound.",
+  "reason": "S24 26/10 11:33: /v1/control/health answered 200 while the Gateway was still starting (startup-sidecars-pending until 11:34:59). /agent/config, conversation metadata, WhatsApp allowlist and automations answered 503, the acceptance failed and deploy 721e940e rolled back; a request of Amine at 11:39 then failed on the restarting Gateway.",
+  "files": [
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/test-companion-acceptance-settle.py",
+    "docs/changes/deploy-gateway-ready-20261026.json",
+    "docs/changes/deploy-gateway-ready-20261026.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-companion-acceptance-settle.py",
+      "status": "passed",
+      "evidence": "10 tests; new: the real gateway_ready with a fake curl (control/health 200, /agent/config 503 twice then 200) waits for the third read; always 503 with 3 tries returns 1. Fails without the fix."
+    },
+    {
+      "name": "deploy suites",
+      "status": "passed",
+      "evidence": "test-companion-deploy-preflight.py, test-companion-deploy-root.py, test-companion-nightly-acceptance.py, test-runtime-sync.py pass."
+    }
+  ],
+  "documentation": [
+    "docs/changes/deploy-gateway-ready-20261026.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Deploy settle only; same acceptance, budgets and rollback."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "The existing gateway_ready reads one more existing route; bound injectable by COMPANION_DEPLOY_GATEWAY_READY_TRIES."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: no MCP schema, adapter, endpoint or runtime protocol changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Live proof: the next companion-deploy waits for /agent/config before its acceptance."
+  ],
+  "rollback": "Revert this commit; the deploy again judges as soon as /control/health answers."
+}

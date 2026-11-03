@@ -24,13 +24,25 @@
       "name": "Claw trace owner and checkpoint diagnostics",
       "status": "passed",
       "command": "python3 installer/termux-lite/test-claw-trace.py",
-      "evidence": "9/9 cas verts en 0,575 s : chronologie, corrélations, projection fermée, données privées exclues, protocole cohérent et tour résumé sans aucun appel ADB."
+      "evidence": "10/10 cas verts après le merge de runtime/samantha-companion-private (9cfabb0e) : chronologie, corrélations, projection fermée, données privées exclues, protocole cohérent, tour résumé sans aucun appel ADB, et identifiants voice-greeting-/voice-readback- alignés sur VOICE_TURN_ID_RE de runs.ts."
     },
     {
-      "name": "TypeScript compilation",
+      "name": "Build du plugin",
       "status": "passed",
-      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
-      "evidence": "Compilation du code runtime au commit fa2ad419 réussie ; les modifications suivantes ne concernent que le test de relecture et sa documentation."
+      "command": "cd openclaw-plugin-mobile-ui && npm run build",
+      "evidence": "tsc et prepare-lite verts sur le commit de merge avec la base (champ turnMeasurement L4 conservé à côté de voiceDiagnostics)."
+    },
+    {
+      "name": "Checkpoint vocal F3 (CJS)",
+      "status": "passed",
+      "command": "cd openclaw-plugin-mobile-ui && node scripts/test-voice-checkpoint-diagnostics.cjs",
+      "evidence": "7/7 cas verts, dont le scénario de corruption relu dans un nouveau processus."
+    },
+    {
+      "name": "Régressions vocales et mesure de tour voisines",
+      "status": "passed",
+      "command": "node scripts/test-voice-run-terminal-state.cjs; node scripts/test-voice-greeting-turn.cjs; node scripts/test-turn-budget.cjs; node scripts/test-turn-measurement.cjs; node scripts/test-voice-readback-persistence.cjs; node scripts/test-voice-deferred-readback.cjs; node scripts/test-voice-async-readback.cjs; python3 installer/termux-lite/test-companion-acceptance-voice.py",
+      "evidence": "Tous verts sur le commit de merge : terminalité O9, tour d'accueil, budget et mesure L4, relecture différée voice-readback- et ligne de recette vocale."
     }
   ],
   "documentation": [
@@ -47,8 +59,8 @@
   },
   "rollback": "Revert du lot runtime, sans migration des reçus ; les checkpoints sans diagnostic restent compatibles.",
   "limitations": [
-    "Premier ciblé CJS en échec sur son scénario de corruption : il réutilisait le cache légitime du propriétaire. Le test corrigé rouvre le fichier dans un nouveau processus et attend son rejeu ; les régressions suivantes n'ont pas été lancées.",
-    "CI locale canonique sur le head exact et numéro de PR encore à exécuter ; la PR reste en brouillon.",
-    "Contrepartie app et recette S24 non qualifiées dans cette tranche ; aucun faux tour sans transcription créé."
+    "CI locale canonique (tools/localci.py) sur le head exact encore à exécuter ; seuls les tests ciblés ont été lancés.",
+    "Contrepartie app (#375) et recette S24 non qualifiées dans cette tranche ; aucun faux tour sans transcription créé. Le runtime doit être déployé avant toute installation de l'app #375, qui envoie la clé diagnostics.",
+    "Le merge de la base (core #524, brain-only) n'a touché ni voiceRoundLearning.ts ni le coordinateur : F3 ne dépend que de runs.ts, types.ts et claw-trace.py, toujours présents."
   ]
 }

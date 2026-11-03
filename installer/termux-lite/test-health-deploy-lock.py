@@ -12,7 +12,8 @@ MANAGER = ROOT / "samantha-health-manager.sh"
 
 
 class HealthDeployLockTests(unittest.TestCase):
-    def run_check(self, hold_lock: bool, idle_proven: bool = True, missing_lock: bool = False) -> str:
+    def run_check(self, hold_lock: bool, idle_proven: bool = True, missing_lock: bool = False,
+                  companion_alive: bool = False, gate_refuses: bool = False, gateway_up: bool = False) -> str:
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
             deploys = home / ".openclaw/deploys"
@@ -27,7 +28,11 @@ class HealthDeployLockTests(unittest.TestCase):
             probe = home / "probe.sh"
             # Server down, no process: without the lock the manager starts a repair (start is stubbed).
             idle = "return 0" if idle_proven else "return 1"
-            probe.write_text(prefix + f"\nhttp(){{ return 1; }}; proc(){{ return 1; }}; sleep(){{ :; }}; companion_idle_proven(){{ {idle}; }}; start(){{ echo STARTED >>\"$HOME/started\"; }}\n"
+            alive = "return 0" if companion_alive else "return 1"
+            gateway = "[ \"$1\" = http://127.0.0.1:18789/healthz ] && return 0; " if gateway_up else ""
+            gate = "return 75" if gate_refuses else 'shift 2; "$@"'
+            probe.write_text(prefix + f"\nhttp(){{ {gateway}return 1; }}; proc(){{ {alive}; }}; sleep(){{ :; }}; pkill(){{ :; }}; companion_idle_proven(){{ {idle}; }}; start(){{ echo STARTED >>\"$HOME/started\"; }}\n"
+                             f"immune_action(){{ {gate}; }}; immune_observe(){{ :; }}\n"
                              "check_http companion http://127.0.0.1:1/ 'nomatch-[x]' /bin/true 0 0\n")
             env = dict(os.environ, HOME=str(home), CLAW_RUNTIME_ROOT=str(ROOT))
             subprocess.run(["bash", str(probe)], env=env, check=False, capture_output=True, text=True, timeout=30)
@@ -53,9 +58,45 @@ class HealthDeployLockTests(unittest.TestCase):
         self.assertIn("STARTED", out)
 
     def test_companion_repair_requires_existing_idle_proof(self):
-        out = self.run_check(hold_lock=False, idle_proven=False)
+        # A live but unhealthy Companion may own runs: no replacement without the idle proof.
+        out = self.run_check(hold_lock=False, idle_proven=False, companion_alive=True)
         self.assertIn("state=idle_unproven action=skip_repair", out)
         self.assertNotIn("action=repair", out)
+        self.assertNotIn("STARTED", out)
+
+    def test_dead_companion_restarts_without_idle_proof(self):
+        # S24 27/10: the proof failed (remote_bridge_scan_partial) for a Companion with no
+        # process at all, and Samantha stayed down after internet came back.
+        out = self.run_check(hold_lock=False, idle_proven=False, companion_alive=False)
+        self.assertNotIn("idle_unproven", out)
+        self.assertIn("action=repair", out)
+        self.assertIn("STARTED", out)
+
+    def test_dead_companion_restarts_when_the_ai_gate_cannot_answer(self):
+        # S24 27/10 reboot: the gate reaches its models through the Companion itself; it
+        # always refused and the Companion never came back.
+        out = self.run_check(hold_lock=False, gate_refuses=True, gateway_up=False)
+        self.assertIn("service=companion action=direct_repair reason=ai_gate_unreachable", out)
+        self.assertIn("action=restart_authorized", out)
+        self.assertIn("STARTED", out)
+
+    def test_dead_companion_restarts_even_when_the_gateway_answers(self):
+        # S24 27/10 22:27: Gateway healthz 200, Companion gone, every gate model call
+        # unavailable; the manager waited 60 s at a time for 15 minutes.
+        out = self.run_check(hold_lock=False, gate_refuses=True, gateway_up=True)
+        self.assertIn("service=companion action=direct_repair reason=ai_gate_unreachable", out)
+        self.assertNotIn("ai_gate_refused", out)
+        self.assertIn("STARTED", out)
+
+    def test_live_companion_waits_for_the_ai_even_with_the_gateway_up(self):
+        out = self.run_check(hold_lock=False, gate_refuses=True, gateway_up=True, companion_alive=True)
+        self.assertIn("service=companion state=ai_gate_refused action=wait", out)
+        self.assertNotIn("direct_repair", out)
+        self.assertNotIn("STARTED", out)
+
+    def test_live_companion_is_never_replaced_without_the_ai(self):
+        out = self.run_check(hold_lock=False, gate_refuses=True, gateway_up=False, companion_alive=True)
+        self.assertNotIn("direct_repair", out)
         self.assertNotIn("STARTED", out)
 
 

@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "capture": {
+    "runtimeCapture": true,
+    "kind": "installed SDK public function source only; no database or configuration payload",
+    "device": "S24",
+    "openclaw": "2026.9.6",
+    "date": "2026-10-26"
+  },
+  "files": [
+    {
+      "module": "session-accessor.sqlite-entry-store-DTntRuil.mjs",
+      "source_sha256": "7019a115de685f95e231298eb71b10282f11b3d934566aec8d94b60e1935687a",
+      "source_bytes": 137099,
+      "snippets": [
+        {
+          "name": "assertLifecycleTargetSnapshotUnchanged",
+          "line": 81,
+          "source": "function assertLifecycleTargetSnapshotUnchanged(expected, current, operationLabel) {\n\tif (!sqliteLifecycleTargetSnapshotsEqual(expected, current)) throw new SqliteSessionMutationConflictError(operationLabel);\n}\n//#endregion\n//#region src/infra/legacy-acp-migration-source.ts",
+          "snippet_sha256": "2705f6efdd8c082afa84c9cb3eb2e9738365a67c967083f8c7f2c5e67a548461"
+        },
+        {
+          "name": "readUnchangedLifecycleTargetSnapshot",
+          "line": 2260,
+          "source": "function readUnchangedLifecycleTargetSnapshot(database, prepared) {\n\tconst persisted = prepared[0]?.persistedRows;\n\tif (!persisted || persisted.lookupKeys.length === 0) return;\n\tconst rows = executeSqliteQuerySync(database.db, getSessionKysely(database.db).selectFrom(\"session_nodes\").selectAll().where(\"session_key\", \"in\", sqliteStringSet(persisted.lookupKeys)).orderBy(\"session_key\", \"asc\")).rows;\n\treturn isDeepStrictEqual(rows, persisted.rows) ? prepared : void 0;\n}",
+          "snippet_sha256": "13cdfb63066f83b92dbed836c375411df1e9c1f464cbddf692a3b7c992c24585"
+        },
+        {
+          "name": "equality-region",
+          "source": "var SqliteSessionMutationConflictError = class extends Error {\n\tconstructor(operationLabel) {\n\t\tsuper(`SQLite session state changed while preparing ${operationLabel}`);\n\t\tthis.name = \"SqliteSessionMutationConflictError\";\n\t}\n};\nfunction sqliteSessionEntriesEqual(left, right) {\n\tif (!left || !right) return left === right;\n\tconst { participants: _leftParticipants, participantCount: _leftParticipantCount, ...leftEntry } = left;\n\tconst { participants: _rightParticipants, participantCount: _rightParticipantCount, ...rightEntry } = right;\n\treturn JSON.stringify(leftEntry) === JSON.stringify(rightEntry);\n}\nfunction sqliteLifecycleTargetSnapshotsEqual(left, right) {\n\treturn left.length === right.length && left.every((row, index) => row.sessionKey === right[index]?.sessionKey && sqliteSessionEntriesEqual(row.entry, right[index]?.entry));\n}\nfunction assertLifecycleTargetSnapshotUnchanged(expected, current, operationLabel) {\n\tif (!sqliteLifecycleTargetSnapshotsEqual(expected, current)) throw new SqliteSessionMutationConflictError(operationLabel);\n}\n",
+          "snippet_sha256": "070f4428793343581c5521798a80e7f354602e1477049a53970a280291f296b3"
+        }
+      ]
+    },
+    {
+      "module": "openclaw-agent-db-CaQAStOA.mjs",
+      "source_sha256": "89cccb5630965c1c3a44aeb1b51b308114246df7bab365d37996e3c9a4cba852",
+      "source_bytes": 36309,
+      "snippets": [
+        {
+          "name": "runOpenClawAgentWriteTransaction",
+          "line": 672,
+          "source": "function runOpenClawAgentWriteTransaction(operation, options, transactionOptions = {}) {\n\tconst database = openOpenClawAgentDatabase(options);\n\tconst enteredNestedTransaction = database.db.isTransaction;\n\treturn withSqlitePostCommitPublications(database.db, () => runSqliteImmediateTransactionSync(database.db, () => {\n\t\tassertAgentDeletionDatabaseCleanupAccess(database, options);\n\t\tconst operationResult = operation(database);\n\t\tif (!enteredNestedTransaction && !cache.incognito.has(database)) ensureOpenClawAgentDatabasePermissions(database.path, options);\n\t\treturn operationResult;\n\t}, {\n\t\tbusyTimeoutMs: transactionOptions.busyTimeoutMs ?? 5e3,\n\t\tdatabaseLabel: database.path,\n\t\t...transactionOptions,\n\t\toperationLabel: transactionOptions.operationLabel ?? \"agent.write\",\n\t\twithCommit: getAgentDeletionDatabaseCleanup(options)?.withCommit\n\t}));\n}\n/** Retain the exact verified connection across awaits; explicit disposal still revokes it. */",
+          "snippet_sha256": "ef53af0e1a031db7d4a00979f9cb555960d3821cfa6006e7f0e8f2ba5ead3736"
+        }
+      ]
+    }
+  ]
+}

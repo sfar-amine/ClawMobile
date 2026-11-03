@@ -142,6 +142,38 @@ class AcceptanceSettle(unittest.TestCase):
         self.assertIn('wait_calm 180 "$MAX_LOAD"', text)
         self.assertIn("COMPANION_DEPLOY_WAIT_CALM_S", text)
 
+    def run_gateway_ready(self, agent_503, tries):
+        """The real gateway_ready of companion-deploy.sh, with a fake curl: /control/health is always 200 (as on
+        the S24 at 11:33 on 26/10) and /agent/config answers 503 for its first `agent_503` calls."""
+        import re, subprocess, textwrap
+        text = (HERE / "companion-deploy.sh").read_text()
+        start = text.index('GATEWAY_READY_TRIES="${COMPANION_DEPLOY_GATEWAY_READY_TRIES')
+        end = text.index("return 1; }", text.index("gateway_ready(){", start)) + len("return 1; }")
+        with tempfile.TemporaryDirectory() as td:
+            bin_dir = pathlib.Path(td) / "bin"; bin_dir.mkdir()
+            curl = bin_dir / "curl"
+            curl.write_text(textwrap.dedent(f"""\
+                #!/usr/bin/env bash
+                for a in "$@"; do url="$a"; done
+                echo "$url" >> {td}/calls
+                case "$url" in
+                  *agent/config) n=$(grep -c agent/config {td}/calls); [ "$n" -le {agent_503} ] && printf 503 || printf 200;;
+                  *) printf 200;;
+                esac
+                """))
+            curl.chmod(0o755)
+            script = "sleep(){ :; }\n" + text[start:end] + "\ngateway_ready\n"
+            env = {"PATH": f"{bin_dir}:/usr/bin:/bin", "COMPANION_DEPLOY_GATEWAY_READY_TRIES": str(tries)}
+            rc = subprocess.run(["bash", "-c", script], env=env).returncode
+            calls = (pathlib.Path(td) / "calls").read_text().splitlines()
+        return rc, sum(1 for c in calls if c.endswith("/v1/agent/config"))
+
+    def test_gateway_ready_waits_for_a_gateway_backed_read(self):
+        # S24 26/10: control/health 200 but /agent/config 503 while the Gateway was starting.
+        self.assertEqual(self.run_gateway_ready(agent_503=2, tries=45), (0, 3))
+        rc, agent_calls = self.run_gateway_ready(agent_503=99, tries=3)
+        self.assertEqual((rc, agent_calls), (1, 3))
+
 
 if __name__ == "__main__":
     unittest.main()

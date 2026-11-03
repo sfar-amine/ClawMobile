@@ -4,6 +4,10 @@ Le checkpoint vocal accepte un résumé C1 facultatif, fermé et borné. Le regi
 
 Provenance : horodatages S24 du 18/10 déjà rejoués dans le test `claw-trace`, projetés dans une nouvelle enveloppe explicitement contractuelle. Aucun accès écran, geste, installation ou reçu physique dans cette tranche.
 
-Validation disponible : 9/9 cas Python verts, dont confidentialité, rejet fermé et absence d'appel ADB ; compilation TypeScript réussie au commit `fa2ad419`. Le premier ciblé CJS a échoué parce que le scénario de corruption réutilisait le cache légitime du propriétaire. Le test corrigé impose une vraie relecture dans un nouveau processus et attend son rejeu. Les régressions suivantes et la CI canonique exacte restent à exécuter ; la PR reste en brouillon.
+Reprise du 03/11 : merge de `runtime/samantha-companion-private` (9cfabb0e). Le seul conflit, dans la projection vocale de `runs.ts`, garde `turnMeasurement` (L4) et `voiceDiagnostics` côte à côte. `claw-trace` accepte désormais les mêmes identifiants que `VOICE_TURN_ID_RE`, y compris `voice-readback-<uuid>`, et un test CI vérifie que les deux copies restent identiques.
+
+Validation : build du plugin vert, 7/7 cas CJS F3, 10/10 cas Python `claw-trace`, régressions vocales voisines (terminalité, accueil, mesure de tour, relecture différée, recette vocale) vertes. La CI canonique exacte reste à exécuter.
+
+**Ordre de livraison** : ce runtime doit être déployé avant toute installation de l'app F3 (#375). Le runtime actuel refuse la clé `diagnostics` (400 `invalid_voice_transcript`).
 
 Impact capability/architecture : aucun nouveau point d'entrée ni propriétaire. Les six primitives MCP gardent leurs schémas et adaptateurs ; `claw_exec` peut lire les mêmes reçus par le script existant. Aucun secret et aucun changement du parcours de paiement. Retour arrière par revert, sans migration.

@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "id": "gateway-preflight-1009-lock-20261101",
+  "date": "2026-11-01",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "gateway-preflight recognises the OpenClaw 2026.10.9 config lock name state.<hash>.lock (besides 2026.9.x gateway.<hash>.lock), so a stale lock left by a stopped 10.9 Gateway is quarantined reversibly as before instead of refusing every start with config_lock_ambiguous.",
+  "reason": "S24 01/11 22:35 UTC: during the rollback of companion-deploy 9862fd25 the runtime restart stopped the 10.9 Gateway; every start then failed with 'gateway lock preflight refused recovery: count 0, config_lock_ambiguous' although the lock owner was dead and the port closed, leaving the Gateway down until the two stale lock files were quarantined by hand.",
+  "rollback": "Revert this commit and redeploy the previous commit with companion-deploy.sh; a stale 10.9 lock then blocks Gateway starts again.",
+  "files": [
+    "installer/termux-lite/gateway-preflight.py",
+    "installer/termux-lite/test-gateway-preflight.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-gateway-lock-1009/capture.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-gateway-lock-1009/README.md",
+    "docs/changes/gateway-preflight-1009-lock-20261101.md",
+    "docs/changes/gateway-preflight-1009-lock-20261101.json"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-gateway-preflight.py (ci.yml)",
+      "status": "passed",
+      "evidence": "17 tests: the 10.9 layout (state.<hash>.lock, no .sqlite sibling) is stale_recoverable and quarantined, a live 10.9 owner is never reclaimed, both layouts for one config stay ambiguous; the 3 new tests fail on the previous preflight."
+    }
+  ],
+  "documentation": [
+    "docs/changes/gateway-preflight-1009-lock-20261101.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Gateway start preflight repair only.",
+    "ids": []
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same preflight owner and same reversible quarantine; only the recognised lock file names grow."
+  },
+  "fixtures": [
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-01-gateway-lock-1009/ (S24 prod, read-only, 2026-11-01 22:36-22:40 UTC, cleaned)"
+  ],
+  "limitations": [
+    "Why the 10.9 Gateway left its locks on that stop is not established here; the preflight now recovers them either way."
+  ]
+}

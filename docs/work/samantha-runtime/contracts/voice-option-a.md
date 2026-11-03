@@ -12,7 +12,9 @@ Legacy scelle `inputTranscription` au marqueur `finished` ou à la frontière `t
 
 Les commandes système testées, dont « Allume le Wi-Fi », dépendent du registre canonique `samantha-ui-playbooks#107`. Une résolution locale confirme les flags existants de ce registre ; elle ne prouve pas une mutation S24, une activation du registre ou une restitution acoustique. Les deux PR V core/app doivent être intégrées avec ces propriétaires, puis recettées par Claude.
 
-Le délai vocal est de 30 s. À son expiration, seule l'attente vocale cesse : « Je te l'écris dans la discussion. » Le run canonique continue, sans nouvelle soumission ni retry. Une erreur de transport incertaine ne devient jamais une promesse de résultat. La discussion reçoit le résultat du même run via ses lecteurs actuels.
+Le délai vocal est de 30 s. À son expiration, seule l'attente vocale cesse : « Je te donne la réponse dès que je l'ai. » (annonces d'attente du 31/10 : une seule annonce par tour, après la seule phrase utile de l'app) Le run canonique continue, sans nouvelle soumission ni retry. Une erreur de transport incertaine ne devient jamais une promesse de résultat. La discussion reçoit le résultat du même run via ses lecteurs actuels ; quand l'app a souscrit à la relecture différée (`warmReady.deferredReadback`, `voiceTurn.deferredReadback`), la même séance vocale le dit une fois (`speakDeferred`, voir `docs/changes/voice-deferred-brain-readback-20261030.md`).
+
+Annonces d'attente (décision d'Amine du 31/10) : pendant qu'un tour travaille, l'app dit au plus une phrase utile, après 1,5 s, tirée de l'outil typé que le run a lancé (`progress.activity` du statut du run : nom et action seulement, jamais de paramètre) ou « Je m'en occupe. » ; puis au plus un son discret toutes les 6 s, selon le réglage « Annonces pendant l'attente » (Phrase utile, Son discret, Silence). Contrat partagé : section `waitingCues`.
 
 Le protocole duplex ajoute `speakFirst` : un unique tour d'accueil corrélé à la session et à la génération, incapable d'exécuter un outil. L'app attend l'accueil avant la capture du prochain tour. L'historique est chargé avant cet accueil.
 

@@ -1,0 +1,135 @@
+{
+  "version": 2,
+  "id": "refonte-l4-turn-measurements-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "Budget de livraison commun et observations réelles app/voix/WhatsApp dans les propriétaires existants, inconnus préservés.",
+  "reason": "Mesurer la livraison réellement observée et appliquer le budget commun sans rejouer un effet. CI canonique complète et recette restent des portes obligatoires après les intégrations.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/08-decisions/ADR-20261025-refonte-l4-budget-measurements.md",
+    "docs/changes/refonte-l4-turn-measurements-20261025.json",
+    "docs/changes/refonte-l4-turn-measurements-20261025.md",
+    "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/openclaw-compat/native-turn-provenance.json",
+    "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
+    "installer/termux-lite/test-native-turn-provenance.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-turn-measurement/sdk-source-metadata.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-turn-measurement/voice-qa2-observation.json",
+    "openclaw-plugin-mobile-ui/scripts/test-control-comprehension.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-native-turn-progress.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-native-turn-provenance.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-diagnostics.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-turn-measurement.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/control-health.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/turnBudget.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceBrainDelegation.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/src/nativeTurnProgress.ts",
+    "openclaw-plugin-mobile-ui/src/nativeTurnProgressOwner.ts"
+  ],
+  "documentation": [
+    "docs/changes/refonte-l4-turn-measurements-20261025.md",
+    "docs/08-decisions/ADR-20261025-refonte-l4-budget-measurements.md"
+  ],
+  "tests": [
+    {
+      "name": "L4 focused TypeScript and observation suites",
+      "status": "passed",
+      "evidence": "Sur le contenu propre L4 de285d461f : npm run build, test-turn-measurement.cjs et test-native-turn-progress.cjs PASS ; preuve /workspace/refonte-evidence/l4-core-focused-285d461f.log. Volumétrie505→500, notification unique, incertitude et race fin/livraison. Depuis, merge normal de la base canonique74b2 ; aucun build intégré final ni CI complète revendiqué."
+    },
+    {
+      "name": "Integrated source diff integrity",
+      "status": "passed",
+      "evidence": "git diff --check PASS après merge normal de74b2, base ancêtre ; validation stricte des fiches et couverture vérifiées séparément avant CI. Aucun comportement supplémentaire qualifié par ce contrôle."
+    },
+    {
+      "name": "Integrated L2/L3/L4 provenance, measurements and comprehension",
+      "status": "passed",
+      "evidence": "TypeScript build PASS after normal merges42422f23c9 and419e002. Five suites PASS: test-turn-measurement, test-native-turn-progress, test-native-turn-observation, test-main-comprehension-provenance, test-control-comprehension. First measurement test used an obsolete native-http label; replaced by an authored strict UUID and rerun all five suites successfully. Full log preserves initial failure and transient missing local dependency symlink, then final PASS; l4-integrated-focused-20261026.log SHA256af9dbc7934aaef4a15a147711e3706d0f6248166d06698fdc5e17447efee2d3a. Actual S24 baseline25runs/9qualifiedlegacy/2CLARIFY preserved; authored main cohort+negative trust-boundary cases PASS; projection5006ms, HTTP35ms. Full canonical exact-head CI and native delivery remain pending."
+    },
+    {
+      "name": "Integrated actual native ingress/adoption, account-bound notices and terminal timing",
+      "status": "passed",
+      "evidence": "Source975d174a integrates42421a5dd14 and perfcd428c6e by normal merges. TypeScript build and6 Node suites PASS withNode26.12.1 (measurement, native progress/adoption/delivery races, observation, captured provenance/account, Gateway timing, owner admission84). The single passage then stopped on an incorrect command name test-conversations-v2; no product failure. Correct remaining suites executed once with canonicalNode26.11.1: conversation-pages500runs/50sessions and control-comprehension PASS; Python compatibility7tests PASS including pinned predecessor upgrade/rollback and actual-Git changed-manifest rollback guard. First log l4-adoption-perf-focused-20261026.log SHA256f09194c380ad9f34aed6b6b34c0a7d5796dc756a8cbcf80df175ccea197e09e4; complement log l4-adoption-perf-focused-v2-20261026.log SHA256f062388bddde22783e18078fb2fcd6c7ebbf7083c367ae3b85c28fe759da6cf4. No full canonical exact-head CI or native activation claimed."
+    },
+    {
+      "name": "Canonical closed run-diagnostic owner regression after full CI refusal",
+      "status": "passed",
+      "evidence": "Full CI425745504fe refused at stage60 because recordTurnMeasurement introduced a console.log outside runDiagnostic. The direct call is removed; fixed code turn_measurement_recorded is projected by the same runDiagnostic, one console only, unchanged AST ownership guard. Successful turn payload is revalidated, arbitrary fields/prose refuse, secret-looking model identifiers are omitted; persistence/idempotence and failed-sink behavior verified. One focused passage on CPU2,3 with canonical Node26.11.1: TypeScript plus run-owner-diagnostics14/14, turn-measurement, native-turn-progress and gateway-run-observation PASS. Log l4-diagnostic-fix-focused-20261026.log SHA2563bcda4136ef95b3098c6034a13750f3f6e13b1d3f951627d1530ccebd70886c2. This does not convert refused full7455 into PASS; a new exact-head canonical full is required."
+    },
+    {
+      "name": "Historical exact-head isolated full CI",
+      "status": "passed",
+      "evidence": "1ba495c4e1b6ecffcc987dd5bec9a573e71cfc56 / baseD8:3jobs157steps PASS with canonical localci and isolated4CPU, unchanged budgets. Durable proof core425-1ba-isolated-ci-proof-comment.md; log SHA256e8d811c8075629b72f258e4bcbeec604a8d30813dd35ec618062752f62425c4e. This historical result does not qualify c6a, the new diagnostic set or the later combined tree."
+    },
+    {
+      "name": "Preserved C2 transport and diagnostic integration focused validation",
+      "status": "passed",
+      "evidence": "Sourcefcc9743e TypeScript,3Node suites(helper-process Termux shim, capability bridge, run diagnostics) and2Python suites(Companion acceptance settle, native provenance7cases) passed in the single grouped execution. The final perf suite initially refused fixture async/process; corrected by test-only87edde/29446 and executed once at source2f80fdaf:5tests PASS1.526s. Log core425-prep-complement-29446-20261026.log SHA2565f6648d1b2e7c07b98e4bb1b1f84651f5372b82804163acb89baa282e27d0a83. Product SDK manifests unchanged by fixture fixes. Canonical private sourcec6a merged normally; exact combined428 full still required."
+    }
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "NO_CAPABILITY : observation/instrumentation interne des propriétaires existants ; aucune nouvelle action métier, permission ni voie de paiement."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Extension des propriétaires existants ; aucun store, routeur, ordonnanceur ou service parallèle.",
+    "documents": [
+      "docs/08-decisions/ADR-20261025-refonte-l4-budget-measurements.md"
+    ]
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Comparaison des primitives et de leurs entrées : contexte fondation optionnel seulement si indiqué, aucun changement d’autorité. Adaptateurs/fixtures et tests jumelés inscrits dans leur CI. Aucune parité live ni CI intégrée finale revendiquée."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Revert source puis propriétaires companion-deploy.sh/APK précédents ; observations facultatives ignorées.",
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/v1/runs/:id/measurement",
+      "budget_ms": 1500,
+      "capability": "NO_CAPABILITY",
+      "reason": "Télémétrie locale fermée des propriétaires existants, sans action métier exposée."
+    }
+  ],
+  "pending_validation": [
+    "Canonical final head CI on Node26.11.1 and real app/voice/WhatsApp acceptance after L3 gate",
+    "Real managed WA typing and >30s notice with exact native account; deferred final audio actually played",
+    "Native dispatch timestamp origin must be measured separately from transport arrival/STT; unknown first sign remains null"
+  ],
+  "source_integration": {
+    "canonical_base": "c6a8061f7b38804dce4ff1dabac40f53e94a6a21",
+    "preserved_canonical_changes": [
+      "PR437 Gateway-backed readiness",
+      "PR438 helper stdin under the actual Termux shim",
+      "PR440 RFC7396 direct-rule deletion and Pulse room grant"
+    ],
+    "diagnostic_sdk_set": "gateway-prep-stages, three disjoint pinned public modules, explicit root-owned activation only",
+    "qualification": "Historical head1ba/baseD8 full157 steps passed isolated4CPU. The new source union requires exact combined428 canonical CI; no activation or native acceptance inferred."
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "captured_at": "2026-11-02T20:30:00+01:00",
+  "device": "S24 (Termux), lecture seule via Claw claw_exec",
+  "runtime_release": "20261102T171415-d3beb769 (health-verdict.py: `timeout 8 openclaw channels status`; samantha-health-manager.sh: WHATSAPP_READINESS_GRACE_S=120)",
+  "openclaw": {
+    "version": "2026.10.9 (8b18b55)",
+    "node": "24.22.2",
+    "whatsapp_network_recovery_patch": "verified (whatsapp-network-recovery.py --check)"
+  },
+  "channels_status_probe": {
+    "command": "openclaw channels status",
+    "verdict_timeout_s_before": 8,
+    "measured_ms": [
+      9302,
+      10764,
+      11322
+    ],
+    "load_average_1m": [
+      6.09,
+      6.33
+    ],
+    "status_line_connected": "- WhatsApp default: enabled, configured, linked, running, connected, out:3h ago, transport:1m ago, health:healthy",
+    "status_line_stopped": "- WhatsApp default: enabled, configured, linked, stopped, health:degraded",
+    "status_line_logged_out": "- WhatsApp default: enabled, configured, linked, error:status=401 Unauthorized Stream Errored (conflict), stopped, health:logged-out",
+    "note": "status_line_stopped et status_line_logged_out : lignes réelles déjà utilisées par test-whatsapp-channel-health.py ; status_line_connected : sortie du 02/11 20:09."
+  },
+  "openclaw_sources": {
+    "whatsapp_reconnect_policy": {
+      "file": "@openclaw/whatsapp dist/.setup/socket-close-*.mjs DEFAULT_RECONNECT_POLICY",
+      "initialMs": 2000,
+      "maxMs": 30000,
+      "factor": 1.8,
+      "jitter": 0.25,
+      "maxAttempts": 12
+    },
+    "samantha_patch_after_fast_attempts": "408/428/503/499 et erreurs réseau : reprises lentes 60/120/300 s (±20 %) sans fin ; compteur remis à zéro après 120 s connecté",
+    "channel_manager_restart_policy": {
+      "file": "openclaw dist/server-channels-*.mjs",
+      "initialMs": 5000,
+      "maxMs": 300000,
+      "factor": 2,
+      "jitter": 0.1,
+      "maxRestarts": 10,
+      "stable_run_ms": 300000,
+      "give_up_log": "[<account>] giving up after 10 restart attempts"
+    },
+    "send_without_listener": "send-*.mjs : getActiveListener() null -> PlatformMessageNotDispatchedError 'No active WhatsApp Web listener (account: default)' (rien n'est expédié)",
+    "cli_json_error_envelope": "call-*.mjs formatGatewayClientRequestErrorJson : {\"ok\":false,\"error\":{\"type\":\"gateway_request_error\",\"code\":<gatewayCode>,\"message\":<message>,\"retryable\":<bool>}} sur stdout, code de sortie 1 (gateway call --json)",
+    "channels_start": "méthode Gateway channels.start {channel, accountId} (scope operator.admin), appelée par `openclaw channels login` après une liaison ; compte déjà possédé par une tâche (connecté ou en reprise) -> {status:retry, reason:task-owned}, rien n'est arrêté ; compte désactivé dans la config -> non démarré"
+  },
+  "listener_gaps_gateway_log": {
+    "source": "gateway-whatsapp-timeline.log",
+    "covered_utc": [
+      [
+        "2026-10-31T00:38",
+        "2026-10-31T10:57"
+      ],
+      [
+        "2026-10-31T23:05",
+        "2026-11-01T10:55"
+      ],
+      [
+        "2026-11-01T23:19",
+        "2026-11-02T08:01"
+      ],
+      [
+        "2026-11-02T16:13",
+        "2026-11-02T19:24"
+      ]
+    ],
+    "coverage_gap_cause": "le journal Gateway est tronqué (pas tourné) au redémarrage du Gateway : 01/11 11:00-23:00, 02/11 08:01-16:13 et 16:13-19:24 (perdu au redémarrage de 20:24, capturé avant) manquent",
+    "gaps": 31,
+    "by_cause": {
+      "close_408": 10,
+      "watchdog_499": 8,
+      "close_428": 6,
+      "gateway_start": 4,
+      "close_503": 2,
+      "plugin_reload": 1
+    },
+    "median_s": 5.9,
+    "p90_s": 18.3,
+    "max_s": 75.7,
+    "gateway_start_note": "gateway_start = de « http server listening » à « Listening » (18-27 s) ; l'arrêt et le démarrage du Gateway (17-35 s) s'y ajoutent",
+    "send_refused_in_gap": {
+      "at_utc": "2026-11-02T16:22:31.452",
+      "cause": "plugin_reload",
+      "gap_s": 5.9,
+      "ledger": "2026-11-02T17:22:32+01:00 state=failed reason=gateway_call rc=1 elapsed_s=14 key=recovery-bc6233b9cb8d7d623f2f0840"
+    },
+    "reload_origin": "~/.openclaw/openclaw.json réécrit à 17:22:08 locale avec la sauvegarde openclaw.json.bak-mec-20261102 (édition manuelle de agents.entries.main.tools), 8 min après le déploiement de 17:14 ; rechargement à chaud -> retrait forcé des plugins après 5 s"
+  },
+  "health_manager_episodes": {
+    "source": "~/.openclaw/health/health.log, service=whatsapp, 2026-10-28T13:41 -> 2026-11-02T20:22",
+    "episodes": 238,
+    "duration_buckets": {
+      "<60s": 107,
+      "60-120s": 59,
+      "2-5min": 53,
+      "5-30min": 16,
+      "30min-2h": 1,
+      ">2h": 2
+    },
+    "median_s": 77.5,
+    "p90_s": 266,
+    "by_reason": {
+      "channel_not_connected": 231,
+      "latest_outbound_failed": 6,
+      "unknown": 1
+    },
+    "incidents_opened": 24,
+    "channel_not_connected_in_covered_hours": 127,
+    "matched_real_gateway_closure": 4,
+    "long_real_outages": [
+      {
+        "from": "2026-10-26T23:34+01:00",
+        "to": "2026-10-27T07:46+01:00",
+        "cause": "network_safety wifi_disabled_without_lease ; smtp dégradé aussi"
+      },
+      {
+        "from": "2026-10-28T23:08+01:00",
+        "to": "2026-10-29T08:47+01:00",
+        "cause": "network_safety wifi_disabled_without_lease ; WhatsApp a envoyé à 08:51, santé restée dégradée jusqu'à 10:09 (verrou latest_outbound_failed, corrigé le 29/10)"
+      },
+      {
+        "from": "2026-10-29T23:39+01:00",
+        "to": "2026-10-30T09:09+01:00",
+        "cause": "network_safety wifi_disabled_without_lease ; smtp dégradé aussi ; WhatsApp sain à 09:13 sans redémarrage du Gateway"
+      }
+    ],
+    "latest_outbound_latch_20261102": "après le refus de 17:22:32, latest_outbound_failed dès que la sonde répond (dernier envoi du canal à ~17:19) : incidents ouverts à 17:28, 18:16, 18:56, 19:56 alors que le canal était connecté"
+  },
+  "outbound_ledger_7d": {
+    "source": "~/.openclaw/health/whatsapp-outbound.log, depuis 2026-10-26T20:00+01:00",
+    "failed": 625,
+    "accepted": 42,
+    "failed_keys": 5,
+    "failed_by_day": {
+      "2026-10-26": 21,
+      "2026-10-27": 369,
+      "2026-10-28": 15,
+      "2026-10-29": 111,
+      "2026-10-30": 108,
+      "2026-11-02": 1
+    },
+    "note": "621 échecs tombent dans les trois nuits sans Wi-Fi (reprises toutes les ~5 min avant #523) ; 3 le 28/10 à 14:23-14:24 (redémarrage du Gateway, journal Gateway non couvert) ; 1 dans un trou d'écouteur (02/11 17:22:32). Échecs rapides (elapsed_s 4) : le Gateway répondait.",
+    "failed_split": {
+      "nights_without_wifi": 621,
+      "2026-10-28T14:23-14:24": 3,
+      "listener_gap_20261102": 1
+    }
+  }
+}

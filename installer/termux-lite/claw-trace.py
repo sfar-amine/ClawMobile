@@ -122,6 +122,8 @@ def dialogue(since_ms, until_ms):
 VOICE_DIAGNOSTIC_EVENTS = ("t00", "t07c", "t10", "t11", "t21", "t22", "t23", "t24", "t25", "t30",
                            "t31", "t32", "t41", "t42", "t43", "t44", "t50", "t51", "t90")
 VOICE_DIAGNOSTIC_FAILURE_FAMILIES = ("token", "before_setup", "setup_timeout", "protocol", "sequence", "correlation")
+# Same closed turn-id shape as VOICE_TURN_ID_RE in runs.ts (greeting and deferred readback turns included).
+VOICE_TURN_ID_PATTERN = r"voice-(?:(?:greeting|readback)-)?[a-f0-9-]{36}"
 
 
 def voice_diagnostics(run, since_ms, until_ms):
@@ -129,7 +131,7 @@ def voice_diagnostics(run, since_ms, until_ms):
     value = run.get("voiceDiagnostics")
     run_id = run.get("runId")
     if (run.get("modality") != "voice" or not isinstance(run_id, str) or
-            not re.fullmatch(r"voice-(?:greeting-)?[a-f0-9-]{36}", run_id) or
+            not re.fullmatch(VOICE_TURN_ID_PATTERN, run_id) or
             not isinstance(value, dict) or set(value) != {"version", "startedAtMs", "truncated", "events"} or
             type(value.get("version")) is not int or value["version"] != 1 or
             type(value.get("startedAtMs")) is not int or not 0 <= value["startedAtMs"] <= 4102444800000 or

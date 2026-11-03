@@ -6,7 +6,6 @@ import {conditionalRead} from "./readEtag";
 import {completeUsageAttention} from './usageControl';
 import {allJobs} from "./automations";
 import { execFile, spawn } from "child_process";
-import {existsSync} from "fs";
 import type { IncomingMessage, ServerResponse } from "http";
 import os from "os";
 import path from "path";
@@ -15,14 +14,15 @@ import { randomUUID, createHash } from "crypto";
 import { performance } from "perf_hooks";
 import { completeHealthSection } from "./control-health";
 import {companionBuildVersion} from "./updatesControl";
+import {playbooksRootFor} from "./playbooksRoot";
 
 const sections = new Set(["snapshot", "activity", "requests", "missions", "automations", "intelligence", "health", "situations", "notifications", "diagnostic"]);
 let activeStreams = 0;
 
 export function controlPaths() {
-  const pinned=path.join(os.homedir(), ".openclaw/runtime-ui-playbooks/current");
   return {
-    playbooks: process.env.SAMANTHA_CONTROL_PLAYBOOKS || process.env.CLAW_UI_PLAYBOOKS_ROOT || (existsSync(path.join(pinned,"reporting/control_snapshot.py")) ? pinned : path.join(os.homedir(), ".openclaw/workspace/ui-playbooks")),
+    // Single code root (02/11): explicit roots, the activated pin, then the workspace copy (fallback recorded).
+    playbooks: playbooksRootFor("control", "reporting/control_snapshot.py", {overrides:[process.env.SAMANTHA_CONTROL_PLAYBOOKS, process.env.CLAW_UI_PLAYBOOKS_ROOT]}),
     live: process.env.SAMANTHA_CONTROL_LIVE || runtimeFile("claw-live.py"),
   };
 }

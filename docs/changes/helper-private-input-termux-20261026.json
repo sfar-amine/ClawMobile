@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "id": "helper-private-input-termux-20261026",
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "runCapabilityHelperProcess starts the helper with the callback form of execFile, so the private input pipe is written and a helper failure is always awaited, also under the Termux glibc shim.",
+  "reason": "REQ-3278, S24 26/10: three WhatsApp messages of the Pulse room (11:29:08Z, 11:43:10Z, 13:21:00Z) were answered « Le suivi de conversation est indisponible. » and each was followed by a Gateway restart. The Gateway runs with NODE_OPTIONS=-r glibc-compat.js; that shim replaces child_process.execFile without util.promisify.custom, so promisify(execFile) returned a promise without .child. `child.stdin` threw before the private input was written (reply coordinator_unavailable), the helper stopped on native_pulse_input_timeout with exit 1, and the never-awaited rejection was an unhandled rejection that restarted the Gateway (stability bundles 2026-10-26T11-29-10-427Z, T11-43-12-528Z, T13-21-02-302Z). Reproduced on the S24 with the deployed dist and Node 24.21.0: caught « Cannot read properties of undefined (reading 'stdin') » then UNHANDLED « Command failed ».",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-helper-process-termux-shim.cjs",
+    "openclaw-plugin-mobile-ui/package.json",
+    ".github/workflows/ci.yml",
+    "docs/changes/helper-private-input-termux-20261026.json",
+    "docs/changes/helper-private-input-termux-20261026.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-helper-process-termux-shim.cjs",
+      "status": "passed",
+      "evidence": "Loads the real installer/termux-lite/openclaw-compat/glibc-compat.js (stand-in glibc loader) and the built transport: the shim is active (no promisify.custom), the private input reaches the helper (15 bytes), an exit 1 is a caught rejection with its stdout, no unhandled rejection. Without the fix it fails with the S24 error « Cannot read properties of undefined (reading 'stdin') »."
+    },
+    {
+      "name": "helper transport suites",
+      "status": "passed",
+      "evidence": "test-capability-bridge, test-model-fast-path, test-model-fast-path-intent, test-model-fast-path-mcp-read, test-native-pulse-handoff, test-qa-private-ingress, test-mcp-private-context, test-mcp-client-input, test-run-web, test-canonical-agent-bootstrap, test-voice-brain-delegation, test-typed-failure-presentation pass; C16 native Pulse paired 42/42 and C18 native FAST paired 23/23 (MOCK_ONLY) pass."
+    }
+  ],
+  "documentation": [
+    "docs/changes/helper-private-input-termux-20261026.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same helper, argv, environment, timeouts, process group and private input contract; only the Node transport that starts it changes."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "The existing transport keeps its owner and interface; it uses the callback form already adopted for the same Termux cause in gemini-public-synthesis.mjs (17/10)."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "MCP private-input callers (intent context) use the same transport and now receive their input on the S24; schemas, adapters and protocol are unchanged."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Live proof: a real WhatsApp message from the Pulse room after companion-deploy, with no Gateway restart and a coordinator transition recorded."
+  ],
+  "rollback": "Revert this commit; the transport returns to promisify(execFile)."
+}

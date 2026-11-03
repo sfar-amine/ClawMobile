@@ -1,0 +1,81 @@
+{
+  "version": 2,
+  "id": "model-settings-all-flows-20261030",
+  "date": "2026-10-30",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "Settings → Providers and models: the intent interpreter (primary + one technical fallback), public web synthesis and voice memo transcription become settable flows of the existing R6 write path (/agent/config: CAS on the Gateway config revision, included-cost allowlist, receipt v2, replay, revert, inherit). Each executor reads its own plugin-config key with fallback to its current constant; only the executor's qualified references are admitted. /providers gains a twelfth role, intent_interpreter, and shows engineering/immune chains from the canonical model_policy routing profiles instead of the engineering-lite agent default (the governor passes --model on every call). Read-only flows carry a precise editableReason.",
+  "reason": "Amine 30/10: every AI usage must be settable from the app, the interpreter included (primary and fallback), and the models fixed in code (web search, voice memos) through a config key with fallback to the current constant. Mapping done on the S24 the same day (openclaw.json, pinned model_policy.json, plugin LLM policy, brain-only mode).",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/openclaw.plugin.json",
+    "openclaw-plugin-mobile-ui/scripts/test-brain-only-entry.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-model-flows.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-model-flows-executors.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/refonte-model-flows/s24-model-policy-routing-20261030.json",
+    "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
+    "openclaw-plugin-mobile-ui/src/companion/modelOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/providers.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
+    "docs/changes/model-settings-all-flows-20261030.json",
+    "docs/changes/model-settings-all-flows-20261030.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-model-flows-executors.cjs",
+      "status": "passed",
+      "evidence": "New, in ci.yml. Real S24 models/auth/agents capture, pinned model_policy.json and plugin LLM policy capture (30/10): interpreter choices = Sol, Luna, Gemini free only (no Terra, no Copilot); refusals before any effect (two fallbacks, self-fallback, thinking field, unincluded model, stale revision); one scoped config key, no agent field, no modelFlowSelection fence; replay without second dispatch; revert to the exact absence; web/memo one qualified choice, set and inherit; malformed or unqualified stored value ignored by the reader and flagged; engineering/immune chains from the routing profiles."
+    },
+    {
+      "name": "test-model-roles, test-model-flows, test-agent-config, test-conversation-model-profile, test-usage-providers, test-intent-interpreter-port, test-brain-only-entry, test-capability-tool, test-typed-capability-tools; tsc",
+      "status": "passed",
+      "evidence": "Green. test-model-flows counts twelve flows; the port tests now admit Luna (Amine 30/10) and keep refusing an unqualified model (Terra)."
+    }
+  ],
+  "documentation": [
+    "docs/changes/model-settings-all-flows-20261030.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No new route: same owner route /agent/config (native owner-flow header, biometric confirmation when an account is added), three more values of its closed `flow` parameter; acceptance read lines added for them."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same model owner, same CAS write, same run receipts; three keys in the existing plugin config (schema extended). No new store, registry, router or scheduler."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_impacted",
+      "adapters": "verified_impacted",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Plugin config schema (three executor keys), /agent/config flow values, /providers roles, interpretation port admission."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "The interpreter setting takes effect once the twin playbooks PR (governor reader) is activated; deploy this core first (its port admits Luna).",
+    "Web synthesis and memo transcription admit exactly one qualified model today (Gemini free): the setting is in place, a second model needs its own qualification (web synthesis contract in gemini-request.py, public_web.py and runWeb.ts; memo transcription receipt) before it can be offered. Their executors keep their constant until then.",
+    "memory_search, realtime_voice, spoken_voice, immune_system and engineering_learning stay read-only: embedding change pauses vector search until reindex; the Live voice model is a qualified protocol constant (talk.realtime is not read by Samantha's voice); app read-aloud uses the phone's TTS; immune/engineering chains belong to the pinned model_policy.json.",
+    "S24 30/10: SAMANTHA_BRAIN_ONLY=1, so the production interpreter serves the native Pulse rooms only.",
+    "The app (android/samantha, line feature/samantha-ux-c11-20261009) hardcodes the three editable flows and the eleven ids: a twin app PR is needed to edit the new flows and show intent_interpreter."
+  ],
+  "rollback": "Inherit (or revert) each executor flow from the app first, so no executor key remains in openclaw.json, then revert this PR and redeploy the core. A remaining key would be refused by the previous plugin config schema."
+}

@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "id": "refonte-l3-voice-relay-20261026",
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "canonical_ci": "pending_full_ci",
+  "live_recipe": "not_run",
+  "summary": "La voix relay authentifiée délègue les messages entiers au même main sous brainOnly, avant toute interprétation.",
+  "reason": "Le canal cloud/WS existant restait atteignable via Dialogue/Graph avant le cerveau. Réutilisation Gateway, session et idempotence, sans fabriquer ticket P1 ni admission depuis bearer. Existing capsule continuation requires output needs_clarification: reuse only its post-brain question projection, never route input. Capsule now preserves unknown/scope receipts under HTTP502 instead of generic unavailability.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
+    "docs/changes/refonte-l3-voice-relay-20261026.json",
+    "docs/changes/refonte-l3-voice-relay-20261026.md",
+    "openclaw-plugin-mobile-ui/src/companion/voiceRelay.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-relay-brain-only.cjs",
+    "cloud/voice-relay/src/index.mjs",
+    "cloud/voice-relay/test-voice-brain-budget.mjs",
+    "integrations/bixby-claw/code/AskClaw.js",
+    "integrations/bixby-claw/code/ContinueClaw.js"
+  ],
+  "tests": [
+    {
+      "name": "Exact voice relay TypeScript and six source contracts",
+      "status": "passed",
+      "evidence": "Source65310125bf52750055e49ea1f7a7bd73e069dca0, qualified cloud container,10.943s: real tsc -p tsconfig.json; test-voice-relay-brain-only.cjs, test-voice-relay.cjs, test-voice-relay-reconnect.cjs, Worker test-voice-brain-budget.mjs, test.mjs, test-long-action.mjs. Log l3-voice-relay-65310125-container-v1.log SHA256 d5f5710371592cf727ee7436a754a8d2d2ffd5d1e1423ce502daf788b1ce25cb; source stable. MOCK/virtual-time only, not native P1 or deployment; exact integrated full remains pending."
+    }
+  ],
+  "documentation": [
+    "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
+    "docs/changes/refonte-l3-voice-relay-20261026.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "NO_CAPABILITY: unchanged authenticated transport delegates text to main; executable tools retain their canonical registered capabilities, native scopes and confirmations."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Same semantic brain across voice ingress; existing relay/Gateway/transport binding reused without parallel router or store.",
+    "documents": [
+      "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md"
+    ]
+  },
+  "mcp_owner_parity": {
+    "impact": "none",
+    "evidence": [
+      "The authenticated mcp_request branch is untouched; no tool/schema/adapter/backend route is added or changed. The relay transport never grants MCP/P1 authority."
+    ]
+  },
+  "routes": [
+    {
+      "route": "Existing cloud POST /voice → device WS request",
+      "budget": "30000ms useful brain work; edge35000ms includes5000ms only to receive terminal/deferred receipt. MCP28000ms unchanged.",
+      "capability": "NO_CAPABILITY: transport only; typed tools retain canonical capabilities and guarded authority"
+    }
+  ],
+  "rollback": "Disable brainOnly or restore the previous paired Companion with companion-deploy.sh; same storage and authenticated relay transport."
+}

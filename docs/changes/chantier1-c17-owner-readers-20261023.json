@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "id": "chantier1-c17-owner-readers-20261023",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Wire current native Contacts authority to opaque C17 context and existing C18 read owner",
+  "reason": "Native source/DATA/read seams were disconnected; preserve closed custom and private-data boundaries",
+  "files": [
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/people-trusted.py",
+    "installer/termux-lite/project-room.py",
+    "installer/termux-lite/pulse-room.py",
+    "openclaw-plugin-mobile-ui/src/nativePulseAdmission.ts",
+    "openclaw-plugin-mobile-ui/src/pulseRoomFastPath.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-native-pulse-handoff.cjs",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/native-fast-paired-helper.py",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/native-pulse-paired-helper.py",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/native-context-owner-helper.py",
+    "docs/changes/chantier1-c17-owner-readers-20261023.md",
+    "docs/changes/chantier1-c17-owner-readers-20261023.json"
+  ],
+  "tests": [
+    {
+      "name": "Paired native source, DATA01 and read corridor",
+      "status": "passed",
+      "evidence": "112 pure PB tests + real private IPC 1/1; MOCK provider only; /tmp/chantier1-c17-final-pure.log and /tmp/chantier1-c17-real-ipc.log"
+    },
+    {
+      "name": "Recovered core owner regressions and compiled native host",
+      "status": "passed",
+      "evidence": "New Cloud: readers10/10, QA room38/38, allowlist47/47 (95/95, former EAGAIN resolved); private QA pipe4/4; TypeScript build exit0, Node20 native host34/34. Logs /workspace/samantha-recovery-evidence/; canonical numbered fullCI remains pending."
+    }
+  ],
+  "documentation": [
+    "docs/changes/chantier1-c17-owner-readers-20261023.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "No route or native access admission added"
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing Contacts and Pulse owners only"
+  },
+  "rollback": "Revert source only; no business operation to replay",
+  "limitations": [
+    "Custom/current restricted audience remains closed; no ACL expanded",
+    "New Cloud targeted regressions and TS/Node pass; canonical exact-pair full CI remains pending.",
+    "Provider and result ports simulated; no LIVE qualification, deployment or opt-in",
+    "New IPC fixture consumes the paired PB source; old fixtures keep explicit MOCK source admission"
+  ],
+  "base_dependency": {
+    "repository": "sfar-amine/samantha-core",
+    "sha": "f941ef18c30c43ccdf12699f68abbc6122d4cac6"
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "version": 2,
+  "id": "whatsapp-listener-health-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "WhatsApp sans écouteur actif : la sonde d'état a un budget de 15 s et une sortie vide n'est plus une coupure ; un compte WhatsApp arrêté est relancé par la méthode Gateway `channels.start` d'OpenClaw, sans redémarrage du Gateway ; un envoi refusé faute d'écouteur est rejoué une fois ou deux dans le budget existant ; ce refus cesse de dégrader 90 s après si le canal est connecté.",
+  "reason": "S24 02/11 : envoi refusé UNAVAILABLE « No active WhatsApp Web listener » à 17:22:31 pendant les 5,9 s d'un rechargement de plugin (édition manuelle de la config, pas le déploiement). Sur 7 jours : 31 trous d'écouteur (médiane 5,9 s, p90 18 s, max 76 s), tous refermés par OpenClaw ; 3 nuits sans Wi-Fi portent 621 des 625 échecs. Le gestionnaire de santé comptait 231 épisodes `channel_not_connected` dont 4 seulement réels sur les heures couvertes, car `timeout 8 openclaw channels status` coupait une CLI de 9,3 à 11,3 s ; 24 incidents faux, aucun gestionnaire de reprise pour un compte arrêté.",
+  "files": [
+    "installer/termux-lite/health-verdict.py",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/whatsapp-owner-send.sh",
+    "installer/termux-lite/test-whatsapp-listener.py",
+    "installer/termux-lite/test-whatsapp-channel-health.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-whatsapp-listener/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-whatsapp-listener/capture.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-whatsapp-listener/provenance.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-whatsapp-listener/gateway-whatsapp-timeline.log",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-whatsapp-listener/health-whatsapp-20261102.log",
+    ".github/workflows/ci.yml",
+    "docs/changes/whatsapp-listener-health-20261102.json",
+    "docs/changes/whatsapp-listener-health-20261102.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-whatsapp-listener.py",
+      "status": "passed",
+      "evidence": "20 tests verts dans le conteneur. Ils couvrent : les fixtures et leur nettoyage ; les statistiques réelles des trous (31, médiane 5,9 s, p90 18,3 s, max 75,7 s) ; le refus de 17:22:31 dans le rechargement de plugin ; le budget de la sonde, qui couvre la mesure de 11,3 s ; les états du verdict sur les lignes réelles ; le verrou `latest_outbound_failed` sur la ligne réelle ; le rejeu du 02/11 16:11-20:01 dans la vraie fonction `check_whatsapp` (escalade avec l'ancienne lecture, aucune avec la nouvelle) ; `channels.start` (un seul appel, jamais pour un canal en reprise, sauté en déploiement, attente si la porte IA refuse alors que le Companion vit, repli direct sans Companion) ; l'attente à l'envoi avec une CLI simulée qui rejoue l'enveloppe UNAVAILABLE réelle (réussite après 2 refus, borne sous 18 s, pas de reprise après un refus lent ni après une autre erreur, une ligne de journal par appel, ni numéro ni corps). Une mutation de chacun des trois correctifs fait échouer 6 tests."
+    },
+    {
+      "name": "installer/termux-lite/test-whatsapp-channel-health.py, test-whatsapp-owner-send.sh, test-owner-notify-retry.py, test-whatsapp-lock-recovery.py, test-health-verdict.py, test-health-verdict-f5.py, test-health-hysteresis.py, test-health-restart-escalation.py, test-health-deploy-lock.py, test-health-boot-reset.py, test-health-gateway-fallback-owner.py, test-health-resource-policy.py, test-health-qa-queue.py, test-i9-noise.py, test-tier0-lkg-hold.py, test-incident-deterministic-recovery.py, test-incident-runtime-hardening.sh, test-whatsapp-network-recovery.py, test-k2-owner-message.py, test-learning-gate.py, test-claw-live.py, test-ci-registration.py",
+      "status": "passed",
+      "evidence": "Verts dans le conteneur (python3, bash hôte). Seul changement attendu : `stopped` donne désormais `channel_stopped` dans test-whatsapp-channel-health.py."
+    }
+  ],
+  "documentation": [
+    "docs/changes/whatsapp-listener-health-20261102.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-whatsapp-listener/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Aucune action, aucun réglage ni aucune route accessible à l'agent ou à la voix. Le lot change une sonde de santé, une réparation interne bornée du gestionnaire de santé et le propriétaire d'envoi existant."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Propriétaires existants réutilisés : health-verdict.py, samantha-health-manager.sh (budget `fail`, porte immunitaire, mode canonique), whatsapp-owner-send.sh et son journal, et la méthode Gateway `channels.start` d'OpenClaw. Aucun nouveau store, démon, ordonnanceur ni canal."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "Sonde et réparation WhatsApp du gestionnaire de santé, envoi WhatsApp propriétaire ; aucun outil MCP ne change."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Basé sur claude/notify-retry-cap (PR #523) : à fusionner après elle, ou à rebaser.",
+    "La CI canonique complète (tools/localci.py) sur le head GitHub exact reste à faire.",
+    "La ligne d'échec héritée du 02/11 17:22:32 (`reason=gateway_call`, non classée) garde son verrou `latest_outbound_failed` jusqu'au prochain envoi accepté du canal.",
+    "L'attente à l'envoi ne joue qu'après un refus rapide : un refus qui revient après plus de 9 s (17:22:32 : 14 s) n'est pas rejoué dans l'appel ; la politique par clé de #523 le reprend 60 s plus tard pour incident-manager.",
+    "Coût : la sonde `openclaw channels status` reste une CLI froide d'environ 10 s par relevé du gestionnaire de santé ; seule sa coupure à 8 s change. `native-recovery-entrypoint.py` lance le verdict avec 8 s de budget, déjà dépassé avant ce lot.",
+    "Le journal Gateway est tronqué (pas tourné) à chaque redémarrage du Gateway : 01/11 11:00-23:00 et 02/11 08:01-19:24 UTC manquent ; hors de ce lot.",
+    "Les coupures nocturnes du Wi-Fi sans bail (26/10, 28/10, 29/10 vers 23:35) restent la première cause réelle ; hors de ce lot.",
+    "`channels.start` n'a pas été exercé sur le S24 (aucune mutation pendant l'enquête) ; sa sémantique vient du code OpenClaw 2026.10.9 installé."
+  ],
+  "rollback": "Revenir sur ce commit et redéployer le core avec installer/termux-lite/companion-deploy.sh <commit>. Les lignes `reason=listener_unavailable holds=N` du journal sont lues par l'ancien code comme tout échec (state=, key=) ; un `unverified` ou un `channel_stopped` publié dans health/current.json est remplacé au relevé suivant et retombe dans le chemin `fail` existant."
+}

@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "id": "skill-preload-owner-turn-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "#126 : quand un tour du propriétaire (agent main) relève clairement d'un seul domaine typé fréquent (agenda, factures, Orange/télécom, téléphone), le hook before_prompt_build existant ajoute le SKILL.md installé au seul tour (prependContext), hors du préfixe système mis en cache. Filet pour les autres tours : skills_read et skills_search refusés à l'agent main par le propriétaire de configuration existant, la lecture du skill devient un seul read direct.",
+  "reason": "S24 02/11, OpenClaw 2026.10.9 : premier tour « Qu'est-ce que j'ai dans mon agenda demain ? » d'environ 17 s, dont environ 8 s de découverte du skill (tool_search 3,4 s puis skills_read 4,6 s, chacun un aller-retour modèle), parce que skills_read est catalogué derrière Tool Search. Refuser skills_read fait revenir l'hôte à « Clear match: read exact <location> with `read` » (vérifié en direct le 02/11).",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/model-efficiency-config.py",
+    "installer/termux-lite/test-model-efficiency.py",
+    "openclaw-plugin-mobile-ui/fixtures/playbooks-2026-11-02-skill-bodies/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/playbooks-2026-11-02-skill-bodies/provenance.json",
+    "openclaw-plugin-mobile-ui/fixtures/playbooks-2026-11-02-skill-bodies/skills/orange-telecom/SKILL.md",
+    "openclaw-plugin-mobile-ui/fixtures/playbooks-2026-11-02-skill-bodies/skills/samantha-agenda/SKILL.md",
+    "openclaw-plugin-mobile-ui/fixtures/playbooks-2026-11-02-skill-bodies/skills/samantha-appareil/SKILL.md",
+    "openclaw-plugin-mobile-ui/fixtures/playbooks-2026-11-02-skill-bodies/skills/samantha-factures/SKILL.md",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-skill-preload.cjs",
+    "openclaw-plugin-mobile-ui/src/ownerBootstrapContext.ts",
+    "openclaw-plugin-mobile-ui/src/ownerSkillPreload.ts",
+    "docs/changes/skill-preload-owner-turn-20261102.json",
+    "docs/changes/skill-preload-owner-turn-20261102.md"
+  ],
+  "routes": [],
+  "tests": [
+    {
+      "name": "Préchargement du skill par tour (test-owner-skill-preload.cjs, inscrit en CI)",
+      "status": "passed",
+      "evidence": "Build plugin (tsc + prepare-lite) ; correspondance FR/derja/EN par domaine, négatifs (Pulse, discussion, ambigus, exclusions, texte long) ; prependContext seul pour les tours propriétaire à correspondance unique, rien pour contacts, pièces Pulse/Projet, cron, heartbeat, sous-agent, entrées inter-session ; prependSystemContext/appendSystemContext identiques avec et sans préchargement ; borne 16 Kio inclusive, identité du frontmatter, relecture après réinstallation, échec ouvert ; aucun processus lancé."
+    },
+    {
+      "name": "Propriétaire de configuration (test-model-efficiency.py)",
+      "status": "passed",
+      "evidence": "25 tests verts : refus fusionné à une politique main existante (allow, deny, alsoAllow conservés, ordre gardé), création minimale sans politique, idempotence, agents autres que main inchangés, politiques non conformes jamais réécrites."
+    },
+    {
+      "name": "Non-régression plugin",
+      "status": "passed",
+      "evidence": "Toutes les étapes node scripts/test-*.cjs du job mobile-ui-plugin de ci.yml rejouées localement sur le build, dont test-owner-foundation.cjs inchangé."
+    }
+  ],
+  "documentation": [
+    "docs/changes/skill-preload-owner-turn-20261102.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Aucune capability, route ou outil nouveau : mêmes outils typés et mêmes skills installés ; seule la livraison des consignes au modèle change.",
+    "ids": []
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Réutilise le hook owner before_prompt_build existant (champ par tour prependContext du SDK) et le propriétaire de configuration model-efficiency-config.py ; table de déclencheurs fermée dans un module, cache borné aux quatre fichiers ; aucun store, registre, routeur ou démon."
+  },
+  "fixtures": [
+    "openclaw-plugin-mobile-ui/fixtures/playbooks-2026-11-02-skill-bodies/ : corps source (playbooks de922be4), recoupés avec les empreintes S24 du 25/10 ; projection, pas une capture S24",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/ (existant) : hooks-CgZHhfMh, attempt-system-prompt-prepare-ChKsbjSh, openclaw-tools-CSSYZDKR, openclaw-state-read.worker pour prependContext, toolsAllow et la règle skills_read/read"
+  ],
+  "rollback": "Sans déploiement : SAMANTHA_SKILL_PRELOAD=0 dans l'environnement propriétaire de la Gateway puis redémarrage propre, et retrait de skills_read et skills_search de agents.entries.main.tools.deny dans ~/.openclaw/openclaw.json (les autres entrées restent). Complet : revert du commit, companion-deploy vers le commit précédent, puis même retrait des deux entrées (le script reverti ne les retire pas).",
+  "limitations": [
+    "Gain attendu d'environ 8 s sur un premier tour apparié, non encore mesuré en production.",
+    "Corps des skills : projection source ; empreintes des fichiers installés à capturer sur le S24 après activation.",
+    "Le prependContext n'est pas persisté par OpenClaw : le tour suivant perd le cache à partir de ce message (le préfixe système reste en cache)."
+  ]
+}

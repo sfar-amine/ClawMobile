@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "id": "memory-retrieval-warm-20261031",
+  "date": "2026-10-31",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "New pinned patch set memory-retrieval-warm in the existing openclaw-compat owner: the memory-core recall WorkerTaskPool keeps its worker 30 min (idleTimeoutMs 18e5) instead of the 60 s default. Applied by runtime-sync (Gateway restart on applied) and gateway-start, checked every 30 min, undone by companion-deploy rollback.",
+  "reason": "S24 31/10, OpenClaw 2026.9.6: brain turns spend 3.6-11 s in Gateway preparation, 0.17 s of it in the Samantha plugin. Inspector NodeWorker shows the Gateway starting memory-search.worker.js right after the tool catalogue on a turn after a pause; the recall pool has no idleTimeoutMs, so WorkerTaskPool retires it after 60 s and nearly every spoken turn pays the respawn (~2.5 s on 4 cores) before the model starts. Read probes (chat.history, sessions.list) do not warm it; OpenClaw 2026.10.9 does not change it.",
+  "files": [
+    "installer/termux-lite/openclaw-compat/memory-retrieval-warm.json",
+    "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
+    "installer/termux-lite/gateway-start.sh",
+    "installer/termux-lite/runtime-sync.sh",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/test-memory-retrieval-warm.py",
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-memory-retrieval-warm/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-memory-retrieval-warm/measurements.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-memory-retrieval-warm/compat/manager-cpu-worker-runtime-Egp8qeu_.mjs.gz",
+    "docs/changes/memory-retrieval-warm-20261031.json",
+    "docs/changes/memory-retrieval-warm-20261031.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-memory-retrieval-warm.py",
+      "status": "passed",
+      "evidence": "8 tests on the captured S24 module: hash = S24 = npm, only the retrieval pool gets the option, node --check, atomic/idempotent/reversible, refusal on unknown hash or version, runtime-sync/gateway-start/companion-deploy share the owner, executed rollback and checkout-ownership guards. Registered in ci.yml."
+    },
+    {
+      "name": "test-native-turn-provenance.py, test-model-flow-selection.py, test-agent-exec-auth-scope.py, test-whatsapp-network-recovery.py, test-runtime-sync.py, test-ci-registration.py",
+      "status": "passed",
+      "evidence": "Neighbouring patch-set and sync owners green on this head (their extracted gateway-start/deploy blocks now contain the new guarded block, inert without its manifest)."
+    }
+  ],
+  "documentation": [
+    "docs/changes/memory-retrieval-warm-20261031.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-31-memory-retrieval-warm/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "OpenClaw worker pool option through the existing compatibility owner; no route, action or capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Fifth patch set of the existing pinned owner; no new store, scheduler or daemon. The worker pool keeps its own memory-critical retirement (timeout above zero)."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Gateway worker pool lifetime only; MCP tools and schemas unchanged."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The expected gain (~2 s on a turn after a pause) is inferred from timings and worker spawn offsets; it is confirmed only by the before/after measurement on the S24 after deployment.",
+    "The kept worker costs resident memory on a phone with little free RAM; measured after deployment, retired by the pool on memory-critical pressure.",
+    "The sqlite-store.worker respawn (~2.2 s SQLite queue wait) is not addressed here."
+  ],
+  "rollback": "companion-deploy.sh of the previous commit undoes the set (manifest not owned by the previous checkout), or whatsapp-network-recovery.py --patch-set memory-retrieval-warm --rollback then a Gateway restart."
+}

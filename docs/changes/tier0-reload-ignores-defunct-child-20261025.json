@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "id": "tier0-reload-ignores-defunct-child-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The Tier0 installer no longer treats an already-exited (defunct) watchdog child as an in-flight effect that blocks the reload.",
+  "reason": "S24 deployment of cab55127 rolled back (runtime_sync_failed, watchdog_busy_no_reload): the resident watchdog's only child was [tier0-bootstrap] <defunct>, exited 3h23 earlier and never reaped.",
+  "files": [
+    "installer/termux-lite/install-tier0-control.py",
+    "installer/termux-lite/test-tier0-activation-readiness.py",
+    "docs/changes/tier0-reload-ignores-defunct-child-20261025.json",
+    "docs/changes/tier0-reload-ignores-defunct-child-20261025.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-tier0-activation-readiness.py",
+      "status": "passed",
+      "evidence": "18 tests passed; the new defunct-child test fails without the fix. Inputs are the observed S24 values (watchdog 18631 up 7 days, child 7913 tier0-bootstrap state Z). Offline, no S24 effect."
+    }
+  ],
+  "documentation": [
+    "docs/changes/tier0-reload-ignores-defunct-child-20261025.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Deployment-time Tier0 installer guard only; no route or capability change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same installer and reload owner; only the in-flight child predicate excludes kernel state Z."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: no MCP schema, adapter, endpoint or runtime protocol changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Live proof requires redeploying the Companion and a complete Tier0 SOAK 300 s without rollback.",
+    "The watchdog still leaves defunct bootstrap children until replaced; harmless to reload after this fix."
+  ],
+  "rollback": "Revert this commit normally; the installer returns to refusing reload on any child, including zombies. No S24 configuration is changed by the patch itself."
+}

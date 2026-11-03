@@ -1,4 +1,7 @@
-import {peekModelOwner,readModelOwnerCached,ModelOwnerSnapshot,configuredModelAllow} from './modelOwner';
+import {CLAW_LIVE_MODEL} from './clawLive';
+import {publicModelRef} from './accountIdentity';
+import {readModelFlowTurnLatency} from './control-health';
+import {peekModelOwner,readModelOwnerCached,ModelOwnerSnapshot,configuredModelAllow,configuredModelFlow,modelReferenceAllowed,executorFlowChain,policyFlowChain,EXECUTOR_FLOW_KEYS,POLICY_FLOW_PROFILE,type ConstantExecutorFlow,type PolicyModelFlow} from './modelOwner';
 import {isoTimestamp,peekUsage,publicId,publicModelId,publicText,readUsage,UsageView} from './usage';
 const modelReference=(v:any)=>publicModelId(typeof v==='string'?v.split('@')[0]:v);
 const configured=(snapshot:ModelOwnerSnapshot|null)=>{
@@ -12,33 +15,68 @@ const configured=(snapshot:ModelOwnerSnapshot|null)=>{
 };
 
 /** R1: bounded read-only usage projection of the same model/config owner. Unknown paths stay unknown. */
-export function projectModelRoles(snapshot:ModelOwnerSnapshot|null){
- const config=snapshot?.config;
- const chain=(value:any)=>{
-  const primary=modelReference(typeof value==='string'?value:value?.primary);
-  const fallback=Array.isArray(value?.fallbacks)?value.fallbacks.slice(0,20).map(modelReference).filter(Boolean):[];
-  return {model:primary??null,fallbacks:[...new Set(fallback)],state:primary?'configured':'unavailable'};
- };
- const main=config?.agents?.entries?.main?.model??config?.agents?.list?.find((row:any)=>row.id==='main')?.model??config?.agents?.defaults?.model;
- const entry=(id:string)=>config?.agents?.entries?.[id]?.model??config?.agents?.list?.find((row:any)=>row.id===id)?.model;
- const scalar=(value:any)=>{const provider=publicId(value?.provider);const projected=chain(typeof value?.model==='string'?((provider&&!value.model.includes('/'))?provider+'/'+value.model:value.model):null);return {...projected,provider:provider??null,...(provider&&value?.model==null?{state:'provider_default'}:{})};};
- const spokenProvider=publicId(config?.talk?.provider),spokenVoice=publicModelId(config?.talk?.providers?.[spokenProvider??'']?.voice);
- const roles=[
-  {id:'conversation',...chain(main)},
-  {id:'realtime_voice',...scalar(config?.talk?.realtime)},
-  {id:'spoken_voice',...chain(spokenProvider&&spokenVoice?spokenProvider+'/'+spokenVoice:null)},
-  {id:'conversation_summary',...chain(config?.agents?.defaults?.compaction?.model)},
-  {id:'memory_search',...scalar(config?.memory?.search)},
-  {id:'engineering_learning',...chain(entry('engineering-lite'))},
-  {id:'gemini_agent',...chain(entry('gemini'))},
-  {id:'routing',model:null,fallbacks:[],state:'deterministic'},
-  {id:'immune_system',model:null,fallbacks:[],state:'deterministic',verdictState:'unavailable'},
-  {id:'copilot',model:null,fallbacks:[],state:snapshot?.auth?.providers?.some((row:any)=>row.provider==='github-copilot'&&['ok','static','expiring'].includes(row.status))?'connected_not_used':'unavailable'},
- ];
- return roles.map(role=>({...role,source:role.state==='deterministic'?'canonical_capability_contract':['configured','provider_default'].includes(role.state)?'gateway_config':role.state==='connected_not_used'?'gateway_auth':'unavailable'}));
+export function projectModelFlowMetrics(id:string,latency:any=null){
+ const window=latency?.windows?.['7d'],wa=window?.surfaces?.find((row:any)=>row.surface==='whatsapp');
+ const measured=id==='whatsapp'&&wa&&Number.isSafeInteger(wa.usefulSamples)&&wa.usefulSamples>0&&Number.isFinite(wa.medianUsefulMs)&&wa.medianUsefulMs>=0;
+ return {windowDays:7,notThisRate:null,notThisReason:'feedback_not_correlated',latencyMedianMs:measured?wa.medianUsefulMs:null,
+  state:measured?'measured':'unavailable',latencyReason:measured?null:id==='whatsapp'?'native_measurements_unavailable':'model_flow_not_attributed',
+  usefulSamples:measured?wa.usefulSamples:0,measurementCoverage:'observed_only',retentionComplete:typeof window?.retentionComplete==='boolean'?window.retentionComplete:null,source:'runs'};
 }
+export function projectModelRoles(snapshot:ModelOwnerSnapshot|null,latency:any=null){
+ const config=snapshot?.config;
+ const account=(value:any)=>typeof value==='string'&&value.includes('@')?publicModelRef(value)!.split('@')[1]:null;
+ const chain=(value:any)=>{
+  const raw=typeof value==='string'?value:value?.primary,primary=modelReference(raw);
+  const fallback=Array.isArray(value?.fallbacks)?value.fallbacks.slice(0,20):[];
+  return {model:primary??null,profile:account(raw),fallbacks:[...new Set(fallback.map(modelReference).filter(Boolean))],fallbackProfiles:fallback.map((ref:any)=>({model:modelReference(ref)??null,profile:account(ref)})),state:primary?'configured':'unavailable'};
+ };
+ const editable=(id:'brain'|'conversation_summary'|'whatsapp')=>{
+  const value=configuredModelFlow(config,id),active=true;
+  return {id,...chain(value.model),thinking:value.thinkingDefault??null,fastMode:typeof value.fastModeDefault==='boolean'?value.fastModeDefault:null,source:'gateway_config',inheritsFrom:value.inheritsFrom,origins:value.origins,mixedFields:value.mixedFields,...(value.inheritsFrom==='conversation'?{state:'runtime_inherited'}:{}),...(value.mixedFields.length?{state:'mixed'}:{}),editable:active&&!!snapshot,editableReason:snapshot?null:'model_owner_unavailable',writeFields:id==='conversation_summary'?['model']:['model','fallbacks','thinking','fastMode']};
+ };
+ // Executor flows: the plugin-config key when it names a qualified reference, else the executor's constant.
+ const executor=(id:ConstantExecutorFlow,extra:any={})=>{
+  const value=executorFlowChain(config,id),stored=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.[EXECUTOR_FLOW_KEYS[id]]!==undefined;
+  return {id,...chain({primary:value.primary,fallbacks:value.fallbacks}),thinking:null,fastMode:null,source:value.origin==='flow'?'gateway_config':'code_constant',inheritsFrom:null,
+   origins:{model:value.origin,thinking:'unsupported',fastMode:'unsupported'},mixedFields:[],...(stored&&value.origin==='default'?{issues:['model_flow_setting_ignored']}:{}),
+   editable:!!snapshot,editableReason:snapshot?null:'model_owner_unavailable',writeFields:id==='intent_interpreter'?['model','fallbacks']:['model'],...extra};
+ };
+ const readonly=(id:string,value:any,source:string,reason='next_lot',extra:any={})=>({id,...chain(value),thinking:null,fastMode:null,source,inheritsFrom:null,editable:false,editableReason:reason,writeFields:[],...extra});
+ const voice=config?.talk?.realtime,voiceMalformed=voice?.model!==undefined&&voice?.model!==null&&typeof voice.model!=='string';
+ const voiceModel=voiceMalformed?null:typeof voice?.model==='string'?(voice.model.includes('/')?voice.model:(voice.provider||'google')+'/'+voice.model):'google/'+CLAW_LIVE_MODEL;
+ const spokenProvider=publicId(config?.talk?.provider),spokenVoice=publicModelId(config?.talk?.providers?.[spokenProvider??'']?.voice);
+ const memory=config?.memory?.search,memoryProvider=publicId(memory?.provider),memoryModel=typeof memory?.model==='string'?(memory.model.includes('/')?memory.model:(memoryProvider?memoryProvider+'/':'')+memory.model):null;
+ const policy=snapshot?.policy,policyHash=policy?.sourceHash??null;
+ // Policy flows (Amine 30/10): the effective chain the governor runs from its canonical routing profile
+ // (model_policy.json) -- the app setting first when it is valid, then the rest of the profile in policy order.
+ // The governor passes `--model` on every engineering call, so the engineering-lite agent default is never this flow's model.
+ const policyFlow=(id:PolicyModelFlow)=>{
+  const value=policyFlowChain(config,id,policy),profile=POLICY_FLOW_PROFILE[id],stored=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.[EXECUTOR_FLOW_KEYS[id]]!==undefined;
+  if(!value.primary)return readonly(id,id==='immune_system'&&policy?.primary?{primary:policy.primary,fallbacks:policy.fallback?[policy.fallback]:[]}:null,'model_policy','model_policy_unavailable',{policyProfile:profile,policySourceHash:policyHash});
+  return {id,...chain({primary:value.primary,fallbacks:value.fallbacks}),thinking:null,fastMode:null,source:value.origin==='flow'?'gateway_config':'model_policy',inheritsFrom:null,
+   origins:{model:value.origin,thinking:'unsupported',fastMode:'unsupported'},mixedFields:[],...(stored&&value.origin==='default'?{issues:['model_flow_setting_ignored']}:{}),
+   editable:!!snapshot,editableReason:snapshot?null:'model_owner_unavailable',writeFields:['model','fallbacks'],fallbackPolicy:'technical_failure_only',policyProfile:profile,policySourceHash:policyHash};
+ };
+
+ return [
+  editable('brain'),
+  executor('intent_interpreter',{fallbackPolicy:'technical_failure_only'}),
+  executor('web_search'),
+  editable('conversation_summary'),
+  readonly('memory_search',memoryModel,'gateway_config','memory_reindex_required',{provider:memoryProvider??null,state:memoryModel?'configured':memoryProvider?'provider_default':'unavailable'}),
+  readonly('realtime_voice',voiceModel,typeof voice?.model==='string'?'gateway_config':'code_constant','qualified_live_protocol',{provider:voice?.provider??'google'}),
+  readonly('spoken_voice',spokenProvider&&spokenVoice?spokenProvider+'/'+spokenVoice:null,'gateway_config'),
+  readonly('dictation',null,'device','device_managed',{state:'device_managed'}),
+  executor('voice_memos'),
+  policyFlow('immune_system'),
+  policyFlow('engineering_learning'),
+  editable('whatsapp'),
+ ].map(role=>({...role,provider:'provider' in role?role.provider:typeof role.model==='string'?role.model.split('/')[0]:null,metrics:projectModelFlowMetrics(role.id,latency)}));
+}
+
 const authState=(status:any):'ready'|'needs_auth'|'unknown'=>['ok','static','expiring'].includes(status)?'ready':['missing','expired','invalid','unauthorized','needs_auth'].includes(status)?'needs_auth':'unknown';
-export function projectProviders(snapshot:ModelOwnerSnapshot|null,usage:UsageView|null,fresh=true){
+export function projectProviders(snapshot:ModelOwnerSnapshot|null,usage:UsageView|null,fresh=true,latency:any=null){
+ const policyAllow=configuredModelAllow(snapshot?.config);
  const configuredModels=configured(snapshot),rows=Array.isArray(snapshot?.catalog?.models)?snapshot!.catalog.models:[];
  const auth=Array.isArray(snapshot?.auth?.providers)?snapshot!.auth.providers:[];
  const ids=[...new Set([...auth.map((a:any)=>publicId(a.provider)),...rows.map((m:any)=>publicId(m.provider)),...(usage?.providers||[]).map(p=>publicId(p.id)),...configuredModels.allowed.map((ref:string)=>publicId(ref.split('/')[0]))].filter((id):id is string=>!!id))].sort();
@@ -49,14 +87,14 @@ export function projectProviders(snapshot:ModelOwnerSnapshot|null,usage:UsageVie
   const models=rows.filter((row:any)=>row.provider===id).flatMap((row:any)=>{
    const model=publicModelId(row.id);if(!model)return [];
    const reference=model.startsWith(id+'/')?model:id+'/'+model;
-   if(!configuredModels.allowed.includes(reference)&&!configuredModels.allowed.includes(model))return [];
+   if(!configuredModels.allowed.includes(reference)&&!configuredModels.allowed.includes(model)&&!modelReferenceAllowed(policyAllow,reference))return [];
    const input=Array.isArray(row.input)?row.input:[];
    const capabilities:string[]=[];if(row.reasoning===true)capabilities.push('reasoning');if(input.includes('image'))capabilities.push('image');if(input.includes('video'))capabilities.push('video');
    return [{id:model,name:publicText(row.name)||model,available:typeof row.available==='boolean'?row.available:null,capabilities,contextTokens:Number.isSafeInteger(row.contextTokens)&&row.contextTokens>0?row.contextTokens:Number.isSafeInteger(row.contextWindow)&&row.contextWindow>0?row.contextWindow:null,inUse:configuredModels.primary===reference||configuredModels.primary===model?'primary':configuredModels.fallbacks.some((v:string)=>v===reference||v===model)?'fallback':null}];
   });
   return {id,name:publicText(meter?.name)||id,auth:authentication,quota,state,models};
  });
- return {schemaVersion:1,updatedAt:isoTimestamp(snapshot?.updatedAt)??usage?.updatedAt??null,summary:{ready:providers.filter(p=>p.state==='ready').length,needsAttention:providers.filter(p=>['needs_auth','exhausted'].includes(p.state)).length,unknown:providers.filter(p=>p.state==='unknown').length,configuredModels:providers.reduce((n,p)=>n+p.models.length,0)},roles:projectModelRoles(snapshot),providers};
+ return {schemaVersion:1,updatedAt:isoTimestamp(snapshot?.updatedAt)??usage?.updatedAt??null,summary:{ready:providers.filter(p=>p.state==='ready').length,needsAttention:providers.filter(p=>['needs_auth','exhausted'].includes(p.state)).length,unknown:providers.filter(p=>p.state==='unknown').length,configuredModels:providers.reduce((n,p)=>n+p.models.length,0)},roles:projectModelRoles(snapshot,latency).map(role=>({...role,providerState:providers.find(row=>row.id===role.provider)?.state??'unknown',quotaState:usage?.providers.find(row=>row.id===role.provider)?.state??'unknown'})),providers};
 }
 const SERVE_MS=300000;
 export async function readProviders(refresh=false){
@@ -70,10 +108,11 @@ export async function readProviders(refresh=false){
   // 10/10 20:45 (S24): one failed background refresh (CLI budget lost under parallel reads) marked the
   // snapshot stale and every provider became unknown (0/0/4) until a later refresh succeeded. Only the
   // snapshot's own age voids it; `stale` is the last attempt, not this successful read.
-  return projectProviders(cached,await readUsage(),Date.now()-cached.updatedAt<SERVE_MS);
+  const [usage,latency]=await Promise.all([readUsage(),readModelFlowTurnLatency()]);
+  return projectProviders(cached,usage,Date.now()-cached.updatedAt<SERVE_MS,latency);
  }
- const [owner,usage]=await Promise.all([readModelOwnerCached({refresh}),readUsage()]);
- return projectProviders(owner.snapshot,usage,!!owner.snapshot&&Date.now()-owner.snapshot.updatedAt<SERVE_MS);
+ const [owner,usage,latency]=await Promise.all([readModelOwnerCached({refresh}),readUsage(),readModelFlowTurnLatency()]);
+ return projectProviders(owner.snapshot,usage,!!owner.snapshot&&Date.now()-owner.snapshot.updatedAt<SERVE_MS,latency);
 }
 export function peekProviders(){const snapshot=peekModelOwner();return projectProviders(snapshot,peekUsage(),!!snapshot&&!snapshot.stale&&Date.now()-snapshot.updatedAt<60000);}
 export function peekActiveModel(){const snapshot=peekModelOwner();return snapshot&&!snapshot.stale&&Date.now()-snapshot.updatedAt<60000?configured(snapshot).primary:null;}

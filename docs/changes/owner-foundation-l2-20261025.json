@@ -1,0 +1,95 @@
+{
+  "version": 2,
+  "id": "owner-foundation-l2-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "Share the bounded playbooks owner foundation across native cacheable SDK bootstrap, Companion app/voice context and MCP, preserving Contacts isolation.",
+  "reason": "Injecter le socle commun et préserver son préfixe stable sans startup rereads, avec les mêmes barrières mémoire et isolation Contacts. Intégration et CI complètes restent attendues avant activation.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "cloud/voice-relay/src/mcp.mjs",
+    "cloud/voice-relay/test-mcp.mjs",
+    "docs/08-decisions/ADR-20261025-owner-foundation.md",
+    "docs/changes/owner-foundation-l2-20261025.json",
+    "docs/changes/owner-foundation-l2-20261025.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-foundation/sdk-context.json",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-foundation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-foundation.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/src/ownerBootstrapContext.ts"
+  ],
+  "documentation": [
+    "docs/changes/owner-foundation-l2-20261025.md",
+    "docs/08-decisions/ADR-20261025-owner-foundation.md"
+  ],
+  "tests": [
+    {
+      "name": "Focused foundation context contract",
+      "status": "passed",
+      "evidence": "Preuve root d6a952cb : suite owner-foundation passée avec options tsconfig du dépôt, deux révisions mémoire préservant le préfixe stable. Les autres tests source initiaux sont conservés ; ceci ne qualifie pas encore les nouvelles assertions loader ni le head intégré final."
+    },
+    {
+      "name": "Canonical host loader focused assertions",
+      "status": "passed",
+      "evidence": "Four assertions from the existing owner-foundation test block executed against the canonical shell loader with an authored temporary env file : persisted0/1 and inherited precedence PASS. Proof /workspace/refonte-evidence/l2-core-host-loader-focused.log. node --check and git diff integrity PASS. Voice-context regression case registered but not executed yet; final integrated TS/CI pending."
+    },
+    {
+      "name": "Resumed integrated foundation focused checks",
+      "status": "passed",
+      "evidence": "Source6ebf50ba against delivered basec8d9aca9 : TypeScript build, test-owner-foundation.cjs (including VOICE_CONTEXT and persistent host flag), test-mcp-foundation.cjs and existing test-canonical-agent-bootstrap.cjs PASS. Log l2-focused-resume-20261026.log SHA256ea57def61f5e3e100c73e695501aec9b21ad03426f5a5d922295d53b12c78a66. This is focused validation only; final exact-head canonical CI and live three-surface acceptance remain pending."
+    },
+    {
+      "name": "MCP single-body Edge wire and official client parity",
+      "status": "passed",
+      "evidence": "Existing Edge test-mcp.mjs PASS including foundation text-only, authenticated access overriding forged metadata and unchanged legacy structured output. Official CLI tests10/10 PASS. Actual compiled adapter plus handleMcpHttp over authored transport/private canonical rev3251 delivers one complete body,12skills,matching read hash,no implicit ack; useful23724bytes/5931 UTF8/4 tokens, full JSON-RPC24344bytes/6086 tokens including620 bytes escaping/envelope. No S24/native delivery or provider usage claim. Logs l2-edge-mcp-textonly-20261026.log and l2-cli-textonly-20261026.log; sanitized calibration l2-wire-calibration-sanitized.json."
+    }
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "NO_CAPABILITY : observation/instrumentation interne des propriétaires existants ; aucune nouvelle action métier, permission ni voie de paiement."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Extension des propriétaires existants ; aucun store, routeur, ordonnanceur ou service parallèle.",
+    "documents": [
+      "docs/08-decisions/ADR-20261025-owner-foundation.md"
+    ]
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "updated",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "Comparaison des primitives et de leurs entrées : contexte fondation optionnel seulement si indiqué, aucun changement d’autorité. Adaptateurs/fixtures et tests jumelés inscrits dans leur CI. Aucune parité live ni CI intégrée finale revendiquée."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Disable host flag and restore previous paired pins with owner deployment scripts.",
+  "routes": [
+    {
+      "route": "claw_context",
+      "change": "single bounded foundation read with delivered-byte hash",
+      "budget": "<=6000estimated UTF8/4 tokens; producer subprocess1500ms bound",
+      "capability": "NO_CAPABILITY: context read only"
+    }
+  ],
+  "pending_validation": [
+    "Canonical exact-head CI and real three-surface native acceptance; Edge text-only paired activation before enabling foundation"
+  ]
+}

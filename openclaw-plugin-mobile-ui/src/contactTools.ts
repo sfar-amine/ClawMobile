@@ -48,18 +48,18 @@ async function invoke(kind: ToolKind, ctx: any, args: any): Promise<any> {
 function content(value: any) { return { content: [{ type: "text", text: JSON.stringify(value) }] }; }
 
 export function createContactTool(kind: ToolKind, ctx: any) {
+  const parameters = {
+      type: "object",
+      properties: {text: {type:"string",minLength:1,maxLength:2000}},
+      required:["text"],additionalProperties:false,
+  };
   return {
+    parameters, inputSchema:parameters,
     name: kind,
     description: kind === "transmettre_a_amine"
       ? "Transmettre un message bref à Amine. Ajoute uniquement à son inbox et le notifie; ne lit aucune donnée."
       : "Noter une information dans votre propre fiche de contact seulement.",
-    schema: {
-      type: "object",
-      properties: {
-        text: { type: "string", minLength: 1, maxLength: 2000 },
-      },
-      required: ["text"], additionalProperties: false,
-    },
+    schema: parameters,
     async execute(_toolCallId: unknown, args: any) { return content(await invoke(kind, ctx, args)); },
   };
 }

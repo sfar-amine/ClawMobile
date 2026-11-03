@@ -1,23 +1,47 @@
 #!/usr/bin/env python3
-"""Single owner of local CI, used off-phone for all Samantha repositories.
+"""Single owner of local CI for all Samantha repositories, off-phone or on the S24.
 
 Usage: python3 samantha-core/tools/localci.py <repo> <40-char-head-sha> <PR|-> <log>
 Requires PyYAML, git, bash, gh (for PRs) and workflow-declared toolchains.
 Overrides: LOCALCI_NODE20_BIN, LOCALCI_NODE22_BIN, LOCALCI_NODE26_BIN,
 LOCALCI_PYTHON312_BIN; each specifies a toolchain bin directory.
+On the S24 it runs through tools/localci-s24.sh (profile `s24`, Amine 24/10: no PC dependency):
+Debian toolchains, the deploy lock held exclusively (one heavy job at a time), low priority,
+steps with a private HOME and no Samantha credentials in their environment.
 """
 import argparse
+import contextlib
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import shutil
+import signal
+import stat
 import subprocess
 import sys
 import tempfile
 import time
 import yaml
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - POSIX only; scratch liveness then relies on the PID
+    fcntl = None
+
+def _proof_regular_bytes(path, limit=128*1024):
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | getattr(os, 'O_NOFOLLOW', 0))
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
+            raise ValueError('canonical_ci_regular_bounded_owner_required')
+        value = stream.read(limit + 1)
+        if len(value) > limit:
+            raise ValueError('canonical_ci_owner_budget_exceeded')
+        return value
+
+# Import-time identity: disk/HEAD moving later cannot relabel loaded code.
+_LOADED_RUNNER_SHA256 = hashlib.sha256(_proof_regular_bytes(__file__)).hexdigest()
 
 WORKFLOWS = {
     "samantha-core": ".github/workflows/ci.yml",
@@ -30,6 +54,252 @@ EXPR = re.compile(r"\$\{\{\s*(.*?)\s*\}\}")
 
 class LocalCIError(Exception):
     pass
+
+
+# ---- Scratch hygiene: every directory localci creates is marked, locked while alive, and removed. ----
+# A marker written at creation identifies localci's own directories; its flock is held for the owner's
+# lifetime (released by the kernel even on SIGKILL), so a later run can tell an orphan from a live run
+# without trusting a PID alone (PID reuse, bwrap PID namespaces). Nothing unmarked is ever touched.
+SCRATCH_MARKER = ".localci-owner.json"
+SCRATCH_PREFIX = "localci-"
+STALE_HOURS_DEFAULT = 6
+_LIVE_SCRATCH = {}  # resolved path -> marker fd holding the liveness lock
+
+
+class LocalCITerminated(BaseException):
+    """SIGTERM/SIGINT/SIGHUP turned into unwinding so every finally/with removes its scratch."""
+
+    def __init__(self, signum):
+        super().__init__(signum)
+        self.signum = signum
+
+
+_SIGNALS = {"pending": None, "raised": False, "defer": 0}
+
+
+def _on_termination_signal(signum, _frame):
+    if _SIGNALS["pending"] is None:
+        _SIGNALS["pending"] = signum
+    # One unwinding only; a signal during cleanup is recorded, never allowed to cut a removal short.
+    if _SIGNALS["raised"] or _SIGNALS["defer"]:
+        return
+    _SIGNALS["raised"] = True
+    raise LocalCITerminated(signum)
+
+
+def install_termination_cleanup():
+    """CLI only (never at import): termination signals unwind the run instead of killing it mid-job."""
+    for name in ("SIGTERM", "SIGINT", "SIGHUP"):
+        if hasattr(signal, name):
+            signal.signal(getattr(signal, name), _on_termination_signal)
+
+
+@contextlib.contextmanager
+def _signals_deferred():
+    _SIGNALS["defer"] += 1
+    try:
+        yield
+    finally:
+        _SIGNALS["defer"] -= 1
+    if not _SIGNALS["defer"] and _SIGNALS["pending"] is not None and not _SIGNALS["raised"]:
+        _SIGNALS["raised"] = True
+        raise LocalCITerminated(_SIGNALS["pending"])
+
+
+def _tmp_root():
+    return os.getenv("LOCALCI_TMP_ROOT") or None
+
+
+def _proc_start_time(pid):
+    try:
+        text = Path(f"/proc/{pid}/stat").read_text()
+        return text[text.rindex(")") + 2:].split()[19]
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _read_small(path):
+    try:
+        return Path(path).read_text().strip()
+    except OSError:
+        return ""
+
+
+def _pid_namespace():
+    try:
+        return os.readlink("/proc/self/ns/pid")
+    except OSError:
+        return ""
+
+
+def make_scratch(prefix, root=None):
+    """mkdtemp + marker (owner PID, start time, PID namespace, boot) + a lock held until drop_scratch."""
+    if not prefix.startswith(SCRATCH_PREFIX):
+        raise LocalCIError("scratch_prefix_must_be_localci")
+    folder = Path(tempfile.mkdtemp(prefix=prefix, dir=root)).resolve()
+    fd = None
+    try:
+        fd = os.open(folder / SCRATCH_MARKER, os.O_RDWR | os.O_CREAT | os.O_EXCL
+                     | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), 0o600)
+        if fcntl is not None:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        pid = os.getpid()
+        os.write(fd, json.dumps({"owner": "localci", "version": 1, "path": str(folder), "pid": pid,
+                                 "pid_start": _proc_start_time(pid), "pid_ns": _pid_namespace(),
+                                 "boot_id": _read_small("/proc/sys/kernel/random/boot_id"),
+                                 "created": time.time()}, sort_keys=True).encode())
+    except BaseException:
+        if fd is not None:
+            os.close(fd)
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
+    _LIVE_SCRATCH[str(folder)] = fd
+    return folder
+
+
+def drop_scratch(folder):
+    """Remove the tree while still holding the lock, then release it: no window where it looks orphaned."""
+    with _signals_deferred():
+        fd = _LIVE_SCRATCH.pop(str(folder), None)
+        shutil.rmtree(folder, ignore_errors=True)
+        if fd is not None:
+            os.close(fd)
+
+
+@contextlib.contextmanager
+def scratch(prefix, root=None):
+    folder = make_scratch(prefix, root)
+    try:
+        yield folder
+    finally:
+        drop_scratch(folder)
+
+
+def drop_all_scratch():
+    for folder in list(_LIVE_SCRATCH):
+        drop_scratch(folder)
+
+
+def _scratch_owner_alive(marker_fd, info):
+    """Conservative: anything uncertain counts as alive."""
+    if fcntl is not None:
+        try:
+            fcntl.flock(marker_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True  # The owner (in any PID namespace) still holds its lock.
+        except OSError:
+            return True
+    pid = info.get("pid")
+    if type(pid) is not int or pid <= 0:
+        return True
+    if info.get("boot_id") and info["boot_id"] != _read_small("/proc/sys/kernel/random/boot_id"):
+        return False
+    if info.get("pid_ns") != _pid_namespace():
+        return fcntl is None  # Foreign PID numbers mean nothing here; the free lock above is the proof.
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True  # Exists, owned by someone else.
+    started = _proc_start_time(pid)
+    return not (started and info.get("pid_start") and started != info["pid_start"])  # Reused PID = dead.
+
+
+def purge_stale_scratch(roots=None, max_age_hours=None, now=None):
+    """Remove only localci's own marked directories whose owner is dead and that are older than N hours."""
+    if max_age_hours is None:
+        try:
+            max_age_hours = float(os.getenv("LOCALCI_STALE_HOURS") or STALE_HOURS_DEFAULT)
+        except ValueError:
+            max_age_hours = STALE_HOURS_DEFAULT
+    max_age_hours = max(1.0, max_age_hours)
+    now = time.time() if now is None else now
+    if roots is None:
+        roots = [_tmp_root() or tempfile.gettempdir(), tempfile.gettempdir()]
+    removed = []
+    for root in dict.fromkeys(str(Path(r).resolve()) for r in roots):
+        try:
+            entries = list(os.scandir(root))
+        except OSError:
+            continue
+        for entry in entries:
+            if not entry.name.startswith(SCRATCH_PREFIX) or entry.path in _LIVE_SCRATCH:
+                continue
+            try:
+                if not entry.is_dir(follow_symlinks=False) or entry.stat(follow_symlinks=False).st_uid != os.getuid():
+                    continue
+                fd = os.open(os.path.join(entry.path, SCRATCH_MARKER),
+                             os.O_RDWR | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0))
+            except OSError:
+                continue  # Unmarked (or unreadable): never ours to judge.
+            try:
+                meta = os.fstat(fd)
+                if not stat.S_ISREG(meta.st_mode) or meta.st_uid != os.getuid() or meta.st_size > 4096:
+                    continue
+                info = json.loads(os.read(fd, 4097).decode())
+                if (not isinstance(info, dict) or info.get("owner") != "localci" or info.get("version") != 1
+                        or info.get("path") != entry.path):
+                    continue
+                created = info.get("created")
+                if not isinstance(created, (int, float)):
+                    continue
+                if now - max(created, meta.st_mtime) < max_age_hours * 3600:
+                    continue
+                if _scratch_owner_alive(fd, info):
+                    continue
+                shutil.rmtree(entry.path, ignore_errors=True)
+                removed.append(entry.path)
+            except (OSError, ValueError, UnicodeDecodeError):
+                continue
+            finally:
+                os.close(fd)
+    return removed
+
+
+# Runtime credentials and live-service switches never reach a CI step on the S24.
+# Runtime credentials and service state, plus this run's own S24 controls: a step (localci's own tests
+# included) sees what an ubuntu-latest step sees, never the outer run's profile or held lock.
+S24_STEP_ENV_DROP = re.compile(r"^(CLAW_|SAMANTHA_|OPENCLAW_|COMPANION_|GH_|GITHUB_TOKEN$|OPENAI_|GEMINI_|GOOGLE_|ANTHROPIC_"
+                               r"|LOCALCI_PROFILE$|LOCALCI_HEAVY_LOCK$|LOCALCI_PR_BODY_FILE$)")
+
+
+def s24_profile():
+    """True on the S24 profile. Termux without the profile is refused, never silently allowed."""
+    termux = "/com.termux/" in str(Path.home()) or os.getenv("PREFIX", "").startswith("/data/data/com.termux")
+    profile = os.getenv("LOCALCI_PROFILE") == "s24"
+    if termux and not profile:
+        raise LocalCIError("S24 detected: run through tools/localci-s24.sh (S24 profile: Debian toolchains, "
+                           "one heavy job at a time, private HOME)")
+    return profile
+
+
+def s24_heavy_lock():
+    """The deploy lock, held exclusively: no deploy, QA campaign or second CI runs meanwhile."""
+    path = os.getenv("LOCALCI_HEAVY_LOCK")
+    if not path:
+        raise LocalCIError("S24 profile requires LOCALCI_HEAVY_LOCK (the companion deploy lock)")
+    import fcntl
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd)
+        raise LocalCIError(f"heavy_job_busy: a deploy, QA campaign or CI holds {path}; nothing started") from None
+    return fd
+
+
+def s24_pr_refs(repo, pr):
+    """PR head/base fetched by the S24 wrapper just before (refs/pull/N/{head,merge}), body from a file."""
+    try:
+        head = command(["git", "rev-parse", "--verify", f"refs/localci/pull/{pr}/head^{{commit}}"], repo)
+        base = command(["git", "rev-parse", "--verify", f"refs/localci/pull/{pr}/merge^1"], repo)
+    except LocalCIError:
+        raise LocalCIError("S24 PR refs missing: tools/localci-s24.sh fetches refs/pull/N/head and "
+                           "refs/pull/N/merge (a conflicting PR has no merge ref)") from None
+    body_file = os.getenv("LOCALCI_PR_BODY_FILE")
+    body = Path(body_file).read_text(encoding="utf-8") if body_file else ""
+    return {"headRefOid": head, "baseRefOid": base, "body": body, "number": int(pr)}
 
 
 def command(args, cwd):
@@ -67,7 +337,8 @@ def conditional(value, pr):
     raise LocalCIError(f"Unsupported if expression: {value}")
 
 
-def bin_for(kind, version):
+def bin_for(kind, version, scratch_dir=None):
+    """Python gets a private venv inside `scratch_dir` (the job's scratch, removed with the job)."""
     label = str(version).replace(".", "")
     var = f"LOCALCI_{kind.upper()}{label}_BIN"
     configured = os.getenv(var)
@@ -94,7 +365,9 @@ def bin_for(kind, version):
                 return str(folder)
             # Like actions/setup-python: a private interpreter where `python`, `python3` and `pip install` work
             # (a distribution's system Python refuses pip installs, PEP 668).
-            venv = Path(tempfile.mkdtemp(prefix="localci-python-", dir=os.getenv("LOCALCI_TMP_ROOT") or None))
+            if scratch_dir is None:
+                raise LocalCIError("setup-python requires the job scratch directory (no unowned venv)")
+            venv = Path(tempfile.mkdtemp(prefix=f"python{version}-", dir=scratch_dir))
             created = subprocess.run([str(executable), "-m", "venv", str(venv)], capture_output=True, text=True)
             if created.returncode or not (venv / "bin" / "python").is_file():
                 raise LocalCIError(f"Cannot create a Python {version} environment: {created.stderr[:200]}")
@@ -198,12 +471,25 @@ def preserve_app_test_reports(space, artifacts):
     return count, size, truncated
 
 
-def run_app_ci(repo, sha, pr, base, logpath):
+def _stop_child(proc):
+    """An aborted run never leaves its step writing into a directory being removed."""
+    if proc.poll() is None:
+        try:
+            proc.terminate()
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        except ProcessLookupError:
+            pass
+
+
+def run_app_ci(repo, sha, pr, base, logpath, delivery=None):
     artifacts = logpath.with_name(logpath.stem + "-android")
     if artifacts.exists():
         raise LocalCIError("Android artifact directory already exists; use a new output log to avoid stale evidence")
-    space = Path(tempfile.mkdtemp(prefix="localci-samantha-android-",
-                                 dir=os.getenv("LOCALCI_TMP_ROOT") or None)).resolve()
+    holder = make_scratch("localci-samantha-android-", _tmp_root())
+    space = holder / "workspace"
     attached = False
     try:
         command(["git", "worktree", "add", "--detach", str(space), sha], repo)
@@ -213,6 +499,8 @@ def run_app_ci(repo, sha, pr, base, logpath):
                 print(value, file=log, flush=True)
                 print(value, flush=True)
             note(f"LOCALCI_START repo={repo.name} sha={sha} pr={pr} base={base} jobs=1 delivery=android")
+            if delivery:
+                note("DELIVERY_CONTRACT " + json.dumps(delivery, sort_keys=True))
             note(f"ANDROID_OWNER {APP_BUILDER} publication=not_requested signing=local_debug artifacts={artifacts}")
             env = dict(os.environ)
             env.pop("SAMANTHA_DEBUG_KEYSTORE", None)
@@ -235,29 +523,103 @@ def run_app_ci(repo, sha, pr, base, logpath):
             note(f"ANDROID_TESTS suites={tests['suites']} tests={tests['tests']} failures=0 errors=0 skipped=0")
             note(f"LOCALCI_RESULT exit=0 sha={sha} jobs=1 steps=1 tests={tests['tests']} delivery=android")
         return 0
+    except BaseException:
+        if "proc" in locals():
+            _stop_child(proc)
+        raise
     finally:
-        if attached:
-            subprocess.run(["git", "worktree", "remove", "--force", str(space)], cwd=repo, capture_output=True)
-        shutil.rmtree(space, ignore_errors=True)
+        with _signals_deferred():
+            if attached:
+                subprocess.run(["git", "worktree", "remove", "--force", str(space)], cwd=repo, capture_output=True)
+            drop_scratch(holder)
 
 
 def run_ci(repo_arg, sha, pr, output):
     if not SHA.fullmatch(sha):
         raise LocalCIError("Full exact 40-character head SHA required")
-    if "/com.termux/" in str(Path.home()) or os.getenv("PREFIX", "").startswith("/data/data/com.termux"):
-        raise LocalCIError("Do not run CI on the production S24")
+    s24 = s24_profile()
+    lock = s24_heavy_lock() if s24 else None
+    try:
+        if s24:
+            try:
+                os.nice(10)  # The live assistant keeps the CPU first.
+            except OSError:
+                pass
+        return _run_ci(repo_arg, sha, pr, output, s24)
+    finally:
+        if lock is not None:
+            os.close(lock)
+
+
+
+# Single schema owner: immutable full PB tree, never a client-selected validator.
+DELIVERY_OWNER_URL = "https://github.com/sfar-amine/samantha-ui-playbooks.git"
+DELIVERY_OWNER_SHA = "698322f70d454151b802e3c5850db82f4a38d046"
+
+def _checkout_delivery_owner(folder):
+    command(["git", "init", "-q", str(folder)], folder.parent)
+    command(["git", "remote", "add", "origin", DELIVERY_OWNER_URL], folder)
+    command(["git", "fetch", "--quiet", "--depth", "1", "origin", DELIVERY_OWNER_SHA], folder)
+    if command(["git", "rev-parse", "FETCH_HEAD"], folder) != DELIVERY_OWNER_SHA:
+        raise LocalCIError("delivery_owner_revision_mismatch")
+    command(["git", "checkout", "--quiet", "--detach", "FETCH_HEAD"], folder)
+
+
+def _validate_at_delivery_owner(owner, repo, base, head):
+    # -I excludes the PR checkout and ambient PYTHONPATH; the original PB API
+    # imports its own agent_runner/stdlib dependencies from the complete pin.
+    program = r"""
+import json,sys
+from pathlib import Path
+sys.path.insert(0,sys.argv[1])
+from skill_intelligence.delivery_contract import validate_range,validate_note,changed_files,read_at
+repo=Path(sys.argv[2]);base,head=sys.argv[3:5]
+try:
+    result=validate_range(repo,base,head)
+    available=changed_files(repo,base,head)
+    for path in result['notes']:
+        note=json.loads(read_at(repo,head,path))
+        validate_note(note,available,lambda p:read_at(repo,head,p),require_v2=True)
+    print(json.dumps({'ok':True,'notes':result['notes']}))
+except Exception as error:
+    print(json.dumps({'ok':False,'reason':str(error)[:300]}));sys.exit(1)
+"""
+    result = subprocess.run([sys.executable, "-I", "-B", "-c", program,
+                             str(owner), str(repo), base, head],
+                            capture_output=True, text=True, timeout=90)
+    try:
+        value = json.loads(result.stdout)
+    except (ValueError, TypeError):
+        raise LocalCIError("delivery_owner_validation_unavailable") from None
+    if result.returncode or value.get("ok") is not True:
+        raise LocalCIError("delivery_contract_v2:" + str(value.get("reason", "unavailable"))[:300])
+    return {"owner": DELIVERY_OWNER_URL, "revision": DELIVERY_OWNER_SHA,
+            "strict_v2": True, "notes": value["notes"]}
+
+
+def validate_core_delivery(repo, base, head):
+    with scratch("localci-delivery-", _tmp_root()) as root:
+        owner = root / "samantha-ui-playbooks"
+        _checkout_delivery_owner(owner)
+        return _validate_at_delivery_owner(owner, repo, base, head)
+
+
+def _run_ci(repo_arg, sha, pr, output, s24=False):
     repo = Path(repo_arg).expanduser().resolve()
     if repo.name not in WORKFLOWS or not (repo / ".git").exists():
         raise LocalCIError("Expected one of three local Samantha repository checkouts")
     if command(["git", "cat-file", "-t", sha], repo) != "commit":
         raise LocalCIError("Fetch exact GitHub SHA before running")
     if pr != "-":
-        if not pr.isdecimal() or not shutil.which("gh"):
+        if not pr.isdecimal() or not (shutil.which("gh") or s24):
             raise LocalCIError("gh CLI and numeric PR required to verify exact head")
-        # REST, not GraphQL: `gh pr view` is refused in agent containers (HTTP 403, 17/10).
-        raw = json.loads(command(["gh", "api", f"repos/{identity(repo)}/pulls/{pr}"], repo))
-        refs = {"headRefOid": (raw.get("head") or {}).get("sha"), "baseRefOid": (raw.get("base") or {}).get("sha"),
-                "body": raw.get("body") or "", "number": raw.get("number")}
+        if shutil.which("gh"):
+            # REST, not GraphQL: `gh pr view` is refused in agent containers (HTTP 403, 17/10).
+            raw = json.loads(command(["gh", "api", f"repos/{identity(repo)}/pulls/{pr}"], repo))
+            refs = {"headRefOid": (raw.get("head") or {}).get("sha"), "baseRefOid": (raw.get("base") or {}).get("sha"),
+                    "body": raw.get("body") or "", "number": raw.get("number")}
+        else:
+            refs = s24_pr_refs(repo, pr)
         if refs.get("headRefOid") != sha or not SHA.fullmatch(refs.get("baseRefOid") or ""):
             raise LocalCIError("GitHub PR head SHA mismatch")
         base = refs["baseRefOid"]
@@ -274,6 +636,9 @@ def run_ci(repo_arg, sha, pr, output):
             raise LocalCIError("Missing versioned Android build owner")
         path = APP_WORKFLOW
     logpath = Path(output).expanduser().resolve()
+    purged = purge_stale_scratch()  # Only our own marked orphans: frees space before the floor is judged.
+    if purged:
+        print(f"LOCALCI_PURGE removed={len(purged)} stale_marked_scratch", flush=True)
     disk_preflight([os.getenv("LOCALCI_TMP_ROOT") or tempfile.gettempdir(), logpath.parent], app=app)
     logpath.parent.mkdir(parents=True, exist_ok=True)
     workflow = yaml.safe_load(command(["git", "show", f"{sha}:{path}"], repo))
@@ -283,7 +648,9 @@ def run_ci(repo_arg, sha, pr, output):
     if app:
         if set(jobs) != {"apk"} or not isinstance(jobs["apk"], dict) or not jobs["apk"].get("steps"):
             raise LocalCIError("Unsupported Android workflow job layout; update the versioned build owner contract")
-        return run_app_ci(repo, sha, pr, base, logpath)
+        delivery = validate_core_delivery(repo, base, sha)
+        return run_app_ci(repo, sha, pr, base, logpath, delivery)
+    delivery = validate_core_delivery(repo, base, sha) if repo.name == "samantha-core" else None
     context = {
         "github.sha": sha, "github.event.pull_request.head.sha": sha,
         "github.event.pull_request.base.sha": base, "github.event.before": base,
@@ -294,15 +661,22 @@ def run_ci(repo_arg, sha, pr, output):
         def note(text):
             print(text, file=log, flush=True)
             print(text, flush=True)
-        note(f"LOCALCI_START repo={repo.name} sha={sha} pr={pr} base={base} jobs={len(jobs)}")
+        note(f"LOCALCI_START repo={repo.name} sha={sha} pr={pr} base={base} jobs={len(jobs)}"
+             + (" profile=s24" if s24 else ""))
+        if delivery:
+            note("DELIVERY_CONTRACT " + json.dumps(delivery, sort_keys=True))
         for job_name, job in jobs.items():
             if not isinstance(job, dict) or not isinstance(job.get("steps"), list):
                 raise LocalCIError(f"Invalid job definition: {job_name}")
             if not conditional(job.get("if"), pr):
                 raise LocalCIError(f"Cannot attest a skipped job: {job_name}")
-            space = Path(tempfile.mkdtemp(prefix="localci-" + repo.name + "-" + job_name + "-",
-                                          dir=os.getenv("LOCALCI_TMP_ROOT") or None)).resolve()
+            # One marked scratch per job: its detached worktree, its private Python venv (as a fresh
+            # GitHub runner gets), and nothing else; removed in finally, on failure and on termination.
+            holder = make_scratch("localci-" + repo.name + "-" + job_name + "-", _tmp_root())
+            space = holder / "workspace"
             attached = False
+            step_home = None
+            proc = None
             try:
                 command(["git", "worktree", "add", "--detach", str(space), sha], repo)
                 attached = True
@@ -313,6 +687,17 @@ def run_ci(repo_arg, sha, pr, output):
                             "GITHUB_BASE_REF": base})
                 runner = space / ".localci"
                 runner.mkdir()
+                if s24:
+                    # Steps never see the live HOME (~/.openclaw, keys) nor runtime credentials.
+                    env = {k: v for k, v in env.items() if not S24_STEP_ENV_DROP.match(k)}
+                    # In Debian's own /tmp: a HOME under the Termux tree would make a nested localci
+                    # (its own tests) take the step for raw Termux.
+                    step_home = make_scratch("localci-home-")
+                    (step_home / "home").mkdir()
+                    env["HOME"] = str(step_home / "home")
+                    step_bin = os.getenv("LOCALCI_S24_STEP_BIN")  # the mirror-backed `gh` of the wrapper
+                    if step_bin:
+                        env["PATH"] = step_bin + os.pathsep + env.get("PATH", "")
                 # GitHub Actions supplies the PR event file; local replay must
                 # reproduce that contract for mandatory PR-template checks.
                 event = {"pull_request": {
@@ -346,7 +731,7 @@ def run_ci(repo_arg, sha, pr, output):
                             if py and ver != "3.12":
                                 raise LocalCIError("Only workflow Python 3.12 supported")
                             env["PATH"] = bin_for("python" if py else "node",
-                                ver if py else int(ver.split(".")[0])) + os.pathsep + env["PATH"]
+                                ver if py else int(ver.split(".")[0]), holder) + os.pathsep + env["PATH"]
                         elif action != "actions/checkout":
                             raise LocalCIError(f"Unsupported uses step: {action}")
                         result = 0
@@ -365,6 +750,8 @@ def run_ci(repo_arg, sha, pr, output):
                         for line in proc.stdout:
                             log.write(line)
                         result = proc.wait()
+                        proc.stdout.close()
+                        proc = None
                         apply_github_env(Path(env["GITHUB_ENV"]), env)
                     else:
                         raise LocalCIError(f"Unsupported blank step: {job_name}:{idx}")
@@ -374,22 +761,320 @@ def run_ci(repo_arg, sha, pr, output):
                         return result
                     passed += 1
                 note(f"JOB_OK {job_name}")
+            except BaseException:
+                if proc is not None:
+                    _stop_child(proc)
+                raise
             finally:
-                if attached:
-                    subprocess.run(["git", "worktree", "remove", "--force", str(space)], cwd=repo,
-                                   capture_output=True)
-                shutil.rmtree(space, ignore_errors=True)
+                with _signals_deferred():
+                    if attached:
+                        subprocess.run(["git", "worktree", "remove", "--force", str(space)], cwd=repo,
+                                       capture_output=True)
+                    drop_scratch(holder)
+                    if step_home:
+                        drop_scratch(step_home)
         note(f"LOCALCI_RESULT exit=0 sha={sha} jobs={len(jobs)} steps={passed}")
     return 0
 
 
+
+# In-memory evidence only. No JSON/log/sidecar constructor or durable verifier.
+_CI_PROOF_SEAL = object()
+
+
+class CanonicalCIProof:
+    """Opaque capability issued only after this owner's actual run completes.
+
+    The host process/module is trusted. This is not a signature or protection
+    against hostile Python in that process, nor a durable cross-process grant.
+    """
+    __slots__ = ("__facts", "__seal")
+
+    def __init__(self, facts, *, _seal=None):
+        if _seal is not _CI_PROOF_SEAL:
+            raise LocalCIError("canonical_ci_private_producer_required")
+        self.__facts = facts
+        self.__seal = _seal
+
+    def __reduce__(self):
+        raise TypeError("canonical_ci_proof_is_not_serializable")
+
+    def _facts(self, seal):
+        if seal is not _CI_PROOF_SEAL or self.__seal is not seal:
+            raise LocalCIError("canonical_ci_private_producer_required")
+        return self.__facts
+
+
+def _proof_pr(repo, sha, pr):
+    if not SHA.fullmatch(sha) or not isinstance(pr, str) or not pr.isdecimal() or int(pr) <= 0:
+        raise LocalCIError("canonical_ci_sha40_and_pr_required")
+    repository = identity(repo)
+    raw = json.loads(command(["gh", "api", f"repos/{repository}/pulls/{pr}"], repo))
+    head = (raw.get("head") or {}).get("sha")
+    base = (raw.get("base") or {}).get("sha")
+    if head != sha or not SHA.fullmatch(base or "") or raw.get("number") != int(pr):
+        raise LocalCIError("canonical_ci_pr_identity_changed")
+    return {"repository": repository, "head": head, "base": base, "pr_number": int(pr)}
+
+
+def _committed_json_subject(repo, sha, path):
+    if (not isinstance(path, str) or not path or path.startswith(('/', '-'))
+            or any(part in {'', '.', '..', '.git'} for part in path.split('/'))):
+        raise LocalCIError("canonical_ci_subject_path_invalid")
+    mode = command(["git", "ls-tree", sha, "--", path], repo).split()
+    if not mode or mode[0] not in {'100644', '100755'}:
+        raise LocalCIError("canonical_ci_committed_regular_subject_required")
+    size = int(command(["git", "cat-file", "-s", f"{sha}:{path}"], repo))
+    if size > 2 * 1024 * 1024:
+        raise LocalCIError("canonical_ci_subject_budget_exceeded")
+    raw = subprocess.run(["git", "cat-file", "blob", f"{sha}:{path}"], cwd=repo,
+                         capture_output=True, check=True, timeout=10).stdout
+    value = json.loads(raw)
+    canonical = json.dumps(value, ensure_ascii=True, sort_keys=True,
+                           separators=(",", ":"), allow_nan=False).encode()
+    return {"path": path, "blob_sha256": hashlib.sha256(raw).hexdigest(),
+            "subject_digest": hashlib.sha256(canonical).hexdigest()}
+
+
+def _proof_file_digest(path):
+    value = hashlib.sha256()
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | getattr(os, 'O_NOFOLLOW', 0))
+    with os.fdopen(fd, 'rb') as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise LocalCIError('canonical_ci_regular_output_required')
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            value.update(block)
+    return value.hexdigest()
+
+
+def _canonical_pid_command():
+    executable = shutil.which('bwrap')
+    if not executable:
+        return None
+    # Lifetime confinement only: retain the existing CI mounts/env/network.
+    # A private PID init tears down ALL descendants, even detached sessions.
+    return [executable, '--unshare-user', '--unshare-pid', '--die-with-parent',
+            '--new-session', '--bind', '/', '/', '--proc', '/proc', '--dev', '/dev', '--']
+
+
+SUBREAPER_FLAG = "--localci-subreaper"
+
+
+def _canonical_subreaper_command():
+    # Where user namespaces are refused (Android: the S24), the same lifetime contract from a child
+    # subreaper: every orphaned descendant, detached sessions included, is reparented to it and
+    # killed before it exits. Linux only; the probe in _run_canonical_ci_process proves it works.
+    if not sys.platform.startswith("linux"):
+        return None
+    return [sys.executable, str(Path(__file__).resolve()), SUBREAPER_FLAG, "--"]
+
+
+def _direct_children(pid):
+    children = []
+    for entry in os.scandir("/proc"):
+        if not entry.name.isdecimal():
+            continue
+        try:
+            stat_line = Path(entry.path, "stat").read_text()
+        except OSError:
+            continue
+        fields = stat_line[stat_line.rindex(")") + 2:].split()
+        if int(fields[1]) == pid:
+            children.append(int(entry.name))
+    return children
+
+
+def _kill_all_descendants(deadline_seconds=20):
+    """SIGKILL every child until none is left; orphans of killed children land here next round."""
+    me, deadline = os.getpid(), time.monotonic() + deadline_seconds
+    while time.monotonic() < deadline:
+        children = _direct_children(me)
+        for pid in children:
+            try: os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError: pass
+        try:
+            while os.waitpid(-1, os.WNOHANG)[0]:
+                pass
+        except ChildProcessError:
+            return True
+        if not children:
+            time.sleep(0.01)
+    return False
+
+
+def _subreaper_main(argv):
+    """Run argv as a child, then tear down everything it left behind; a failed teardown is a failure."""
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+        return 125
+    parent = os.getppid()
+    libc.prctl(1, signal.SIGTERM, 0, 0, 0)  # PR_SET_PDEATHSIG: losing the owner tears down too
+    if os.getppid() != parent:
+        return 125
+
+    class _Stop(Exception):
+        pass
+
+    def stop(*_):
+        raise _Stop
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    code = 143
+    child = None
+    try:
+        child = subprocess.Popen(argv, start_new_session=True)
+        code = child.wait()
+    except _Stop:
+        # Let the owner run unwind and remove its scratch before the forced teardown.
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        if child is not None:
+            try:
+                child.send_signal(signal.SIGTERM)
+                child.wait(timeout=10)
+            except (subprocess.TimeoutExpired, ProcessLookupError):
+                pass
+    finally:
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        if not _kill_all_descendants():
+            code = 126
+    return code
+
+
+def _run_canonical_ci_process(repo, sha, pr, log):
+    """(exit code, process lifetime) of exactly one contained owner run; None if no containment works."""
+    for command_line, lifetime in ((_canonical_pid_command(), "PID_namespace_teardown"),
+                                   (_canonical_subreaper_command(), "subreaper_teardown")):
+        if command_line is None:
+            continue
+        try:
+            probe = subprocess.run(command_line + [sys.executable, '-c', 'pass'],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if probe.returncode == 0:
+            break
+    else:
+        return None
+    # Exactly the same CLI owner, once; never fall back to an uncontained run.
+    process = subprocess.Popen(command_line + [sys.executable, str(Path(__file__).resolve()),
+        str(repo), sha, pr, str(log)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True)
+    try:
+        return process.wait(), lifetime
+    except BaseException:
+        if lifetime == "subreaper_teardown":
+            # The subreaper must outlive its descendants to kill them: ask first, force after.
+            try: os.kill(process.pid, signal.SIGTERM)
+            except ProcessLookupError: pass
+            try: process.wait(timeout=25)
+            except subprocess.TimeoutExpired: pass
+        try: os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError: pass
+        process.wait(timeout=5)
+        raise
+
+
+def run_ci_evidence(repo_arg, sha, pr, output, *, subject_path, expected_subject_digest):
+    """Explicit one-shot API of the same canonical runner, not a second CI.
+
+    A subject must be a committed regular JSON artifact at the tested SHA. This
+    binds source/CI identity, not execution or semantic truth of that artifact.
+    No workflow markers are parsed to establish success. Real run_ci return
+    and PR metadata before/after are mandatory. Caller invokes this explicitly.
+    """
+    repo = Path(repo_arg).resolve()
+    before = _proof_pr(repo, sha, pr)
+    if repo.name not in WORKFLOWS:
+        raise LocalCIError("canonical_ci_repository_unsupported")
+    workflow_path = WORKFLOWS[repo.name]
+    workflow = subprocess.run(["git", "cat-file", "blob", f"{sha}:{workflow_path}"], cwd=repo,
+                              capture_output=True, check=True, timeout=10).stdout
+    subject = _committed_json_subject(repo, sha, subject_path)
+    if subject['subject_digest'] != expected_subject_digest:
+        raise LocalCIError('canonical_ci_subject_binding_changed')
+    runner_path = Path(__file__).resolve()
+    runner_digest = hashlib.sha256(_proof_regular_bytes(runner_path)).hexdigest()
+    if runner_digest != _LOADED_RUNNER_SHA256:
+        raise LocalCIError('canonical_ci_loaded_owner_changed')
+    runner_repo = runner_path.parents[1]
+    runner_revision = command(["git", "rev-parse", "HEAD"], runner_repo)
+    committed_runner = subprocess.run(["git", "cat-file", "blob", runner_revision + ":tools/localci.py"],
+        cwd=runner_repo, capture_output=True, check=True, timeout=10).stdout
+    if not SHA.fullmatch(runner_revision) or hashlib.sha256(committed_runner).hexdigest() != runner_digest:
+        raise LocalCIError("canonical_ci_committed_owner_required")
+    log = Path(output).resolve()
+    if log.exists() or log.is_symlink():
+        raise LocalCIError("canonical_ci_fresh_output_required")
+    contained = _run_canonical_ci_process(repo, sha, pr, log)
+    if contained is None:
+        return None  # No private proof: no containment available, no bare fallback.
+    result, lifetime = contained
+    if type(result) is not int or result != 0:
+        raise LocalCIError("canonical_ci_terminal_failure")
+    after = _proof_pr(repo, sha, pr)
+    if before != after or runner_digest != hashlib.sha256(_proof_regular_bytes(__file__)).hexdigest():
+        raise LocalCIError("canonical_ci_source_or_pr_changed")
+    if not log.is_file() or log.is_symlink():
+        raise LocalCIError("canonical_ci_durable_output_required")
+    facts = dict(before, kind="canonical_localci", executed=True, exit_code=result,
+                 runner_digest=runner_digest, runner_revision=runner_revision, workflow_path=workflow_path,
+                 workflow_digest=hashlib.sha256(workflow).hexdigest(),
+                 subject=subject, log_path=str(log), log_digest=_proof_file_digest(log),
+                 repo_path=str(repo), proof_scope="canonical_CI_and_committed_artifact_identity_only", process_lifetime=lifetime)
+    return CanonicalCIProof(facts, _seal=_CI_PROOF_SEAL)
+
+
+def verify_ci_evidence(proof, *, repository, head, pr_number, subject_digest):
+    """Recheck the private producer instance; never imports PASS from a file.
+
+    Missing instance after restart is closed. Rechecking the proof never reruns
+    CI, never polls, and never grants G4/G5 or artifact semantic qualification.
+    """
+    if type(proof) is not CanonicalCIProof:
+        return {"status": "NOT_IMPLEMENTED", "reason": "canonical_ci_private_proof_unavailable"}
+    facts = proof._facts(_CI_PROOF_SEAL)
+    if (facts['repository'], facts['head'], facts['pr_number'], facts['subject']['subject_digest']) != (repository, head, pr_number, subject_digest):
+        raise LocalCIError("canonical_ci_subject_binding_changed")
+    current = _proof_pr(Path(facts['repo_path']), head, str(pr_number))
+    if current != {key: facts[key] for key in ('repository', 'head', 'base', 'pr_number')}:
+        raise LocalCIError("canonical_ci_pr_identity_changed")
+    log = Path(facts['log_path'])
+    if (not log.is_file() or log.is_symlink() or _proof_file_digest(log) != facts['log_digest']
+            or hashlib.sha256(_proof_regular_bytes(__file__)).hexdigest() != facts['runner_digest']):
+        raise LocalCIError("canonical_ci_artifact_or_owner_changed")
+    encoded = json.dumps(facts, ensure_ascii=True, sort_keys=True, separators=(',', ':')).encode()
+    return {"status": "PASS", "kind": "canonical_localci", "executed": True,
+            "head": head, "subject_digest": subject_digest, "pr_number": pr_number, "exit_code": 0,
+            "evidence_digest": hashlib.sha256(encoded).hexdigest(),
+            "base": facts['base'], "runner_digest": facts['runner_digest'], "runner_revision": facts['runner_revision'],
+            "workflow_digest": facts['workflow_digest'], "log_digest": facts['log_digest'],
+            "artifact_digest": facts['subject']['blob_sha256'], "proof_scope": facts['proof_scope']}
+
+
 def main():
+    if sys.argv[1:2] == [SUBREAPER_FLAG] and sys.argv[2:3] == ["--"] and len(sys.argv) > 3:
+        return _subreaper_main(sys.argv[3:])
     parser = argparse.ArgumentParser(description=__doc__)
     for arg in ("repository", "sha", "pr", "output"):
         parser.add_argument(arg)
     args = parser.parse_args()
+    install_termination_cleanup()
     try:
         return run_ci(args.repository, args.sha, args.pr, args.output)
+    except LocalCITerminated as stop:
+        code = 128 + stop.signum
+        message = f"LOCALCI_RESULT exit={code} error=terminated_by_signal signal={stop.signum}"
+        print(message, file=sys.stderr)
+        try:
+            with Path(args.output).expanduser().resolve().open("a", encoding="utf-8") as output:
+                output.write(message + "\n")
+        except OSError:
+            pass
+        return code
     except Exception as exc:
         message = f"LOCALCI_RESULT exit=1 error={str(exc)[:450]}"
         print(message, file=sys.stderr)
@@ -401,6 +1086,9 @@ def main():
         except OSError:
             pass
         return 1
+    finally:
+        _SIGNALS["raised"] = True  # Exiting: a late signal can no longer cut the backstop removal short.
+        drop_all_scratch()
 
 
 if __name__ == "__main__":
