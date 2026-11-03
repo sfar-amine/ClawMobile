@@ -10,7 +10,7 @@ Reads only what the existing owners already write — no daemon, no new store:
   health     ~/.openclaw/health/health.log*
   app        files/voice-trace.jsonl* of the app (adb run-as), telemetry C1: codes and timings only
   dialogue   transitions of ~/.openclaw/samantha-dialogue/dialogue.sqlite
-  runs       ~/.openclaw/clawmobile-companion/runs.json (state, source, capability, error — never the user's text)
+  runs       ~/.openclaw/clawmobile-companion/runs.json (state and closed voice diagnostics — never the user's text)
 """
 import argparse
 import datetime as dt
@@ -118,6 +118,43 @@ def dialogue(since_ms, until_ms):
             for at, goal, kind, state, outcome, reason in rows]
 
 
+# Copies of the voice checkpoint owner's closed protocol, checked against its fixture by CI.
+VOICE_DIAGNOSTIC_EVENTS = ("t00", "t07c", "t10", "t11", "t21", "t22", "t23", "t24", "t25", "t30",
+                           "t31", "t32", "t41", "t42", "t43", "t44", "t50", "t51", "t90")
+VOICE_DIAGNOSTIC_FAILURE_FAMILIES = ("token", "before_setup", "setup_timeout", "protocol", "sequence", "correlation")
+# Same closed turn-id shape as VOICE_TURN_ID_RE in runs.ts (greeting and deferred readback turns included).
+VOICE_TURN_ID_PATTERN = r"voice-(?:(?:greeting|readback)-)?[a-f0-9-]{36}"
+
+
+def voice_diagnostics(run, since_ms, until_ms):
+    """Only the closed owner projection is printable; a malformed summary is wholly absent."""
+    value = run.get("voiceDiagnostics")
+    run_id = run.get("runId")
+    if (run.get("modality") != "voice" or not isinstance(run_id, str) or
+            not re.fullmatch(VOICE_TURN_ID_PATTERN, run_id) or
+            not isinstance(value, dict) or set(value) != {"version", "startedAtMs", "truncated", "events"} or
+            type(value.get("version")) is not int or value["version"] != 1 or
+            type(value.get("startedAtMs")) is not int or not 0 <= value["startedAtMs"] <= 4102444800000 or
+            type(value.get("truncated")) is not bool or not isinstance(value.get("events"), list) or len(value["events"]) > 32):
+        return []
+    rows = []
+    previous = -1
+    for event in value["events"]:
+        if (not isinstance(event, dict) or not {"code", "elapsedMs"} <= set(event) <= {"code", "elapsedMs", "failureFamily"} or
+                event.get("code") not in VOICE_DIAGNOSTIC_EVENTS or type(event.get("elapsedMs")) is not int or
+                not 0 <= event["elapsedMs"] <= 3600000 or event["elapsedMs"] < previous or
+                value["startedAtMs"] + event["elapsedMs"] > 4102444800000 or
+                ("failureFamily" in event and (event["code"] != "t90" or event["failureFamily"] not in VOICE_DIAGNOSTIC_FAILURE_FAMILIES))):
+            return []
+        previous = event["elapsedMs"]
+        at = value["startedAtMs"] + event["elapsedMs"]
+        if since_ms <= at <= until_ms:
+            family = " failureFamily=" + event["failureFamily"] if "failureFamily" in event else ""
+            rows.append((from_ms(at), "app-checkpoint", f"turnId={run_id} runId={run_id} code={event['code']} elapsedMs={event['elapsedMs']}" +
+                         family + " truncated=" + str(value["truncated"]).lower()))
+    return rows
+
+
 def runs(since_ms, until_ms):
     path = OC / "clawmobile-companion" / "runs.json"
     try:
@@ -130,6 +167,7 @@ def runs(since_ms, until_ms):
     for run in items if isinstance(items, list) else []:
         if not isinstance(run, dict):
             continue
+        out.extend(voice_diagnostics(run, since_ms, until_ms))
         capability = (run.get("decision") or {}).get("capability") or "-"
         for key, label in (("acceptedAt", "accepted"), ("updatedAt", run.get("state"))):
             at = run.get(key)
@@ -197,10 +235,14 @@ def main(argv=None):
     rows = []
     rows += stamped_lines("companion", OC / "health" / "companion.stderr.log")
     rows += stamped_lines("health", OC / "health" / "health.log")
-    if not args.no_app:
+    run_rows = runs(s_ms, u_ms)
+    # A selected turn's checkpoint is durable and does not require adb or logcat.
+    checkpoint_available = bool(args.turn or args.run or args.correlation) and any(
+        source == "app-checkpoint" and correlated(text, args) for _, source, text in run_rows)
+    if not args.no_app and not checkpoint_available:
         rows += app_trace()
     rows += dialogue(s_ms, u_ms)
-    rows += runs(s_ms, u_ms)
+    rows += run_rows
     rows = sorted((r for r in rows if since <= r[0] <= until and correlated(r[2], args)), key=lambda r: r[0])
     for at, source, text in rows:
         if args.json:
