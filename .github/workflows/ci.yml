@@ -191,6 +191,7 @@ jobs:
           bash ../installer/termux-lite/test-openclaw-archive-copy.sh
           bash ../installer/termux-lite/test-openclaw-backup-publish.sh
           bash ../installer/termux-lite/test-plugin-install-noninteractive.sh
+          python3 ../installer/termux-lite/test-clawmobile-web-search-choice.py
           python3 ../installer/termux-lite/test-rdc-incident-loop.py
           node ../installer/termux-lite/test-remote-desktop-health.mjs
           python3 ../installer/termux-lite/test-remote-desktop-watchdog.py

@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "id": "clawmobile-keep-web-search-choice-20261103",
+  "date": "2026-11-03",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "clawmobile configure_lite_defaults garde un fournisseur web_search explicite (et le plugin dont il dépend) au lieu de toujours vider tools.web.search.provider et désactiver le plugin Codex.",
+  "reason": "03/11 : Amine a choisi Codex Hosted Search pour la recherche web (Sol reste sur le runtime OpenClaw ; seul web_search passe par Codex, sans clé). Le repli automatique tombait sur Gemini gratuit (refus des filtres puis 429). Un prochain « clawmobile setup » ou « configure defaults » aurait effacé ce choix.",
+  "files": [
+    "installer/termux-lite/clawmobile",
+    "installer/termux-lite/test-clawmobile-web-search-choice.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-03-codex-web-search/capture.json",
+    ".github/workflows/ci.yml",
+    "docs/changes/clawmobile-keep-web-search-choice-20261103.json",
+    "docs/changes/clawmobile-keep-web-search-choice-20261103.md"
+  ],
+  "tests": [
+    {"name": "installer/termux-lite/test-clawmobile-web-search-choice.py", "status": "passed",
+     "evidence": "3 tests OK sur la fonction réelle extraite de clawmobile : fournisseur vide/null/undefined = défaut Android inchangé (unset + plugin Codex désactivé) ; « codex » gardé, plugin non touché, autres défauts appliqués ; autre fournisseur explicite gardé. 2 échecs sur l'ancien code. Inscrit dans ci.yml."},
+    {"name": "installer/termux-lite/test-ci-registration.py", "status": "passed", "evidence": "Nouveau test inscrit."}
+  ],
+  "documentation": ["docs/changes/clawmobile-keep-web-search-choice-20261103.md"],
+  "capabilities": {"impact": "none", "reason": "Défauts d'installation ; aucune route ni capability."},
+  "architecture": {"changed": false, "reason": "Même fonction de défauts ; une condition sur la valeur déjà configurée."},
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Revert de la PR. Sur le S24, retour au repli automatique : openclaw config unset tools.web.search.provider puis openclaw plugins disable codex (sauvegarde ~/.openclaw/backups/codex-search-20261103).",
+  "limitations": [
+    "Le changement de configuration du S24 (plugin Codex 2026.10.9 activé, provider codex) a été fait directement le 03/11 avec l'accord d'Amine ; cette PR ne fait que le préserver.",
+    "Recherche Codex mesurée à 61 s pour une question d'actualité multi-sources (Sol + session Codex éphémère) ; à surveiller."
+  ]
+}
