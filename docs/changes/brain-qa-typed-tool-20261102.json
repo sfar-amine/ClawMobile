@@ -1,0 +1,73 @@
+{
+  "version": 2,
+  "id": "brain-qa-typed-tool-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "capability",
+  "summary": "samantha_qa (typed QA owner projected by samantha-ui-playbooks branch claude/samantha-qa: skill qa, five reads and four confirmed writes) is declared in openclaw.plugin.json contracts.tools so the Gateway accepts it; it stays out of DIRECT_TYPED_TOOLS (searchable). New test-typed-qa-tool.cjs checks the S24 catalogue capture, the validator, the declaration, the confirmation markers, one owner invocation per call, confirm forwarding and the refusal for contacts and rooms.",
+  "reason": "Amine 02/11: build the QA tool, do not close the room. S24 02/11 read-only: the compiled catalogue has 13 typed tools and qa.test_campaign has no typed call.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/openclaw.plugin.json",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-qa-tool.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-qa-typed-tool/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-qa-typed-tool/provenance.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-qa-typed-tool/s24-agent-tools-summary.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-qa-typed-tool/qa-tool.json",
+    "docs/changes/brain-qa-typed-tool-20261102.json",
+    "docs/changes/brain-qa-typed-tool-20261102.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-qa-tool.cjs",
+      "status": "passed",
+      "evidence": "New, in ci.yml. S24 capture: 13 typed tools, no samantha_qa, qa.test_campaign calls empty. Catalogue = S24 capture 2026-10-25 + device projection + samantha_qa projection (playbooks 3bb52c2d, revision b837b6b9b6d52606); readTypedToolCatalogue accepts it; every factory tool declared in contracts.tools; samantha_qa searchable (no catalogMode); exactly the four writes marked « récapitulatif puis confirmation »; non-owner and contacts-qa get no factory; before_tool_call blocks samantha_qa for contacts-qa and the Pulse room; one owner invocation per call, replay of the same call id refused, confirm forwards only confirmationId/payloadHash. No Gateway or Companion process started."
+    },
+    {
+      "name": "tsc build; test-typed-capability-tools.cjs, test-typed-tools-direct-visible.cjs, test-typed-device-direct.cjs, test-typed-direct-call-id.cjs, test-typed-admission-shared-instances.cjs, test-capability-tool.cjs, test-owner-skill-preload.cjs",
+      "status": "passed",
+      "evidence": "All green after the contracts.tools change; no openclaw-gateway or dist/companion/server.js process left."
+    }
+  ],
+  "documentation": [
+    "docs/changes/brain-qa-typed-tool-20261102.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No route or capability change here; qa.test_campaign and its typed intents are declared in samantha-ui-playbooks. No acceptance line needed (no new Companion route)."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same typed tool factory, guard and helper; one more declared tool name."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Model-visible tool surface of the brain only; MCP tools and schemas unchanged."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI (localci.py) on the final GitHub head remains required; not run in this task by instruction.",
+    "Deployment order: deploy this Companion commit (contracts.tools) before activating the playbooks that project samantha_qa; otherwise the Gateway refuses the undeclared tool and the whole typed batch.",
+    "qa-tool.json is a source projection; replace it with the S24 compiled catalogue after the playbooks activation.",
+    "Live recette on the S24 not done from this task.",
+    "QA room contacts: follow-up after core #529 and playbooks #387."
+  ],
+  "rollback": "Revert this commit and redeploy the previous Companion commit with companion-deploy.sh; if playbooks projecting samantha_qa are active, re-activate the previous playbooks first."
+}
