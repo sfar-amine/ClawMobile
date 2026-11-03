@@ -89,6 +89,7 @@ OWNER_GUARDS = [
     ("POST", "/learning/associations/" + "a" * 64 + "/forget"),
     ("POST", "/learning/not-this"),
     ("POST", "/whatsapp/allowlist"),
+    ("POST", "/whatsapp/rooms/send-approvals"),  # Amine 02/11: a room send's owner confirmation, refused without the owner header
     ("POST", "/intent/interpret"),  # Chantier 1 (doc 71): no model call without the loopback owner flow
     ("POST", "/skills/clawmobile-capabilities/disable"),
     ("POST", "/skills/clawmobile-capabilities/enable"),

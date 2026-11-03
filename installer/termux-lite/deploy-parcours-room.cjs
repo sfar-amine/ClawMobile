@@ -9,11 +9,20 @@
 //                                 The room owner never writes in `call` (every room write stops at its hand-off) and
 //                                 this runner never sends `handoff`: no Pulse write is possible here.
 //   prepare-first-project <params-json>  same, on the first project of the contact's own project list (read)
+//   generic-tools                the room tools the deployed factory gives a generic room session (agenda, actions,
+//                                messages) of the same contact: names only, no grant read, nothing run
+//   generic-outside              that session's agenda tool asked another domain's action: refused before any read
+//   generic-read                 a read in a generic room of the same contact. Granted such a room: its routed agent
+//                                reads (device status, or tomorrow's agenda); otherwise the deployed room tool must
+//                                refuse on the real grant read with no typed helper call. Reads only, never a write.
 'use strict';
 const fs=require('fs'),path=require('path'),{execFileSync}=require('child_process');
 const [,,mode,action,paramsJson]=process.argv;
 const E164='+21610000001',AGENT='contacts-projet-pulse',SESSION=`agent:${AGENT}:whatsapp:direct:${E164}`;
 const TOOL_ACTIONS=new Set(['project.search','leave.balance','leave.request','agenda.read']);
+// Amine 02/11, contact rooms brain: the generic room session of the recette contact (combined agenda/actions/messages).
+const GENERIC_AGENT='contacts-agenda-actions-messages',GENERIC_SESSION=`agent:${GENERIC_AGENT}:whatsapp:direct:${E164}`;
+const GENERIC_MODES=new Set(['generic-tools','generic-outside','generic-read']);
 const WRITE_ACTIONS=new Set(['project.create','project.phase.set_status']);
 function gatewayEnv(){
   // The helpers run as inside the Gateway: run them with the Gateway's environment.
@@ -31,15 +40,49 @@ function params(raw){
   const began=Date.now();let out={reply:'',state:'',reasonCode:'',facts:false,error:null};
   try{
     const tool=mode==='tool',first=mode==='prepare-first-project';
-    if(!(tool&&TOOL_ACTIONS.has(action)||mode==='prepare'&&WRITE_ACTIONS.has(action)||first))throw Error('usage');
+    if(!(tool&&TOOL_ACTIONS.has(action)||mode==='prepare'&&WRITE_ACTIONS.has(action)||first||GENERIC_MODES.has(mode)))throw Error('usage');
     gatewayEnv();
     const dist=path.join(process.env.HOME,'.openclaw/extensions/openclaw-plugin-mobile-ui/dist');
-    const brain=require(path.join(dist,'pulseRoomBrain'));
+    const brain=require(path.join(dist,'roomBrain'));
     const run='recette-'+Date.now();
-    if(tool){
+    if(GENERIC_MODES.has(mode)){
+      const {agentCapabilityHook}=require(path.join(dist,'capabilityAgentGuard'));
+      const {allowlistRead}=require(path.join(dist,'companion/whatsappAllowlist'));
+      const {roomAgentFor}=require(path.join(dist,'contactRoomProfile'));
+      let agent=GENERIC_AGENT,session=GENERIC_SESSION,granted=false,helperCalls=0;
+      let name='samantha_agenda',args={action:'project.search',params:{}};
+      if(mode==='generic-read'){
+        // The contact's real grant decides which session reads; the room tool reads it again itself.
+        const grant=await allowlistRead('get','wa-'+require('crypto').createHash('sha256').update(E164).digest('hex').slice(0,16));
+        const routed=roomAgentFor(grant?.success===true&&grant.state==='active'?grant.rooms:null);
+        const rooms=routed?routed.split('-').slice(1):[];
+        if(rooms.includes('actions')||rooms.includes('agenda')){granted=true;agent=routed;session=`agent:${agent}:whatsapp:direct:${E164}`;}
+        const day=new Date(Date.now()+86400000).toISOString().slice(0,10);
+        [name,args]=granted&&!rooms.includes('actions')
+          ?['samantha_agenda',{action:'agenda.event.read',params:{calendar_id:'primary',time_min:`${day}T00:00:00+01:00`,time_max:`${day}T23:59:59+01:00`}}]
+          :['samantha_device_assistance',{action:'device.status.read',params:{}}];
+      }
+      const ctx={agentId:agent,sessionKey:session,sessionId:run,senderIsOwner:false,messageChannel:'whatsapp',assertInvocationCurrent(){}};
+      const helper=brain.roomTypedHelper();
+      const tools=brain.createRoomTools(ctx,{runTyped:input=>{helperCalls++;return helper(input);}})||[];
+      if(mode==='generic-tools'){
+        out={reply:'',state:'TOOLS',reasonCode:tools.map(t=>t.name).join(','),facts:false,error:null};
+        throw Object.assign(Error('done'),{done:true});
+      }
+      const room=tools.find(t=>t.name===name);
+      if(!room)throw Error('room_tool_unavailable');
+      const call=run+'-1';
+      const proof=agentCapabilityHook({toolName:name,params:args,toolCallId:call},
+        {requester:{senderIsOwner:false},agentId:agent,runId:run,sessionKey:session,sessionId:run});
+      if(proof?.block)throw Error('room_proof_refused');
+      const result=await room.execute(call,args);
+      const body=JSON.parse(result.content[0].text);
+      out={reply:String(result.details?.sourceReply?.text||''),state:String(body.state||''),reasonCode:String(body.reasonCode||''),
+        facts:!!(body.facts&&Object.keys(body.facts).length),granted,helperCalls,error:null};
+    }else if(tool){
       const args={action,params:params(paramsJson)},call=run+'-1';
       const ctx={agentId:AGENT,sessionKey:SESSION,sessionId:run,senderIsOwner:false,messageChannel:'whatsapp',assertInvocationCurrent(){}};
-      const tools=brain.createPulseRoomTools(ctx);
+      const tools=brain.createRoomTools(ctx);
       if(!tools)throw Error('room_tool_unavailable');
       const {agentCapabilityHook}=require(path.join(dist,'capabilityAgentGuard'));
       const proof=agentCapabilityHook({toolName:tools[0].name,params:args,toolCallId:call},

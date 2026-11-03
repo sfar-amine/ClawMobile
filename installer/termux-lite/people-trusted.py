@@ -585,8 +585,8 @@ EVENTS = {'add':'added', 'remove':'removed', 'scope':'scope_changed', 'suspend':
 # Access "rooms" (decision d'Amine 11/10). Enforced by agent routing, never by prompt: plain conversation is the
 # wildcard `contacts` agent, `projet` a read-only project snapshot agent, `maison` the owner's main agent.
 ROOMS = ('conversation', 'projet', 'pulse', 'agenda', 'taches', 'lignes', 'memoire', 'actions', 'messages', 'qa', 'maison')
-# Rooms are enforced by the concrete-peer binding. Agenda/actions/messages additionally pass through the
-# capability-first contact boundary, which checks the canonical decision before executing it.
+# Rooms are enforced by the concrete-peer binding. Each typed room's contact brain then calls its room's typed tool
+# only (plugin roomBrain.ts, Amine 02/11): the room grant is re-read per message and before each write.
 ENFORCED_ROOMS = {'conversation', 'projet', 'pulse', 'agenda', 'actions', 'messages', 'qa', 'maison'}
 PROJECT_AGENT = 'contacts-projet'
 # Pièce Pulse (fichier 52 §5, Amine 02/11): the room agent's brain uses the room's typed tool only (pulse-room.py).
@@ -644,8 +644,17 @@ def room_agent(rooms):
     if 'pulse' in rooms: return PULSE_AGENTS['projet+pulse' if 'projet' in rooms else 'pulse']
     return PROJECT_AGENT if 'projet' in rooms else None
 
+def room_tool_policy(rooms, tools):
+    """project-room.py room_tool_policy (one closed policy for every room agent), loaded from this release."""
+    spec=importlib.util.spec_from_file_location('people_room_policy',Path(__file__).with_name('project-room.py'))
+    owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
+    return owner.room_tool_policy(rooms,tools)
+
 def ensure_room_profile(cfg, agent, rooms):
-    """Create only the concrete profile required by this grant, from the existing closed contact owners."""
+    """Create only the concrete profile required by this grant, from the existing closed contact owners.
+
+    Amine 02/11: the room contact's brain calls the typed tool of each of its rooms (plugin roomBrain.ts); the
+    profile allows exactly those and the contact tools, and keeps everything else closed (room_tool_policy)."""
     entries=(cfg.get('agents') or {}).get('entries')
     if not isinstance(entries,dict): fail('room_profile_unavailable',503)
     if agent in entries: return
@@ -655,11 +664,12 @@ def ensure_room_profile(cfg, agent, rooms):
     if not isinstance(base,dict): fail('room_profile_unavailable',503)
     tools=base.get('tools') or {}
     denied=set(tools.get('deny') or [])
-    # Capabilities are executed before the model by the room boundary. The profile itself remains closed.
+    # The profile copied must already be closed; the room policy then opens the room's typed tools only.
     if 'clawmobile_capability' not in denied or 'exec' not in denied: fail('room_agent_tools_not_closed',503)
     entry=copy.deepcopy(base)
     entry.update(name=agent,agentDir=str(HOME/'.openclaw'/'agents'/agent/'agent'),
-                 identity={'emoji':'✨','name':'Samantha','theme':"Amine's contacts — "+', '.join(r for r in rooms if r!='conversation')})
+                 identity={'emoji':'✨','name':'Samantha','theme':"Amine's contacts — "+', '.join(r for r in rooms if r!='conversation')},
+                 tools=room_tool_policy(rooms,tools))
     entries[agent]=entry
 
 def route_rooms(cfg, number, rooms, identity):
