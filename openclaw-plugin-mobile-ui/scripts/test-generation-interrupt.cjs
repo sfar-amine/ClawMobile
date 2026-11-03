@@ -77,7 +77,6 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
     if(method===guard.TYPED_CONTROL_ADMISSION_METHOD){proofChecks++;if(revokeAt===proofChecks)sdkRevoked=true;return guard.typedControlAdmission(params);}
     return originalGateway(method,params,options);
    };
-   const previousFlag=process.env.SAMANTHA_BRAIN_ONLY;process.env.SAMANTHA_BRAIN_ONLY='1';
    const sdkRequest=(id,user)=>{
     const args={action:'samantha.app.conversation.interrupt',params:{conversationId:'demo',runId:'run-target'}};
     const sessionKey=client.expectedCompanionSessionKey('demo');
@@ -114,7 +113,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
       assert.equal((await observed.json()).state,'indeterminate');assert.equal(sent,4,'uncertain receipt is observed without replay');retry.release();
      }
     }
-   }finally{client.callOpenClawGateway=originalGateway;if(previousFlag===undefined)delete process.env.SAMANTHA_BRAIN_ONLY;else process.env.SAMANTHA_BRAIN_ONLY=previousFlag;}
+   }finally{client.callOpenClawGateway=originalGateway;}
   }finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
   // Native WA observations nominate identity only. The current SDK callback,
   // canonical owner config and a fresh positive Gateway identity are all required.

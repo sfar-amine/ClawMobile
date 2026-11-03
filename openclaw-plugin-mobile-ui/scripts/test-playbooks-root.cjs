@@ -13,8 +13,12 @@ try {
   os.homedir = () => root;
   delete process.env.CLAW_UI_PLAYBOOKS_ROOT;
   console.warn = () => {};
-  const { playbooksRootFor, recordCodeRootEvent } = require("../dist/companion/playbooksRoot");
-  const { playbooksRoot } = require("../dist/companion/voiceRoundLearning");
+  const { playbooksRootFor, playbooksRootHas, recordCodeRootEvent } = require("../dist/companion/playbooksRoot");
+  // The voice round capture (voiceRoundLearning.ts) left with #524; its strict resolution stays covered here.
+  const playbooksRoot = () => {
+    const found = playbooksRootFor("voice_round_learning", req, { overrides: [process.env.CLAW_UI_PLAYBOOKS_ROOT], overridesMustContain: true });
+    return playbooksRootHas(found, req) ? found : null;
+  };
   const pin = path.join(root, ".openclaw/runtime-ui-playbooks/current");
   const snapshot = path.join(root, ".openclaw/runtime-ui-playbooks", "a".repeat(40));
   const workspace = path.join(root, ".openclaw/workspace/ui-playbooks");
@@ -52,12 +56,12 @@ try {
   fs.symlinkSync(snapshot, pin);
   assert.equal(playbooksRootFor("x", req, { overrides: [custom], overridesMustContain: true }), pin);
   process.env.CLAW_UI_PLAYBOOKS_ROOT = custom;
-  assert.equal(playbooksRoot(), pin, "voice round capture ignores an override without the owner module"); checks += 3;
+  assert.equal(playbooksRoot(), pin, "a strict caller ignores an override without the owner module"); checks += 3;
   delete process.env.CLAW_UI_PLAYBOOKS_ROOT;
 
   // Callers resolve per call through the shared resolver; no module-level workspace default is left.
   const src = (name) => fs.readFileSync(path.join(__dirname, "../src/companion", name), "utf8");
-  for (const name of ["mcpBridge.ts", "voiceRoundLearning.ts", "control.ts"]) {
+  for (const name of ["mcpBridge.ts", "control.ts"]) {
     assert.match(src(name), /playbooksRootFor\(/, name);
     assert.doesNotMatch(src(name), /"workspace", "ui-playbooks"|workspace\/ui-playbooks/, name);
     checks += 2;

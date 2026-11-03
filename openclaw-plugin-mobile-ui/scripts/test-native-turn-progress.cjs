@@ -12,11 +12,11 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
  Date.now=()=>now;process.hrtime.bigint=()=>BigInt(mono)*1000000n;
  const own='+15550123456',sessionKey='agent:main:whatsapp:direct:'+own,scheduled=[],sent=[],logs=[],realLog=console.log;
  console.log=(...args)=>{if(String(args[0]).startsWith('[turn]'))logs.push(args[0]);};
- let fail=false;const owner=createNativeTurnProgressOwner({enabled:()=>true,owners:()=>new Set([own]),
+ let fail=false;const owner=createNativeTurnProgressOwner({owners:()=>new Set([own]),
   timer:(fn,delay)=>{const t={fn,delay,unref(){}};scheduled.push(t);return t;},clear:t=>{t.cancelled=true;},
   send:async p=>{sent.push(p);if(fail)throw Error('uncertain transport');return {messageId:'authored-send-receipt'};}});
  const changes=[],subscription=runs.subscribeConversationChanges(event=>changes.push(event));
- const posts=[];const hooks=nativeTurnProgressHooks({enabled:()=>true,owners:()=>new Set([own]),post:async(id,body)=>{posts.push(body);return owner.observe(id,body);}});
+ const posts=[];const hooks=nativeTurnProgressHooks({owners:()=>new Set([own]),post:async(id,body)=>{posts.push(body);return owner.observe(id,body);}});
  const ctx=runId=>({runId,sessionKey,channelId:'whatsapp',agentId:'main',accountId:'default'});
  const wait=async(test)=>{const end=realNow()+1500;while(!await test()){assert.ok(realNow()<end,'bounded test observation');await new Promise(r=>setTimeout(r,5));}};
  try{

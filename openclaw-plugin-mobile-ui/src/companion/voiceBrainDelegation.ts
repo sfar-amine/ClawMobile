@@ -1,11 +1,10 @@
 import {TURN_BUDGET_MS} from "./turnBudget";
 import type {AdmissionTicket} from "./ownerTurnAdmission";
 import type {CompanionRunStatus, IntentSubmitResponse} from "./types";
-import {brainOnlyEnabled} from "../brainOnly";
 
 /**
- * Brain delegation of a model-only Samantha Voix turn the dialogue coordinator left unresolved (Amine 25/10/2026: « il
- * doit absolument tout déléguer au cerveau »). Same owner as the app's ask_samantha tool: the canonical run submission
+ * Brain delegation of every Samantha Voix turn (Amine 25/10/2026: « il doit absolument tout déléguer au cerveau » ;
+ * ADR 02/11 « le cerveau partout », step 3: no coordinator or Graph before it). Same owner as the app's ask_samantha tool: the canonical run submission
  * (POST /runs, voiceDelegation) and its run registry. No store, queue, retry or second route: one submission bound to
  * the turn's own admission ticket and clientRunId, then a bounded read of that run. A run still active at the budget
  * keeps going and lands in the discussion, as with ask_samantha (app DELEGATION_BUDGET_MS = 30 s); when the voice
@@ -73,39 +72,10 @@ function receipt(state: "done" | "failed" | "pending" | "unknown", text: string,
 
 const isObject = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
 
-/**
- * Model territory of a turn the coordinator left unresolved: only a model-only framing (Graph decision REASON, or no
- * decision with an optional tool policy). Every executable, clarifying or stopping decision (payments, deterministic
- * and agent routes alike) and an unavailable resolver keep the existing Graph executor, unchanged.
- */
-export function brainTerritory(resolution: unknown): boolean {
-  if (!isObject(resolution) || resolution.success === false) return false;
-  const decision = isObject(resolution.decision) ? resolution.decision : null;
-  if (decision) return decision.type === "REASON";
-  const harness = isObject(resolution.harness) ? resolution.harness : null;
-  return harness?.tool_policy === "optional";
-}
-
-export type UnresolvedVoiceDeps = VoiceBrainDeps & {
-  resolve: (text: string) => Promise<unknown>;
-  execute: (text: string) => Promise<Record<string, unknown>>;
-};
-
-/** /claw-live/capability, coordinator `continue`: executable turns keep their executor, model-only turns go to the brain. */
-export async function routeUnresolvedVoiceTurn(request: string, ctx: VoiceBrainContext, deps: UnresolvedVoiceDeps) {
-  if (brainOnlyEnabled()) {
-    ctx.assertCurrent();
-    return withTiming(await delegateVoiceTurnToBrain(request, ctx, deps), {route: "brain", resolveMs: 0});
-  }
-  const now = deps.now || (() => Date.now());
-  const started = now();
-  let resolution: unknown = null;
-  try { resolution = await deps.resolve(request); } catch { resolution = null; }
-  const resolveMs = elapsed(started, now());
+/** /claw-live/capability: the admitted voice turn goes to Samantha's brain, with no resolver call before it. */
+export async function routeVoiceTurnToBrain(request: string, ctx: VoiceBrainContext, deps: VoiceBrainDeps) {
   ctx.assertCurrent();
-  if (!brainTerritory(resolution)) return withTiming(await deps.execute(request), {route: "capability", resolveMs});
-  const result = await delegateVoiceTurnToBrain(request, ctx, deps);
-  return withTiming(result, {route: "brain", resolveMs});
+  return withTiming(await delegateVoiceTurnToBrain(request, ctx, deps), {route: "brain", resolveMs: 0});
 }
 
 /** Measured durations only (no text, no identifier): read by the voice turn log line and the receipt. */

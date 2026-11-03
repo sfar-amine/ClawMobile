@@ -25,9 +25,9 @@ function nativePeer(ctx:Context,owners:()=>Set<string>){
  const match=SESSION.exec(ctx.sessionKey||'');return !!match&&owners().has(match[1].startsWith('+')?match[1]:'+'+match[1]);
 }
 /** L3 causal provenance with L4 stage/delivery observations; the same Companion owner persists both. */
-export function nativeTurnProgressHooks(deps:{owners?:()=>Set<string>;post?:(id:string,body:any)=>Promise<any>;enabled?:()=>boolean}={}){
- const owners=deps.owners||ownerWhatsAppNumbers,post=deps.post||postObservation,enabled=deps.enabled||(()=>process.env.SAMANTHA_BRAIN_ONLY==='1');
- const valid=(event:any,ctx:Context)=>enabled()&&nativePeer(ctx,owners)&&RUN.test(ctx.runId||event?.runId||'')&&
+export function nativeTurnProgressHooks(deps:{owners?:()=>Set<string>;post?:(id:string,body:any)=>Promise<any>}={}){
+ const owners=deps.owners||ownerWhatsAppNumbers,post=deps.post||postObservation;
+ const valid=(event:any,ctx:Context)=>nativePeer(ctx,owners)&&RUN.test(ctx.runId||event?.runId||'')&&
   !(ctx.runId&&event?.runId&&ctx.runId!==event.runId)&&!(event?.sessionKey&&event.sessionKey!==ctx.sessionKey);
  const model=(event:any,ctx:Context)=>{const m=typeof event?.model==='string'?event.model:ctx.modelId,p=typeof event?.provider==='string'?event.provider:ctx.modelProviderId;
   return typeof m==='string'?(m.includes('/')?m:typeof p==='string'?p+'/'+m:undefined):undefined;};
@@ -41,7 +41,7 @@ export function nativeTurnProgressHooks(deps:{owners?:()=>Set<string>;post?:(id:
    const target=event?.target,sessionKey=target?.sessionKey,message=event?.message,meta=message?.__openclaw;
    const ingress=meta?.transport?.ingressRunId,adoptedBy=meta?.steerTargetRunId,started=meta?.transport?.ingressObservedMonoMs,accountId=meta?.transport?.accountId;
    const now=Number(process.hrtime.bigint()/1000000n);
-   if(!enabled()||target?.agentId!=='main'||event?.agentId&&event.agentId!=='main'||
+   if(target?.agentId!=='main'||event?.agentId&&event.agentId!=='main'||
      event?.sessionKey&&event.sessionKey!==sessionKey||!nativePeer({channel:'whatsapp',agentId:'main',sessionKey},owners)||
      message?.role!=='user'||meta?.senderIsOwner!==true||meta?.transport?.channel!=='whatsapp'||
      message?.provenance&&message.provenance.kind!=='external_user'||!RUN.test(ingress||'')||

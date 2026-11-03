@@ -29,6 +29,9 @@ const invoke=(action,thread,text,admit=true,profile='chat-owner')=>{
 const rows=()=>fs.existsSync(path.join(root,'audit.jsonl'))?fs.readFileSync(path.join(root,'audit.jsonl'),'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[];
 (async()=>{
  try{
+  // ADR 02/11 « le cerveau partout », step 3 (S24: SAMANTHA_BRAIN_ONLY=1 since 28/10, now unconditional): the owner's
+  // MCP free text is never interpreted before the brain. The read is refused by the actual owners after the canonical
+  // Node claim, before any interpretation, private source or business executor. Typed MCP selection replaces it (step 7).
   const text='  Lis huwaei\n';
   const forged=await invoke('unadmitted','forged',text,false);
   assert.equal(forged.state,'failed');assert.equal(forged.reason,'MCP_INTERPRETATION_SERVICE_UNVERIFIED',JSON.stringify(forged));
@@ -36,39 +39,15 @@ const rows=()=>fs.existsSync(path.join(root,'audit.jsonl'))?fs.readFileSync(path
   const shadow=await invoke('shadow','shadow',text,true,'chat-owner-shadow');assert.notEqual(shadow.state,'completed');
   assert.equal(rows().length,0,'shadow does not open private sources');
   const first=await invoke('pair-one','thread-one',text);
-  assert.equal(first.state,'completed',JSON.stringify(first));
-  assert.equal(first.result.items[0].label,'Fixture result');
-  assert.equal(first.interpretation_receipt.schema_version,'intent-receipt.v2');
-  assert.ok(first.interpretation_receipt.shared_source_refs.some(row=>row.ref==='EVT-3'));
-  assert.ok(!JSON.stringify(first).includes('Synthetic full owner constraint'),'only source metadata reaches receipt');
+  assert.equal(first.state,'failed',JSON.stringify(first));assert.equal(first.reason,'INTERPRETATION_HOST_UNAVAILABLE',JSON.stringify(first));
   const replay=await invoke('pair-one','thread-one',text);
-  assert.equal(replay.state,'completed');assert.equal(helperCalls,1);
-  const two=await invoke('pair-two','thread-two',text);assert.equal(two.state,'completed');
-  const previewFrame={type:'mcp_request',interpretationService:serviceScope,requestId:'mcp-claude-chat-preview',clientId:'claude-chat',profile:'chat-owner',tool:'claw_resolve',arguments:{request:text,service_scope:serviceScope,client_context:context('thread-preview',text)}};
-  bridge.registerAuthenticatedMcpRelayMessage(previewFrame);
-  const preview=await mcp.handleMcpRelayRequest(previewFrame);
-  assert.equal(preview.state,'resolved',JSON.stringify(preview));
-  assert.equal(preview.result.outcome,'READY',JSON.stringify(preview));
-  assert.equal(rows().filter(row=>row.kind==='executor').length,2,'preview never executes a business command');
-  const beforeWrite=fs.readFileSync(path.join(root,'audit.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
-  assert.equal(beforeWrite.filter(row=>row.kind==='executor').length,2);
-  const write=await invoke('pair-write','thread-write','démarre le projet huwaei');
-  assert.equal(write.state,'failed');
-  const afterWrite=fs.readFileSync(path.join(root,'audit.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
-  assert.equal(afterWrite.filter(row=>row.kind==='executor').length,2,'canonical write proposal never reaches a business executor');
-  process.env.PAIR_DATA_DENIAL='1';
-  const denied=await invoke('pair-data','thread-data','Lis huwaei');
-  assert.equal(denied.state,'failed');
-  assert.equal(denied.reason,'DATA_PROFILE_UNVERIFIED',JSON.stringify(denied));
-  const log=fs.readFileSync(path.join(root,'audit.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
-  assert.equal(log.filter(row=>row.kind==='snapshot').length,5);assert.equal(log.filter(row=>row.kind==='memory_owner').length,5);
-  const interpretations=log.filter(row=>row.kind==='interpretation');
-  assert.equal(interpretations.length,4,'DATA unknown invokes neither metadata nor fake generation');
-  assert.equal(interpretations[0].original_exact,text);
-  assert.equal(interpretations[0].provenance,'client_reported');
-  assert.notEqual(interpretations[0].conversation_ref,interpretations[1].conversation_ref);
-  assert.equal(log.filter(row=>row.kind==='graph_write_guard').length,5,'independent Graph guard is exercised separately from upstream write refusal');
-  const output={core_sha:coreSha,playbooks_sha:pbSha,qualification:'MOCK_ONLY',external_provider_calls:0,real_business_effects:0,canonical_claim_before_generation:true,helper_calls:helperCalls,positive_reads:2,positive_previews:1,unadmitted_private_reads:0,shadow_private_reads:0,actual_canonical_memory_owner:true,actual_snapshot_reader:true,private_constraint_consumed:true,other_thread_absent:true,shared_source_metadata_only:true,duplicate_additional_helper_calls:0,independent_threads:true,original_text_exact:true,client_provenance_preserved:true,canonical_write_executor_calls:0,data_unknown_reason:denied.reason,fake_interpretations:interpretations.length,fake_business_read_executions:2,separate_graph_write_boundary_probe:{qualification:'SYNTHETIC_BOUNDARY_ONLY',state:'blocked',reason:'read_only_policy',executor_calls:0,checks:log.filter(row=>row.kind==='graph_write_guard').length}};
+  assert.equal(replay.state,'failed');assert.equal(helperCalls,1,'one canonical claim, no second Python call on replay');
+  const write=await invoke('pair-write','thread-write','démarre le projet huwaei');assert.equal(write.state,'failed');
+  const log=rows();
+  assert.equal(log.filter(row=>row.kind==='interpretation').length,0,'no owner interpretation');
+  assert.equal(log.filter(row=>row.kind==='executor').length,0,'no business executor');
+  const output={core_sha:coreSha,playbooks_sha:pbSha,qualification:'MOCK_ONLY',external_provider_calls:0,real_business_effects:0,canonical_claim_before_generation:true,helper_calls:helperCalls,
+   owner_free_text_reads:0,owner_free_text_reason:first.reason,interpretations:0,executor_calls:0};
   if(outputPath)fs.writeFileSync(outputPath,JSON.stringify(output,null,2)+'\n');
   console.log(JSON.stringify(output));
  }finally{fs.rmSync(root,{recursive:true,force:true});}

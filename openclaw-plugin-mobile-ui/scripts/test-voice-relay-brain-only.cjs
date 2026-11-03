@@ -1,7 +1,8 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-process.env.SAMANTHA_BRAIN_ONLY = '1';
+// ADR 02/11 « le cerveau partout », step 3: the relay goes to the brain with no host switch.
+delete process.env.SAMANTHA_BRAIN_ONLY;
 process.env.CLAWMOBILE_AGENT_ID = 'contacts-pulse';
 const sdk = JSON.parse(fs.readFileSync(path.join(__dirname, '../fixtures/s24-2026-10-25-gateway-observation/sdk-contract.json')));
 assert(sdk.capture.runtimeCapture && sdk.capture.sanitized);
@@ -16,8 +17,7 @@ bridge.capabilityBridge = forbidden;
 model.runModelFastPath = forbidden;
 live.compactOwnerAgentContext = () => '';
 const relay = require('../dist/companion/voiceRelay');
-relay.voiceRelayTurnsForTest.useDialogue({turn: forbidden});
-relay.setVoiceRelayRoundCaptureForTest(forbidden);
+for (const seam of ['useDialogue', 'setVoiceRelayRoundCaptureForTest']) assert.equal(relay.voiceRelayTurnsForTest[seam] ?? relay[seam], undefined, seam);
 const calls = [];
 const terminal = (text = 'Réponse du cerveau.') => ({runId:'11111111-1111-4111-8111-111111111111',status:'ok',summary:'completed',result:{payloads:[{text}]}});
 let answer = async () => terminal();
@@ -56,14 +56,6 @@ client.callOpenClawGateway = async (method, params, options) => {calls.push({met
   assert.equal(createTypedCapabilityTools({agentId:'main',senderIsOwner:false,sessionKey:call.params.sessionKey}),null);
   assert.equal(agentCapabilityHook({toolName:'samantha_app',toolCallId:'relay-proof',params:{action:'interrupt',params:{owner:true}}},
     {agentId:'main',runId:'relay-run',sessionKey:call.params.sessionKey,requester:{senderIsOwner:false}}).block,true);
-  process.env.SAMANTHA_BRAIN_ONLY = '0';
-  relay.voiceRelayTurnsForTest.useDialogue({turn:async () => ({state:'needs_clarification',question:'Quelle offre ?',clarificationId:'legacy-clarify',choices:[]})});
-  const legacy = await relay.voiceRelayTurnForTest('legacy-before-activation','Lis une offre sans contacter personne.');
-  process.env.SAMANTHA_BRAIN_ONLY = '1';
-  relay.voiceRelayTurnsForTest.useDialogue({turn:forbidden});
-  await relay.voiceRelayTurnForTest('legacy-after-activation','',legacy.conversationId,'La première');
-  assert.equal(calls.at(-1).params.message,'Contexte de la demande précédente (ne prouve aucune exécution) :\nLis une offre sans contacter personne.\n\nNouveau message utilisateur :\nLa première');
-  assert.equal(calls.at(-1).params.agentId,'main');
   answer = async () => {throw Object.assign(Error('missing scope: operator.admin'),{name:'GatewayClientRequestError',gatewayCode:'UNAVAILABLE',details:{code:'MISSING_SCOPE'}});};
   const denied = await relay.voiceRelayTurnForTest('denied', text);
   assert.equal(denied.error, 'missing_scope'); assert.equal(denied.success, false);

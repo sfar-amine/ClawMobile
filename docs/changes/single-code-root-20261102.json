@@ -36,8 +36,7 @@
     "openclaw-plugin-mobile-ui/scripts/test-playbooks-root.cjs",
     "openclaw-plugin-mobile-ui/src/companion/control.ts",
     "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
-    "openclaw-plugin-mobile-ui/src/companion/playbooksRoot.ts",
-    "openclaw-plugin-mobile-ui/src/companion/voiceRoundLearning.ts"
+    "openclaw-plugin-mobile-ui/src/companion/playbooksRoot.ts"
   ],
   "tests": [
     {
@@ -122,7 +121,8 @@
   "limitations": [
     "CI canonique complète (tools/localci.py) sur le head GitHub exact non exécutée ici, à faire avant fusion.",
     "Les modules playbooks appellent encore des helpers core via le checkout déployé ~/ClawMobile ; sa propreté est désormais une dérive alertée.",
-    "Les adaptateurs de paiement font l'objet d'un commit séparé de ce même lot."
+    "Les adaptateurs de paiement font l'objet d'un commit séparé de ce même lot.",
+    "voiceRoundLearning.ts est parti avec #524 (étape 3) : sa résolution stricte du pin reste couverte dans test-playbooks-root.cjs, par playbooksRootFor et playbooksRootHas."
   ],
   "rollback": "python3 ~/ClawMobile/installer/termux-lite/job_code_root.py --rollback pour les jobs, puis revert de ce commit et companion-deploy.sh sur le commit précédent."
 }

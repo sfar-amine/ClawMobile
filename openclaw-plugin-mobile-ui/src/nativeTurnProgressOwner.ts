@@ -7,17 +7,17 @@ import {callOpenClawGateway} from './companion/openclawAgentClient';
 import {recordNativeWhatsAppIngress,nativeTurnProgressState,reserveNativeProgressNotice,settleNativeProgressNotice,
  observeNativeTurnEnd,observeNativeTurnAdoption,observeNativeTurnDelivery,observeNativeTurnStage,activeObservedNativeWhatsAppRun} from './companion/runs';
 const SESSION=/^agent:main:whatsapp:direct:(\+?[1-9][0-9]{7,14})$/;
-type Deps={owners?:()=>Set<string>;send?:(params:any)=>Promise<any>;enabled?:()=>boolean;
+type Deps={owners?:()=>Set<string>;send?:(params:any)=>Promise<any>;
  timer?:(fn:()=>void,ms:number)=>ReturnType<typeof scheduleDeadline>;clear?:(id:ReturnType<typeof scheduleDeadline>)=>void};
 export function createNativeTurnProgressOwner(deps:Deps={}){
- const owners=deps.owners||ownerWhatsAppNumbers,enabled=deps.enabled||(()=>process.env.SAMANTHA_BRAIN_ONLY==='1');
+ const owners=deps.owners||ownerWhatsAppNumbers;
  const send=deps.send||((params:any)=>callOpenClawGateway('send',params,{timeoutMs:5000,hardTimeoutMs:5000}));
  const timer=deps.timer||((fn:()=>void,ms:number)=>scheduleDeadline<[]>(fn,ms)),clear=deps.clear||clearDeadline;
  const deadlines=new Map<string,ReturnType<typeof scheduleDeadline>>();
  const peer=(key:string)=>{const m=SESSION.exec(key);if(!m)return null;const n=m[1].startsWith('+')?m[1]:'+'+m[1];return owners().has(n)?n:null;};
  const stop=(id:string)=>{const job=deadlines.get(id);if(job){clear(job);deadlines.delete(id);}};
  async function notify(id:string){
-  deadlines.delete(id);if(!enabled())return;const row=await nativeTurnProgressState(id);
+  deadlines.delete(id);const row=await nativeTurnProgressState(id);
   if(!row||!row.accountId||row.ended||row.ingressPending||row.adoptedByRunId||row.state!=='running')return;const to=peer(row.sessionKey);if(!to||!await reserveNativeProgressNotice(id))return;
   const current=await nativeTurnProgressState(id);if(!current||!current.accountId||current.ended||current.ingressPending||current.adoptedByRunId||current.state!=='running')return;
   try{const result=await send({channel:'whatsapp',to,accountId:current.accountId,message:'Je reviens vers toi.',
@@ -28,7 +28,6 @@ export function createNativeTurnProgressOwner(deps:Deps={}){
  return {
   /** Closed native metadata operations on the existing loopback measurement route, never business commands. */
   async observe(id:string,body:any){
-   if(!enabled())throw Object.assign(Error('native_turn_observation_disabled'),{statusCode:409});
    if(!body||typeof body!=='object'||Array.isArray(body)||typeof body.sessionKey!=='string'||!peer(body.sessionKey))throw Object.assign(Error('native_turn_owner_required'),{statusCode:403});
    const allowed:Record<string,string[]>={native_ingress:['operation','sessionKey','accountId','observedMonoMs'],
     native_stage:['operation','sessionKey','kind','durationMs','model','outcome'],native_end:['operation','sessionKey','model','success'],

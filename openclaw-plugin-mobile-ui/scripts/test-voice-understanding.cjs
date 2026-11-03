@@ -10,19 +10,15 @@ const fs=require("fs"),os=require("os"),path=require("path"),http=require("http"
 const root=fs.mkdtempSync(path.join(os.tmpdir(),"voice-understanding-"));
 os.homedir=()=>root;process.env.OPENCLAW_STATE_DIR=path.join(root,"state");
 process.env.CLAW_VOICE_RELAY_CONFIG=path.join(root,"missing-relay.json");
-// SAM-MIG V2.2: every voice / Claw Live turn first goes to the dialogue coordinator (model-fast-path.py --dialogue).
-// These tests are about the rendering of the existing executors' envelopes: the stand-in coordinator answers
-// UNRESOLVED (no question pending, model policy allowed), so each turn continues on its existing executor.
-const dialogueHelper=path.join(root,"dialogue-helper.py");
-fs.writeFileSync(dialogueHelper,"import json\nprint(json.dumps({'outcome':'UNRESOLVED','reasonCode':'model_allowed','modelAllowed':True,'handled':False}))\n");
-process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=dialogueHelper;
+// ADR 02/11 « le cerveau partout », step 3: Claw Live and the relay send every turn to the brain, so the realignment
+// gestures, Round Learning capture and capability-receipt speech of those surfaces are retired. What remains here is
+// the receipt speech library itself (planVoiceSpeech, voiceReceiptProjection) and the gesture list it still exports.
 
 const fx=(name)=>JSON.parse(fs.readFileSync(path.join(__dirname,"..","fixtures","s24-2026-10-11",name),"utf8"));
 const RES=fx("hs3-resolution-slots-shortlist.json");
 const TERM=fx("hs3-terminal-receipts.json").families;
 const ORANGE=fx("o7-o8-orange-20261010-0941.json");
 const m=require("../dist/companion/voiceUnderstanding.js");
-const {VoiceUnderstandingState,clawLiveCapability,clawLiveDecision}=require("../dist/companion/clawLiveUnderstanding.js");
 const {VoiceTurnProtocol}=require("../dist/companion/voiceTurnProtocol.js");
 
 const fromResolution=(key,extra={})=>{const r=RES.resolutions[key];return {success:true,text:r.text,capability:r.capability,decision:r.decision,harness:r.harness,confirmation_required:r.decision.confirmationRequired,...extra};};
@@ -113,103 +109,6 @@ test("V2 gestures: versioned FR/EN/derja/arabizi list, deterministic, 2-minute w
   assert.equal(m.isVoiceRealignment("c'est pas ça",undefined,now),false,"no previous turn");
 });
 
-function owner(){
-  const st={t:1_800_000_000_000};
-  const understanding=new VoiceUnderstandingState(()=>st.t);
-  return {st,understanding,sessionLocale:()=>"fr",executeVoiceCapability:(_m,_r,run)=>run()};
-}
-
-test("V2 Claw Live: gesture → realignment (recall, 2–3 shortlist candidates, free answer) + Round Learning, no resolver, no transcript",async()=>{
-  const o=owner();const captures=[];const executed=[];let resolves=0;
-  const capture=async(payload)=>{captures.push(payload);return {state:"pending",receipt_id:"a".repeat(32),duplicate:captures.length>1};};
-  const deps={capture,now:()=>o.st.t};
-  const text=RES.resolutions.r11.text;
-  await clawLiveDecision(o,text,async()=>{resolves++;return {harness:{tool_policy:"required"}};});
-  const first=await clawLiveCapability(o,{request:text},async(r)=>{executed.push(r);return fromResolution("r11",{presentation:HS3.topup_fr});},deps);
-  assert.equal(first.voice.verbatim,"J'ai compris : Recharger mon numéro · Orange · 5 DT · ta ligne.");
-  o.st.t+=30_000;
-  const decision=await clawLiveDecision(o,"Non, c'est pas ça",async()=>{resolves++;return {};});
-  assert.equal(decision.harness.tool_policy,"required");assert.equal(decision.harness.reason,"voice_realignment");assert.equal(resolves,1,"no resolver call for the gesture");
-  const realign=await clawLiveCapability(o,{request:"Non, c'est pas ça"},async()=>{throw new Error("must not execute");},deps);
-  assert.equal(realign.state,"needs_clarification");assert.equal(realign.source,"voice_realignment");
-  assert.equal(realign.voice.verbatim,"J'avais compris : Recharger mon numéro · Orange · 5 DT · ta ligne. Tu voulais plutôt : telecom orange consultation, identity people directory ou device assistance ? Tu peux aussi me le dire avec tes mots.");
-  assert.equal(realign.realignment.alternatives.length,3);
-  assert.equal(captures.length,1);const round=captures[0];
-  assert.deepEqual(round.signals,["user_correction"]);assert.equal(round.authority,"owner_correction");assert.equal(round.capability,"payment.owner_native");
-  assert.equal(round.target,"maxit-tunisie");assert.equal(round.intent,"telecom.orange.topup_own_number");
-  const raw=JSON.stringify(round);
-  for(const leak of [text,"Non, c'est pas ça","5 DT","Recharge mon"])assert.equal(raw.includes(leak),false,"no transcript: "+leak);
-  assert.match(round.task_id,/^voice-[0-9a-f]{32}$/);assert.equal(round.round_id,round.task_id+":realign");
-  // Same turn, same gesture again: identical ids (the owner deduplicates by round_id).
-  const again=await clawLiveCapability(o,{request:"c'est pas ça"},async()=>{throw new Error("must not execute");},deps);
-  assert.equal(captures[1].round_id,round.round_id);assert.equal(again.source,"voice_realignment");
-  // Answer: ordinal picks the first candidate and resolves it through the normal path.
-  o.st.t+=10_000;
-  const choiceDecision=await clawLiveDecision(o,"la première",async()=>{resolves++;return {};});
-  assert.equal(choiceDecision.harness.tool_policy,"required");assert.equal(choiceDecision.state,"voice_realignment_choice");assert.equal(resolves,1);
-  const answer=await clawLiveCapability(o,{request:"la première"},async(r)=>{executed.push(r);return orangeEnvelope();},deps);
-  assert.equal(executed.at(-1),"telecom orange consultation");assert.equal(answer.realignment_choice,"telecom.orange.consultation");
-  const resolved=captures.at(-1);
-  assert.deepEqual(resolved.signals,["intent_refined","user_correction"].sort());assert.equal(resolved.task_id,round.task_id);
-  assert.equal(resolved.round_id,round.task_id+":realigned");assert.equal(resolved.source_after,"telecom.orange.consultation");
-  assert.equal(answer.realignment_learning.state,"pending");
-});
-
-test("P1 revocation during accepted voice effect preserves its receipt and skips subsequent learning",async()=>{
-  const o=owner();let captures=0,current=true;
-  const deps={capture:async()=>{captures++;return {state:"pending"}},now:()=>o.st.t,assertCurrent:()=>{if(!current)throw new Error("owner_admission_expired")}};
-  await clawLiveCapability(o,{request:RES.resolutions.r11.text},async()=>fromResolution("r11",{presentation:HS3.topup_fr}),deps);
-  await clawLiveCapability(o,{request:"Non, c'est pas ça"},async()=>{throw new Error("unexpected execute")},deps);
-  captures=0;let release,entered;const gate=new Promise(r=>release=r),started=new Promise(r=>entered=r),receipt=orangeEnvelope();
-  const pending=clawLiveCapability(o,{request:"la première"},async()=>{entered();await gate;return receipt},deps);
-  await started;current=false;release();const result=await pending;
-  assert.equal(captures,0);assert.equal(result.success,receipt.success);assert.deepEqual(result.execution,receipt.execution);
-  assert.deepEqual(result.realignment_learning,{state:"skipped",reason:"owner_admission_expired"});
-});
-
-test("V2 Claw Live: no realignment after 2 minutes or after an intervening turn without capability",async()=>{
-  const o=owner();let resolves=0;const deps={capture:async()=>({state:"pending"}),now:()=>o.st.t};
-  const text=RES.resolutions.r11.text;
-  await clawLiveDecision(o,text,async()=>({}));
-  await clawLiveCapability(o,{request:text},async()=>fromResolution("r11"),deps);
-  o.st.t+=121_000;
-  await clawLiveDecision(o,"c'est pas ça",async()=>{resolves++;return {harness:{tool_policy:"optional"}};});
-  assert.equal(resolves,1,"expired window: normal resolver");
-  const o2=owner();
-  await clawLiveDecision(o2,text,async()=>({}));
-  await clawLiveCapability(o2,{request:text},async()=>fromResolution("r11"),deps);
-  await clawLiveDecision(o2,"raconte-moi une blague",async()=>({harness:{tool_policy:"optional"}}));
-  const after=await clawLiveDecision(o2,"c'est pas ça",async()=>({harness:{tool_policy:"optional"},resolved:true}));
-  assert.equal(after.resolved,true,"the gesture refers to the model-only turn, not the old capability turn");
-  assert.equal(o2.understanding.snapshot().gestures,"voice-realign-v1-20261011");
-  o2.understanding.clear();assert.equal(o2.understanding.snapshot().active,false);
-});
-
-test("Round Learning runner: canonical capture-round --surface voice, JSON on stdin, closed result",async()=>{
-  const pb=path.join(root,"playbooks");const si=path.join(pb,"skill_intelligence");fs.mkdirSync(si,{recursive:true});
-  const log=path.join(root,"capture.json");
-  fs.writeFileSync(path.join(si,"__init__.py"),"");
-  fs.writeFileSync(path.join(si,"improvement.py"),[
-    "import json,sys",
-    "FIELDS={'round_id','task_id','capability','target','intent','outcome','signals','observation','suggestion','evidence','source_before','source_after','route_before','route_after','authority','determinization'}",
-    "assert sys.argv[1:]==['capture-round','--surface','voice'],sys.argv",
-    "data=json.loads(sys.stdin.read())",
-    "assert set(data)<=FIELDS,set(data)-FIELDS",
-    "open("+JSON.stringify(log)+",'w').write(json.dumps(data))",
-    "print(json.dumps({'receipt_id':'b'*32,'state':'pending','learning_outcome':'candidate_pending','durable':True,'duplicate':False,'payload':'never-forwarded'}))",
-  ].join("\n"));
-  process.env.CLAW_UI_PLAYBOOKS_ROOT=pb;
-  const {captureVoiceRound,playbooksRoot}=require("../dist/companion/voiceRoundLearning.js");
-  assert.equal(playbooksRoot(),pb);
-  const ctx=m.voiceTurnContext(fromResolution("r11",{presentation:HS3.topup_fr}),"Recharge mon numéro Orange de 5 dinars",{locale:"fr"});
-  const out=await captureVoiceRound(m.realignmentRoundPayload(ctx,"requested"));
-  assert.deepEqual(out,{state:"pending",receipt_id:"b".repeat(32),duplicate:false,learning_outcome:"candidate_pending"});
-  assert.equal(JSON.parse(fs.readFileSync(log,"utf8")).authority,"owner_correction");
-  fs.writeFileSync(path.join(si,"improvement.py"),"import sys\nsys.stderr.write('Traceback secret=xyz')\nsys.exit(2)\n");
-  assert.deepEqual(await captureVoiceRound({round_id:"x"}),{state:"attention_required",reason:"learning_capture_failed"});
-  delete process.env.CLAW_UI_PLAYBOOKS_ROOT;
-});
-
 test("Verified receipt verbalization imposes the text, and the protocol checks it was spoken first",async()=>{
   const sent=[],events=[];
   const p=new VoiceTurnProtocol(1,"epoch-a",(v)=>sent.push(v),(v)=>events.push(v));
@@ -254,69 +153,6 @@ function fakeHelper(map){
   return {file,set:(next)=>fs.writeFileSync(path.join(dir,"map.json"),JSON.stringify(next)),count:()=>{try{return fs.readFileSync(calls,"utf8").trim().split("\n").filter(Boolean).length;}catch{return 0;}}};
 }
 
-test("HTTP routes /claw-live/decision and /claw-live/capability carry the imposed text and the realignment",async()=>{
-  const text=RES.resolutions.r11.text;
-  const helper=fakeHelper({[text]:{resolve:fromResolution("r11"),execute:fromResolution("r11",{presentation:HS3.topup_fr})}});
-  process.env.CLAW_CAPABILITY_HELPER=helper.file;
-  const pb=path.join(root,"playbooks-http","skill_intelligence");fs.mkdirSync(pb,{recursive:true});
-  fs.writeFileSync(path.join(pb,"improvement.py"),"import json,sys\njson.loads(sys.stdin.read())\nprint(json.dumps({'receipt_id':'c'*32,'state':'pending','duplicate':False}))\n");
-  process.env.CLAW_UI_PLAYBOOKS_ROOT=path.dirname(pb);
-  // Synthetic local enrollment only; S24/Android biometric enrollment is not exercised here.
-  const crypto=require("node:crypto"), admission=require("../dist/companion/ownerTurnAdmission.js");
-  const pair=crypto.generateKeyPairSync("ec",{namedCurve:"prime256v1"}),der=pair.publicKey.export({type:"spki",format:"der"}),keyId=admission.sha256Hex(der);
-  const state=path.join(process.env.OPENCLAW_STATE_DIR,"clawmobile-companion");fs.mkdirSync(state,{recursive:true});
-  fs.writeFileSync(path.join(state,"owner-turn-admission.json"),JSON.stringify({version:1,keyId,publicKey:der.toString("base64"),enrolledAt:Date.now(),epoch:crypto.randomBytes(16).toString("hex"),confirmationId:crypto.randomUUID()}),{mode:0o600});
-  const {route}=require("../dist/companion/server.js");
-  const server=http.createServer((q,s)=>route(q,s).catch(e=>{s.statusCode=500;s.end(JSON.stringify({message:e.message}))}));
-  await new Promise(r=>server.listen(0,"127.0.0.1",r));const base="http://127.0.0.1:"+server.address().port+"/v1/extensions/claw-live";
-  const post=async(p,input)=>{const t0=Date.now(),sessionId="voice-understanding-http",clientRunId="voice-cap-"+crypto.randomUUID();
-    const body=JSON.stringify(p==="/capability"?{...input,sessionId,clientRunId}:input),headers={"content-type":"application/json"};
-    if(p==="/capability"){const ts=String(Date.now()),nonce=crypto.randomBytes(16).toString("hex");const message=admission.admissionMessage({method:"POST",path:"/v1/extensions/claw-live/capability",bodyHash:admission.sha256Hex(Buffer.from(body)),clientRunId,sessionId,timestamp:ts,nonce,keyId});Object.assign(headers,{"x-samantha-admission":"v1","x-samantha-admission-key":keyId,"x-samantha-admission-ts":ts,"x-samantha-admission-nonce":nonce,"x-samantha-admission-signature":crypto.sign("sha256",Buffer.from(message),pair.privateKey).toString("base64")});}
-    const r=await fetch(base+p,{method:"POST",headers,body});return {code:r.status,body:await r.json(),ms:Date.now()-t0};};
-  try{
-    const d=await post("/decision",{request:text});assert.equal(d.code,200);
-    const c=await post("/capability",{request:text});assert.equal(c.code,200);
-    assert.equal(c.body.voice.verbatim,"J'ai compris : Recharger mon numéro · Orange · 5 DT · ta ligne.");
-    const before=helper.count();
-    const g=await post("/decision",{request:"Non, c'est pas ça"});
-    assert.equal(g.body.harness.tool_policy,"required");assert.equal(helper.count(),before,"gesture: no helper call");
-    const r=await post("/capability",{request:"Non, c'est pas ça"});
-    assert.equal(r.body.source,"voice_realignment");assert.equal(r.body.realignment.learning.state,"pending");assert.equal(helper.count(),before);
-    // Budget: the gesture path is local; well under the 10 s decision / 35 s capability budgets.
-    assert.ok(g.ms<1000&&r.ms<5000,`gesture ${g.ms} ms, realignment ${r.ms} ms`);
-  } finally {server.close();delete process.env.CLAW_CAPABILITY_HELPER;delete process.env.CLAW_UI_PLAYBOOKS_ROOT;require("../dist/companion/clawLiveWarm.js").clawLiveWarmCore.understanding.clear();}
-});
-
-test("Relay (Bixby): V1 prefix on low-confidence read, V3 failure without agent fallback, V2 realignment",async()=>{
-  const relay=require("../dist/companion/voiceRelay.js");
-  const read=orangeEnvelope();const lowRead={...read,harness:{...read.harness,confidence:0.5},decision:{...read.decision,confidence:0.5}};
-  const failed={...read,execution:{state:"failed",error:"maxit_http_400"}};
-  const helper=fakeHelper({
-    "mon solde orange":{resolve:read,execute:lowRead},
-    "solde orange en panne":{resolve:read,execute:failed},
-    "telecom orange consultation":{resolve:read,execute:read},
-  });
-  process.env.CLAW_CAPABILITY_HELPER=helper.file;
-  const captures=[];relay.setVoiceRelayRoundCaptureForTest(async(p)=>{captures.push(p);return {state:"pending"};});
-  try{
-    const one=await relay.voiceRelayTurnForTest("req-1","mon solde orange");
-    assert.equal(one.state,"done");assert.match(one.text,/^J'ai compris : telecom orange consultation · telecom balance\. /);
-    const two=await relay.voiceRelayTurnForTest("req-2","solde orange en panne");
-    assert.equal(two.state,"failed");assert.equal(two.success,false);
-    assert.equal(two.text,"Ça n'a pas abouti à l'étape « exécution » : la cause n'est pas établie par le reçu.");
-    const three=await relay.voiceRelayTurnForTest("req-3","non c'est pas ça");
-    assert.equal(three.state,"needs_clarification");assert.equal(three.source,"voice_realignment");
-    assert.match(three.text,/^J'avais compris : telecom orange consultation · telecom balance\. Tu voulais plutôt : /);
-    assert.equal(captures.length,1);assert.equal(JSON.stringify(captures[0]).includes("non c'est pas ça"),false);
-    const picked=three.alternatives[0];
-    helper.set({[picked.label]:{resolve:read,execute:{...read,capability:picked.capability,decision:{...read.decision,capability:picked.capability,route:"picked.route.v1"}}}});
-    const four=await relay.voiceRelayTurnForTest("req-4","",three.conversationId,"la première");
-    assert.equal(four.state,"done");assert.equal(four.capability,picked.capability);
-    assert.equal(captures.length,2);assert.deepEqual(captures[1].signals,["intent_refined","user_correction"]);
-    assert.equal(captures[1].task_id,captures[0].task_id);assert.equal(four.realignment_learning.state,"pending");
-  } finally {relay.setVoiceRelayRoundCaptureForTest(null);relay.resetVoiceRelayUnderstandingForTest();delete process.env.CLAW_CAPABILITY_HELPER;}
-});
-
 test("Budgets: projection and gesture check are pure and bounded",()=>{
   const env=fromResolution("r11",{presentation:HS3.topup_fr});const t0=process.hrtime.bigint();
   for(let i=0;i<1000;i++)m.planVoiceSpeech(env);
@@ -338,42 +174,6 @@ test("HS3 reader is authoritative: malformed and secret fields, selected routes 
 test("Contradictory submission evidence never acquires non-debit reassurance",()=>{
   const e=fromResolution("r11",{presentation:HS3.expired_not_submitted_fr,execution:{state:"failed",result:{reasonCode:"payment_not_submitted",payment:BLOCKED_AFTER_DISPATCH}}});
   assert.equal(m.receiptProvesNoDebit(e),false);assert.equal(m.planVoiceSpeech(e).noDebit,undefined);
-});
-
-test("Canonical clarification owner retains decision and HS3 without a second warm admission",async()=>{
-  // SAM-MIG V2.2: the dialogue coordinator owns the turn; its reply carries the decision and HS3 metadata.
-  const {DialogueSurface}=require("../dist/dialogueSurface");
-  const {clawLiveCapabilityTurn}=require("../dist/companion/clawLive");
-  const calls=[];
-  const c=new DialogueSurface(async(text,options)=>{
-    calls.push({text,options});
-    return {outcome:"COMPLETED",text:"Ta confirmation est attendue.",handled:true,decision:RES.resolutions.r11.decision,metadata:{presentation:HS3.topup_fr},result:{private:"not forwarded"}};
-  },"claw_live","claw_live");
-  const o=owner();let admissions=0;o.executeVoiceCapability=async(meta,text,run)=>{admissions++;return run();};
-  const body={request:"Recharge mon numéro Orange de 5 dinars",voiceTurn:{turnId:"canonical-t1",sessionEpoch:7}};
-  const out=await clawLiveCapability(o,body,(request)=>clawLiveCapabilityTurn({request,originId:"claw-live-canonical-t1"},()=>{throw new Error("must use prepared owner");},c));
-  assert.equal(admissions,1);assert.equal(calls.length,1);assert.equal(calls[0].options.dialogue.event.eventRef,"claw-live-canonical-t1");
-  assert.equal(out.voice.verbatim,"J'ai compris : Recharger mon numéro · Orange · 5 DT · ta ligne.");
-  assert.equal(out.decision.risk,"transaction");assert.equal(JSON.stringify(out).includes("not forwarded"),false);
-});
-
-test("Claw Live keeps the coordinator confidence: a confident read is not announced, a doubtful one still is",async()=>{
-  // S24 18/10 banc voix: « J'ai compris : Solde et compteurs · Orange. » before every balance, the public projection
-  // dropped the confidence. Real Orange decision (confidence 1), as the coordinator reply carries it since playbooks #220.
-  const {DialogueSurface}=require("../dist/dialogueSurface");
-  const {clawLiveCapabilityTurn}=require("../dist/companion/clawLive");
-  const run=async(confidence)=>{
-    const c=new DialogueSurface(async()=>({outcome:"COMPLETED",text:"Il te reste 19,040 DT.",handled:true,
-      decision:{...ORANGE.decision_envelope,confidence}}),"claw_live","claw_live");
-    const o=owner();o.executeVoiceCapability=async(meta,text,run)=>run();
-    return clawLiveCapability(o,{request:"quel est mon solde orange",voiceTurn:{turnId:"conf-t1",sessionEpoch:7}},
-      (request)=>clawLiveCapabilityTurn({request,originId:"claw-live-conf-t1"},()=>{throw new Error("must use prepared owner");},c));
-  };
-  const sure=await run(1);
-  assert.equal(sure.decision.confidence,1);assert.equal(sure.voice,undefined,"no imposed « J'ai compris » on a confident read");
-  const doubtful=await run(0.5);
-  assert.equal(doubtful.decision.confidence,0.5);assert.match(doubtful.voice.verbatim,/^J'ai compris : /);
-  for(const bad of [Number.NaN,2,"1"]){const out=await run(bad);assert.equal("confidence" in out.decision,false);assert.match(out.voice.verbatim,/^J'ai compris : /);}
 });
 
 test("Real S24 #176 dispatch trace wins even when the attempt boolean is absent or inconsistent",()=>{
