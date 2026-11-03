@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "id": "weather-open-meteo-20261103",
+  "date": "2026-11-03",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Skill workspace « weather » (même nom que le skill fourni par OpenClaw, donc prioritaire) installé par le seed existant : géocodage et prévisions Open-Meteo via web_fetch, sans clé ; plus de wttr.in, de curl ni de web_search pour la météo.",
+  "reason": "Recette formulations S24 03/11, cas A15 « météo » KO en 40 s : le skill fourni s'appuie sur wttr.in, injoignable depuis le S24 (connexion refusée, http 000) ; l'agent est passé par exec curl puis web_search sans fournisseur (bascule gemini refusée puis 429). Open-Meteo (api et géocodage) répond en 0,4 s depuis le S24.",
+  "files": [
+    "installer/workspace-seed-lite/skills/weather/SKILL.md",
+    "installer/termux-lite/test-weather-seed-skill.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-03-weather-sources/capture.json",
+    ".github/workflows/ci.yml",
+    "docs/changes/weather-open-meteo-20261103.json",
+    "docs/changes/weather-open-meteo-20261103.md"
+  ],
+  "tests": [
+    {"name": "installer/termux-lite/test-weather-seed-skill.py", "status": "passed",
+     "evidence": "4 tests OK sur la capture S24 réelle : même nom que le skill fourni et absent du workspace avant ; toutes les URL du skill sont sur des hôtes joignables depuis le S24, aucune sur wttr.in (seul hôte injoignable) ; l'exemple de prévision demande les champs renvoyés par la capture ; ni curl ni web_search. Inscrit dans ci.yml."},
+    {"name": "installer/termux-lite/test-ci-registration.py", "status": "passed", "evidence": "Nouveau test inscrit dans ci.yml."}
+  ],
+  "documentation": ["docs/changes/weather-open-meteo-20261103.md"],
+  "capabilities": {"impact": "none", "reason": "Skill de consultation météo du modèle : aucune route, aucun outil typé, aucune écriture."},
+  "architecture": {"changed": false, "reason": "Installé par clawmobile_sync_workspace_seed existant (rsync du seed vers workspace/skills) ; le modèle choisit le skill par sa description ; aucun nouvel outil ni service."},
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Revert de la PR puis suppression de ~/.openclaw/workspace/skills/weather sur le S24 (le seed ne supprime pas) : le skill fourni par OpenClaw reprend la main.",
+  "limitations": [
+    "CI canonique (localci.py) sur le head GitHub exact encore requise ; recette météo en direct après déploiement.",
+    "web_search reste sans fournisseur configuré (hors périmètre : choix de fournisseur et clé à décider par Amine).",
+    "Le lieu par défaut dépend de ce que le contexte ou la mémoire connaît ; sinon le modèle demande la ville."
+  ]
+}
