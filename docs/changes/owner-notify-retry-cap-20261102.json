@@ -1,0 +1,80 @@
+{
+  "version": 2,
+  "id": "owner-notify-retry-cap-20261102",
+  "date": "2026-11-02",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Les notifications WhatsApp à Amine (incidents, récupérations) ont des reprises bornées par clé : attente exponentielle de 1 à 30 min, au plus 12 essais ou 24 h, puis un état terminal `undeliverable` enregistré une fois. Une clé acceptée n'est jamais renvoyée. L'échec terminal est visible dans la ligne santé `notification.owner_delivery`.",
+  "reason": "S24 02/11 : 2138 échecs `gateway_call` pour 26 clés, `incident-f73a069c49edd4cf` réessayée 979 fois toutes les 5 min. Cause : `incident-manager.sh` relançait WhatsApp et e-mail toutes les 300 s sans plafond. De plus, la même clé était acceptée de nouveau à chaque cycle rouvert (152 acceptations, 103 identifiants distincts). Les échecs rc=1 viennent de `send` UNAVAILABLE « No active WhatsApp Web listener » quand le canal WhatsApp est déconnecté.",
+  "files": [
+    "installer/termux-lite/owner_notify_retry.py",
+    "installer/termux-lite/whatsapp-owner-send.sh",
+    "installer/termux-lite/incident-manager.sh",
+    "installer/termux-lite/incident-notify.sh",
+    "installer/termux-lite/incident-close.sh",
+    "installer/termux-lite/health-verdict.py",
+    "installer/termux-lite/test-owner-notify-retry.py",
+    "openclaw-plugin-mobile-ui/src/companion/control-health.ts",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-owner-notify-retry/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-owner-notify-retry/capture.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-owner-notify-retry/provenance.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-owner-notify-retry/whatsapp-outbound-cleaned.log",
+    ".github/workflows/ci.yml",
+    "docs/changes/owner-notify-retry-cap-20261102.json",
+    "docs/changes/owner-notify-retry-cap-20261102.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-owner-notify-retry.py",
+      "status": "passed",
+      "evidence": "17 tests verts. Ils couvrent : le calendrier 60/120/240/480/960/1800 s ; le plafond de 12 essais et de 24 h ; l'état terminal écrit une seule fois ; aucun renvoi après acceptation (lignes réelles de 25c5 et bc62) ni après `undeliverable` ; le rejeu des pannes réelles f73a et 1fc6, ramenées à 12 essais au lieu de 979 et 109 ; le script réel avec un Gateway simulé (codes 0, 75 et 76, sans corps ni numéro dans le journal) ; le gestionnaire (report sans essai, e-mail borné, plafond sans politique) ; les clés par cycle RDC et par récupération ; la ligne santé. Une mutation qui retire les plafonds fait échouer 4 tests."
+    },
+    {
+      "name": "installer/termux-lite/test-whatsapp-owner-send.sh, test-incident-runtime-hardening.sh, test-i9-noise.py, test-learning-gate.py, test-whatsapp-channel-health.py, test-health-verdict.py, test-health-verdict-f5.py, test-health-hysteresis.py, test-health-restart-escalation.py, test-k2-owner-message.py, test-ci-registration.py, test-tier0-control.py, test-claw-live.py",
+      "status": "passed",
+      "evidence": "Inchangés et verts dans le conteneur (python3 3.x, bash hôte)."
+    }
+  ],
+  "documentation": [
+    "docs/changes/owner-notify-retry-cap-20261102.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-owner-notify-retry/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Aucune action, aucun réglage ni aucune route accessible à l'agent ou à la voix. Ce lot ajoute une politique interne au propriétaire d'envoi existant et une ligne de santé non critique."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Propriétaires existants réutilisés : whatsapp-owner-send.sh et son journal comme registre par clé, incident-manager.sh, health-verdict.py. Aucun nouveau store, démon, ordonnanceur ni canal."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "Envoi WhatsApp propriétaire, file d'incidents et verdict de santé uniquement ; aucun outil MCP ne change."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "La CI canonique complète (tools/localci.py) sur le head GitHub exact reste à faire.",
+    "La déconnexion du canal WhatsApp elle-même n'est pas corrigée : reconnexions 408/428/503 et rechargement du plugin après un redémarrage du Gateway.",
+    "Le journal whatsapp-outbound.log sert de registre par clé et n'est pas tourné. S'il l'était, l'idempotence au-delà de la rotation reposerait sur la fenêtre courte du Gateway.",
+    "Un RDC qui oscille notifie encore une fois par cycle rouvert (comportement existant, désormais une seule fois par cycle).",
+    "Coût mesuré sur le S24 : 0,24 s par lecture de la politique (journal de 2519 lignes). Au pire, deux lectures par envoi, sous les délais des appelants (17 à 18 s)."
+  ],
+  "rollback": "Revenir sur ce commit et redéployer le core avec installer/termux-lite/companion-deploy.sh <commit>. Les lignes `state=undeliverable` et les fichiers `cycle` et `undeliverable` sont sans effet sur l'ancien code. Un incident `undeliverable` se relance en remettant `pending` dans son fichier `status`."
+}

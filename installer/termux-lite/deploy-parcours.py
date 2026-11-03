@@ -12,8 +12,14 @@ playbooks snapshot. Nothing is sent on WhatsApp and nothing is written:
                          grant re-read, then closed before any Pulse write (the runner never sends the hand-off);
   6. room_outside        same contact, another domain's action: refused;
   7. room_leave_refused  same contact, a leave request: refused (Amine's Pulse account);
-  8. write_recap         owner brain, an agenda write that must stop at the confirmation recap, then cancelled;
-  9. app_read            the Companion routes the app reads.
+  8. room_generic_tools  same contact in a generic room session (agenda, actions, messages; Amine 02/11, contact rooms
+                         brain): the deployed factory gives exactly those rooms' typed tools; every existing typed room
+                         agent keeps its closed policy (room_tools above covers them all);
+  9. room_generic_read   same contact, a read in a generic room: by its routed agent when it holds such a room, else
+                         refused by the deployed room tool on the real grant read, with no typed helper call;
+ 10. room_generic_outside same generic session, another domain's action: refused before any read;
+ 11. write_recap         owner brain, an agenda write that must stop at the confirmation recap, then cancelled;
+ 12. app_read            the Companion routes the app reads.
 « Pulse est fermé » is a valid answer for 3, 4 and 5. The room paths call the deployed room tool or its owner with one
 fixed typed call each (deploy-parcours-room.cjs), never the model. A provider outage is inconclusive (a rollback would not fix it), and so
 is an external provider authorization to redo (Google access expired or revoked): the owner reconnects, the candidate
@@ -57,7 +63,7 @@ TYPED_ADMISSION_REFUSED = "typed_host_admission_required"
 TYPED_TECHNICAL_FAILURE = "typed_technical_failure"
 DONE_WRITE = re.compile(r"\b(ajouté|créé|enregistré|c’est fait|c'est fait)\b", re.I)
 PATHS = ("owner_read", "room_tools", "contact_read", "incomplete_ask", "room_write_prepared", "room_outside",
-         "room_leave_refused", "write_recap", "app_read")
+         "room_leave_refused", "room_generic_tools", "room_generic_read", "room_generic_outside", "write_recap", "app_read")
 # One fixed typed call per room path (runner mode, action, params); see deploy-parcours-room.cjs.
 ROOM_CALLS = (
     ("contact_read", "tool", "project.search", {}),
@@ -65,9 +71,15 @@ ROOM_CALLS = (
     ("room_write_prepared", "prepare-first-project", None, {"phase": "Réalisation", "state": "started"}),
     ("room_outside", "tool", "agenda.read", {}),
     ("room_leave_refused", "tool", "leave.request", {"start_at": "2026-12-01", "end_at": "2026-12-02"}),
+    ("room_generic_tools", "generic-tools", None, {}),
+    ("room_generic_read", "generic-read", None, {}),
+    ("room_generic_outside", "generic-outside", None, {}),
 )
 ROOM_AGENTS = ("contacts-pulse", "contacts-projet-pulse")
 ROOM_REFUSAL = "Ici je ne traite que Pulse"
+# The generic room session of the runner (contacts-agenda-actions-messages): its tools, its outside refusal.
+GENERIC_TOOLS = "samantha_agenda,samantha_device_assistance,samantha_whatsapp"
+GENERIC_REFUSAL = "Ici je ne traite que l’agenda d’Amine"
 LEAVE_REFUSAL = "compte Pulse d’Amine"
 OPENCLAW_CONFIG = Path.home() / ".openclaw/openclaw.json"
 
@@ -168,7 +180,8 @@ def room_turn(mode, action, params, run=subprocess.run):
     """One Recette Pulse typed call through the deployed room brain, no delivery: a row (reply, state, reasonCode,
     facts, seconds, error)."""
     began = time.monotonic()
-    argv = ["node", str(ROOM_RUNNER), mode, *([action] if action else []), json.dumps(params, ensure_ascii=False)]
+    argv = ["node", str(ROOM_RUNNER), mode, *([action] if action else []),
+            *([json.dumps(params, ensure_ascii=False)] if not mode.startswith("generic-") else [])]
     try:
         p = run(argv, capture_output=True, text=True, timeout=ROOM_TIMEOUT_S)
         value = json.loads((p.stdout or "{}").strip().splitlines()[-1])
@@ -176,10 +189,11 @@ def room_turn(mode, action, params, run=subprocess.run):
             raise ValueError("room_runner_output")
         return {"reply": str(value.get("reply") or ""), "state": str(value.get("state") or ""),
                 "reasonCode": str(value.get("reasonCode") or ""), "facts": value.get("facts") is True,
+                "granted": value.get("granted") is True, "helperCalls": value.get("helperCalls"),
                 "seconds": time.monotonic() - began, "error": value.get("error")}
     except (OSError, ValueError, IndexError, subprocess.TimeoutExpired) as e:
-        return {"reply": "", "state": "", "reasonCode": "", "facts": False, "seconds": time.monotonic() - began,
-                "error": type(e).__name__}
+        return {"reply": "", "state": "", "reasonCode": "", "facts": False, "granted": False, "helperCalls": None,
+                "seconds": time.monotonic() - began, "error": type(e).__name__}
 
 
 def room_verdict(path, row):
@@ -189,6 +203,19 @@ def room_verdict(path, row):
         return "inconclusive", "provider_unavailable"
     if error:
         return "failed", "path_error"
+    if path == "room_generic_tools":
+        return ("passed", "ok") if state == "TOOLS" and reason == GENERIC_TOOLS else ("failed", "room_tools_unexpected")
+    if path == "room_generic_outside":
+        return (("passed", "ok") if state == "OUTSIDE_SCOPE" and reply.startswith(GENERIC_REFUSAL) and not row.get("helperCalls")
+                else ("failed", "not_refused"))
+    if path == "room_generic_read":
+        if not row.get("granted"):
+            # No generic room granted to the recette contact (S24 02/11): the real grant read must close the room.
+            return (("passed", "no_grant_refused") if state == "DENIED" and reason == "room_grant_revoked"
+                    and row.get("helperCalls") == 0 else ("failed", "room_not_closed"))
+        if state == "COMPLETED" and (reply.strip() or row["facts"]) and not BROKEN.search(reply):
+            return "passed", "ok"
+        return "failed", "room_admission_refused" if reason == "room_grant_revoked" else "no_verified_result"
     if reason == "room_grant_revoked":
         return "failed", "room_admission_refused"
     if path in ("contact_read", "incomplete_ask", "room_write_prepared") and CLOSED.search(reply):
@@ -220,14 +247,16 @@ def room_verdict(path, row):
 
 
 def room_tools(config=OPENCLAW_CONFIG):
-    """The room agents allow their room tool and keep every other tool closed (pulse-room.py room_tools)."""
+    """The room agents allow their rooms' typed tools and keep every other tool closed (pulse-room.py room_tools): the
+    two Pulse agents, which must exist, and every other typed room agent present (Amine 02/11, contact rooms brain)."""
     began = time.monotonic()
     try:
         spec = importlib.util.spec_from_file_location("pulse_room", HERE / "pulse-room.py")
         owner = importlib.util.module_from_spec(spec); spec.loader.exec_module(owner)
         entries = (json.loads(Path(config).read_text()).get("agents") or {}).get("entries") or {}
+        names = sorted({*ROOM_AGENTS, *(name for name in entries if owner.typed_room_agent(name))})
         closed = all(isinstance(entries.get(name), dict) and isinstance(entries[name].get("tools"), dict)
-                     and owner.room_tools(name, entries[name]["tools"]) == entries[name]["tools"] for name in ROOM_AGENTS)
+                     and owner.room_tools(name, entries[name]["tools"]) == entries[name]["tools"] for name in names)
         state = ("passed", "ok") if closed else ("failed", "room_tools_not_closed")
     except (OSError, ValueError, SystemExit, AttributeError):
         state = ("failed", "room_tools_unverified")

@@ -143,6 +143,20 @@ message="${1:-}"
 key="${2:-}"
 [ -n "$message" ] && [ -n "$key" ] || exit 64
 case "$key" in *[!A-Za-z0-9._:-]*) exit 64;; esac
+# Bounded retries per key (owner_notify_retry.py, ledger = $STATE_LOG). Exit 0
+# with the earlier message id when the key was already accepted (the Gateway
+# idempotency key only dedupes briefly: S24 02/11, one key accepted 152 times);
+# 75 = backoff not elapsed, 76 = undeliverable (terminal, recorded once).
+# Nothing is sent in these cases. A missing policy fails open to one attempt.
+POLICY="$(cd "$(dirname "$0")" && pwd)/owner_notify_retry.py"
+policy(){ python3 "$POLICY" "$1" "$STATE_LOG" "$key" 2>/dev/null || true; }
+fail_and_exit(){ policy after-failure; exit "$1"; }
+decision="$(policy gate)"
+case "$decision" in
+  accepted*) mid="${decision#accepted}"; printf '%s\n' "${mid# }"; exit 0;;
+  deferred\ *) printf 'next_attempt_at=%s\n' "${decision#deferred }"; exit 75;;
+  undeliverable*) printf '%s\n' 'state=undeliverable'; exit 76;;
+esac
 
 target="$(python3 - "$HOME/.openclaw/openclaw.json" <<'PY'
 import json, sys
@@ -156,7 +170,7 @@ PY
 )"
 if [ -z "$target" ]; then
   printf '%s state=failed reason=no_owner_target key=%s\n' "$(date -Iseconds)" "$key" >>"$STATE_LOG"
-  exit 66
+  fail_and_exit 66
 fi
 params="$(python3 - "$target" "$message" "$key" <<'PY'
 import json, sys
@@ -169,20 +183,50 @@ print(json.dumps({
 }, ensure_ascii=False))
 PY
 )"
-started="$(date +%s)"
-set +e
-out="$(timeout 15 openclaw gateway call send --timeout 10000 --json --params "$params")"
-rc=$?
-set -e
+# Brief hold while the WhatsApp Web listener is absent. OpenClaw refuses `send` at once when no listener is
+# registered (PlatformMessageNotDispatchedError -> UNAVAILABLE "No active WhatsApp Web listener"): nothing
+# was dispatched, so the same idempotent request may be repeated. S24 31/10-02/11: 31 listener gaps
+# (reconnects, watchdog, plugin reload, Gateway start), median 5.9 s, p90 18 s; 02/11 17:22:31 a send fell in
+# a 5.9 s gap. Retries stay inside this invocation's budget (callers wrap it in `timeout 18`) and only follow
+# a fast refusal; one ledger line per invocation, so the per-key policy above is unchanged.
+BUDGET_S="${WHATSAPP_OWNER_SEND_BUDGET_S:-17}"; HOLD_PAUSE_S="${WHATSAPP_OWNER_SEND_HOLD_PAUSE_S:-3}"
+case "$BUDGET_S:$HOLD_PAUSE_S" in *[!0-9:]*|:*|*:) BUDGET_S=17; HOLD_PAUSE_S=3;; esac
+RETRY_MIN_S=8  # one cold CLI call that reaches the Gateway (S24: failing calls answer in 1-5 s)
+listener_unavailable(){
+  printf '%s' "$1" | python3 -c 'import json,sys
+raw=sys.stdin.read().strip()
+for cand in [raw]+raw.splitlines()[::-1]:
+    try: o=json.loads(cand)
+    except ValueError: continue
+    e=o.get("error") if isinstance(o,dict) else None
+    ok=isinstance(e,dict) and e.get("code")=="UNAVAILABLE" and "No active WhatsApp Web listener" in str(e.get("message",""))
+    raise SystemExit(0 if ok else 1)
+raise SystemExit(1)' 2>/dev/null
+}
+started="$(date +%s)"; holds=0; reason=gateway_call
+while :; do
+  left=$(( BUDGET_S - ($(date +%s) - started) )); call_s=15; [ "$left" -lt "$call_s" ] && call_s="$left"
+  [ "$call_s" -ge 1 ] || call_s=1
+  set +e
+  out="$(timeout "$call_s" openclaw gateway call send --timeout "$(( call_s > 11 ? 10000 : (call_s - 1) * 1000 + 500 ))" --json --params "$params")"
+  rc=$?
+  set -e
+  [ "$rc" -eq 0 ] && break
+  listener_unavailable "$out" || { reason=gateway_call; break; }
+  reason=listener_unavailable
+  left=$(( BUDGET_S - ($(date +%s) - started) ))
+  [ "$left" -ge $(( HOLD_PAUSE_S + RETRY_MIN_S )) ] || break
+  sleep "$HOLD_PAUSE_S"; holds=$((holds + 1))
+done
 elapsed=$(( $(date +%s) - started ))
 if [ "$rc" -ne 0 ]; then
-  printf '%s state=failed reason=gateway_call rc=%s elapsed_s=%s key=%s\n' "$(date -Iseconds)" "$rc" "$elapsed" "$key" >>"$STATE_LOG"
-  exit "$rc"
+  printf '%s state=failed reason=%s rc=%s elapsed_s=%s holds=%s key=%s\n' "$(date -Iseconds)" "$reason" "$rc" "$elapsed" "$holds" "$key" >>"$STATE_LOG"
+  fail_and_exit "$rc"
 fi
 message_id="$(printf '%s' "$out" | python3 -c 'import json,sys; o=json.load(sys.stdin); m=o.get("messageId"); assert o.get("channel")=="whatsapp" and isinstance(m,str) and m; print(m)' 2>/dev/null || true)"
 if [ -z "$message_id" ]; then
   printf '%s state=failed reason=invalid_response elapsed_s=%s key=%s\n' "$(date -Iseconds)" "$elapsed" "$key" >>"$STATE_LOG"
-  exit 67
+  fail_and_exit 67
 fi
-printf '%s state=accepted elapsed_s=%s key=%s message_id=%s\n' "$(date -Iseconds)" "$elapsed" "$key" "$message_id" >>"$STATE_LOG"
+printf '%s state=accepted elapsed_s=%s holds=%s key=%s message_id=%s\n' "$(date -Iseconds)" "$elapsed" "$holds" "$key" "$message_id" >>"$STATE_LOG"
 printf '%s\n' "$message_id"

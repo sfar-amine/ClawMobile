@@ -24,7 +24,7 @@ assert hv.whatsapp_health(s24,failed_0848,now=at_0934)==('healthy','channel_conn
 assert hv.whatsapp_health(s24.replace('out:43m','out:48m'),failed_0848,now=at_0934)==('degraded','latest_outbound_failed')
 assert hv.whatsapp_health(s24.replace('out:43m ago, ',''),failed_0848,now=at_0934)==('degraded','latest_outbound_failed')
 assert hv.whatsapp_health(s24.replace('out:43m','out:<1m'),failed_0848,now=at_0934)==('healthy','channel_connected')
-assert hv.whatsapp_health(stopped)==('degraded','channel_not_connected')
+assert hv.whatsapp_health(stopped)==('degraded','channel_stopped')
 assert hv.item('healthy',probe_kind='liveness')['probe_kind']=='liveness'
 assert hv.item('degraded',probe_kind='readiness')['probe_kind']=='readiness'
 external=hv.external_readiness('down',reason='provider_unavailable')

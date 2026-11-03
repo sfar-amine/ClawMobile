@@ -1,0 +1,59 @@
+{
+  "captured_at": "2026-11-02T17:50:00+01:00",
+  "device": "S24 (Termux), read-only via Claw claw_exec",
+  "runtime_release": "20261102T171415-d3beb769 (incident-manager.sh, incident-notify.sh, incident-close.sh, whatsapp-owner-send.sh identical to samantha-core 653b3942)",
+  "outbound_log_summary": {
+    "source": "~/.openclaw/health/whatsapp-outbound.log",
+    "source_lines": 2519,
+    "first": "2026-09-27T10:53:50+01:00",
+    "last": "2026-11-02T17:22:32+01:00",
+    "failed_lines": 2138,
+    "failed_distinct_keys": 26,
+    "failed_keys_later_accepted": 10,
+    "failed_keys_never_accepted": 16,
+    "accepted_distinct_keys": 95,
+    "gateway_call_rc_elapsed_top": {"rc=1 elapsed_s=4": 1142, "rc=1 elapsed_s=3": 382, "rc=1 elapsed_s=5": 274, "rc=1 elapsed_s=2": 273, "rc=1 elapsed_s=1": 38, "rc=1 elapsed_s=14": 6, "rc=124 elapsed_s=15": 3},
+    "top_failed_keys": [
+      ["incident-f73a069c49edd4cf", 979, 12],
+      ["incident-7f838a1e81e3d875", 280, 3],
+      ["incident-1fc6c7a375679b3a", 109, 0],
+      ["incident-07f5cdd330f4a24f", 109, 0],
+      ["incident-70bfab4175574879", 102, 0],
+      ["incident-7a13bb7bec8e422d", 102, 0],
+      ["incident-71ad47f4a411b52c", 99, 0],
+      ["incident-ff27d9f878d9ddc3", 98, 0],
+      ["incident-42092b56ae694332", 95, 0],
+      ["incident-e4f5b2efdf3c3fe8", 61, 55],
+      ["incident-ffaa98e3508057ed", 56, 43],
+      ["incident-25c564165b64d057", 16, 152]
+    ],
+    "top_failed_keys_columns": ["key", "failed", "accepted"],
+    "accepted_same_key_distinct_message_ids": {
+      "incident-25c564165b64d057": {"accepted": 152, "distinct_message_ids": 103},
+      "incident-e4f5b2efdf3c3fe8": {"accepted": 55, "distinct_message_ids": 54},
+      "incident-ffaa98e3508057ed": {"accepted": 43, "distinct_message_ids": 43},
+      "incident-f73a069c49edd4cf": {"accepted": 12, "distinct_message_ids": 12},
+      "recovery-bc6233b9cb8d7d623f2f0840": {"accepted": 8, "distinct_message_ids": 8}
+    }
+  },
+  "incident_queue_evidence": {
+    "source": "~/.openclaw/incidents/events.log and queue/<id>/{status,tries,next,cycle}",
+    "f73a069c49edd4cf": "kind=remote_desktop; 3 WhatsApp failures in 1 min, then `channel=email state=failed retry_in_s=300` 934 times: each 5-min pass re-ran WhatsApp (attempt=N+1) and email. Closed and re-opened by incident-notify.sh (29 queued events) with the same key incident-f73a069c49edd4cf.",
+    "7f838a1e81e3d875": "kind=info; WhatsApp attempt=29..33+ and email failed every 5 min on 12/10, 268 email failures.",
+    "25c564165b64d057": "kind=remote_desktop; 160 queued cycles in ~31 h, WhatsApp accepted 152 times for the same key."
+  },
+  "gateway_send_failure_2026-11-02T17:22:32+01:00": {
+    "source": "~/.openclaw/workspace/logs/companion-openclaw-gateway.log (ANSI removed, numbers replaced by <num>)",
+    "outbound_line": "2026-11-02T17:22:32+01:00 state=failed reason=gateway_call rc=1 elapsed_s=14 key=recovery-bc6233b9cb8d7d623f2f0840",
+    "gateway_lines": [
+      "2026-11-02T16:22:11.234+00:00 [hooks:loader] Prepared hook: boot-md -> gateway:startup",
+      "2026-11-02T16:22:15.713+00:00 [plugins] loading whatsapp from .../openclaw-whatsapp-.../node_modules/@ope…",
+      "2026-11-02T16:22:30.216+00:00 [plugins/cleanup] Plugin whatsapp forced retirement after 5000ms: 1 still-running call(s), 0 retained consumer(s); resource cleanup remains pending.",
+      "2026-11-02T16:22:30.584+00:00 [whatsapp] Web connection closed (status 408). Retry 1/12 in 2.27s… (status=408 Request Time-out Connection was lost)",
+      "2026-11-02T16:22:31.452+00:00 [ws] ⇄ res ✗ send 986ms errorCode=UNAVAILABLE errorMessage=OutboundDeliveryError: No active WhatsApp Web listener (account: default). Start the gateway, then link WhatsApp wit…"
+    ],
+    "health_log_whatsapp_reasons_total": {"healthy": 225, "degraded probe=readiness reason=channel_not_connected": 219, "degraded failures=6": 146, "awaiting_deterministic_recovery reason=no_repair_handler": 22, "degraded probe=readiness reason=latest_outbound_failed": 4},
+    "health_log_2026-10-30": "service=whatsapp state=degraded failures=6 retry_in_s=480 from 08:07 to 09:05 (Tunis), while incident-manager logged rc=1 elapsed_s=1..4 every 5 min; healthy at 09:13."
+  },
+  "redaction": "No phone number, message body, account, token or message id: WhatsApp message ids are replaced by mid-NNNN (distinct ids keep distinct placeholders); peers by <num>."
+}
