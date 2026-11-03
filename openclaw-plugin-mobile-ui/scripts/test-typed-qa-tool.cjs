@@ -37,6 +37,19 @@ for (const action of qa.tool.actions) {
 assert.deepEqual(qa.catalogueRow.calls.map((call) => call.action).sort(), [...reads, ...writes].sort());
 // After activation the compiled view counts the S24 tools plus this owner: still under the validator's 32 tools.
 assert(s24.tools.length + 1 <= 32);
+// S24 capture after activation (03/11): the compiled view holds samantha_qa, and its entries are exactly this projection.
+{
+  const crypto = require('node:crypto');
+  const compiled = JSON.parse(fs.readFileSync(path.join(fixtures, 's24-2026-11-02-qa-typed-tool/s24-2026-11-03-compiled-after-activation.json'), 'utf8'));
+  const canon = (value) => Array.isArray(value) ? `[${value.map(canon).join(', ')}]`
+    : value && typeof value === 'object' ? `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}: ${canon(value[key])}`).join(', ')}}`
+    : JSON.stringify(value);
+  const sha = (value) => crypto.createHash('sha256').update(canon(value), 'utf8').digest('hex');
+  assert.equal(compiled.tools.length, s24.tools.length + 1);
+  assert(compiled.tools.includes('samantha_qa'));
+  assert.equal(sha(qa.tool), compiled.samantha_qa_sha256, 'compiled samantha_qa equals the projection');
+  assert.equal(sha(qa.catalogueRow), compiled.qa_test_campaign_sha256, 'compiled qa.test_campaign equals the projection');
+}
 
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'typed-qa-'));
 const views = path.join(home, '.openclaw/capability-views');
