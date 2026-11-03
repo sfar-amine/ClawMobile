@@ -1,12 +1,73 @@
 #!/usr/bin/env python3
 """F3 (doc 62): one command rebuilds a window across the owners, in order, without the user's text."""
-import json, os, sqlite3, subprocess, tempfile, unittest
+import copy, json, os, re, runpy, sqlite3, subprocess, tempfile, unittest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
 
 class ClawTraceTests(unittest.TestCase):
+    def diagnostics_contract(self):
+        return json.loads((HERE.parents[1]/'openclaw-plugin-mobile-ui/fixtures/protocol/voice-turn-diagnostics-v1.json').read_text())
+
+    def test_voice_diagnostic_protocol_copies_match_owner_fixture(self):
+        owner=runpy.run_path(str(HERE/'claw-trace.py'))
+        contract=self.diagnostics_contract()
+        self.assertEqual(list(owner['VOICE_DIAGNOSTIC_EVENTS']),contract['events'])
+        self.assertEqual(list(owner['VOICE_DIAGNOSTIC_FAILURE_FAMILIES']),contract['failureFamilies'])
+        self.assertIn('S24 18/10/2026',contract['provenance'])
+
+    def test_voice_turn_id_copy_matches_runs_owner_and_accepts_readback(self):
+        owner=runpy.run_path(str(HERE/'claw-trace.py'))
+        source=(HERE.parents[1]/'openclaw-plugin-mobile-ui/src/companion/runs.ts').read_text()
+        match=re.search(r'export const VOICE_TURN_ID_RE = /\^(.+)\$/;',source)
+        self.assertIsNotNone(match)
+        self.assertEqual(owner['VOICE_TURN_ID_PATTERN'],match.group(1))
+        project=owner['voice_diagnostics'];contract=self.diagnostics_contract()
+        lo=contract['example']['startedAtMs'];hi=lo+30000
+        for run_id in ('voice-00000000-0000-4000-8000-00000000f003','voice-greeting-00000000-0000-4000-8000-00000000f003',
+                       'voice-readback-00000000-0000-4000-8000-00000000f003'):
+            self.assertEqual(len(project({'runId':run_id,'modality':'voice','voiceDiagnostics':contract['example']},lo,hi)),3,run_id)
+        for run_id in ('voice-other-00000000-0000-4000-8000-00000000f003','voice-readback-PRIVATE','readback-00000000-0000-4000-8000-00000000f003'):
+            self.assertEqual(project({'runId':run_id,'modality':'voice','voiceDiagnostics':contract['example']},lo,hi),[],run_id)
+
+    def test_selected_voice_checkpoint_is_correlated_without_adb_or_private_content(self):
+        contract=self.diagnostics_contract();start=contract['example']['startedAtMs']
+        run_id='voice-00000000-0000-4000-8000-00000000f003'
+        with tempfile.TemporaryDirectory() as tmp:
+            home=Path(tmp);store=home/'.openclaw/clawmobile-companion';store.mkdir(parents=True)
+            (store/'runs.json').write_text(json.dumps({'runs':[{
+                'runId':run_id,'modality':'voice','state':'done','acceptedAt':start,'updatedAt':start+10220,
+                'userText':'PRIVATE_QUESTION','result':'PRIVATE_ANSWER','voiceDiagnostics':contract['example']}]}))
+            binary=home/'bin';binary.mkdir();adb=binary/'adb'
+            adb.write_text('#!/bin/sh\necho called > "$F3_ADB_SENTINEL"\nexit 99\n');adb.chmod(0o755)
+            sentinel=home/'adb-was-called'
+            done=subprocess.run(['python3',str(HERE/'claw-trace.py'),'--since','2026-10-18T09:05:00Z',
+                '--until','2026-10-18T09:07:00Z','--turn',run_id,'--json'],
+                env=dict(os.environ,HOME=str(home),PATH=f"{binary}:{os.environ['PATH']}",F3_ADB_SENTINEL=str(sentinel)),
+                capture_output=True,text=True,check=True)
+            rows=[json.loads(line) for line in done.stdout.splitlines()]
+            self.assertEqual([row['source'] for row in rows],['app-checkpoint']*3)
+            self.assertIn('code=t90 elapsedMs=10220 failureFamily=correlation',rows[1]['text'])
+            self.assertTrue(all('turnId='+run_id in row['text'] for row in rows))
+            self.assertFalse(sentinel.exists());self.assertNotIn('PRIVATE',done.stdout)
+
+    def test_voice_checkpoint_reader_rejects_the_whole_malformed_summary(self):
+        owner=runpy.run_path(str(HERE/'claw-trace.py'));project=owner['voice_diagnostics'];contract=self.diagnostics_contract()
+        run={'runId':'voice-00000000-0000-4000-8000-00000000f003','modality':'voice','voiceDiagnostics':contract['example']}
+        lo=contract['example']['startedAtMs'];hi=lo+30000
+        self.assertEqual(len(project(run,lo,hi)),3)
+        values=[]
+        for key,value in [('text','PRIVATE'),('token','PRIVATE'),('startedAtMs',True),('startedAtMs',-1),('truncated',1)]:
+            row=copy.deepcopy(run);row['voiceDiagnostics'][key]=value;values.append(row)
+        for patch in ({'code':'PRIVATE_ACCOUNT@example.invalid'},{'code':'t99'},{'failureFamily':'PRIVATE'},{'message':'PRIVATE'},
+                      {'elapsedMs':True},{'elapsedMs':-1},{'elapsedMs':3600001}):
+            row=copy.deepcopy(run);row['voiceDiagnostics']['events'][1].update(patch);values.append(row)
+        backwards=copy.deepcopy(run);backwards['voiceDiagnostics']['events'][2]['elapsedMs']=1;values.append(backwards)
+        misplaced=copy.deepcopy(run);misplaced['voiceDiagnostics']['events'][0]['failureFamily']='token';values.append(misplaced)
+        oversized=copy.deepcopy(run);oversized['voiceDiagnostics']['events']*=11;values.append(oversized)
+        for row in values:self.assertEqual(project(row,lo,hi),[])
+
     def test_window_is_merged_in_order_and_private(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp); oc = home / ".openclaw"

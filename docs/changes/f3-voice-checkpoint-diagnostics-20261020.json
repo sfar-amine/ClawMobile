@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "id": "f3-voice-checkpoint-diagnostics-20261020",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Conserver un résumé C1 vocal fermé dans le reçu existant et le lire par corrélation sans ADB.",
+  "reason": "Le fichier de trace app ne suffit pas au diagnostic d'un tour depuis le runtime ; F3 du document 63 demande ses codes et durées dans le checkpoint.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/claw-trace.py",
+    "installer/termux-lite/test-claw-trace.py",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/fixtures/protocol/voice-turn-diagnostics-v1.json",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-checkpoint-diagnostics.cjs",
+    "docs/work/samantha-runtime/contracts/f3-voice-checkpoint-diagnostics-20261020.md",
+    "docs/changes/f3-voice-checkpoint-diagnostics-20261020.md",
+    "docs/changes/f3-voice-checkpoint-diagnostics-20261020.json"
+  ],
+  "tests": [
+    {
+      "name": "Claw trace owner and checkpoint diagnostics",
+      "status": "passed",
+      "command": "python3 installer/termux-lite/test-claw-trace.py",
+      "evidence": "10/10 cas verts après le merge de runtime/samantha-companion-private (9cfabb0e) : chronologie, corrélations, projection fermée, données privées exclues, protocole cohérent, tour résumé sans aucun appel ADB, et identifiants voice-greeting-/voice-readback- alignés sur VOICE_TURN_ID_RE de runs.ts."
+    },
+    {
+      "name": "Build du plugin",
+      "status": "passed",
+      "command": "cd openclaw-plugin-mobile-ui && npm run build",
+      "evidence": "tsc et prepare-lite verts sur le commit de merge avec la base (champ turnMeasurement L4 conservé à côté de voiceDiagnostics)."
+    },
+    {
+      "name": "Checkpoint vocal F3 (CJS)",
+      "status": "passed",
+      "command": "cd openclaw-plugin-mobile-ui && node scripts/test-voice-checkpoint-diagnostics.cjs",
+      "evidence": "7/7 cas verts, dont le scénario de corruption relu dans un nouveau processus."
+    },
+    {
+      "name": "Régressions vocales et mesure de tour voisines",
+      "status": "passed",
+      "command": "node scripts/test-voice-run-terminal-state.cjs; node scripts/test-voice-greeting-turn.cjs; node scripts/test-turn-budget.cjs; node scripts/test-turn-measurement.cjs; node scripts/test-voice-readback-persistence.cjs; node scripts/test-voice-deferred-readback.cjs; node scripts/test-voice-async-readback.cjs; python3 installer/termux-lite/test-companion-acceptance-voice.py",
+      "evidence": "Tous verts sur le commit de merge : terminalité O9, tour d'accueil, budget et mesure L4, relecture différée voice-readback- et ligne de recette vocale."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/f3-voice-checkpoint-diagnostics-20261020.md",
+    "docs/changes/f3-voice-checkpoint-diagnostics-20261020.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Champ facultatif du checkpoint et reçu vocal existants, aucune route ni intention nouvelle."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même propriétaire runs et lecteur claw-trace, aucun store, logger, registre, routeur, ordonnanceur ou démon supplémentaire."
+  },
+  "rollback": "Revert du lot runtime, sans migration des reçus ; les checkpoints sans diagnostic restent compatibles.",
+  "limitations": [
+    "CI locale canonique (tools/localci.py) sur le head exact encore à exécuter ; seuls les tests ciblés ont été lancés.",
+    "Contrepartie app (#375) et recette S24 non qualifiées dans cette tranche ; aucun faux tour sans transcription créé. Le runtime doit être déployé avant toute installation de l'app #375, qui envoie la clé diagnostics.",
+    "Le merge de la base (core #524, brain-only) n'a touché ni voiceRoundLearning.ts ni le coordinateur : F3 ne dépend que de runs.ts, types.ts et claw-trace.py, toujours présents."
+  ]
+}

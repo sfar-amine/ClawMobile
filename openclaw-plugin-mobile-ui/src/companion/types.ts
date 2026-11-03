@@ -139,6 +139,7 @@ export type CompanionRunStatus = {
   clientRunId?: string;
   transcriptState?: "partial" | "completed" | "interrupted";
   playback?: import("./voicePlaybackMetadata").VoicePlaybackMetadata;
+  voiceDiagnostics?: import("./runs").VoiceTurnDiagnostics;
   /** Édition-relecture : ce run rejoue un message modifié de `replayOf` ; `supersededBy` marque l'ancienne branche (audit, jamais supprimée). */
   replayOf?: ReplayLink;
   supersededBy?: ReplayLink;

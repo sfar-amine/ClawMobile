@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "checkpointField": "diagnostics",
+  "receiptField": "voiceDiagnostics",
+  "maxEvents": 32,
+  "maxElapsedMs": 3600000,
+  "maxAtMs": 4102444800000,
+  "events": ["t00", "t07c", "t10", "t11", "t21", "t22", "t23", "t24", "t25", "t30", "t31", "t32", "t41", "t42", "t43", "t44", "t50", "t51", "t90"],
+  "failureFamilies": ["token", "before_setup", "setup_timeout", "protocol", "sequence", "correlation"],
+  "example": {
+    "version": 1,
+    "startedAtMs": 1792314356251,
+    "truncated": false,
+    "events": [
+      {"code": "t00", "elapsedMs": 0},
+      {"code": "t90", "elapsedMs": 10220, "failureFamily": "correlation"},
+      {"code": "t50", "elapsedMs": 10220}
+    ]
+  },
+  "provenance": "S24 18/10/2026 10:05:56.251 to 10:06:06.471 local UTC+1, sanitized SamanthaVoice logcat already replayed by test-claw-trace.py: voice_start, voice_fail voice_error_incomplete_reply correlation:stale_ignored. C1 names and failure family projected into the new envelope; this example is a contract replay, not a new checkpoint or physical recipe."
+}

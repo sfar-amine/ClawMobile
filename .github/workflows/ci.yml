@@ -427,6 +427,8 @@ jobs:
           python3 ../installer/termux-lite/test-health-verdict.py
       - name: S24 26-29/10 night offline (Wi-Fi and mobile data cut by Android UI) detected, one notification, never re-enabled
         run: python3 ../installer/termux-lite/test-wifi-night-offline.py
+      - name: Weather workspace skill uses Open-Meteo, reachable from the S24 (recette 03/11 A15)
+        run: python3 ../installer/termux-lite/test-weather-seed-skill.py
       - name: Run request cancellation owner contract
         run: node scripts/test-control-request-cancel.cjs
       - name: Run Control pinned runtime snapshot regression
@@ -578,6 +580,7 @@ jobs:
           python3 ../installer/termux-lite/test-claw-trace.py
           python3 ../installer/termux-lite/test-runtime-start-command.py
           node scripts/test-remote-bridge-retention.cjs
+          node scripts/test-remote-bridge-retention-startup.cjs
       - name: MCP raw execution Continuum fence admission
         run: node scripts/test-mcp-raw-continuum.cjs
 
@@ -718,6 +721,7 @@ jobs:
         run: |
           node scripts/test-voice-run-terminal-state.cjs
           node scripts/test-voice-greeting-turn.cjs
+          node scripts/test-voice-checkpoint-diagnostics.cjs
           python3 ../installer/termux-lite/test-companion-acceptance-voice.py
 
       - name: O6 fast path waits for the guarded operator entry (60 s bound)

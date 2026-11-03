@@ -74,6 +74,8 @@ type StoredRun = {
   transcriptState?: "partial" | "completed" | "interrupted";
   transcriptRevision?: number;
   playback?: VoicePlaybackMetadata;
+  /** F3: closed app event summary in the existing voice receipt, never free trace content. */
+  voiceDiagnostics?: VoiceTurnDiagnostics;
   notThis?: RunCorrection;
   /** Édition-relecture : lien vers le message modifié d'origine, et marque d'audit sur l'ancienne branche. */
   replayOf?: ReplayLink;
@@ -1661,6 +1663,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     message: stored.transcriptState || "partial", userText: stored.userText || "",
     result: stored.result || "", submittedAt: stored.acceptedAt, updatedAt: stored.updatedAt,
     modality: "voice", transcriptState: stored.transcriptState, playback: stored.playback, turnMeasurement: stored.turnMeasurement,
+    voiceDiagnostics: stored.voiceDiagnostics,
     ...replayFields(stored),
   };
 
@@ -2829,6 +2832,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       transcriptState: ["partial", "completed", "interrupted"].includes(run.transcriptState) ? run.transcriptState : undefined,
       transcriptRevision: Number.isSafeInteger(run.transcriptRevision) ? run.transcriptRevision : undefined,
       playback: run.playback ? validateVoicePlayback(run.playback) : undefined,
+      voiceDiagnostics: run.modality === "voice" ? readVoiceDiagnostics(run.voiceDiagnostics) : undefined,
       notThis: run.notThis ? validRunCorrection(run.notThis) : undefined,
       replayOf: validReplayLink(run.replayOf),
       supersededBy: validReplayLink(run.supersededBy),
@@ -2872,9 +2876,45 @@ function requireConversationId(value: string) {
 // Deferred native readback is also output-only and uses the closed `voice-readback-<uuid>` shape.
 export const VOICE_TURN_ID_RE = /^voice-(?:(?:greeting|readback)-)?[a-f0-9-]{36}$/;
 
+/** C1 event names already emitted by the app. The protocol fixture and CLI copy are checked in CI. */
+export const VOICE_DIAGNOSTIC_EVENTS = ["t00", "t07c", "t10", "t11", "t21", "t22", "t23", "t24", "t25", "t30",
+  "t31", "t32", "t41", "t42", "t43", "t44", "t50", "t51", "t90"] as const;
+/** Same families as the existing app VoiceFailureCause renderer; never a raw network cause. */
+export const VOICE_DIAGNOSTIC_FAILURE_FAMILIES = ["token", "before_setup", "setup_timeout", "protocol", "sequence", "correlation"] as const;
+export type VoiceTurnDiagnostics = {version: 1; startedAtMs: number; truncated: boolean;
+  events: {code: typeof VOICE_DIAGNOSTIC_EVENTS[number]; elapsedMs: number;
+    failureFamily?: typeof VOICE_DIAGNOSTIC_FAILURE_FAMILIES[number]}[]};
+const MAX_VOICE_DIAGNOSTIC_EVENTS = 32;
+const MAX_VOICE_DIAGNOSTIC_ELAPSED_MS = 3_600_000;
+const MAX_VOICE_DIAGNOSTIC_AT_MS = 4_102_444_800_000; // 2100-01-01; bounded dates for the CLI reader too.
+
+export function validateVoiceDiagnostics(value: any): VoiceTurnDiagnostics | undefined {
+  if (value === undefined) return undefined;
+  const fail = () => { throw Object.assign(new Error("invalid_voice_diagnostics"), {statusCode: 400}); };
+  const object = (row: any, keys: string[]) => row && typeof row === "object" && !Array.isArray(row) &&
+    Object.keys(row).every(key => keys.includes(key));
+  if (!object(value, ["version", "startedAtMs", "truncated", "events"]) || value.version !== 1 ||
+      !Number.isSafeInteger(value.startedAtMs) || value.startedAtMs < 0 || value.startedAtMs > MAX_VOICE_DIAGNOSTIC_AT_MS ||
+      typeof value.truncated !== "boolean" || !Array.isArray(value.events) || value.events.length > MAX_VOICE_DIAGNOSTIC_EVENTS) return fail();
+  let previous = -1;
+  const events = value.events.map((row: any) => {
+    if (!object(row, ["code", "elapsedMs", "failureFamily"]) || !VOICE_DIAGNOSTIC_EVENTS.includes(row.code) ||
+        !Number.isSafeInteger(row.elapsedMs) || row.elapsedMs < 0 || row.elapsedMs > MAX_VOICE_DIAGNOSTIC_ELAPSED_MS ||
+        row.elapsedMs < previous || value.startedAtMs + row.elapsedMs > MAX_VOICE_DIAGNOSTIC_AT_MS ||
+        (row.failureFamily !== undefined && (row.code !== "t90" || !VOICE_DIAGNOSTIC_FAILURE_FAMILIES.includes(row.failureFamily)))) return fail();
+    previous = row.elapsedMs;
+    return {code: row.code, elapsedMs: row.elapsedMs, ...(row.failureFamily === undefined ? {} : {failureFamily: row.failureFamily})};
+  });
+  return {version: 1, startedAtMs: value.startedAtMs, truncated: value.truncated, events};
+}
+
+function readVoiceDiagnostics(value: unknown): VoiceTurnDiagnostics | undefined {
+  try { return validateVoiceDiagnostics(value); } catch { return undefined; }
+}
+
 export async function saveVoiceTurn(sessionId: string, value: any) {
   requireConversationId(sessionId);
-  const allowed = new Set(["runId", "revision", "input", "output", "state", "playback"]);
+  const allowed = new Set(["runId", "revision", "input", "output", "state", "playback", "diagnostics"]);
   if (!value || Object.keys(value).some(key => !allowed.has(key)) ||
       !VOICE_TURN_ID_RE.test(value.runId || "") || !Number.isSafeInteger(value.revision) || value.revision < 1 ||
       typeof value.input !== "string" || typeof value.output !== "string" ||
@@ -2883,6 +2923,7 @@ export async function saveVoiceTurn(sessionId: string, value: any) {
     throw Object.assign(new Error("invalid_voice_transcript"), {statusCode: 400});
   }
   const playback=validateVoicePlayback(value.playback);
+  const diagnostics=validateVoiceDiagnostics(value.diagnostics);
   return mutateRegistry(async () => {
     const registry = await registryOrEmpty();
     if (registry.runDeletions.some(receipt => receipt.runId === value.runId)) throw Object.assign(new Error("run_deleted"), {statusCode: 409});
@@ -2898,6 +2939,7 @@ export async function saveVoiceTurn(sessionId: string, value: any) {
     }
     const run: StoredRun = {runId: value.runId, sessionId, text: value.input, userText: value.input,
       result: value.output, modality: "voice", transcriptState: value.state, transcriptRevision: value.revision,playback,
+      voiceDiagnostics: diagnostics ?? old?.voiceDiagnostics,
       acceptedAt: old?.acceptedAt || Date.now(), updatedAt: Date.now(), state: voiceRunState(value.state)};
     await writeCompanionRunRegistry([run, ...registry.runs.filter(row => row.runId !== run.runId)], registry.archivedSessionIds);
     submittedRuns.set(run.runId,run);

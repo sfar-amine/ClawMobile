@@ -1,0 +1,19 @@
+{
+  "captured_by": "Claude, session_01MY3dPgxNV4B2L48hLGVnff, 2026-11-03 09:30 Africa/Tunis, claw_exec weather-diag-20261103 (probe1, probe2, probe4)",
+  "context": "Recette formulations 03/11, cas A15 « météo » KO : web_fetch puis exec curl sur wttr.in, puis web_search ×3 (aucun fournisseur configuré, bascule gemini refusée puis 429).",
+  "bundled_skill": {
+    "path": "$PREFIX/lib/node_modules/openclaw/skills/weather/SKILL.md",
+    "name": "weather",
+    "sources": ["https://wttr.in"]
+  },
+  "workspace_skills_before": ["clawmobile-capabilities", "clawmobile-policy", "clawmobile-trace-induction", "orange-telecom", "samantha-agenda", "samantha-appareil", "samantha-channels", "samantha-engineering", "samantha-factures", "samantha-interaction", "samantha-memory", "samantha-mobile", "samantha-reporting", "samantha-routes", "samantha-tests-applicatifs", "samantha-workspace"],
+  "tools_web": {"search": {"cacheTtlMinutes": 15, "enabled": true, "maxResults": 5, "timeoutSeconds": 30}},
+  "probes": [
+    {"url": "https://wttr.in/Tunis?format=3", "http_code": "000", "seconds": 1.136, "reachable": false},
+    {"url": "https://api.open-meteo.com/v1/forecast?latitude=36.8&longitude=10.18&current=temperature_2m", "http_code": "200", "seconds": 0.444, "reachable": true},
+    {"url": "https://geocoding-api.open-meteo.com/v1/search?name=La%20Marsa&count=1&language=fr&format=json", "http_code": "200", "reachable": true,
+     "first_result": {"name": "La Marsa", "latitude": 36.87818, "longitude": 10.32466, "country": "Tunisie", "timezone": "Africa/Tunis"}},
+    {"url": "https://api.open-meteo.com/v1/forecast?latitude=36.8&longitude=10.18&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=2", "http_code": "200", "reachable": true,
+     "current": {"time": "2026-11-03T09:30", "temperature_2m": 16.3, "apparent_temperature": 15.0, "precipitation": 0.0, "weather_code": 1, "wind_speed_10m": 10.0}}
+  ]
+}

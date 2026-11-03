@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "qa-tool-compiled-capture-20261103",
+  "date": "2026-11-03",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "Après l'activation des playbooks 8863a801 et le déploiement de core bfa6521a, capture en lecture seule sur le S24 du catalogue compilé : 14 outils, dont samantha_qa. Les entrées samantha_qa et qa.test_campaign ont exactement les empreintes de la projection source de la fixture. test-typed-qa-tool.cjs vérifie maintenant cette égalité.",
+  "reason": "Suivi de core #530 : remplacer la projection source par une preuve tirée du catalogue réellement compilé sur le S24.",
+  "files": [
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-qa-typed-tool/s24-2026-11-03-compiled-after-activation.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-qa-typed-tool/README.md",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-qa-tool.cjs",
+    "docs/changes/qa-tool-compiled-capture-20261103.json",
+    "docs/changes/qa-tool-compiled-capture-20261103.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-qa-tool.cjs",
+      "status": "passed",
+      "evidence": "Déjà inscrit dans ci.yml. Nouveau bloc : le catalogue compilé compte un outil de plus que la capture du 02/11 et contient samantha_qa ; le sha256 canonique (clés triées) de samantha_qa et de qa.test_campaign est égal à celui de la projection."
+    }
+  ],
+  "documentation": [
+    "docs/changes/qa-tool-compiled-capture-20261103.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Fixture et test seulement ; aucune route ni capability modifiée."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Aucun code de production modifié."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Fixture et test seulement ; outils, schémas et runtime MCP inchangés."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "La capture ne contient que les empreintes des entrées : si les playbooks font évoluer samantha_qa, il faudra recapturer le catalogue et mettre à jour la fixture en même temps que la projection."
+  ],
+  "rollback": "Revert de ce commit ; aucun effet sur le runtime (fixture et test seulement)."
+}
