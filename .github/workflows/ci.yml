@@ -117,6 +117,7 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-gateway-prep-stages.py
           python3 ../installer/termux-lite/test-gateway-prep-stages-1009.py
+          python3 ../installer/termux-lite/test-session-open-plugin-tools.py
 
       - name: Gateway startup triage opt-out is explicit, pinned and verified before export
         run: python3 ../installer/termux-lite/test-startup-triage-optout.py
@@ -200,6 +201,8 @@ jobs:
           python3 ../installer/termux-lite/test-whatsapp-channel-health.py
           python3 ../installer/termux-lite/test-whatsapp-lock-recovery.py
           bash ../installer/termux-lite/test-whatsapp-owner-send.sh
+          python3 ../installer/termux-lite/test-owner-notify-retry.py
+          python3 ../installer/termux-lite/test-whatsapp-listener.py
 
       - name: Run immune I1/I2/I3/I8 contracts (deterministic recovery, handler gate, LKG hold, ingress root)
         run: |
@@ -344,6 +347,17 @@ jobs:
           git -C "$peer" checkout --detach FETCH_HEAD
           ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-pulse-room-brain.cjs
 
+      - name: Contact rooms brain and Amine-confirmed room sends paired with the playbooks room owner (Amine 02/11, step 4, owners mocked)
+        run: |
+          peer=$(mktemp -d "${TMPDIR:-/tmp}/contact-rooms-playbooks.XXXXXX")
+          trap 'rm -rf -- "$peer"' EXIT
+          git init "$peer"
+          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git 284da97f8e08e5a3b3387bc913bc593c4608422a
+          git -C "$peer" checkout --detach FETCH_HEAD
+          ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-contact-room-brain.cjs
+          ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-room-send-approval.cjs
+          ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-pulse-room-brain.cjs
+
       - name: Run composed read and model fast path contracts
         run: |
           python3 scripts/test-composed-read-result.py
@@ -351,7 +365,8 @@ jobs:
           node scripts/test-model-fast-path-intent.cjs
           node scripts/test-model-fast-path-mcp-read.cjs
           node scripts/test-pulse-room-brain.cjs
-          node scripts/test-contact-room-fast-path.cjs
+          node scripts/test-contact-room-brain.cjs
+          node scripts/test-room-send-approval.cjs
 
       - name: Qualify Companion M1 contracts and telemetry offline
         run: |
@@ -411,6 +426,8 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-android-network-mutation-guard.py WifiRestorerTests DetachedRestorerProcessTest HealthManagerSweepContractTest CellularDefaultTests -v
           python3 ../installer/termux-lite/test-health-verdict.py
+      - name: S24 26-29/10 night offline (Wi-Fi and mobile data cut by Android UI) detected, one notification, never re-enabled
+        run: python3 ../installer/termux-lite/test-wifi-night-offline.py
       - name: Run request cancellation owner contract
         run: node scripts/test-control-request-cancel.cjs
       - name: Run Control pinned runtime snapshot regression
@@ -614,6 +631,7 @@ jobs:
           node scripts/test-typed-capability-tools.cjs
           node scripts/test-typed-tools-direct-visible.cjs
           node scripts/test-typed-device-direct.cjs
+          node scripts/test-typed-qa-tool.cjs
           node scripts/test-typed-direct-call-id.cjs
           node scripts/test-typed-admission-shared-instances.cjs
           node scripts/test-voice-turn-stages.cjs
@@ -723,6 +741,9 @@ jobs:
 
       - name: F7 Gateway append log retention
         run: python3 ../installer/termux-lite/test-gateway-log-retention.py
+
+      - name: S24 02/11 Gateway start appends, never truncates (bounded rotation kept)
+        run: node scripts/test-gateway-log-append.cjs
 
       - name: E3 agent file write (biometric, CAS, privacy lines kept, free vocabulary, five backups)
         run: node scripts/test-agent-file-write-plan.cjs

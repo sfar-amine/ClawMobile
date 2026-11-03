@@ -1,0 +1,79 @@
+{
+  "provenance": {
+    "device": "S24 (Android, One UI), boot 2026-10-27T16:33 local (uptime 6 d 4 h at capture)",
+    "captured_at_local": "2026-11-02T20:45:00+01:00/2026-11-02T21:00:00+01:00",
+    "access": "Claw MCP claw_exec, read-only: adb shell dumpsys wifi | dumpsys telephony.registry/isub/activity service com.android.phone | settings get/list global | cmd wifi status | dumpsys connectivity; grep of ~/.openclaw/health/health.log*",
+    "timezone": "Africa/Tunis (+01:00); dumpsys times are local",
+    "cleaning": "SSIDs, BSSIDs, MACs, IPs, byte counters and subscriber identifiers removed; only times, events, callers (package/uid) and booleans kept",
+    "limits": "Android ring buffers start after the 27/10 16:33 reboot: the 26/10 night is only in health.log"
+  },
+  "wifi_controller_toggles": [
+    {"at": "10-27 19:37:01.756", "worksource": "1000 android"},
+    {"at": "10-28 09:13:31.763", "worksource": "1000 android"},
+    {"at": "10-28 11:36:57.021", "worksource": "10049 com.android.systemui"},
+    {"at": "10-28 13:10:14.017", "worksource": "1000 android"},
+    {"at": "10-28 19:47:42.054", "worksource": "1000 android"},
+    {"at": "10-28 23:08:04.082", "worksource": "10049 com.android.systemui"},
+    {"at": "10-29 08:47:01.512", "worksource": "10049 com.android.systemui"},
+    {"at": "10-29 09:09:13.893", "worksource": "1000 android"},
+    {"at": "10-29 19:46:06.908", "worksource": "1000 android"},
+    {"at": "10-29 23:39:17.090", "worksource": "10049 com.android.systemui"},
+    {"at": "10-30 09:09:08.778", "worksource": "10049 com.android.systemui"},
+    {"at": "10-30 09:25:48.440", "worksource": "1000 android"},
+    {"at": "10-30 16:01:55.712", "worksource": "1000 android"},
+    {"at": "10-30 21:21:55.365", "worksource": "1000 android"},
+    {"at": "10-30 21:54:52.559", "worksource": "1000 android"},
+    {"at": "10-31 09:38:42.493", "worksource": "1000 android"},
+    {"at": "10-31 10:21:27.445", "worksource": "1000 android"},
+    {"at": "10-31 13:50:19.895", "worksource": "1000 android"},
+    {"at": "10-31 13:58:03.489", "worksource": "1000 android"},
+    {"at": "10-31 14:04:30.692", "worksource": "1000 android"},
+    {"at": "10-31 15:01:37.546", "worksource": "1000 android"},
+    {"at": "10-31 18:18:27.185", "worksource": "1000 android"},
+    {"at": "10-31 18:52:29.328", "worksource": "10049 com.android.systemui"},
+    {"at": "10-31 19:45:20.529", "worksource": "1000 android"},
+    {"at": "10-31 20:11:20.687", "worksource": "1000 android"},
+    {"at": "11-01 12:37:56.527", "worksource": "1000 android"},
+    {"at": "11-01 13:29:54.572", "worksource": "1000 android"},
+    {"at": "11-01 15:46:21.710", "worksource": "1000 android"},
+    {"at": "11-01 19:09:49.719", "worksource": "1000 android"},
+    {"at": "11-02 08:46:27.727", "worksource": "1000 android"},
+    {"at": "11-02 19:15:43.119", "worksource": "1000 android"},
+    {"at": "11-02 19:18:03.162", "worksource": "1000 android"},
+    {"at": "11-02 19:20:31.879", "worksource": "1000 android"}
+  ],
+  "wifi_connect_mode_requestor": "ScanOnlyModeState -> ConnectModeState RequestorWs: WorkSource{1000 com.android.settings} (Samsung Auto Wi-Fi, settings global sem_auto_wifi_control_enabled=1)",
+  "wifi_metrics": [
+    {"at": "10-28 13:10:14.104", "event": "WIFI_DISABLED", "screenOn": true, "cellularData": true},
+    {"at": "10-28 23:08:04.599", "event": "WIFI_DISABLED", "screenOn": true, "cellularData": true},
+    {"at": "10-29 08:47:01.810", "event": "WIFI_ENABLED", "screenOn": true, "cellularData": true},
+    {"at": "10-29 09:09:14.005", "event": "WIFI_DISABLED", "screenOn": false, "cellularData": true},
+    {"at": "10-29 23:39:17.658", "event": "WIFI_DISABLED", "screenOn": true, "cellularData": false}
+  ],
+  "mobile_data_changes": [
+    {"at": "2026-10-28T23:08:04.846966", "enabled": false, "reason": "USER", "callingPackage": "com.android.systemui"},
+    {"at": "2026-10-29T08:47:01.181019", "enabled": true, "reason": "USER", "callingPackage": "com.android.systemui"},
+    {"at": "2026-10-29T23:39:16.854718", "enabled": false, "reason": "USER", "callingPackage": "com.android.systemui"},
+    {"at": "2026-10-30T09:09:08.348680", "enabled": true, "reason": "USER", "callingPackage": "com.android.systemui"}
+  ],
+  "health_log_network_safety": [
+    "2026-10-26T23:34:55+01:00 component=health-manager service=network_safety state=warning reason=wifi_disabled_without_lease action=none",
+    "2026-10-27T07:46:45+01:00 component=health-manager service=network_safety state=warning_cleared reason=wifi_disabled_without_lease",
+    "2026-10-28T23:08:35+01:00 component=health-manager service=network_safety state=warning reason=wifi_disabled_without_lease action=none",
+    "2026-10-28T23:09:28+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120",
+    "2026-10-28T23:11:21+01:00 component=health-manager service=smtp state=degraded failures=1 retry_in_s=15",
+    "2026-10-29T08:47:22+01:00 component=health-manager service=network_safety state=warning_cleared reason=wifi_disabled_without_lease",
+    "2026-10-29T23:39:39+01:00 component=health-manager service=network_safety state=warning reason=wifi_disabled_without_lease action=none",
+    "2026-10-29T23:40:35+01:00 component=health-manager service=whatsapp state=degraded probe=readiness reason=channel_not_connected incident=deferred grace_s=120",
+    "2026-10-30T09:09:26+01:00 component=health-manager service=network_safety state=warning_cleared reason=wifi_disabled_without_lease"
+  ],
+  "settings_global_now": "airplane_mode_on=0\nauto_wifi=1\nmobile_data=1\nsem_auto_wifi_control_enabled=1\nwifi_on=1\n",
+  "cmd_wifi_status_now": "Wifi is enabled\nWifi scanning is always available\n",
+  "connectivity_default_now": "Active default network: 205\nNetworkAgentInfo{network{205} Transports: WIFI Capabilities: NOT_METERED&INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VPN&VALIDATED&NOT_ROAMING&FOREGROUND&NOT_CONGESTED&NOT_SUSPENDED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED\n",
+  "samantha_wifi_mutation_paths": {
+    "android-network-mutation-guard.py": "adb shell svc wifi enable|disable (uid 2000 com.android.shell), only under a wifi_off lease",
+    "adb-recovery-watchdog.sh": "adb shell svc wifi enable only",
+    "playbooks device/assistant.py": "adb shell svc wifi (owner request)",
+    "mobile_data": "never touched by Samantha"
+  }
+}

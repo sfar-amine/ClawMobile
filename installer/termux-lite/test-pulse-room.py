@@ -78,6 +78,41 @@ class PulseRoomTests(unittest.TestCase):
         self.assertEqual('w-contacts-pulse', entries['contacts-pulse']['workspace'])
         again = self.provision(); self.assertEqual('present', json.loads(again.stdout)['agents'])
 
+    def test_every_typed_room_agent_is_kept_on_its_rooms_closed_policy(self):
+        # Amine 02/11, contact rooms brain: room agents created by people-trusted (copies of the closed contact agents)
+        # get the typed tool of each of their rooms; Projet-only and plain contacts stay project-room.py's.
+        fixture = json.loads((HERE.parent.parent / 'openclaw-plugin-mobile-ui/fixtures/s24-2026-11-02-contact-rooms-brain/'
+                              'room-tools.json').read_text())['room_agents']
+        cfg = json.loads(self.state.read_text()); entries = cfg['agents']['entries']
+        for name, base in (('contacts-agenda-actions-messages', 'contacts'), ('contacts-projet-agenda', 'contacts-projet'),
+                           ('contacts-pulse-agenda', 'contacts-pulse'), ('contacts-qa', 'contacts'),
+                           ('contacts-pulse', 'contacts-pulse'), ('contacts-projet-pulse', 'contacts-projet-pulse')):
+            entries[name] = {'model': {'primary': 'm'}, 'workspace': 'w-' + name, 'tools': fixture[base]['tools']}
+        self.state.write_text(json.dumps(cfg))
+        out = self.provision(); self.assertEqual(0, out.returncode, out.stderr)
+        self.assertEqual(['contacts-agenda-actions-messages', 'contacts-projet-agenda', 'contacts-pulse-agenda'],
+                         json.loads(out.stdout)['agents'], 'the S24 Pulse agents are already closed; qa has no typed tool')
+        entries = json.loads(self.state.read_text())['agents']['entries']
+        allow = lambda name: entries[name]['tools']['allow']
+        self.assertEqual(['transmettre_a_amine', 'noter_contact', 'samantha_agenda', 'samantha_device_assistance',
+                          'samantha_whatsapp'], allow('contacts-agenda-actions-messages'))
+        self.assertEqual(['web_search', 'read', 'transmettre_a_amine', 'noter_contact', 'samantha_agenda'],
+                         allow('contacts-projet-agenda'))
+        self.assertIs(True, entries['contacts-projet-agenda']['tools']['fs']['workspaceOnly'])
+        self.assertEqual(['transmettre_a_amine', 'noter_contact', 'samantha_pulse', 'samantha_agenda'], allow('contacts-pulse-agenda'))
+        self.assertEqual(fixture['contacts']['tools'], entries['contacts-qa']['tools'], 'untouched by provision')
+        for name in ('contacts-agenda-actions-messages', 'contacts-pulse-agenda'):
+            self.assertTrue({'read', 'web_search', 'exec', 'message', 'clawmobile_capability'}.issubset(entries[name]['tools']['deny']))
+        for name in ('contacts-pulse', 'contacts-projet-pulse'):
+            self.assertEqual(fixture[name]['tools'], entries[name]['tools'], 'Pulse agents exactly as deployed')
+        again = self.provision(); self.assertEqual('present', json.loads(again.stdout)['agents'])
+        # The rooms' rule bodies all say how a given room tool is used (the generic agents share contacts-agent.md).
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('project_room_rules', HERE / 'project-room.py')
+        owner = importlib.util.module_from_spec(spec); spec.loader.exec_module(owner)
+        for body in (owner.AGENTS, (self.target / 'AGENTS.md').read_text(), (HERE / 'contacts-agent.md').read_text()):
+            self.assertEqual(1, body.splitlines().count(owner.ROOM_TOOLS_RULE))
+
     def test_an_open_contact_agent_is_never_cloned(self):
         cfg = json.loads(self.state.read_text()); cfg['agents']['entries']['contacts']['tools']['deny'] = ['write']
         self.state.write_text(json.dumps(cfg))

@@ -14,6 +14,7 @@ run_learning_gate(){
 }
 matched=0
 last_id=""
+last_cycle=0
 for dir in "$Q"/*; do
   [ -d "$dir" ] || continue
   st="$(cat "$dir/status" 2>/dev/null || echo pending)"
@@ -34,6 +35,7 @@ raise SystemExit(0 if re.search(r'(?<![A-Za-z0-9_])'+re.escape(component)+r'(?![
 PY
   fi
   id="$(basename "$dir")"; matched=1; last_id="$id"
+  last_cycle="$(cat "$dir/cycle" 2>/dev/null || echo 0)"
   printf recovered >"$dir/status"
   printf '%s id=%s component=%s event=recovered state=verified\n' "$(date -Iseconds)" "$id" "$component" >>"$LOG"
   run_learning_gate "$id" "$msg" "$message" || continue
@@ -42,7 +44,11 @@ PY
   printf '%s id=%s component=%s event=closed state=ok\n' "$(date -Iseconds)" "$id" "$component" >>"$LOG"
 done
 if [ "$matched" -eq 1 ]; then
-  recovery_key="recovery-$(printf '%s' "$component:$last_id" | sha256sum | cut -c1-24)"
+  # One recovery key per incident cycle (same key as before for cycle 0): the
+  # send owner never sends an accepted or undeliverable key twice.
+  recovery_identity="$component:$last_id"
+  case "$last_cycle" in ''|*[!0-9]*|0) ;; *) recovery_identity="$recovery_identity:c$last_cycle";; esac
+  recovery_key="recovery-$(printf '%s' "$recovery_identity" | sha256sum | cut -c1-24)"
   if timeout 18 "$ROOT/whatsapp-owner-send.sh" "$message" "$recovery_key" >/dev/null 2>&1; then
     printf '%s component=%s recovery_channel=whatsapp state=accepted\n' "$(date -Iseconds)" "$component" >>"$LOG"
   elif timeout 35 "$ROOT/incident-email.sh" "Samantha: récupération vérifiée" "$message"; then
