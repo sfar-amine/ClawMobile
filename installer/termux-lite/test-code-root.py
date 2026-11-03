@@ -77,6 +77,13 @@ class CodeRootTests(unittest.TestCase):
         code_root.ui_playbooks_root("claw_job_run", "scheduling/runner.py", home=self.home)
         self.assertEqual(first, (self.events / "claw_job_run.json").stat().st_mtime, "throttled, not one write per call")
 
+    def test_event_never_creates_the_openclaw_home(self):
+        # A refusal path (native Pulse private input) runs before any store: the event is observation only.
+        bare = self.tmp / "bare-home"
+        bare.mkdir()
+        self.assertFalse(code_root.record_event("model_fast_path", "fallback", bare / "ws", home=bare))
+        self.assertFalse((bare / ".openclaw").exists())
+
     def test_pin_without_the_file_is_a_named_fallback(self):
         self.make_pin(files=("skill_intelligence/capability_graph.py",)); self.make_workspace()
         self.assertEqual(code_root.ui_playbooks_root("x", "scheduling/runner.py", home=self.home), self.workspace)

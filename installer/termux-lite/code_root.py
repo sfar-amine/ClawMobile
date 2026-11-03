@@ -70,6 +70,9 @@ def record_event(component: str, event: str = "fallback", root: Path | str | Non
     try:
         if not COMPONENT_RE.fullmatch(component) or not EVENT_RE.fullmatch(event):
             return False
+        # Observation only: never create the OpenClaw home (a refusal path must stay free of any store).
+        if not (_home(home) / ".openclaw").is_dir():
+            return False
         events = state_dir(home) / "events"
         target = events / f"{component}.json"
         now = _now() if now is None else now
