@@ -93,11 +93,20 @@ configure_lite_defaults() {
   config_set_json "tools.web.search.maxResults" "5"
   config_set_json "tools.web.search.timeoutSeconds" "30"
   config_set_json "tools.web.search.cacheTtlMinutes" "15"
-  openclaw config unset tools.web.search.provider </dev/null >/dev/null 2>&1 || true
   # The bundled Codex plugin is useful on desktops, but Android/Termux routes
   # can stall on its app-server transport. Keep ClawMobile on the regular
-  # OpenClaw agent path unless the user explicitly re-enables it.
-  config_set_json "plugins.entries[\"codex\"].enabled" "false"
+  # OpenClaw agent path unless the owner explicitly chose a search provider:
+  # Amine selected Codex Hosted Search on 03/11 (Sol stays on the OpenClaw
+  # runtime; only web_search uses Codex), so an explicit provider and the
+  # plugin it needs are kept as they are.
+  local provider
+  provider="$(openclaw config get tools.web.search.provider </dev/null 2>/dev/null | tr -d '"[:space:]' || true)"
+  if [ -z "$provider" ] || [ "$provider" = "null" ] || [ "$provider" = "undefined" ]; then
+    openclaw config unset tools.web.search.provider </dev/null >/dev/null 2>&1 || true
+    config_set_json "plugins.entries[\"codex\"].enabled" "false"
+  else
+    echo "[lite] Keeping explicit web search provider: $provider"
+  fi
   config_set_json "skills.install.nodeManager" '"npm"'
   config_set_json "skills.install.preferBrew" "false"
   if [ -f "$HOME/.openclaw/openclaw.json" ] && [ -f "$SCRIPT_DIR/model-efficiency-config.py" ]; then

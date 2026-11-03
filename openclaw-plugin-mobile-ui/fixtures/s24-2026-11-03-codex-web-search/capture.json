@@ -1,0 +1,23 @@
+{
+  "captured_by": "Claude, session_01MY3dPgxNV4B2L48hLGVnff, 2026-11-03 11:00-12:20 Africa/Tunis, claw_exec codex-search-20261103",
+  "before": {
+    "tools.web.search": {"enabled": true, "maxResults": 5, "timeoutSeconds": 30, "cacheTtlMinutes": 15, "provider": null},
+    "auto_detected_provider": "gemini (models.providers.google.apiKey, profil google:claw-gemini-free)",
+    "recette_a15": "web_search gemini : filtres pays/langue refusés puis 429 (quota gratuit)",
+    "plugin_codex": {"status": "disabled", "version": "2026.9.6"},
+    "main_model": "openai/gpt-5.6-sol, agentRuntime openclaw, profil openai OAuth (pas de clé API)"
+  },
+  "change": {
+    "plugin_codex": {"status": "enabled", "version": "2026.10.9", "capability": "web-search: codex",
+                     "install": "npm dans une copie du projet puis échange (plugins install refusé sur Android : dossier temporaire sous /data, uid 1000)"},
+    "tools.web.search.provider": "codex",
+    "config_backup": "~/.openclaw/backups/codex-search-20261103/openclaw.json"
+  },
+  "test": {
+    "session": "agent:main:recette:websearch-20261103b (aucune remise WhatsApp)",
+    "question": "Quelles sont les principales actualités en Tunisie aujourd'hui ? Cherche sur le web et cite tes sources.",
+    "status": "ok", "seconds": 61,
+    "answer_excerpt": "Actualité tunisienne datée du 3 novembre 2026 avec liens businessnews.com.tn du jour",
+    "gateway_after": "http 200, aucun délai release-client après 11:16:28 UTC (redémarrage)"
+  }
+}
