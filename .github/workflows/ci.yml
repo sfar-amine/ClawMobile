@@ -343,6 +343,17 @@ jobs:
           git -C "$peer" checkout --detach FETCH_HEAD
           ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-pulse-room-brain.cjs
 
+      - name: Contact rooms brain and Amine-confirmed room sends paired with the playbooks room owner (Amine 02/11, step 4, owners mocked)
+        run: |
+          peer=$(mktemp -d "${TMPDIR:-/tmp}/contact-rooms-playbooks.XXXXXX")
+          trap 'rm -rf -- "$peer"' EXIT
+          git init "$peer"
+          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git 284da97f8e08e5a3b3387bc913bc593c4608422a
+          git -C "$peer" checkout --detach FETCH_HEAD
+          ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-contact-room-brain.cjs
+          ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-room-send-approval.cjs
+          ROOM_PLAYBOOKS_ROOT="$peer" node scripts/test-pulse-room-brain.cjs
+
       - name: Run composed read and model fast path contracts
         run: |
           python3 scripts/test-composed-read-result.py
@@ -350,7 +361,8 @@ jobs:
           node scripts/test-model-fast-path-intent.cjs
           node scripts/test-model-fast-path-mcp-read.cjs
           node scripts/test-pulse-room-brain.cjs
-          node scripts/test-contact-room-fast-path.cjs
+          node scripts/test-contact-room-brain.cjs
+          node scripts/test-room-send-approval.cjs
 
       - name: Qualify Companion M1 contracts and telemetry offline
         run: |

@@ -50,13 +50,12 @@ import { getSkillStatus as clawmobile_skill_status } from "./trace_induction/sta
 import { runSkillFastPath as clawmobile_skill_run_fast_path } from "./trace_induction/fastpath";
 import { reflectFastPathFailure as clawmobile_skill_reflect_fast_path_failure } from "./trace_induction/repair";
 import { clawmobile_batch_execute } from "./tools/batch";
-import { createPulseRoomTools, pulseRoomPrincipal } from "./pulseRoomBrain";
+import { createRoomTools, roomSession } from "./roomBrain";
 import { runtimeNoticeSendingHook } from "./runtimeNotices";
 import {conversationModelProfileHooks} from "./companion/conversationModelProfile";
 import {createTypedCapabilityTools, readTypedToolCatalogue} from "./typedCapabilityTools";
-import { agentCapabilityHook,PULSE_ROOM_TOOLS,TYPED_CONTROL_ADMISSION_METHOD,typedControlAdmissionHandler } from "./capabilityAgentGuard";
+import { agentCapabilityHook,ROOM_TOOLS,TYPED_CONTROL_ADMISSION_METHOD,typedControlAdmissionHandler } from "./capabilityAgentGuard";
 import { createContactTool } from "./contactTools";
-import { handleContactRoomBeforeDispatch } from "./contactRoomFastPath";
 import { handleQaContactMediaReceived } from "./qaContactMediaOwner";
 
 type JsonSchema = Record<string, any>;
@@ -218,13 +217,6 @@ function register(api: any) {
     await handleQaContactMediaReceived(event,ctx);
   });
 
-  // before_dispatch, not inbound_claim: the Gateway runs inbound_claim only for plugin-bound conversations (S24 12/10).
-  // The Pulse room is no longer intercepted here (Amine 02/11): its contact's brain runs with the room tool below.
-  api.on("before_dispatch", async (event: any, ctx: any) => {
-    const contactRoom = await handleContactRoomBeforeDispatch(event, ctx);
-    return contactRoom.handled ? contactRoom : undefined;
-  });
-
   // Chantier 1 (doc 71): one warm interpreter for every surface, Gemini then Luna.
   api.registerGatewayMethod?.(INTERPRET_METHOD,
     createInterpretHandler(() => api.runtime?.llm?.complete?.bind(api.runtime.llm)),
@@ -233,11 +225,11 @@ function register(api: any) {
 
   // The factory receives OpenClaw's trusted current-turn context. The first
   // execute argument is a tool-call id, not an authorization context.
-  // One typed factory (ADR 02/11, step 3): a Pulse room contact's session gets its room tool only (pulseRoomBrain);
-  // the owner's main agent gets the owner typed tools. Owner turns (WhatsApp, app, voice) reach the brain directly.
-  const typedNames = new Set<string>(PULSE_ROOM_TOOLS);
+  // One typed factory (ADR 02/11, step 3): a room contact's session gets the typed tools of its rooms only (roomBrain);
+  // the owner's main agent gets the owner typed tools. No contact room and no owner turn is intercepted before the brain.
+  const typedNames = new Set<string>(ROOM_TOOLS);
   for (const name of [...readTypedToolCatalogue().map(tool => tool.name), "samantha_catalogue"]) typedNames.add(name);
-  api.registerTool({contextVersion: 2, create: (ctx: any) => pulseRoomPrincipal(ctx) ? createPulseRoomTools(ctx)
+  api.registerTool({contextVersion: 2, create: (ctx: any) => roomSession(ctx) ? createRoomTools(ctx)
     : createTypedCapabilityTools(ctx)}, {names: [...typedNames]});
   api.registerTool((ctx: any) => createContactTool("transmettre_a_amine", ctx), { name: "transmettre_a_amine" });
   api.registerTool((ctx: any) => createContactTool("noter_contact", ctx), { name: "noter_contact" });

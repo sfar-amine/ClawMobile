@@ -6,7 +6,7 @@
  */
 import {createHash} from 'node:crypto';
 import {dialogueRequestText} from './dialogueSurface';
-import {pulseRoomSession} from './contactRoomProfile';
+import {contactRoomPrincipal,contactRoomSession,ROOM_TOOLS,toolRoom} from './contactRoomProfile';
 export const TYPED_CONTROL_ADMISSION_METHOD='samantha.typed-control.admission';
 // OpenClaw 2026.10.9 loads this plugin several times in one Gateway process (one copy per plugin build of its
 // capture: S24 02/11 10:24, three copies of openclaw-plugin-mobile-ui). The before_tool_call hook and the tool execute
@@ -21,7 +21,7 @@ export const AGENT_CAPABILITY_REFUSAL = "capability_first_required";
 
 // Current-invocation proof of the existing guard, not a business registry. A
 // tool cannot receive this through model arguments, persisted JSON or replay.
-// principal: « owner » for the owner's main agent, « room:pulse:wa-… » for a Pulse room contact. One never
+// principal: « owner » for the owner's main agent, « room:<pièce>:wa-… » for a room contact. One never
 // consumes the other's proof (consumeTypedInvocation / consumeRoomInvocation).
 type TypedProof={at:number;tool:string;runId:string;sessionKey:string;sessionId?:string;args:string;principal:string;
   control?:{operationId:string;paramsHash:string;expiresAt:number;assertCurrent:()=>void};};
@@ -69,13 +69,20 @@ export function consumeTypedInvocation(callId: unknown, tool: string, args: unkn
   return {owner: true, conversationKey: proof.sessionKey, userRunId: proof.runId, invocationId: callId,[typedSeal]:proof};
 }
 
-/** Room tools reachable by a Pulse room contact (Amine 02/11): its room's typed domain only. */
+/** The Pulse room's tool (Amine 02/11); every room's typed tool is in ROOM_TOOLS (contactRoomProfile ROOM_TYPED). */
 export const PULSE_ROOM_TOOLS: ReadonlySet<string> = new Set(["samantha_pulse"]);
+export {ROOM_TOOLS};
+
+/** The room principal of one room tool in this contact session: the tool's room must be one of the session's. */
+export function roomToolPrincipal(agentId: unknown, sessionKey: unknown, tool: unknown) {
+  const room = toolRoom(tool);
+  return room ? contactRoomPrincipal(agentId, sessionKey, room) : null;
+}
 
 /**
  * The room contact's counterpart of consumeTypedInvocation: the current SDK invocation of THIS room session, admitted
- * by before_tool_call for the same contact principal. An owner proof never satisfies it, and its proof never
- * satisfies the owner's. Authority is still the room grant, re-read by the room tool (pulseRoomBrain).
+ * by before_tool_call for the same contact principal (same room). An owner proof never satisfies it, and its proof
+ * never satisfies the owner's. Authority is still the room grant, re-read by the room tool (roomBrain).
  */
 export function consumeRoomInvocation(callId: unknown, tool: string, args: unknown, context: {
   senderIsOwner?: boolean; agentId?: string; sessionKey?: string; sessionId?: string; assertInvocationCurrent?: () => void;
@@ -83,8 +90,8 @@ export function consumeRoomInvocation(callId: unknown, tool: string, args: unkno
   if (typeof callId !== "string") throw Error("typed_host_admission_required");
   const proof = typedInvocations.get(callId);
   typedInvocations.delete(callId);
-  const room = pulseRoomSession(context?.agentId, context?.sessionKey);
-  if (!proof || !room || proof.principal !== room.principal || !PULSE_ROOM_TOOLS.has(tool) || proof.tool !== tool ||
+  const room = roomToolPrincipal(context?.agentId, context?.sessionKey, tool);
+  if (!proof || !room || proof.principal !== room.principal || !ROOM_TOOLS.has(tool) || proof.tool !== tool ||
       Date.now() < proof.at || Date.now() - proof.at > 120000 || context.senderIsOwner === true ||
       context.sessionKey !== proof.sessionKey || context.sessionId && context.sessionId !== proof.sessionId ||
       typeof context.assertInvocationCurrent !== "function" || JSON.stringify(invocationArgs(args)) !== proof.args)
@@ -152,9 +159,10 @@ export function agentCapabilityHook(
       const callId = ownData(event, "toolCallId") ?? ownData(context, "toolCallId");
       const runId = ownData(context, "runId"), sessionKey = ownData(context, "sessionKey");
       const senderIsOwner = ownData(ownData(context, "requester"), "senderIsOwner");
-      // A Pulse room contact's own session: only its room tools, never as the owner (Amine 02/11).
-      const room = pulseRoomSession(ownData(context, "agentId"), sessionKey);
-      if (room ? senderIsOwner === true || !PULSE_ROOM_TOOLS.has(toolName) :
+      // A room contact's own session: only the typed tools of its rooms, never as the owner (Amine 02/11). Any
+      // contact session (rooms or not) never reaches the owner's tools.
+      const room = roomToolPrincipal(ownData(context, "agentId"), sessionKey, toolName);
+      if (room || contactRoomSession(sessionKey) ? !room || senderIsOwner === true :
           senderIsOwner !== true || ownData(context, "agentId") && ownData(context, "agentId") !== "main") return refused();
       if (typeof callId !== "string" || !typedId.test(callId) || typeof runId !== "string" || !typedId.test(runId) ||
           typeof sessionKey !== "string" || !sessionKey || sessionKey.length > 512) return refused();

@@ -18,19 +18,28 @@ AUTH = json.loads((Path(__file__).resolve().parents[2] / "openclaw-plugin-mobile
 GENERIC = "La préparation ou la vérification de cette commande n’a pas abouti. Aucun nouvel essai automatique n’est lancé."
 
 
-def row(reply="", state="", reason="", facts=False, error=None):
-    return {"reply": reply, "state": state, "reasonCode": reason, "facts": facts, "seconds": 1.0, "error": error}
+def row(reply="", state="", reason="", facts=False, error=None, granted=False, helper_calls=None):
+    return {"reply": reply, "state": state, "reasonCode": reason, "facts": facts, "seconds": 1.0, "error": error,
+            "granted": granted, "helperCalls": helper_calls}
 
 
-# The room brain's own sentences (pulseRoomBrain.ts) and the playbooks room owner's question for a creation.
+# The room brain's own sentences (roomBrain.ts) and the playbooks room owner's question for a creation.
 REFUSAL = "Ici je ne traite que Pulse : projets, offres, congés de l'équipe et solde de congés. Pour le reste, vois directement avec Amine."
 LEAVE = ("Désolé, je ne peux pas prendre en compte les demandes de congé : j’utilise le compte Pulse d’Amine, donc un congé "
          "posé ici serait enregistré au nom d’Amine. Merci de poser ta demande de congé directement dans Pulse, avec ton propre compte.")
 ACCESS = "L’accès à la pièce Pulse n’est pas confirmé. Rien n’a été exécuté."
 ASK = "Pour créer le projet, il me manque : le nom, le client et la date de fin. Peux-tu me les donner ?"
+# Amine 02/11, contact rooms brain: the generic room session (contacts-agenda-actions-messages) of the same contact.
+GENERIC_REFUSAL = ("Ici je ne traite que l’agenda d’Amine, les réglages et actions courantes de son téléphone et l’envoi de "
+                   "messages WhatsApp en son nom. Pour le reste, vois directement avec Amine.")
+ACTIONS_ACCESS = "L’accès à la pièce Actions n’est pas confirmé. Rien n’a été exécuté."
 ROOM_OK = {"contact_read": row("", "COMPLETED", facts=True), "incomplete_ask": row(ASK, "NEEDS_INPUT"),
            "room_write_prepared": row("", "PREPARED", "CANCELLED"), "room_outside": row(REFUSAL, "OUTSIDE_SCOPE", "scope_outside"),
-           "room_leave_refused": row(LEAVE, "DENIED", "scope_leave_request")}
+           "room_leave_refused": row(LEAVE, "DENIED", "scope_leave_request"),
+           "room_generic_tools": row("", "TOOLS", "samantha_agenda,samantha_device_assistance,samantha_whatsapp"),
+           # S24 02/11: no generic room granted to the recette contact, so the real grant read closes the room.
+           "room_generic_read": row(ACTIONS_ACCESS, "DENIED", "room_grant_revoked", helper_calls=0),
+           "room_generic_outside": row(GENERIC_REFUSAL, "OUTSIDE_SCOPE", "scope_outside", helper_calls=0)}
 
 
 class RoomVerdicts(unittest.TestCase):
@@ -56,6 +65,28 @@ class RoomVerdicts(unittest.TestCase):
         self.assertEqual(p.room_verdict("room_write_prepared", row("x", "TECHNICAL_FAILURE", "pulse_preparation_failed")),
                          ("inconclusive", "write_not_prepared"))
 
+    def test_generic_room_paths(self):
+        # Amine 02/11, contact rooms brain: tools of the generic session, a read closed without a grant (or done by the
+        # granted contact's own agent), another domain refused; a helper call without a grant is a regression.
+        for path in ("room_generic_tools", "room_generic_read", "room_generic_outside"):
+            self.assertEqual(p.room_verdict(path, ROOM_OK[path])[0], "passed", path)
+        self.assertEqual(p.room_verdict("room_generic_read", ROOM_OK["room_generic_read"]), ("passed", "no_grant_refused"))
+        self.assertEqual(p.room_verdict("room_generic_read", row("Batterie : 80 %.", "COMPLETED", granted=True)), ("passed", "ok"))
+        self.assertEqual(p.room_verdict("room_generic_read", row("", "COMPLETED", granted=True, facts=True)), ("passed", "ok"))
+        failures = (
+            ("room_generic_tools", row("", "TOOLS", "samantha_agenda,samantha_pulse"), "room_tools_unexpected"),
+            ("room_generic_tools", row("", "TOOLS", ""), "room_tools_unexpected"),
+            ("room_generic_read", row("Batterie : 80 %.", "COMPLETED"), "room_not_closed"),
+            ("room_generic_read", row(ACTIONS_ACCESS, "DENIED", "room_grant_revoked", helper_calls=1), "room_not_closed"),
+            ("room_generic_read", row(ACTIONS_ACCESS, "DENIED", "room_grant_revoked", granted=True), "room_admission_refused"),
+            ("room_generic_read", row("", "COMPLETED", granted=True), "no_verified_result"),
+            ("room_generic_outside", row(REFUSAL, "OUTSIDE_SCOPE", "scope_outside", helper_calls=0), "not_refused"),
+            ("room_generic_outside", row("Batterie : 80 %.", "COMPLETED", helper_calls=1), "not_refused"),
+            ("room_generic_tools", row(error="room_tool_unavailable"), "path_error"),
+        )
+        for path, value, reason in failures:
+            self.assertEqual(p.room_verdict(path, value), ("failed", reason), (path, value))
+
     def test_runner_argv_is_one_fixed_typed_call(self):
         seen = []
         def run(argv, **kw):
@@ -67,7 +98,10 @@ class RoomVerdicts(unittest.TestCase):
         self.assertEqual(p.room_verdict("room_outside", out), ("passed", "ok"))
         p.room_turn("prepare-first-project", None, {"phase": "Réalisation", "state": "started"}, run=run)
         self.assertEqual(seen[1][2:], ["prepare-first-project", '{"phase": "Réalisation", "state": "started"}'])
-        self.assertTrue(all(m in ("tool", "prepare", "prepare-first-project") for _, m, _a, _p in p.ROOM_CALLS))
+        self.assertTrue(all(m in ("tool", "prepare", "prepare-first-project", "generic-tools", "generic-read",
+                                  "generic-outside") for _, m, _a, _p in p.ROOM_CALLS))
+        p.room_turn("generic-read", None, {}, run=run)
+        self.assertEqual(seen[2][2:], ["generic-read"], "a generic path takes no model or test input")
         # A write action is never sent through the tool mode (the tool would hand a complete write off).
         self.assertFalse([a for _, m, a, _p in p.ROOM_CALLS if m == "tool" and a in ("project.create", "project.phase.set_status")])
 
@@ -82,6 +116,20 @@ class RoomVerdicts(unittest.TestCase):
         owner = importlib.util.module_from_spec(spec); spec.loader.exec_module(owner)
         config.write_text(json.dumps({"agents": {"entries": {n: {"tools": owner.room_tools(n, t)} for n, t in before.items()}}}))
         self.assertEqual(p.room_tools(config)["state"], "passed")
+        # Amine 02/11: every typed room agent present is checked too (none on the S24 on 02/11); Projet-only is not.
+        rooms = json.loads((Path(__file__).resolve().parents[2] / "openclaw-plugin-mobile-ui/fixtures/"
+                            "s24-2026-11-02-contact-rooms-brain/room-tools.json").read_text())["room_agents"]
+        entries = {n: {"tools": v["tools"]} for n, v in rooms.items()}
+        self.assertEqual(p.room_tools(self.write(config, entries))["state"], "passed", "the S24 room agents of 02/11")
+        entries["contacts-agenda-actions"] = {"tools": rooms["contacts"]["tools"]}
+        self.assertEqual(p.room_tools(self.write(config, entries))["reason"], "room_tools_not_closed")
+        entries["contacts-agenda-actions"] = {"tools": owner.room_tools("contacts-agenda-actions", rooms["contacts"]["tools"])}
+        self.assertEqual(p.room_tools(self.write(config, entries))["state"], "passed")
+
+    @staticmethod
+    def write(config, entries):
+        config.write_text(json.dumps({"agents": {"entries": entries}}))
+        return config
 
 
 class Verdicts(unittest.TestCase):
@@ -240,7 +288,7 @@ class ProviderAuthorization(unittest.TestCase):
         self.assertEqual(report["state"], "inconclusive")
         self.assertEqual(report["paths"][0], {"path": "owner_read", "state": "inconclusive",
                                               "reason": "provider_authorization_expired", "seconds": 1.0})
-        self.assertEqual(report["paths"][7]["state"], "passed")
+        self.assertEqual(next(r for r in report["paths"] if r["path"] == "write_recap")["state"], "passed")
         # Another path broken for another reason still fails the run (the caller rolls back).
         report = p.run_all(owner([AUTH["owner_reply"], RECAP, "ok"]), room(True), lambda: ([200, 200, 200], 0.1),
                            Causes(["google_authorization_unavailable", "other"]), tools)
@@ -267,7 +315,8 @@ class Run(unittest.TestCase):
         # The recap is cancelled, never confirmed; no room write is ever handed off.
         self.assertTrue(sent["owner"][-1].startswith("Annule"))
         self.assertFalse(any(t.strip().lower() in ("oui", "confirme") for t in sent["owner"]))
-        self.assertEqual([c[0] for c in sent["room"]], ["tool", "prepare", "prepare-first-project", "tool", "tool"])
+        self.assertEqual([c[0] for c in sent["room"]], ["tool", "prepare", "prepare-first-project", "tool", "tool",
+                                                        "generic-tools", "generic-read", "generic-outside"])
         self.assertNotIn("agenda", json.dumps(report))
         self.assertNotIn("Pulse", json.dumps(report))
 

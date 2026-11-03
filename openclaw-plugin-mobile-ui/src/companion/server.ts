@@ -47,6 +47,7 @@ import { submitIntent } from "./intent";
 import {securitySurfaces} from "./securitySurfaces";
 import { payments } from "./payments";
 import { confirmations } from "./confirmations";
+import { roomSendApprovals } from "./roomSendApprovals";
 import { turnAdmission, legacyLoopbackOwnerContextEnabled, publicAdmission } from "./ownerTurnAdmission";
 import {normalizeCompanionSessionId} from "./openclawAgentClient";
 import {readRunApproval,decideRunApproval} from './agentApprovals';
@@ -752,16 +753,37 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if (method === "GET" && !action) {writeJson(res,200,await confirmations.status(id)); return;}
       if (method === "GET" && action === "challenge") {writeJson(res,200,await confirmations.challenge(id)); return;}
       if (method === "POST" && action === "owner-confirmation") {
-        writeJson(res,200,await confirmations.confirm(id,await readJsonBody(req,2048))); return;
+        const confirmed=await confirmations.confirm(id,await readJsonBody(req,2048));
+        // A room contact's WhatsApp send waiting for this very confirmation runs now, once (roomSendApprovals).
+        void roomSendApprovals().decided(id).catch(()=>{});
+        writeJson(res,200,confirmed); return;
       }
       if (method === "POST" && action === "cancel") {
         const body=await readJsonBody(req,256);
         if (!body || typeof body!=="object" || Array.isArray(body) || Object.keys(body).length)
           throw new HttpError(400,"invalid_cancellation_request");
-        writeJson(res,200,await confirmations.cancel(id)); return;
+        const cancelled=await confirmations.cancel(id);
+        void roomSendApprovals().decided(id).catch(()=>{});
+        writeJson(res,200,cancelled); return;
       }
     }
     writeJson(res,404,{success:false,message:"confirmation_route_not_found"}); return;
+  }
+
+  // Amine 02/11: the messages-room host asks Amine's confirmation of one prepared WhatsApp send (nothing runs here).
+  if (routePath === "/whatsapp/rooms/send-approvals") {
+    res.setHeader("Cache-Control","no-store");
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||req.headers["x-clawmobile-owner-flow"]!=="v1"){
+      writeJson(res,403,{success:false,state:"refused",reason:"native_owner_flow_required"});return;}
+    if(method!=="POST"||requestUrl.search){writeJson(res,method!=="POST"?405:400,{success:false,state:"refused"});return;}
+    try{writeJson(res,200,await roomSendApprovals().request(await readJsonBody(req,8192)));}
+    catch(error:any){
+      const reason=["invalid_room_send_request","owner_confirmation_capacity","room_grant_revoked","owner_confirmation_not_presentable",
+        "owner_confirmation_not_pending","confirmation_request_key_conflict","confirmation_registry_capacity_reached"].includes(error?.message)?error.message:"owner_confirmation_unavailable";
+      const code=[400,403,409].includes(error?.statusCode)?error.statusCode:503;
+      writeJson(res,code,{success:false,state:code===503?"failed":"refused",reason});
+    }
+    return;
   }
 
   if (routePath === "/payments/capabilities" || routePath === "/payments" || routePath.startsWith("/payments/")) {
@@ -850,6 +872,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/confirmations",
         "/v1/confirmations/:requestId/challenge",
         "/v1/confirmations/:requestId/owner-confirmation",
+        "/v1/whatsapp/rooms/send-approvals",
         "/v1/owner-admission",
         "/v1/owner-admission/enrollment",
         "/v1/payments",
