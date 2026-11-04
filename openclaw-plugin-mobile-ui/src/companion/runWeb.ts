@@ -1,4 +1,8 @@
 export const PUBLIC_WEB_MODEL = "google/gemini-3.5-flash-lite";
+/** Codex hosted search through Sol's own OpenAI account (Amine 04/11: Codex alone for app web questions).
+ * The model is whatever the Gateway pinned for hosted search; only its closed shape is checked here. */
+export const CODEX_WEB_PROFILE = "openai:codex-hosted-search";
+const CODEX_WEB_MODEL = /^openai\/[a-z0-9][a-z0-9.-]{0,60}$/;
 import {isIP} from "node:net";
 
 /** Closed, optional projection inside the existing run; never an execution instruction. */
@@ -7,13 +11,13 @@ export type RunWebResult = {
   operation: "search" | "answer";
   responseLanguage?: "fr" | "en" | "ar" | "aeb";
   outcome: "complete" | "partial" | "insufficient_sources" | "failed" | "cancelled";
-  provider: "parallel-free";
-  providerAuth: "anonymous";
-  model: null | typeof PUBLIC_WEB_MODEL;
-  profile: null | "google:claw-gemini-free";
+  provider: "parallel-free" | "codex";
+  providerAuth: "anonymous" | "account";
+  model: null | string;
+  profile: null | "google:claw-gemini-free" | typeof CODEX_WEB_PROFILE;
   sources: Array<{id: string; title: string; url: string; finalUrl?: string;
     searchRetrievedAt: string; fetchedAt?: string; publishedAt: string | null;
-    excerpt: string; evidenceType: "search_excerpt" | "fetched_passage"}>;
+    excerpt: string; evidenceType: "search_excerpt" | "fetched_passage" | "codex_citation"}>;
   claims: Array<{id: string; text: string; sourceIds: string[]; support?: Array<{sourceId: string; quote: string}>}>;
   citations: Array<{claimId: string; sourceId: string}>;
   spokenText?: string;
@@ -73,9 +77,11 @@ export function readRunWebResult(value: unknown): RunWebResult | undefined {
   try {serialized = JSON.stringify(value);} catch {return;}
   if (Buffer.byteLength(serialized, "utf8") > MAX_BYTES || value.version !== 1 ||
       !["search", "answer"].includes(value.operation) || !OUTCOMES.has(value.outcome) ||
-      value.provider !== "parallel-free" || value.providerAuth !== "anonymous" ||
+      !(value.provider === "parallel-free" && value.providerAuth === "anonymous" || value.provider === "codex" && value.providerAuth === "account") ||
       value.responseLanguage !== undefined && !["fr","en","ar","aeb"].includes(value.responseLanguage) ||
-      !(value.model === null && value.profile === null || value.model === PUBLIC_WEB_MODEL && value.profile === "google:claw-gemini-free") ||
+      !(value.model === null && value.profile === null ||
+        value.provider === "parallel-free" && value.model === PUBLIC_WEB_MODEL && value.profile === "google:claw-gemini-free" ||
+        value.provider === "codex" && typeof value.model === "string" && CODEX_WEB_MODEL.test(value.model) && value.profile === CODEX_WEB_PROFILE) ||
       !Array.isArray(value.sources) || value.sources.length > 5 || !Array.isArray(value.claims) || value.claims.length > 12 ||
       !Array.isArray(value.citations) || value.citations.length > 60 || !object(value.metrics) ||
       !Array.isArray(value.degradations) || value.degradations.length > 16 || !value.degradations.every(code)) return;
@@ -84,7 +90,7 @@ export function readRunWebResult(value: unknown): RunWebResult | undefined {
   for (const s of value.sources) {
     if (!object(s) || !ID.test(s.id) || sourceIds.has(s.id) || !text(s.title, 300) || !text(s.excerpt,1500,true) ||
         !date(s.searchRetrievedAt) || !(s.publishedAt === null || publicationDate(s.publishedAt)) ||
-        !["search_excerpt", "fetched_passage"].includes(s.evidenceType)) return;
+        !(value.provider === "codex" ? s.evidenceType === "codex_citation" : ["search_excerpt", "fetched_passage"].includes(s.evidenceType))) return;
     const url = publicWebUrl(s.url); const finalUrl = s.finalUrl === undefined ? undefined : publicWebUrl(s.finalUrl);
     if (!url || s.finalUrl !== undefined && !finalUrl || s.fetchedAt !== undefined && !date(s.fetchedAt) ||
         s.evidenceType === "fetched_passage" && (!s.fetchedAt || !finalUrl)) return;
@@ -110,7 +116,10 @@ export function readRunWebResult(value: unknown): RunWebResult | undefined {
         support.push({sourceId:p.sourceId,quote:p.quote});
       }
     }
-    if(!support || c.sourceIds.some((id:string)=>!support!.some(p=>p.sourceId===id)))return;
+    // Codex hosted search returns its answer with its own source links, not page excerpts: its claims carry
+    // the sources Codex cited and no quote. Every other provider keeps the exact-excerpt proof.
+    if (value.provider === "codex" ? support !== undefined :
+        !support || c.sourceIds.some((id:string)=>!support!.some(p=>p.sourceId===id))) return;
     claimIds.add(c.id); claims.push({id:c.id,text:c.text,sourceIds:[...c.sourceIds],...(support ? {support} : {})});
   }
   const pairs = new Set<string>(); const citations: RunWebResult["citations"] = [];
@@ -144,7 +153,7 @@ export function readRunWebResult(value: unknown): RunWebResult | undefined {
   const spokenClaims: string[] = [];
   for (const c of claims) {if (spokenClaims.join(" ").length+c.text.length+1>1200) break; spokenClaims.push(c.text);}
   const spokenText = spokenClaims.length ? spokenClaims.join(" ") : undefined;
-  return {version:1,operation:value.operation,outcome:value.outcome,provider:"parallel-free",providerAuth:"anonymous",
+  return {version:1,operation:value.operation,outcome:value.outcome,provider:value.provider,providerAuth:value.providerAuth,
     model:value.model,profile:value.profile,...(value.responseLanguage?{responseLanguage:value.responseLanguage}:{}),sources,claims,citations,metrics,error,degradations:[...value.degradations],...(spokenText?{spokenText}:{})};
 }
 

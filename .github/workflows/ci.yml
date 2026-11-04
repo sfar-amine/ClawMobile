@@ -856,3 +856,5 @@ jobs:
           node-version: 26.11.1
       - name: Test pinned native provider budget and boundaries without live network
         run: node --test installer/termux-lite/test-openclaw-web-request.mjs
+      - name: Test the Codex hosted-search app web adapter without live network
+        run: node --test installer/termux-lite/test-codex-web-request.mjs
