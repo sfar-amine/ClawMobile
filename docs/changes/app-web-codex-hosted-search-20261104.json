@@ -1,0 +1,74 @@
+{
+  "version": 2,
+  "id": "app-web-codex-hosted-search-20261104",
+  "date": "2026-11-04",
+  "origin": "chat",
+  "kind": "feature",
+  "summary": "App web questions can be answered by Codex hosted search: a runtime adapter (codex-web-request.mjs) makes one Gateway tools.invoke web_search call and projects Codex's answer and cited links into the closed public Web contract (provider codex, providerAuth account, profile openai:codex-hosted-search, evidenceType codex_citation, no excerpt quote); the Companion validator admits that variant and keeps every other provider unchanged.",
+  "reason": "Amine 04/11: app web search through Codex alone, Parallel disabled, no fallback, on the existing search card (option 1). Codex hosted search already answers Sol's web turns since core #535.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/app-web-codex-hosted-search-20261104.json",
+    "docs/changes/app-web-codex-hosted-search-20261104.md",
+    "installer/termux-lite/codex-web-request.mjs",
+    "installer/termux-lite/test-codex-web-request.mjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/runWeb.ts"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-codex-web-request.mjs",
+      "status": "passed",
+      "evidence": "6 node tests: projection of answer paragraphs and list items into claims citing Codex links (utm_source removed, unsafe links dropped, five sources max, 1000/4000 character bounds), one web_search call on agent main within the budget, payload from details or JSON text, named failures (no_web_search, access_denied, provider_unavailable, provider_contract) with no sources or claims, closed request contract. Registered in ci.yml."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-run-web.cjs",
+      "status": "passed",
+      "evidence": "17/17 including codex_answer_admitted_with_its_links and codex_contract_stays_closed (mixed provider/auth/profile/model/evidenceType, support quotes and missing citations refused; parallel-free keeps its exact-excerpt proof)."
+    },
+    {
+      "name": "test-clawmobile-web-search-choice.py, test-companion-acceptance-web-recipe.py, test-model-fast-path-web.py, test-runtime-foundations.py, test-ci-registration.py",
+      "status": "passed",
+      "evidence": "Related web and contract suites green on this head."
+    }
+  ],
+  "documentation": [
+    "docs/changes/app-web-codex-hosted-search-20261104.md"
+  ],
+  "capabilities": {
+    "impact": "updated",
+    "reason": "samantha.app.web.search and samantha.app.web.answer keep their ids, routes and budgets; the playbooks registry selects the Codex policy (paired playbooks PR). No new capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same Graph-owned public Web step, same runtime-script boundary and same validators; the Codex adapter reuses the Gateway's configured web_search provider and the existing openclaw gateway call CLI. No new store, router, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "external_mcp keeps the same samantha.app.web.* capabilities; their result now carries provider codex when the playbooks registry selects it."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Codex returns no page excerpt: claims are attributed to the links Codex cited (or to its whole source list when a paragraph has no inline link), not to a quoted passage.",
+    "Live latency on the S24 must fit the 30 s public Web budget; measured during the live acceptance.",
+    "The Android app must accept provider codex (paired app PR) before the card renders it; an older app shows the run as invalid web."
+  ],
+  "rollback": "Revert the playbooks registry policy to the Parallel/Gemini policy (the parallel-free path is unchanged), then revert this commit."
+}
