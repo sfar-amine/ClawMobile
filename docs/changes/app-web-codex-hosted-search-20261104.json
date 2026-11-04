@@ -37,8 +37,8 @@
     "docs/changes/app-web-codex-hosted-search-20261104.md"
   ],
   "capabilities": {
-    "impact": "modified",
-    "reason": "samantha.app.web.search and samantha.app.web.answer keep their ids, routes and budgets; the playbooks registry selects the Codex policy (paired playbooks PR). No new capability."
+    "impact": "none",
+    "reason": "The samantha.app.web.* capabilities, routes and budgets are owned by the playbooks registry (paired PR samantha-ui-playbooks#391), which selects the Codex policy; this repository changes no capability entry."
   },
   "architecture": {
     "changed": false,
