@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "deploy-relaunch-absent-gateway-20261104",
+  "date": "2026-11-04",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "During a deploy, runtime-sync relaunches the Gateway once through the existing deploy-restart owner when the Gateway process is absent (the Companion pid file names no live openclaw-gateway process and healthz does not answer), instead of waiting until gateway_not_ready; a live Gateway still starting is awaited, and outside a deploy nothing changes.",
+  "reason": "S24 04/11 09:57-10:10 (deploy of 3413f27a): the Gateway died without a shutdown line under load; the Companion watchdog tried to start it every 15 s and was refused with 'Runtime lock is held by another operation' because the deploy held the lock, while the deploy waited for a readiness that could not come: gateway_not_ready, then rollback_failed with the Gateway down until the rollback relaunched it (live again 10:13:58).",
+  "files": [
+    "docs/changes/deploy-relaunch-absent-gateway-20261104.json",
+    "docs/changes/deploy-relaunch-absent-gateway-20261104.md",
+    "installer/termux-lite/runtime-sync.sh",
+    "installer/termux-lite/test-runtime-sync.py"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-runtime-sync.py",
+      "status": "passed",
+      "evidence": "30 tests. New: an absent Gateway under the deploy lock is relaunched exactly once through --deploy-restart and then awaited (fails on the previous runtime-sync.sh: gateway stays 'unchanged'); a live openclaw-gateway process still starting is awaited, never relaunched; without the deploy lock nothing is relaunched and gateway_not_ready stays the verdict. Already registered in ci.yml."
+    }
+  ],
+  "documentation": [
+    "docs/changes/deploy-relaunch-absent-gateway-20261104.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Deploy/runtime supervision only (NO_CAPABILITY)."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuses the existing deploy-restart owner (openclawGatewayClient.js --deploy-restart with the inherited lock) and the Companion's existing Gateway pid file; no new store, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "The Claw bridge depends on the Gateway and the Companion; a deploy no longer leaves the Gateway down for its whole readiness window."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Why the Gateway died at 09:57 is not proven (no shutdown line; consistent with Android killing it under memory pressure during the deploy).",
+    "The relaunch happens at most once per runtime-sync; a Gateway that dies again stays a gateway_not_ready verdict."
+  ],
+  "rollback": "Revert this commit."
+}

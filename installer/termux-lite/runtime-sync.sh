@@ -141,6 +141,25 @@ if [ "$plugin" = synced ] || [[ "$wa_patch" == *'"applied"'* ]] || [[ "$auth_pat
   gateway=restarted
 fi
 
+# A Gateway process that no longer exists can never become ready by waiting, and during a deploy the Companion's
+# own watchdog cannot relaunch it: the deploy holds the runtime lock (S24 04/11 09:57-10:10: the Gateway died
+# without a shutdown line under load, the watchdog logged "Runtime lock is held by another operation" every 15 s,
+# then gateway_not_ready and rollback_failed). The lock holder relaunches it once through the same owner.
+# Absent means: the Companion's pid file names no live openclaw-gateway process and the Gateway does not answer.
+GATEWAY_PIDFILE="${RUNTIME_SYNC_GATEWAY_PIDFILE:-$HOME/.openclaw/workspace/logs/companion-openclaw-gateway.pid}"
+gateway_absent(){
+  local pid
+  pid="$(cat "$GATEWAY_PIDFILE" 2>/dev/null)"
+  case "$pid" in ''|*[!0-9]*) ;; *) tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep -q 'openclaw-gateway' && return 1;; esac
+  ! curl -fsS --max-filesize 65536 -m 3 "$GATEWAY_HEALTHZ" >/dev/null 2>&1
+}
+relaunch_absent_gateway(){
+  [ -n "${SAMANTHA_DEPLOY_LOCK_FD:-}" ] && [ "$gateway" != restarted ] && gateway_absent || return 0
+  echo "runtime-sync: gateway process absent under the deploy lock; relaunching it once through the deploy owner" >&2
+  timeout "$RESTART_TIMEOUT_S" node "$PLUGIN/dist/companion/openclawGatewayClient.js" --deploy-restart "$SRC/runtime_mode.py" >&2 || fail gateway_restart_failed
+  gateway=restarted
+}
+
 # A promotion also requires readiness when no plugin copy changed: the Gateway
 # may already be restarting (S24 18/10). Never infer readiness from "unchanged".
 if [ "$gateway" = restarted ] || [ "$(release_commit)" != "$commit" ]; then
@@ -149,6 +168,7 @@ if [ "$gateway" = restarted ] || [ "$(release_commit)" != "$commit" ]; then
   # Control HTTP 200 alone is not Gateway readiness: on 16/10 (release 20261016T112943) the soak then consumed a
   # Gateway shutdown sample and rolled back. Wait for the Gateway's own readiness probe as well.
   for _ in $(seq 1 30); do
+    relaunch_absent_gateway
     [ "$(curl -s -o /dev/null -w '%{http_code}' -m 10 "$COMPANION/v1/control/health?contract=2" 2>/dev/null)" = 200 ] \
       && gateway_health="$(curl -fsS --max-filesize 65536 -m 3 "$GATEWAY_HEALTHZ" 2>/dev/null)" \
       && [ -n "$gateway_health" ] && { ready=1; break; }
