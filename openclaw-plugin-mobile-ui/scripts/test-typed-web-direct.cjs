@@ -13,10 +13,10 @@ const typed = require('../dist/typedCapabilityTools.js');
 
 const s24 = JSON.parse(fs.readFileSync(path.join(__dirname, '../fixtures/s24-2026-10-25-typed-tools/compiled-agent-tools.json'), 'utf8'));
 const device = JSON.parse(fs.readFileSync(path.join(__dirname, '../fixtures/playbooks-2026-10-31-device-typed-tool/device-assistance-tool.json'), 'utf8'));
-const params = {type: 'object', properties: {query: {type: 'string', minLength: 1, maxLength: 300},
+const params = {type: 'object', properties: {query: {type: 'string', minLength: 1, maxLength: 200},
   responseLanguage: {type: 'string', enum: ['fr', 'en', 'ar', 'aeb']}, freshness: {type: 'string', enum: ['current', 'recent']}},
   required: ['query'], additionalProperties: false};
-// Shape projected by samantha-ui-playbooks skill_intelligence/typed_tools.py (route web unique).
+// Shape projected by samantha-ui-playbooks skill_intelligence/typed_tools.py (route web unique, PR #393 7f40e0b0).
 const web = {name: 'samantha_web', domain: 'web', description: 'Recherche Web publique (une recherche Codex, sources citées)',
   actions: ['samantha.app.web.answer', 'samantha.app.web.search'].map((action) => ({action, description: action.endsWith('answer')
     ? 'Répondre à une question publique avec sources' : 'Trouver des sources publiques', params, risk: 'read',
