@@ -635,6 +635,7 @@ jobs:
           node scripts/test-typed-capability-tools.cjs
           node scripts/test-typed-tools-direct-visible.cjs
           node scripts/test-typed-device-direct.cjs
+          node scripts/test-typed-web-direct.cjs
           node scripts/test-typed-qa-tool.cjs
           node scripts/test-recette-formulations.cjs
           node scripts/test-typed-direct-call-id.cjs

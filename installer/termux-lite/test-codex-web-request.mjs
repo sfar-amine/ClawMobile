@@ -38,10 +38,10 @@ test('real S24 capture: one claim citing both links, trailing citations out of t
   assert.deepEqual(r.claims, [{ id: 'c1', text: 'Aujourd’hui, le Brent cote environ 103,90 $ le baril (soit environ 92,94 €), cours indicatif mis à jour le 4 novembre 2026. Les cotations peuvent varier en temps réel.', sourceIds: ['s1', 's2'] }]);
 });
 
-test('the Gateway call is one web_search on the main agent within the budget', async () => {
+test('the Gateway call is one web_search under the contacts tool policy (main denies web_search) within the budget', async () => {
   const calls = [];
   await executeCodexWeb(request, { call: async (params, budget) => { calls.push([params, budget]); return ok(details())(); } });
-  assert.deepEqual(calls, [[{ name: 'web_search', args: { query: request.query }, agentId: 'main' }, 25000]]);
+  assert.deepEqual(calls, [[{ name: 'web_search', args: { query: request.query }, agentId: 'contacts' }, 25000]]);
 });
 
 test('payload is read from details or from the JSON text content', () => {

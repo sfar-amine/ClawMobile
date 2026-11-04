@@ -337,7 +337,7 @@ class ConfigTests(unittest.TestCase):
         )
         self.assertEqual(
             value["agents"]["entries"]["main"]["tools"],
-            {"deny": ["dangerous-test", "skills_read", "skills_search", "whatsapp_call", "whatsapp_login"]},
+            {"deny": ["dangerous-test", "skills_read", "skills_search", "whatsapp_call", "whatsapp_login", "web_search"]},
         )
         self.assertEqual(
             value["agents"]["entries"]["gemini"]["model"]["fallbacks"],
@@ -361,10 +361,10 @@ class ConfigTests(unittest.TestCase):
         self.config.write_text(json.dumps(value))
         out = cfg.apply_efficiency(config_path=self.config, apply=True)
         self.assertIn("agents.entries.main.tools.deny", out["config_paths"])
-        self.assertEqual(out["main_denied_tools"], ["skills_read", "skills_search", "whatsapp_call", "whatsapp_login"])
+        self.assertEqual(out["main_denied_tools"], ["skills_read", "skills_search", "whatsapp_call", "whatsapp_login", "web_search"])
         tools = json.loads(self.config.read_text())["agents"]["entries"]["main"]["tools"]
         self.assertEqual(tools, {"allow": ["group:openclaw", "read"],
-                                 "deny": ["skills_read", "x", "skills_search", "whatsapp_call", "whatsapp_login"],
+                                 "deny": ["skills_read", "x", "skills_search", "whatsapp_call", "whatsapp_login", "web_search"],
                                  "alsoAllow": ["y"]})
         again = cfg.apply_efficiency(config_path=self.config, apply=False)
         self.assertNotIn("agents.entries.main.tools.deny", again["config_paths"])
@@ -375,7 +375,7 @@ class ConfigTests(unittest.TestCase):
         self.config.write_text(json.dumps(value))
         cfg.apply_efficiency(config_path=self.config, apply=True)
         tools = json.loads(self.config.read_text())["agents"]["entries"]["main"]["tools"]
-        self.assertEqual(tools, {"deny": ["skills_read", "skills_search", "whatsapp_call", "whatsapp_login"]})
+        self.assertEqual(tools, {"deny": ["skills_read", "skills_search", "whatsapp_call", "whatsapp_login", "web_search"]})
 
     def test_skill_tools_deny_is_main_only_and_never_rewrites_odd_policies(self):
         cfg.apply_efficiency(config_path=self.config, apply=True)
@@ -400,7 +400,8 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("agents.entries.main.tools.deny", out["config_paths"])
         entries = json.loads(self.config.read_text())["agents"]["entries"]
         self.assertEqual(entries["main"]["tools"]["deny"],
-                         ["whatsapp_login", "skills_read", "skills_search", "whatsapp_call"])
+                         ["whatsapp_login", "skills_read", "skills_search", "whatsapp_call", "web_search"])
+        # Route web unique: only main loses web_search; the contacts policy the Codex adapter runs under keeps it.
         self.assertEqual(entries["contacts"], {"tools": {"allow": ["web_search"], "deny": ["exec"]}})
         self.assertFalse(cfg.apply_efficiency(config_path=self.config, apply=False)["config_changed"])
 

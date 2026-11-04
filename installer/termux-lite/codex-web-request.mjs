@@ -19,6 +19,10 @@ const MAX_CLAIMS = 12;
 const MAX_CLAIM_CHARS = 1000;
 const MAX_ANSWER_CHARS = 4000;
 const PROVIDER = 'codex';
+// The main agent's tool policy denies web_search (route web unique, 04/11): its brain reaches the web only through
+// this adapter. tools.invoke applies the named agent's policy, so the call runs under the contacts agent, whose
+// policy allows exactly web_search (verified on the S24 04/11: tools.invoke agentId contacts → provider codex, 17.8 s).
+const WEB_TOOL_AGENT = 'contacts';
 
 class CodexWebError extends Error { constructor(code) { super(code); this.code = code; } }
 const fail = code => { throw new CodexWebError(code); };
@@ -171,7 +175,7 @@ export async function executeCodexWeb(input, { call = gatewayCall, signal, now =
   try {
     const request = validateRequest(input);
     base.metrics.logicalSearchCalls = 1;
-    const response = await call({ name: 'web_search', args: { query: request.query }, agentId: 'main' }, request.remainingBudgetMs, signal);
+    const response = await call({ name: 'web_search', args: { query: request.query }, agentId: WEB_TOOL_AGENT }, request.remainingBudgetMs, signal);
     if (!isObject(response)) fail('provider_contract');
     if (response.ok !== true) {
       const code = response.error?.code;
