@@ -120,6 +120,9 @@ export async function capabilityBridge(
       if (!prepared && targetHint) argv.push("--target", targetHint);
       if (!prepared && execute) argv.push("--timeout", String(timeout));
       if (execute && options.readOnly === true && !typed) argv.push("--read-only");
+      // Authenticated owner MCP execution only (mcp_capability_execute_owner): the owner's typed call runs like the
+      // owner text path (Amine 04/11 19:05: WhatsApp sends from the Claude chat). Never for a read-only method.
+      if (typed && execute && options.readOnly === false && caller === "owner" && surface === "external_mcp") argv.push("--owner-direct");
       if(options.dialogueReadHandoff!==undefined){
         if(!prepared||options.readOnly!==true||caller!=="owner"||!options.dialogueReadHandoff||Array.isArray(options.dialogueReadHandoff)||typeof options.dialogueReadHandoff!=="object"||Buffer.byteLength(JSON.stringify(options.dialogueReadHandoff))>2048)return {success:false,error:"intent_read_handoff_invalid"};
         argv.push("--dialogue-read-handoff",JSON.stringify(options.dialogueReadHandoff));

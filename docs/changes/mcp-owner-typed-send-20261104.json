@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "id": "mcp-owner-typed-send-20261104",
+  "date": "2026-11-04",
+  "origin": "chat",
+  "kind": "capability",
+  "summary": "The MCP owner execution (mcp_capability_execute_owner, readOnly false) passes --owner-direct to typed-execute, so the owner's typed claw_execute runs like the owner text path (e.g. WhatsApp messaging.send from the Claude chat). Read-only methods, previews, other callers and other surfaces never carry the flag.",
+  "reason": "S24 04/11 18:25: a typed WhatsApp send from the Claude chat (profile chat-owner) was refused read_only_policy. Amine 04/11 19:05 (S24 decision 3b693cd2…): no constraint on sending a WhatsApp message at his request from the Claude chat, Samantha voice or elsewhere.",
+  "files": [
+    "docs/changes/mcp-owner-typed-send-20261104.json",
+    "docs/changes/mcp-owner-typed-send-20261104.md",
+    "installer/termux-lite/claw-capability.py",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts"
+  ],
+  "tests": [
+    {"name": "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs", "status": "passed", "evidence": "Extended (already in ci.yml): the owner MCP typed execute carries --owner-direct; a preview, a read-only call, caller other, a missing readOnly and surface whatsapp never do. Built with tsc before running."}
+  ],
+  "documentation": ["docs/changes/mcp-owner-typed-send-20261104.md"],
+  "capabilities": {"impact": "none", "reason": "Same capabilities and routes; the owner MCP typed path executes like the owner text path."},
+  "architecture": {"changed": false, "reason": "One host flag on the existing capabilityBridge → claw-capability.py → typed-execute chain."},
+  "mcp_owner_parity": {
+    "tools": {"claw_context": "verified_no_impact", "claw_resolve": "verified_no_impact", "claw_execute": "updated", "claw_exec": "verified_no_impact", "claw_status": "verified_no_impact", "claw_artifact_read": "verified_no_impact"},
+    "attached": {"schemas": "verified_no_impact", "adapters": "updated", "documentation": "updated", "tests": "updated", "runtime": "updated"},
+    "evidence": ["claw_execute typed with profile chat-owner reaches typed-execute --owner-direct; chat-owner-shadow writes are still denied before the bridge (mcpBridge.ts selectedRisk check)."]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": ["Requires samantha-ui-playbooks PR #397 (typed-execute accepts --owner-direct) activated first: an older playbooks snapshot rejects the unknown flag and the owner typed MCP call would fail.", "Policy confirmation risks (transaction, sensitive, destructive) still require a confirmation; payment untouched."],
+  "rollback": "Revert this commit and redeploy; typed MCP calls return to read-only."
+}

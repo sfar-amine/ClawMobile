@@ -230,6 +230,8 @@ def main() -> int:
         typed.add_argument("--caller", default="other")
         typed.add_argument("--request-id", required=True)
         typed.add_argument("--timeout", type=int, default=30)
+        # Set only by capabilityBridge for the authenticated owner MCP method; never a model argument.
+        typed.add_argument("--owner-direct", action="store_true")
 
     started=time.monotonic()
     args = parser.parse_args()
@@ -238,7 +240,8 @@ def main() -> int:
         if len(payload.encode()) > 32768:
             raise SystemExit("typed_private_input_too_large")
         return call([args.cmd, args.text, "--selection-stdin", "--surface", args.surface, "--caller", args.caller,
-            "--request-id", args.request_id, "--timeout", str(max(2, min(args.timeout, 120)))],
+            "--request-id", args.request_id, "--timeout", str(max(2, min(args.timeout, 120))),
+            *(["--owner-direct"] if args.cmd == "typed-execute" and args.owner_direct else [])],
             timeout_s=max(2, min(args.timeout, 120)) + 5, input_text=payload)
     if args.cmd == "typed-tool":
         # Only the host tool guard writes this pipe. No command text, route,

@@ -83,7 +83,20 @@ async function main() {
     assert.equal(result.success,true);assert.equal(result.mode,execute?'typed-execute':'typed-resolve');
     assert.deepEqual(result.selection,selection);assert(!result.argv.includes('--decision-b64'));
     assert(result.argv.includes('--selection-stdin'));
+    assert(!result.argv.includes('--owner-direct'),'a read-only typed call never carries the owner flag');
   }
+  // Amine 04/11 19:05: the authenticated owner MCP method (readOnly false) executes typed writes like the owner
+  // text path; any other caller, surface or a preview never carries the flag.
+  const send={domain:'whatsapp',action:'messaging.send',params:{recipient:'Sadok',message:'Petite relance Pulse'}};
+  const flag=async(o)=>(await capabilityBridge('Envoyer',{typedSelection:send,requestId:'mcp-owner-send',
+    helperPath:bridgeHelper,...o})).argv.includes('--owner-direct');
+  assert.equal(await flag({execute:true,readOnly:false,caller:'owner',surface:'external_mcp'}),true);
+  for(const o of [{execute:false,readOnly:false,caller:'owner',surface:'external_mcp'},
+    {execute:true,readOnly:true,caller:'owner',surface:'external_mcp'},
+    {execute:true,readOnly:false,caller:'other',surface:'external_mcp'},
+    {execute:true,caller:'owner',surface:'external_mcp'},
+    {execute:true,readOnly:false,caller:'owner',surface:'whatsapp'}])
+    assert.equal(await flag(o),false,JSON.stringify(o));
   const mcp=require('../dist/companion/mcpBridge');
   // ADR 02/11 step 3: the typed MCP selection is always active (no host switch), whatever the environment says.
   const previousFlag=process.env.SAMANTHA_BRAIN_ONLY;
