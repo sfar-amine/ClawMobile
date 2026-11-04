@@ -1,0 +1,85 @@
+{
+  "version": 2,
+  "id": "mcp-owner-typed-send-20261104",
+  "date": "2026-11-04",
+  "origin": "chat",
+  "kind": "capability",
+  "summary": "The MCP owner execution (mcp_capability_execute_owner, readOnly false) passes --owner-direct to typed-execute, so the owner's typed claw_execute runs like the owner text path (e.g. WhatsApp messaging.send from the Claude chat). Read-only methods, previews, other callers and other surfaces never carry the flag. The samantha_web hint also asks for a short keyword query (200 characters at most). Public web budget raised from 30 to 40 s (PUBLIC_WEB_BUDGET_MS in runWeb.ts and model-fast-path.py, bounds in claw-capability.py, gemini-request.py, codex-web-request.mjs; typed web helper ceiling 45 → 50 s), with samantha-ui-playbooks #397.",
+  "reason": "S24 04/11 18:25: a typed WhatsApp send from the Claude chat (profile chat-owner) was refused read_only_policy. Amine 04/11 19:05 (S24 decision 3b693cd2…): no constraint on sending a WhatsApp message at his request from the Claude chat, Samantha voice or elsewhere. Web series 04/11 19:15 (recette-webseries-4): the brain sent a 230-character query, refused by the schema (maxLength 200) before the search. Same series: the Codex search for « dernières nouvelles sur l'iPhone 18 » exceeded 30 s (deadline_exceeded at 33.6 s) while others took 18-22 s; Amine 04/11: « Ok 40 ».",
+  "files": [
+    "docs/changes/mcp-owner-typed-send-20261104.json",
+    "docs/changes/mcp-owner-typed-send-20261104.md",
+    "installer/termux-lite/claw-capability.py",
+    "installer/termux-lite/codex-web-request.mjs",
+    "installer/termux-lite/gemini-request.py",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-codex-web-request.mjs",
+    "installer/termux-lite/test-gemini-public-synthesis.py",
+    "installer/termux-lite/test-model-fast-path-web.py",
+    "installer/termux-lite/test-runtime-foundations.py",
+    "installer/termux-lite/test-runtime-sync.py",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web-mcp.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-web-direct.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runWeb.ts",
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+      "status": "passed",
+      "evidence": "Extended (already in ci.yml): the owner MCP typed execute carries --owner-direct; a preview, a read-only call, caller other, a missing readOnly and surface whatsapp never do. Built with tsc before running."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-web-direct.cjs, test-typed-tools-direct-visible.cjs, test-typed-device-direct.cjs",
+      "status": "passed",
+      "evidence": "samantha_web description carries the short-query hint; direct typed surface 34719 chars (<= 36000)."
+    },
+    {
+      "name": "test-run-web.cjs, test-run-web-mcp.cjs, test-typed-web-direct.cjs, test-codex-web-request.mjs, test-model-fast-path-web.py, test-gemini-public-synthesis.py, test-runtime-foundations.py, test-runtime-sync.py, test-companion-acceptance-web-recipe.py",
+      "status": "passed",
+      "evidence": "Budget 40000 everywhere, 40001 refused, helper --timeout 50, runtime parity fixtures at 40000."
+    }
+  ],
+  "documentation": [
+    "docs/changes/mcp-owner-typed-send-20261104.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same capabilities and routes; the owner MCP typed path executes like the owner text path."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "One host flag on the existing capabilityBridge → claw-capability.py → typed-execute chain."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "updated",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "claw_execute typed with profile chat-owner reaches typed-execute --owner-direct; chat-owner-shadow writes are still denied before the bridge (mcpBridge.ts selectedRisk check)."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Requires samantha-ui-playbooks PR #397 (typed-execute accepts --owner-direct) activated first: an older playbooks snapshot rejects the unknown flag and the owner typed MCP call would fail.",
+    "Policy confirmation risks (transaction, sensitive, destructive) still require a confirmation; payment untouched.",
+    "Budget parity with playbooks (runtime_mode, web recipe acceptance): samantha-ui-playbooks #397 (BUDGET_MS 40000) must be pinned before this core is deployed."
+  ],
+  "rollback": "Revert this commit and redeploy; typed MCP calls return to read-only."
+}

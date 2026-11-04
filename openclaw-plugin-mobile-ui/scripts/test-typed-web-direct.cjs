@@ -3,7 +3,7 @@
 // tool_search (7 s) to find the raw web_search tool, then three chained web_search calls (21, 27, 25 s).
 // The playbooks projection now carries samantha_web (samantha.app.web.answer|search: one Codex hosted search through
 // public_web). This checks the plugin side with the public factory: direct-only visibility with the single-search
-// hint, a helper ceiling sized for the 30 s public-web budget, one typed owner invocation per call, prompt budget.
+// hint, a helper ceiling sized for the 40 s public-web budget, one typed owner invocation per call, prompt budget.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -20,7 +20,7 @@ const params = {type: 'object', properties: {query: {type: 'string', minLength: 
 const web = {name: 'samantha_web', domain: 'web', description: 'Recherche Web publique (une recherche Codex, sources citées)',
   actions: ['samantha.app.web.answer', 'samantha.app.web.search'].map((action) => ({action, description: action.endsWith('answer')
     ? 'Répondre à une question publique avec sources' : 'Trouver des sources publiques', params, risk: 'read',
-  confirmationRequired: false, directExecution: true, examples: [], execution: {kind: 'public_web', budgetMs: 30000}}))};
+  confirmationRequired: false, directExecution: true, examples: [], execution: {kind: 'public_web', budgetMs: 40000}}))};
 
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'typed-web-'));
 const views = path.join(home, '.openclaw/capability-views');
@@ -42,6 +42,8 @@ assert(typed.DIRECT_TYPED_TOOLS.has('samantha_web'));
 assert(!typed.DIRECT_TYPED_TOOLS.has('samantha_app'), 'samantha_app (many reads) stays behind tool_search');
 assert.match(tool.description, /une seule action samantha\.app\.web\.answer/);
 assert.match(tool.description, /n'en enchaîne pas d'autres/);
+// S24 04/11 19:15 (recette-webseries-4): a 230-character query failed the schema (maxLength 200) before the search.
+assert.match(tool.description, /query : quelques mots-clés, 200 caractères au plus/);
 // Other tools never carry the web hint.
 assert(!descriptors.find((entry) => entry.name === 'samantha_agenda').description.includes('samantha.app.web.answer'));
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../openclaw.plugin.json'), 'utf8'));
@@ -65,8 +67,8 @@ assert(directChars <= 36000, `direct typed surface ${directChars} chars`);
   assert.equal(calls.length, 1, 'one typed owner invocation');
   assert.deepEqual(calls[0].command, {operation: 'call', domain: 'web', action: 'samantha.app.web.answer',
     params: {query: 'prix du Brent aujourd’hui', responseLanguage: 'fr'}});
-  // The public-web budget (30 s) plus graph and dialogue owners: never cut by the generic 30 s helper ceiling.
-  assert.deepEqual(calls[0].argv, ['typed-tool', '--host-input-stdin', '--timeout', '45']);
+  // The public-web budget (40 s) plus graph and dialogue owners: never cut by the generic 30 s helper ceiling.
+  assert.deepEqual(calls[0].argv, ['typed-tool', '--host-input-stdin', '--timeout', '50']);
   fs.rmSync(home, {recursive: true, force: true});
   console.log(JSON.stringify({ok: true, webActions: web.actions.length, directChars, ownerInvocations: calls.length}));
 })().catch((error) => { console.error(error); process.exit(1); });
