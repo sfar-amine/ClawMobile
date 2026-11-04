@@ -3,7 +3,7 @@
 the 10:34 Tier0 release: Sadok's Pulse room was answered by the model, which invented a project status.
 runtime-sync.sh brings every runtime copy to the deployed commit and proves it; the deploy fails otherwise."""
 import fcntl
-import http.server, json, os, pathlib, shutil, subprocess, tempfile, threading, unittest
+import http.server, json, os, pathlib, shutil, subprocess, tempfile, threading, time, unittest
 
 HERE = pathlib.Path(__file__).resolve().parent
 PLUGIN_ID = "openclaw-plugin-mobile-ui"
@@ -219,6 +219,54 @@ class RuntimeSync(unittest.TestCase):
                 with self.assertRaises(BlockingIOError):
                     fcntl.flock(probe,fcntl.LOCK_SH|fcntl.LOCK_NB)
         self.assertNotIn(('POST','/v1/runtime/restart'),Companion.calls)
+
+    def _deploy_owner_stub(self):
+        node = self.tmp / 'bin/node'
+        node.write_text('#!/usr/bin/env python3\nimport json,os,sys\n'
+            'if len(sys.argv)==3 and sys.argv[2]=="--prepare-main-tools":print(json.dumps({"state":"ready","groups":2,"tools":96}));sys.exit(0)\n'
+            'assert len(sys.argv)==4 and sys.argv[2]=="--deploy-restart" and os.environ.get("SAMANTHA_DEPLOY_LOCK_FD")\n'
+            + 'open('+repr(str(self.home / 'tier0.log'))+',"a").write("gateway-relaunch\\n")\n'
+            + "print(json.dumps({'success':True}))\n")
+        node.chmod(0o700)
+
+    def _older_release_under_deploy_lock(self, healthz_failures, **env):
+        self.assertEqual(self.sync()[0], 0)
+        (self.home / ".openclaw/releases/current/manifest.json").write_text('{"source_commit":"older-release"}')
+        (self.home / 'tier0.log').unlink(); Companion.calls.clear(); Companion.healthz_failures = healthz_failures
+        self._deploy_owner_stub()
+        lock = self.home / '.openclaw/deploys/companion-deploy.lock'
+        lock.parent.mkdir(exist_ok=True); lock.touch(mode=0o600)
+        with lock.open() as deployed:
+            fcntl.flock(deployed, fcntl.LOCK_EX)
+            return self.sync(inherited=deployed.fileno(), SAMANTHA_DEPLOY_LOCK_FD=str(deployed.fileno()),
+                             RUNTIME_SYNC_GATEWAY_PIDFILE=str(self.tmp / 'gateway.pid'), **env)
+
+    def test_absent_gateway_under_the_deploy_lock_is_relaunched_once_then_awaited(self):
+        # S24 04/11: Gateway gone, Companion watchdog refused by the deploy lock, deploy waited until gateway_not_ready.
+        code, out, err = self._older_release_under_deploy_lock(4)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out['gateway'], 'restarted')
+        self.assertEqual(self.tier0_log().count('gateway-relaunch'), 1)
+        self.assertIn('gateway process absent under the deploy lock', err)
+        self.assertNotIn(('POST', '/v1/runtime/restart'), Companion.calls)
+
+    def test_a_live_gateway_still_starting_is_awaited_not_relaunched(self):
+        proc = subprocess.Popen(['bash', '-c', 'exec -a openclaw-gateway sleep 60'])
+        self.addCleanup(proc.kill)
+        time.sleep(0.2)
+        (self.tmp / 'gateway.pid').write_text(str(proc.pid))
+        code, out, err = self._older_release_under_deploy_lock(4)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out['gateway'], 'unchanged')
+        self.assertNotIn('gateway-relaunch', self.tier0_log())
+
+    def test_without_the_deploy_lock_an_absent_gateway_is_never_relaunched_here(self):
+        self.assertEqual(self.sync()[0], 0)
+        (self.home / ".openclaw/releases/current/manifest.json").write_text('{"source_commit":"older-release"}')
+        (self.home / 'tier0.log').unlink(); self._deploy_owner_stub(); Companion.healthz_failures = 100
+        code, out, err = self.sync(RUNTIME_SYNC_GATEWAY_PIDFILE=str(self.tmp / 'gateway.pid'))
+        self.assertEqual((code, out['reason']), (1, 'gateway_not_ready'))
+        self.assertNotIn('gateway-relaunch', self.tier0_log())
 
     def test_stale_gateway_plugin_and_release_are_brought_to_the_commit(self):
         rc, out, err = self.sync()
