@@ -3,7 +3,11 @@
 // (fixtures/openclaw-2026.10.9-compat/web-search-provider.runtime-DEBVJch2.mjs.gz) and core tools.invoke.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { executeCodexWeb, projectAnswer, unwrapExternal, hostedSearchPayload, validateRequest } from './codex-web-request.mjs';
+
+// Verbatim Gateway response captured on the S24 on 04/11 (18.7 s end to end, 13.3 s inside Codex).
+const real = JSON.parse(fs.readFileSync(new URL('../../openclaw-plugin-mobile-ui/fixtures/codex-web/tools-invoke-web-search-20261104.json', import.meta.url), 'utf8'));
 
 const request = { version: 1, operation: 'answer', query: 'prix du Brent aujourd’hui', responseLanguage: 'fr', remainingBudgetMs: 25000, sessionId: '6f1c2a0e-3b4d-5e6f-8a7b-9c0d1e2f3a4b' };
 const wrap = text => `<<<EXTERNAL_UNTRUSTED_CONTENT id="0123456789abcdef">>>\nSource: Web Search\n---\n${text}\n<<<END_EXTERNAL_UNTRUSTED_CONTENT id="0123456789abcdef">>>`;
@@ -25,6 +29,15 @@ test('answer is projected into claims citing Codex links, no excerpt, no quote',
   assert(r.claims.every(c => !('support' in c) && !/https?:|\]\(|[<>*]/u.test(c.text)));
 });
 
+test('real S24 capture: one claim citing both links, trailing citations out of the text, hosted-search profile', async () => {
+  assert.equal(real.provenance.device, 'S24');
+  const r = await executeCodexWeb({ ...request, query: 'prix du Brent aujourd hui' }, { call: async () => real.response, now: () => '2026-11-04T09:19:00.000Z' });
+  assert.equal(r.error, null);
+  assert.equal(r.model, 'openai/codex-hosted-search');
+  assert.deepEqual(r.sources.map(s => [s.id, s.title, s.url]), [['s1', 'NowPrice', 'https://nowprice.io/fr/carburant/brent-crude'], ['s2', 'CoursPétrole', 'https://courspetrole.com/brent/']]);
+  assert.deepEqual(r.claims, [{ id: 'c1', text: 'Aujourd’hui, le Brent cote environ 103,90 $ le baril (soit environ 92,94 €), cours indicatif mis à jour le 4 novembre 2026. Les cotations peuvent varier en temps réel.', sourceIds: ['s1', 's2'] }]);
+});
+
 test('the Gateway call is one web_search on the main agent within the budget', async () => {
   const calls = [];
   await executeCodexWeb(request, { call: async (params, budget) => { calls.push([params, budget]); return ok(details())(); } });
@@ -40,7 +53,7 @@ test('payload is read from details or from the JSON text content', () => {
 
 test('no search, refusals and transport failures are named, never an invented answer', async () => {
   const cases = [
-    [ok(details(answer, { searches: [] })), 'no_web_search'],
+    [ok(details(answer, { kind: 'results' })), 'provider_contract'],
     [async () => ({ ok: false, toolName: 'web_search', error: { code: 'internal_error', message: 'Codex hosted search completed without invoking web search.' } }), 'no_web_search'],
     [async () => ({ ok: false, toolName: 'web_search', error: { code: 'forbidden', message: 'blocked' } }), 'access_denied'],
     [async () => ({ ok: false, toolName: 'web_search', error: { code: 'internal_error', message: 'boom' } }), 'provider_unavailable'],

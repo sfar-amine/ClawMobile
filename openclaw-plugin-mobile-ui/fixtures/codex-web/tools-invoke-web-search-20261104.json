@@ -1,0 +1,36 @@
+{
+  "provenance": {
+    "captured_at": "2026-11-04T10:19:00+01:00",
+    "device": "S24",
+    "command": "openclaw gateway call tools.invoke --json --params {name:web_search,args:{query},agentId:main}",
+    "gateway": "OpenClaw 2026.10.9 + @openclaw/codex 2026.10.9, tools.web.search.provider=codex",
+    "wall_ms": 18740,
+    "note": "Verbatim Gateway response; public web content only, no identifier or credential."
+  },
+  "response": {
+    "ok": true,
+    "toolName": "web_search",
+    "output": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"kind\": \"answer\",\n  \"provider\": \"codex\",\n  \"query\": \"prix du Brent aujourd hui\",\n  \"tookMs\": 13299,\n  \"content\": \"\\n<<<EXTERNAL_UNTRUSTED_CONTENT id=\\\"2a1b28dafd5af3a6\\\">>>\\nSource: Web Search\\n---\\nAujourd’hui, le Brent cote environ **103,90 $ le baril** (soit environ **92,94 €**), cours indicatif mis à jour le 4 novembre 2026. Les cotations peuvent varier en temps réel. [NowPrice](https://nowprice.io/fr/carburant/brent-crude) · [CoursPétrole](https://courspetrole.com/brent/)\\n<<<END_EXTERNAL_UNTRUSTED_CONTENT id=\\\"2a1b28dafd5af3a6\\\">>>\",\n  \"externalContent\": {\n    \"untrusted\": true,\n    \"source\": \"web_search\",\n    \"wrapped\": true,\n    \"provider\": \"codex\"\n  }\n}"
+        }
+      ],
+      "details": {
+        "kind": "answer",
+        "provider": "codex",
+        "query": "prix du Brent aujourd hui",
+        "tookMs": 13299,
+        "content": "\n<<<EXTERNAL_UNTRUSTED_CONTENT id=\"2a1b28dafd5af3a6\">>>\nSource: Web Search\n---\nAujourd’hui, le Brent cote environ **103,90 $ le baril** (soit environ **92,94 €**), cours indicatif mis à jour le 4 novembre 2026. Les cotations peuvent varier en temps réel. [NowPrice](https://nowprice.io/fr/carburant/brent-crude) · [CoursPétrole](https://courspetrole.com/brent/)\n<<<END_EXTERNAL_UNTRUSTED_CONTENT id=\"2a1b28dafd5af3a6\">>>",
+        "externalContent": {
+          "untrusted": true,
+          "source": "web_search",
+          "wrapped": true,
+          "provider": "codex"
+        }
+      }
+    },
+    "source": "core"
+  }
+}

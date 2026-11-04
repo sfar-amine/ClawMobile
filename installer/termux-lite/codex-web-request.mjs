@@ -61,8 +61,12 @@ function cleanUrl(raw) {
   return parsed.href;
 }
 function hostTitle(url) { return new URL(url).hostname.replace(/^www\./u, ''); }
+// A run of cited links closing a paragraph ("… réel. [NowPrice](…) · [CoursPétrole](…)", S24 04/11) is a
+// citation, not words of the answer.
+const TRAILING_CITATIONS = /(?:\s*[·•|,;–-]?\s*\(?\[[^\]]*\]\([^)\s]+\)\)?)+\s*([.!?]?)\s*$/u;
 function plain(text) {
   return text
+    .replace(TRAILING_CITATIONS, '$1')
     .replace(/\(\s*\[[^\]]*\]\([^)]*\)\s*\)/gu, '')        // ([site](url)) inline citation
     .replace(/\[([^\]]*)\]\([^)]*\)/gu, '$1')               // [label](url) -> label
     .replace(/https?:\/\/\S+/gu, '')                        // bare links
@@ -173,8 +177,11 @@ export async function executeCodexWeb(input, { call = gatewayCall, signal, now =
       fail(/without invoking web search/u.test(message) ? 'no_web_search' : INVOKE_ERRORS[code] || 'provider_unavailable');
     }
     const payload = hostedSearchPayload(response.output);
-    if (!Array.isArray(payload.searches) || !payload.searches.length) fail('no_web_search');
-    const modelId = typeof payload.model === 'string' ? payload.model.trim().toLowerCase() : '';
+    // The Gateway's web_search tool returns {kind, provider, query, tookMs, content, externalContent} (S24 04/11):
+    // the Codex provider itself fails when no hosted search ran, and the model it used is not reported, so the
+    // run names the hosted-search profile unless a model is given.
+    if (payload.kind !== undefined && payload.kind !== 'answer') fail('provider_contract');
+    const modelId = typeof payload.model === 'string' && payload.model.trim() ? payload.model.trim().toLowerCase() : 'codex-hosted-search';
     const model = modelId.includes('/') ? modelId : 'openai/' + modelId;
     if (!/^openai\/[a-z0-9][a-z0-9.-]{0,60}$/u.test(model)) fail('provider_contract');
     const { sources, claims } = projectAnswer(unwrapExternal(payload.content), now());
