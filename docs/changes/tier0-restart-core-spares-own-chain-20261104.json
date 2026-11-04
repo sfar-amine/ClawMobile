@@ -1,0 +1,70 @@
+{
+  "version": 2,
+  "id": "tier0-restart-core-spares-own-chain-20261104",
+  "date": "2026-11-04",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Tier0 restart_core no longer stops itself or the non-supervisor processes it runs under (bootstrap shell, soak watchdog, deploy): the supervisors and their other descendants are still stopped children first, the relaunch always happens even when a lock wait times out, and every boundary leaves a restart_core line (stopped / spared counts) in the boot log.",
+  "reason": "S24 04/11 12:53: right after Tier0 activated release 20261104T125241, the supervisors were stopped with SIGKILL (Termux tab: Process completed (signal 9)), the deploy of d8e08d9b ended without a receipt and the device stayed offline. The boundary computes every descendant of the supervisors, including its own planner and the shell that must relaunch: when it is requested from inside the supervisor tree (the soak watchdog rollback Popen()s it, and the watchdog is a child of the guardian), it kills itself before the relaunch; under set -e a lock wait timeout also skipped the relaunch.",
+  "files": [
+    "docs/changes/tier0-restart-core-spares-own-chain-20261104.json",
+    "docs/changes/tier0-restart-core-spares-own-chain-20261104.md",
+    "installer/termux-lite/test-tier0-control.py",
+    "installer/termux-lite/tier0-bootstrap.sh"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-tier0-control.py",
+      "status": "passed",
+      "evidence": "19 tests. New: the real restart_core planner (read from tier0-bootstrap.sh, nothing listed or signalled) spares the watchdog-rollback chain and a deploy chain inside the tree but never a supervisor ancestor, still stops every supervisor descendant children first when requested from outside, and the relaunch is reached after a lock timeout. The previous planner targets the shell and the planner itself in the first case. Already registered in ci.yml."
+    },
+    {
+      "name": "tier0-bootstrap.sh --restart-core (bash, temporary HOME, planner stubbed)",
+      "status": "passed",
+      "evidence": "The heredoc reaches python unchanged and compiles; both lock waits time out without lock files and the script still reaches the relaunch with rc=0; boot.log gets event=restart_core and two event=restart_core_lock_timeout lines."
+    },
+    {
+      "name": "installer/termux-lite/test-tier0-activation-readiness.py, test-incident-runtime-hardening.sh",
+      "status": "passed",
+      "evidence": "20 tests OK; hardening script exit 0."
+    }
+  ],
+  "documentation": [
+    "docs/changes/tier0-restart-core-spares-own-chain-20261104.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Runtime supervision only (NO_CAPABILITY)."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same restart boundary owner (tier0-bootstrap.sh) and same relaunch; only the target set, the timeout path and one boot.log line change. No new process, store or scheduler."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "The Claw bridge depends on the supervisors the boundary relaunches; a boundary that kills its own relaunch leaves the device offline until a human acts."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The 12:53 sequence is not yet proven from S24 evidence (device offline): the planner killing its own chain is proven for the watchdog rollback path; for the activation path it depends on whether the deploy ran inside the supervisor tree, and an Android kill (phantom process killer or memory pressure, ADB and Wi-Fi off) remains possible. The new boot.log line separates the two next time.",
+    "The Tier0 copy of tier0-bootstrap.sh changes only when install-tier0-control.py runs (deploy)."
+  ],
+  "rollback": "Revert this commit and reinstall Tier0 control (install-tier0-control.py)."
+}
