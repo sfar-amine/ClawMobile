@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "id": "health-companion-dead-latch-retry-20261104",
+  "date": "2026-11-04",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The health manager retries a dead Companion latched in human_required at most once per HEALTH_LATCHED_RETRY_S (900 s) instead of refusing every restart until a human acts; the human escalation stays open, a live Companion keeps the latch and other services are unchanged.",
+  "reason": "restart_gate refuses every restart in human_required until 10 minutes of verified stability, which a stopped process can never reach: the Companion (and the Claw bridge through it) stayed down until a manual restart on the S24 on 03/11 at 19:03 after a reboot and again around 22:05 after a deploy day.",
+  "files": [
+    "docs/changes/health-companion-dead-latch-retry-20261104.json",
+    "docs/changes/health-companion-dead-latch-retry-20261104.md",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-health-restart-escalation.py"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-health-restart-escalation.py",
+      "status": "passed",
+      "evidence": "10 tests; the new one fails without the change: one retry at t0, none at t0+300 s, one at t0+900 s, none while the process runs, none for another latched service, escalation still open, no rollback. Registered in ci.yml."
+    },
+    {
+      "name": "test-health-boot-reset.py, test-health-deploy-lock.py, test-health-gateway-fallback-owner.py, test-health-hysteresis.py, test-health-qa-queue.py, test-health-resource-policy.py, test-health-verdict-f5.py, test-health-verdict.py, test-immune-action.py, test-ci-registration.py",
+      "status": "passed",
+      "evidence": "Every health-manager and immune suite green on this head."
+    }
+  ],
+  "documentation": [
+    "docs/changes/health-companion-dead-latch-retry-20261104.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Supervision behaviour only; no route, action or capability (NO_CAPABILITY)."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same restart gate, lease and state files of the existing health manager; one more state file per service, no new store, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "The Claw bridge runs inside the Companion: it becomes reachable again without a manual restart; no MCP tool or schema touched."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "A second lead (deployment mode seen at 21:51 on 03/11 while the deploy process was gone) is not proven: on 04/11 09:08 no process held companion-deploy.lock.",
+    "The retry restarts only an absent Companion; a live but unhealthy Companion still follows the latch."
+  ],
+  "rollback": "Revert this commit (strict latch again), or set HEALTH_LATCHED_RETRY_S to a very large value."
+}
