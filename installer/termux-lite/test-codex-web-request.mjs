@@ -70,7 +70,7 @@ test('no search, refusals and transport failures are named, never an invented an
 test('requests outside the closed contract start nothing', async () => {
   let called = false;
   const call = async () => { called = true; return ok(details())(); };
-  for (const bad of [{ ...request, remainingBudgetMs: 30001 }, { ...request, operation: 'fetch' }, { ...request, query: '' }, { ...request, extra: 1 }, { ...request, responseLanguage: 'de' }, null]) {
+  for (const bad of [{ ...request, remainingBudgetMs: 40001 }, { ...request, operation: 'fetch' }, { ...request, query: '' }, { ...request, extra: 1 }, { ...request, responseLanguage: 'de' }, null]) {
     const r = await executeCodexWeb(bad, { call });
     assert.equal(r.error.code, 'invalid_request');
   }

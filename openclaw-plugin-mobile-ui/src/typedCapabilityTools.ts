@@ -29,9 +29,9 @@ export const DIRECT_TYPED_TOOLS: ReadonlySet<string> = new Set(["samantha_utilit
   // Route web unique (S24 04/11): behind tool_search a web question cost 7 s of discovery before three chained
   // web_search calls (92 s). samantha_web carries only the two typed web actions (one Codex hosted search each).
   "samantha_web"]);
-// One public web action = one Codex hosted search through public_web (budget 30 s) plus graph and dialogue owners;
+// One public web action = one Codex hosted search through public_web (budget 40 s) plus graph and dialogue owners;
 // the generic 30 s helper ceiling would cut it before its own named timeout.
-const PUBLIC_WEB_HELPER_TIMEOUT_S = 45;
+const PUBLIC_WEB_HELPER_TIMEOUT_S = 50;
 const isPublicWeb = (action?: Action) => action?.execution?.kind === "public_web";
 const WEB_HINT = " Pour toute question qui demande le Web (actualité, prix, fait public récent) : une seule action samantha.app.web.answer, qui cherche une fois et cite ses sources ; n'en enchaîne pas d'autres pour recouper. query : quelques mots-clés, 200 caractères au plus.";
 const directOnly = (name: string) => DIRECT_TYPED_TOOLS.has(name) ? {catalogMode: "direct-only" as const} : {};

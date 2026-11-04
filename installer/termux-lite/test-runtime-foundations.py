@@ -25,7 +25,7 @@ class RuntimeFoundations(unittest.TestCase):
             dest = self.core/rel; dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(HERE.parent.parent/rel, dest)
         owner = self.pb/'skill_intelligence/public_web.py'; owner.parent.mkdir(parents=True)
-        owner.write_text('BUDGET_MS = 30000\nSEARCH_BUDGET_MS = 12000\n')
+        owner.write_text('BUDGET_MS = 40000\nSEARCH_BUDGET_MS = 12000\n')
         reader=self.pb/'tools/request_context.py'; reader.parent.mkdir(parents=True)
         # Static unit sandbox; real peer source is fetched at an exact SHA in CI.
         import ast

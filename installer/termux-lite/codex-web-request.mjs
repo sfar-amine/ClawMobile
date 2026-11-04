@@ -13,7 +13,7 @@ import { publicSourceUrl } from './openclaw-web-request.mjs';
 
 const MAX_INPUT_BYTES = 16384;
 const MAX_OUTPUT_BYTES = 65536;
-const MAX_BUDGET_MS = 30000;
+const MAX_BUDGET_MS = 40000;
 const MAX_SOURCES = 5;
 const MAX_CLAIMS = 12;
 const MAX_CLAIM_CHARS = 1000;
