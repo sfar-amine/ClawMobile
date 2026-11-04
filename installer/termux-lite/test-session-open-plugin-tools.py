@@ -149,7 +149,7 @@ class SessionOpenPluginTools(unittest.TestCase):
 
     def test_s24_policy_loads_whatsapp_and_the_patched_policy_does_not(self):
         deny = self.patched_main_deny()
-        self.assertEqual(deny, ['skills_read', 'skills_search', 'whatsapp_call', 'whatsapp_login'])
+        self.assertEqual(deny, ['skills_read', 'skills_search', 'whatsapp_call', 'whatsapp_login', 'web_search'])
         selected = self.select({
             's24_now': {'deny': S24_MAIN_TOOLS['deny'], 'allow': None},
             'patched': {'deny': deny, 'allow': None},
