@@ -105,6 +105,31 @@ check_supervisor adb_watchdog pat "$ROOT/x.sh" || true
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertIn("restart_refused reason=human_required", files[".openclaw/health/health.log"])
 
+    def test_a_dead_companion_latched_human_required_is_retried_slowly(self):
+        """S24 03/11 19:03 et 22:05 : Companion mort + human_required = relance refusée jusqu'à un geste humain."""
+        result, files = self.run_probe(
+            """
+CLOCK=1000; now(){ echo "$CLOCK"; }; log(){ echo "$*" >>"$LOG"; }; sleep(){ :; }
+ALIVE=0; proc(){ [ "$ALIVE" = 1 ]; }; http(){ return 1; }; fail(){ :; }
+start(){ echo "$1" >>"$HOME/starts"; }
+put companion escalation human_required; put companion status human_required
+repair_http_effect_under_lease companion http://x 'dist/companion/[s]erver.js' "$ROOT/companion-server.sh" 1 1
+CLOCK=1300; repair_http_effect_under_lease companion http://x 'dist/companion/[s]erver.js' "$ROOT/companion-server.sh" 1 1
+CLOCK=1900; repair_http_effect_under_lease companion http://x 'dist/companion/[s]erver.js' "$ROOT/companion-server.sh" 1 1
+ALIVE=1; CLOCK=3000; repair_http_effect_under_lease companion http://x 'dist/companion/[s]erver.js' "$ROOT/companion-server.sh" 1 1
+put gateway_memory escalation human_required; ALIVE=0; repair_http_effect_under_lease gateway_memory http://x 'pat' "$ROOT/g.sh" 1 1
+[ "$(get companion escalation none)" = human_required ]
+"""
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        log = files[".openclaw/health/health.log"]
+        # One retry at 1000, none at 1300 (< 900 s later), one at 1900, none while the process runs, none for other services.
+        self.assertEqual(files["starts"].count("companion"), 2)
+        self.assertNotIn("gateway_memory", files["starts"])
+        self.assertEqual(log.count("reason=dead_process_latched_retry"), 2)
+        self.assertEqual(log.count("service=companion action=restart_refused reason=human_required"), 4)
+        self.assertNotIn("rollback.calls", files)
+
     def test_budget_then_one_rollback_then_one_human_required(self):
         result, files = self.run_probe(
             """

@@ -6,7 +6,8 @@ RESTART_BUDGET_N="${HEALTH_RESTART_BUDGET_N:-3}"
 RESTART_WINDOW_S="${HEALTH_RESTART_WINDOW_S:-3600}"
 STABILITY_RESET_S="${HEALTH_STABILITY_RESET_S:-600}"
 ROLLBACK_GRACE_S="${HEALTH_ROLLBACK_GRACE_S:-120}"
-case "$RESTART_BUDGET_N:$RESTART_WINDOW_S:$STABILITY_RESET_S:$ROLLBACK_GRACE_S" in *[!0-9:]*) exit 64;; esac
+LATCHED_RETRY_S="${HEALTH_LATCHED_RETRY_S:-900}"
+case "$RESTART_BUDGET_N:$RESTART_WINDOW_S:$STABILITY_RESET_S:$ROLLBACK_GRACE_S:$LATCHED_RETRY_S" in *[!0-9:]*) exit 64;; esac
 [ "$RESTART_BUDGET_N" -ge 1 ] && [ "$RESTART_WINDOW_S" -ge 1 ] && [ "$STABILITY_RESET_S" -ge 1 ] && [ "$ROLLBACK_GRACE_S" -ge 1 ] || exit 64
 WHATSAPP_READINESS_GRACE_S=120
 if [ -f "$ROOT/immune-action.sh" ]; then . "$ROOT/immune-action.sh"; else
@@ -20,7 +21,7 @@ canonical_mode(){ python3 "$ROOT/runtime_mode.py" 9>&- 2>/dev/null || true; }
 companion_idle_proven(){ timeout 8 python3 "$ROOT/gateway-memory-guard.py" --idle-proof 9>&- >/dev/null 2>&1; }
 unstable(){ put "$1" stable_since 0; }
 reset_restart_budget(){
- n="$1"; rm -f "$(sf "$n" restart_attempts)" "$(sf "$n" escalation)" "$(sf "$n" rollback_at)"
+ n="$1"; rm -f "$(sf "$n" restart_attempts)" "$(sf "$n" escalation)" "$(sf "$n" rollback_at)" "$(sf "$n" latched_retry_at)"
  put "$n" failures 0; put "$n" next 0
 }
 healthy(){
@@ -165,12 +166,23 @@ with_repair_lease() (
  "$@"; rc=$?
  return "$rc"
 )
+# A Companion latched in human_required can only become healthy again by running, and a stopped one has no
+# work to interrupt: the latch kept it down until someone typed the restart by hand (S24 03/11 19:03 after a
+# reboot, and again at 22:05 after a deploy day). Only for a Companion whose process is absent, at most once per
+# LATCHED_RETRY_S, the restart is attempted while the human escalation stays open; a live Companion keeps the latch.
+latched_dead_retry(){
+ local n="$1" pat="$2" t at
+ [ "$n" = companion ] && [ "$(get "$n" escalation none)" = human_required ] && ! proc "$pat" || return 1
+ t=$(now); at=$(get "$n" latched_retry_at 0); case "$at" in ''|*[!0-9]*) at=0;; esac
+ [ $((t-at)) -ge "$LATCHED_RETRY_S" ] || return 1
+ put "$n" latched_retry_at "$t"; log "service=$n action=restart_authorized reason=dead_process_latched_retry interval_s=$LATCHED_RETRY_S"
+}
 repair_http_effect_under_lease(){
  local n="$1" url="$2" pat="$3" script="$4" grace="$5" stop_wait="$6" waited=0
  # The check and every stop/start remain under the same EX lease. A healthy
  # service discovered here consumes no restart budget.
  if http "$url"; then healthy "$n"; return; fi
- restart_gate "$n" || return
+ restart_gate "$n" || latched_dead_retry "$n" "$pat" || return
  log "service=$n action=repair"
  if proc "$pat"; then
   pkill -TERM -f "$pat" 9>&- 2>/dev/null || true
