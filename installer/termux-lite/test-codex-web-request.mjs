@@ -87,3 +87,24 @@ test('unsafe links are dropped, sources capped at five, long paragraphs split, t
   assert(r.claims.reduce((n, c) => n + c.text.length, 0) <= 4000);
   assert.deepEqual(projectAnswer('Aucune source citée ici.', 'x'), { sources: [], claims: [] });
 });
+
+test('a hung Gateway call is killed at the deadline and leaves no process behind', async () => {
+  const { mkdtempSync, writeFileSync, chmodSync, existsSync, readFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'codex-web-'));
+  const pidFile = join(dir, 'pid');
+  const bin = join(dir, 'openclaw');
+  writeFileSync(bin, `#!/bin/sh\necho $$ > ${pidFile}\nexec sleep 30\n`); chmodSync(bin, 0o755);
+  process.env.CLAWMOBILE_OPENCLAW_BIN = bin;
+  try {
+    const started = Date.now();
+    const r = await executeCodexWeb({ ...request, remainingBudgetMs: 1500 });
+    assert.equal(r.error.code, 'deadline_exceeded');
+    assert(Date.now() - started < 4000);
+    await new Promise(done => setTimeout(done, 200));
+    const pid = Number(readFileSync(pidFile, 'utf8'));
+    assert(existsSync(pidFile));
+    assert.throws(() => process.kill(pid, 0));
+  } finally { delete process.env.CLAWMOBILE_OPENCLAW_BIN; }
+});

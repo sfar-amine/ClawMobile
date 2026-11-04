@@ -141,10 +141,12 @@ function gatewayCall(params, timeoutMs, signal) {
   return new Promise((resolve, reject) => {
     const bin = process.env.CLAWMOBILE_OPENCLAW_BIN || 'openclaw';
     const child = spawn(bin, ['gateway', 'call', 'tools.invoke', '--json', '--timeout', String(Math.max(1000, timeoutMs - 500)), '--params', JSON.stringify(params)],
-      { stdio: ['ignore', 'pipe', 'ignore'], detached: true });
+      // Same process group as this adapter: public_web.py ends a run by killing that group, so the Gateway call
+      // can never outlive its deadline as an orphan.
+      { stdio: ['ignore', 'pipe', 'ignore'] });
     let out = ''; let done = false;
     const finish = (error, value) => { if (done) return; done = true; clearTimeout(timer); signal?.removeEventListener('abort', abort); error ? reject(error) : resolve(value); };
-    const kill = () => { try { process.kill(-child.pid, 'SIGKILL'); } catch {} };
+    const kill = () => { try { child.kill('SIGKILL'); } catch {} };
     const abort = () => { kill(); finish(new CodexWebError('cancelled')); };
     const timer = setTimeout(() => { kill(); finish(new CodexWebError('deadline_exceeded')); }, timeoutMs);
     signal?.addEventListener('abort', abort, { once: true });

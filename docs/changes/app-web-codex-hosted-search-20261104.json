@@ -20,7 +20,7 @@
     {
       "name": "installer/termux-lite/test-codex-web-request.mjs",
       "status": "passed",
-      "evidence": "7 node tests, including the verbatim S24 capture of 04/11 (fixtures/codex-web/tools-invoke-web-search-20261104.json: one claim citing NowPrice and CoursPétrole, trailing citation links removed from the text, hosted-search profile since the Gateway reports no model); projection of paragraphs and list items, utm_source removed, unsafe links dropped, five sources max, 1000/4000 character bounds; one web_search call on agent main within the budget; named failures with no sources or claims; closed request contract. Registered in ci.yml."
+      "evidence": "8 node tests, including the verbatim S24 capture of 04/11 (fixtures/codex-web/tools-invoke-web-search-20261104.json: one claim citing NowPrice and CoursPétrole, trailing citation links removed from the text, hosted-search profile since the Gateway reports no model); projection of paragraphs and list items, utm_source removed, unsafe links dropped, five sources max, 1000/4000 character bounds; one web_search call on agent main within the budget; named failures with no sources or claims; closed request contract. Registered in ci.yml. A hung Gateway call (fake openclaw that sleeps) is killed at the deadline and leaves no process behind: the call stays in the adapter's process group, which public_web.py kills at the end of a run."
     },
     {
       "name": "openclaw-plugin-mobile-ui/scripts/test-run-web.cjs",
