@@ -12,3 +12,5 @@
 **Ordre d'activation :** d'abord samantha-ui-playbooks #397, qui accepte le drapeau, puis ce core.
 
 **Retour arrière :** revert et redéploiement ; les appels MCP typés redeviennent en lecture seule.
+
+**Ajout (recherche web) :** l'indication de `samantha_web` demande désormais une requête de quelques mots-clés, 200 caractères au plus. Le 04/11 à 19:15, une requête de 230 caractères a été refusée par le schéma avant la recherche.

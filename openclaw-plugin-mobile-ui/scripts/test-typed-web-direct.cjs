@@ -42,6 +42,8 @@ assert(typed.DIRECT_TYPED_TOOLS.has('samantha_web'));
 assert(!typed.DIRECT_TYPED_TOOLS.has('samantha_app'), 'samantha_app (many reads) stays behind tool_search');
 assert.match(tool.description, /une seule action samantha\.app\.web\.answer/);
 assert.match(tool.description, /n'en enchaîne pas d'autres/);
+// S24 04/11 19:15 (recette-webseries-4): a 230-character query failed the schema (maxLength 200) before the search.
+assert.match(tool.description, /query : quelques mots-clés, 200 caractères au plus/);
 // Other tools never carry the web hint.
 assert(!descriptors.find((entry) => entry.name === 'samantha_agenda').description.includes('samantha.app.web.answer'));
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../openclaw.plugin.json'), 'utf8'));
