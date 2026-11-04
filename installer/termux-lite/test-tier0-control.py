@@ -100,6 +100,74 @@ class Tier0Tests(unittest.TestCase):
         self.assertIn("identities={pid:rows[pid]['start']",text)
         self.assertIn("Children first",text)
 
+    def _restart_plan(self):
+        text=(Path(__file__).resolve().parent/'tier0-bootstrap.sh').read_text()
+        source=text[text.index("<<'PY'\n")+7:text.index('\nPY\n)"')]
+        namespace={'__name__':'tier0_restart_core_plan'}  # defines the plan only: nothing is listed or signalled
+        exec(compile(source,'tier0-bootstrap.sh:restart_core','exec'),namespace)
+        def rows(*entries):
+            return {pid:{'pid':pid,'ppid':ppid,'start':str(pid),'args':args} for pid,ppid,args in entries}
+        return namespace['plan'],rows
+
+    def test_restart_boundary_spares_its_own_chain_when_requested_from_the_supervisor_tree(self):
+        # The soak watchdog is started by the bootstrap before it execs the guardian, so its rollback
+        # Popen()s `tier0-bootstrap.sh --restart-core` from inside the guardian tree. Killing that shell (or the
+        # planner itself) would cancel the relaunch and leave the device with no supervisor.
+        plan,rows=self._restart_plan()
+        R='/data/data/com.termux/files/home/.openclaw/releases/r1/current'
+        table=rows(
+            (100,1,f'bash {R}/samantha-root-guardian.sh'),
+            (110,100,'python3 /home/.openclaw/tier0/bin/tier0-watchdog.py'),
+            (120,110,'bash /home/.openclaw/tier0/bin/tier0-bootstrap.sh --restart-core'),
+            (130,120,'python3 -'),
+            (200,100,f'bash {R}/samantha-health-manager.sh'),
+            (210,200,'node dist/companion/server.js'),
+            (300,100,f'bash {R}/incident-orchestrator-worker.sh'),
+            (310,300,'sleep 30'),
+            (400,1,'node unrelated'),
+        )
+        order,spared=plan(table,130)
+        self.assertEqual(set(order),{100,200,210,300,310})
+        self.assertEqual(spared,{110,120})
+        self.assertLess(order.index(210),order.index(200))
+        self.assertLess(order.index(310),order.index(300))
+        self.assertLess(order.index(200),order.index(100))
+
+    def test_restart_boundary_spares_a_deploy_chain_inside_the_tree_but_not_a_supervisor_ancestor(self):
+        plan,rows=self._restart_plan()
+        table=rows(
+            (100,1,'bash /r/samantha-root-guardian.sh'),
+            (200,100,'bash /r/samantha-health-manager.sh'),
+            (210,200,'node dist/companion/server.js'),
+            (220,210,'bash /home/.openclaw/tools/companion-deploy.sh d8e08d9b'),
+            (230,220,'python3 /home/.openclaw/tier0/bin/tier0-control.py install'),
+            (240,230,'bash -c sleep "$1"; exec "$2" --restart-core'),
+            (250,240,'python3 -'),
+            (260,220,'curl -fsS http://127.0.0.1:8765/v1/health'),
+        )
+        order,spared=plan(table,250)
+        self.assertEqual(spared,{210,220,230,240})
+        self.assertEqual(set(order),{100,200})  # the spared deploy keeps its own helpers (260)
+
+    def test_restart_boundary_outside_the_tree_still_stops_every_supervisor_descendant(self):
+        plan,rows=self._restart_plan()
+        table=rows(
+            (100,1,'bash /r/samantha-root-guardian.sh'),
+            (200,100,'bash /r/samantha-health-manager.sh'),
+            (210,200,'node dist/companion/server.js'),
+            (500,1,'bash -c sleep "$1"; exec "$2" --restart-core'),
+            (510,500,'python3 -'),
+        )
+        order,spared=plan(table,510)
+        self.assertEqual(spared,{500})
+        self.assertEqual(order,[210,200,100])
+
+    def test_restart_boundary_relaunches_even_when_a_lock_wait_times_out(self):
+        text=(Path(__file__).resolve().parent/'tier0-bootstrap.sh').read_text()
+        relaunch=text[text.index('wait_for_lock_release "$lock" ||'):text.index('nohup "$0"')]
+        self.assertIn('event=restart_core_lock_timeout',relaunch)
+        self.assertIn('event=restart_core %s',text)
+
     def test_core_supervisor_long_lived_children_close_lock_fd(self):
         root=Path(__file__).resolve().parent
         guardian=(root/'samantha-root-guardian.sh').read_text()
