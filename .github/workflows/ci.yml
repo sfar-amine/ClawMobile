@@ -122,6 +122,9 @@ jobs:
       - name: Gateway startup triage opt-out is explicit, pinned and verified before export
         run: python3 ../installer/termux-lite/test-startup-triage-optout.py
 
+      - name: Codex hosted search on Android is pinned, verified before export and reaches the network
+        run: python3 ../installer/termux-lite/test-codex-android-compat.py
+
       - name: Memory recall worker stays warm through the pinned existing compatibility owner
         run: python3 ../installer/termux-lite/test-memory-retrieval-warm.py
 
