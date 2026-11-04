@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   MODEL,
   buildSetupMessage,
@@ -91,6 +94,33 @@ assert.equal(tokenHeaders["x-goog-api-key"], "test-google-key");
 
 const secret = await resolveGeminiApiKey({ GEMINI_API_KEY: "test-google-key-for-host-ci" });
 assert.equal(secret, "test-google-key-for-host-ci");
+
+// OpenClaw 2026.10.9 layout (S24, 04/11): the facade exports readSecretStoreValue by
+// name, the implementation chunk exports writeSecretStoreEntries as minified `c`.
+// Before the fix the helper called `c` (a write) and the voice token mint died with exit 1.
+const S24_FACADE_EXPORTS = "assertSecretStoreValue, deleteSecretStoreEntry, listSecretStoreEntries, normalizeSecretAllowedHosts, purgeExpiredSecretStoreEntries, readSecretStoreExecEnvironment, readSecretStoreValue, updateSecretStoreAllowedHosts, writeSecretStoreEntries, writeSecretStoreEntry, writeSecretStoreEntryForConfigRef, writeSecretStoreEntryWithRollback";
+function fakeDist(files) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gemini-dist-"));
+  for (const [name, body] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), body);
+  return dir;
+}
+const writeTrap = "async function w(){ globalThis.__secretWrites = (globalThis.__secretWrites || 0) + 1; return []; }\n";
+const facade = writeTrap + S24_FACADE_EXPORTS.split(", ").filter((n) => n !== "readSecretStoreValue")
+  .map((n) => `const ${n} = w;`).join("\n")
+  + "\nasync function readSecretStoreValue(q){ return q && q.name === 'GEMINI_API_KEY' && !q.scope ? { ok: true, value: 'fixture-gemini-key' } : { ok: false }; }\n"
+  + `export { ${S24_FACADE_EXPORTS} };\n`;
+const chunk = writeTrap + "async function r(){ return { ok: true, value: 'wrong-chunk' }; }\nexport { r as readSecretStoreValue_, w as c, r as readSecretStoreValue };\n";
+const dist109 = fakeDist({
+  "secret-store-Bm1MKYpk.mjs": facade,
+  "secret-store-CnrQoIoy.mjs": chunk,
+  "secret-store-validation-DiqaFVNK.mjs": writeTrap + "export { w as c };\n"
+});
+assert.equal(await resolveGeminiApiKey({}, { distDir: dist109 }), "fixture-gemini-key");
+assert.equal(globalThis.__secretWrites || 0, 0, "no secret-store write may run while resolving the key");
+const distLegacyOnly = fakeDist({ "secret-store-CnrQoIoy.mjs": writeTrap + "export { w as c };\n" });
+await assert.rejects(resolveGeminiApiKey({}, { distDir: distLegacyOnly }), /gemini_api_key_unavailable/);
+assert.equal(globalThis.__secretWrites || 0, 0, "a minified export is never called");
+await assert.rejects(resolveGeminiApiKey({}, { distDir: path.join(dist109, "missing") }), /gemini_api_key_unavailable/);
 
 console.log(JSON.stringify({
   ok: true,

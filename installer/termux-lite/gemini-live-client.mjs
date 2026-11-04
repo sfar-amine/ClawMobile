@@ -23,16 +23,24 @@ function withTimeout(promise, ms, label) {
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
-export async function resolveGeminiApiKey(env = process.env) {
+// OpenClaw 2026.10.9 moved the secret-store chunk: its minified `c` export became
+// writeSecretStoreEntries. Only the named read facade (readSecretStoreValue) is used;
+// a module is imported only when its export clause names it, and nothing else is called.
+const READ_EXPORT_RE = /export\s*\{[^}]*\breadSecretStoreValue\b(?!\s+as\b)[^}]*\}/;
+
+export async function resolveGeminiApiKey(env = process.env, { distDir = OPENCLAW_DIST } = {}) {
   if (env.GEMINI_API_KEY) return String(env.GEMINI_API_KEY);
-  const names = fs.readdirSync(OPENCLAW_DIST)
-    .filter((name) => /^secret-store-.*\.mjs$/.test(name))
-    .sort();
+  let names = [];
+  try {
+    names = fs.readdirSync(distDir).filter((name) => /^secret-store-.*\.mjs$/.test(name)).sort();
+  } catch {}
   for (const name of names) {
+    const file = path.join(distDir, name);
     try {
-      const mod = await import(pathToFileURL(path.join(OPENCLAW_DIST, name)).href);
-      if (typeof mod.c !== "function") continue;
-      const result = mod.c({ name: "GEMINI_API_KEY", scope: { kind: "team", id: "" } });
+      if (!READ_EXPORT_RE.test(fs.readFileSync(file, "utf8"))) continue;
+      const mod = await import(pathToFileURL(file).href);
+      if (typeof mod.readSecretStoreValue !== "function") continue;
+      const result = await mod.readSecretStoreValue({ name: "GEMINI_API_KEY" });
       if (result?.ok === true && typeof result.value === "string" && result.value) {
         return result.value;
       }
