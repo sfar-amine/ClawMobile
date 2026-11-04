@@ -1,0 +1,43 @@
+{
+  "version": 2,
+  "id": "web-route-unique-20261104",
+  "date": "2026-11-04",
+  "origin": "chat",
+  "kind": "capability",
+  "summary": "Route web unique: the owner brain reaches the Web only through the direct typed tool samantha_web (samantha.app.web.answer|search, one Codex hosted search via public_web); the raw core web_search tool is denied to the main agent, the Codex adapter invokes web_search under the contacts tool policy, and the typed helper ceiling is 45 s for public-web actions.",
+  "reason": "S24 04/11 (recette-web-20261104T163533): « Quel est le prix du Brent aujourd'hui ? » took 92 s on the main agent: tool_search 7 s to find web_search, then three chained web_search calls (21, 27, 25 s) to cross-check; the dedicated public_web route answers in 19 s with one Codex search.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/web-route-unique-20261104.json",
+    "docs/changes/web-route-unique-20261104.md",
+    "installer/termux-lite/codex-web-request.mjs",
+    "installer/termux-lite/model-efficiency-config.py",
+    "installer/termux-lite/test-codex-web-request.mjs",
+    "installer/termux-lite/test-model-efficiency.py",
+    "openclaw-plugin-mobile-ui/openclaw.plugin.json",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-tools-direct-visible.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-web-direct.cjs",
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts"
+  ],
+  "tests": [
+    {"name": "openclaw-plugin-mobile-ui/scripts/test-typed-web-direct.cjs", "status": "passed", "evidence": "New, registered in ci.yml: samantha_web direct-only with the single-search hint, one typed owner invocation with --timeout 45, contract declared, direct surface 34667 chars (<= 36000), samantha_app stays behind tool_search, contacts never see the factory."},
+    {"name": "openclaw-plugin-mobile-ui/scripts/test-typed-tools-direct-visible.cjs, test-typed-device-direct.cjs, test-typed-capability-tools.cjs, test-typed-direct-call-id.cjs, test-google-typed-schema.cjs, test-typed-qa-tool.cjs", "status": "passed", "evidence": "Unchanged guards pass; samantha_web pending activation in the 30/10 projection like samantha_device_assistance."},
+    {"name": "installer/termux-lite/test-model-efficiency.py", "status": "passed", "evidence": "26 tests: web_search appended to the main deny list (merged, idempotent), contacts policy untouched."},
+    {"name": "installer/termux-lite/test-codex-web-request.mjs", "status": "passed", "evidence": "8 tests: the Gateway call is one web_search with agentId contacts within the budget."}
+  ],
+  "documentation": ["docs/changes/web-route-unique-20261104.md"],
+  "capabilities": {"impact": "none", "reason": "Same capabilities samantha.app.web.answer|search (registry owned by samantha-ui-playbooks); this change only exposes them to the owner brain and removes the raw tool."},
+  "architecture": {"changed": false, "reason": "Reuses the typed tool factory, the typed-tool helper, the public_web owner and the Codex adapter; no new router, store or process."},
+  "mcp_owner_parity": {
+    "tools": {"claw_context": "verified_no_impact", "claw_resolve": "verified_no_impact", "claw_execute": "verified_no_impact", "claw_exec": "verified_no_impact", "claw_status": "verified_no_impact", "claw_artifact_read": "verified_no_impact"},
+    "attached": {"schemas": "verified_no_impact", "adapters": "updated", "documentation": "updated", "tests": "updated", "runtime": "updated"},
+    "evidence": ["The Claw MCP path keeps executing samantha.app.web.* through capabilityBridge; only the main agent loses the raw web_search tool."]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Requires the samantha-ui-playbooks projection of samantha_web (PR claude/web-typed-tool); until it is activated the main agent has no web tool at all, so core and playbooks are activated together.",
+    "The Codex adapter depends on the contacts agent policy allowing web_search (verified live 04/11)."
+  ],
+  "rollback": "Revert this commit and redeploy; the main agent regains web_search on the next model-efficiency apply."
+}

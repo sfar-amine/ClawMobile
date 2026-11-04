@@ -32,7 +32,13 @@ MAIN_DENIED_SKILL_TOOLS = ("skills_read", "skills_search")
 # resolvePluginToolPluginIds), so denying both names keeps the module out. The channel itself is loaded by the Gateway
 # and is unchanged. Merged into any existing main policy, never replacing it.
 MAIN_DENIED_CHANNEL_TOOLS = ("whatsapp_call", "whatsapp_login")
-MAIN_DENIED_TOOLS = MAIN_DENIED_SKILL_TOOLS + MAIN_DENIED_CHANNEL_TOOLS
+# Route web unique (Amine 04/11): an owner web question took 92 s on the main agent (S24 recette-web-20261104T163533):
+# tool_search 7 s, then three chained web_search calls of 21, 27 and 25 s. The owner now has one typed web action
+# (samantha_app samantha.app.web.answer|search: one Codex hosted search through public_web, ~19 s). Denying the raw
+# core tool keeps the brain on that single route; the Codex adapter (codex-web-request.mjs) invokes web_search under
+# its own tool-policy agent, never main.
+MAIN_DENIED_WEB_TOOLS = ("web_search",)
+MAIN_DENIED_TOOLS = MAIN_DENIED_SKILL_TOOLS + MAIN_DENIED_CHANNEL_TOOLS + MAIN_DENIED_WEB_TOOLS
 
 GEMINI_AGENTS = """# Claw Gemini channel
 

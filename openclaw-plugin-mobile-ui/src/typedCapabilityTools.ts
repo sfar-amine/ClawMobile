@@ -25,7 +25,15 @@ const id = /^[a-z][a-z0-9_.-]{0,127}$/;
 // and out of the catalog. Frequent owners only; every other typed tool stays searchable (prompt budget).
 // S24 31/10: phone actions went through the shell (35 s for the torch); the device owner is frequent too.
 export const DIRECT_TYPED_TOOLS: ReadonlySet<string> = new Set(["samantha_utility_billing", "samantha_steg", "samantha_sonede",
-  "samantha_topnet", "samantha_maxit_tunisie", "samantha_agenda", "samantha_pulse", "samantha_catalogue", "samantha_device_assistance"]);
+  "samantha_topnet", "samantha_maxit_tunisie", "samantha_agenda", "samantha_pulse", "samantha_catalogue", "samantha_device_assistance",
+  // Route web unique (S24 04/11): behind tool_search a web question cost 7 s of discovery before three chained
+  // web_search calls (92 s). samantha_web carries only the two typed web actions (one Codex hosted search each).
+  "samantha_web"]);
+// One public web action = one Codex hosted search through public_web (budget 30 s) plus graph and dialogue owners;
+// the generic 30 s helper ceiling would cut it before its own named timeout.
+const PUBLIC_WEB_HELPER_TIMEOUT_S = 45;
+const isPublicWeb = (action?: Action) => action?.execution?.kind === "public_web";
+const WEB_HINT = " Pour toute question qui demande le Web (actualité, prix, fait public récent) : une seule action samantha.app.web.answer, qui cherche une fois et cite ses sources ; n'en enchaîne pas d'autres pour recouper.";
 const directOnly = (name: string) => DIRECT_TYPED_TOOLS.has(name) ? {catalogMode: "direct-only" as const} : {};
 
 export function readTypedToolCatalogue(home = os.homedir()): DomainTool[] {
@@ -93,7 +101,7 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
     const currentConversation = /^agent:main:companion-chat-([A-Za-z0-9-]{1,80})$/.exec(context.sessionKey || "")?.[1];
     const nativeWhatsApp=context.messageChannel==='whatsapp'&&/^agent:main:whatsapp:direct:\+?[1-9][0-9]{7,14}$/.test(context.sessionKey||'');
     return {name: tool.name,
-      description: `${tool.description}. Choisis l'action et ses paramètres typés. Aucune résolution du texte.${tool.domain === "app" && (currentConversation||nativeWhatsApp) ? " Conversation courante : " + (nativeWhatsApp?'current':currentConversation) + ". Si tu comprends que l’utilisateur demande d’arrêter le travail de ton propre tour, cesse les nouveaux appels et termine naturellement ce tour avec le contexte déjà présent. L’outil interrupt ne cible jamais ton propre run. Pour une autre génération, consulte active_generations et choisis son runId exact ; interrompre la génération n’annule pas les actions déjà envoyées." : ""}\n${actions}\nExemples de demandes : ${examples}. Les actions marquées « récapitulatif puis confirmation » exigent un nouveau tour utilisateur ; les autres s'exécutent directement ; confirm transmet uniquement l'identifiant et le payloadHash reçus, jamais de nouveaux paramètres ; si l'utilisateur refuse ou annule le récapitulatif, appelle cancel avec ces mêmes valeurs, jamais une simple réponse. Reproduis la réponse prête du reçu sans inventer de fait ; une question du reçu se pose telle quelle, sans format, exemple ni consigne de réponse ajoutés. Quand une question de cet outil attend une réponse, indique relation : answer si l'utilisateur y répond, new_request s'il fait une nouvelle demande, même avec les mêmes mots.`,
+      description: `${tool.description}. Choisis l'action et ses paramètres typés. Aucune résolution du texte.${tool.actions.some(isPublicWeb) ? WEB_HINT : ""}${tool.domain === "app" && (currentConversation||nativeWhatsApp) ? " Conversation courante : " + (nativeWhatsApp?'current':currentConversation) + ". Si tu comprends que l’utilisateur demande d’arrêter le travail de ton propre tour, cesse les nouveaux appels et termine naturellement ce tour avec le contexte déjà présent. L’outil interrupt ne cible jamais ton propre run. Pour une autre génération, consulte active_generations et choisis son runId exact ; interrompre la génération n’annule pas les actions déjà envoyées." : ""}\n${actions}\nExemples de demandes : ${examples}. Les actions marquées « récapitulatif puis confirmation » exigent un nouveau tour utilisateur ; les autres s'exécutent directement ; confirm transmet uniquement l'identifiant et le payloadHash reçus, jamais de nouveaux paramètres ; si l'utilisateur refuse ou annule le récapitulatif, appelle cancel avec ces mêmes valeurs, jamais une simple réponse. Reproduis la réponse prête du reçu sans inventer de fait ; une question du reçu se pose telle quelle, sans format, exemple ni consigne de réponse ajoutés. Quand une question de cet outil attend une réponse, indique relation : answer si l'utilisateur y répond, new_request s'il fait une nouvelle demande, même avec les mêmes mots.`,
       schema: parameters, inputSchema: parameters, parameters, ...directOnly(tool.name),
       async execute(toolCallId: unknown, args: any) {
         try {
@@ -161,9 +169,10 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
             surface: whatsapp ? "whatsapp" : "app", graphSurface: whatsapp ? "whatsapp" : "claw_live"}});
           if (Buffer.byteLength(privateInput) > 32768) throw Error("typed_input_too_large");
           context.assertInvocationCurrent!();
+          const helperTimeoutS = operation === "call" && isPublicWeb(action) ? PUBLIC_WEB_HELPER_TIMEOUT_S : 30;
           const raw = await runCapabilityHelperProcess([options.helperPath || runtimeFile("claw-capability.py", options.home),
-            "typed-tool", "--host-input-stdin", "--timeout", "30"],
-            {timeoutMs: 38000, maxBuffer: 128 * 1024, env: {...process.env}, privateInput});
+            "typed-tool", "--host-input-stdin", "--timeout", String(helperTimeoutS)],
+            {timeoutMs: (helperTimeoutS + 8) * 1000, maxBuffer: 128 * 1024, env: {...process.env}, privateInput});
           const result = JSON.parse(typeof raw === "string" ? raw : String(raw?.stdout || "{}"));
           return {content: [{type: "text", text: JSON.stringify(result && typeof result === "object" && !Array.isArray(result)
             ? {...result, ...ignored} : result)}]};

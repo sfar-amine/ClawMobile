@@ -64,7 +64,8 @@
       "samantha_app",
       "samantha_catalogue",
       "samantha_device_assistance",
-      "samantha_qa"
+      "samantha_qa",
+      "samantha_web"
     ]
   },
   "configSchema": {
