@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "id": "health-refusal-start-time-20261105",
+  "date": "2026-11-05",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "check_supervisor : un épisode de refus ouvert sans admission_refused_at (version précédente, ou clé perdue) enregistre son heure de début au premier refus vu, au lieu de prendre « maintenant » à chaque passage.",
+  "reason": "S24 05/11 21:16, après #548 : l'épisode ouvert par #547 n'avait pas d'heure de début. refused_s restait à 0, et core_services_watchdog et incident_manager n'étaient jamais redémarrés.",
+  "files": [
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-health-gateway-fallback-owner.py",
+    "docs/changes/health-refusal-start-time-20261105.json",
+    "docs/changes/health-refusal-start-time-20261105.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-health-gateway-fallback-owner.py",
+      "status": "passed",
+      "evidence": "Épisode admission=refused sans heure : l'heure est posée au premier refus, gardée au suivant, sans démarrage avant 15 min. Les cas existants restent verts."
+    }
+  ],
+  "documentation": [
+    "docs/changes/health-refusal-start-time-20261105.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Supervision interne."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même clé d'état, même propriétaire."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Health manager supervisor repair path only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Sur le S24, le démarrage direct part environ 15 min après ce déploiement."
+  ],
+  "rollback": "Revert de ce commit puis companion-deploy du commit précédent."
+}

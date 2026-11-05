@@ -230,6 +230,20 @@ class GatewayFallbackOwnerTests(unittest.TestCase):
         self.probe(GATE_UNAVAILABLE, self.CHECK)
         self.assertFalse((state / "core_services_watchdog.admission_refused_at").exists())
 
+    def test_refusal_episode_without_start_time_gets_one(self):
+        """S24 05/11 21:16: the episode was opened by the previous release (admission=refused, no start time)."""
+        self.start_companion()
+        state = self.home / ".openclaw/health/state"
+        state.mkdir(parents=True, exist_ok=True)
+        (state / "core_services_watchdog.admission").write_text("refused")
+        self.probe(GATE_UNAVAILABLE, self.CHECK)
+        stamp = state / "core_services_watchdog.admission_refused_at"
+        self.assertTrue(stamp.exists(), "the clock starts at the first refusal seen")
+        first = stamp.read_text()
+        self.probe(GATE_UNAVAILABLE, self.CHECK)
+        self.assertEqual(stamp.read_text(), first, "and is never reset while the episode lasts")
+        self.assertEqual(pids_running(self.script), [])
+
     def test_single_owner_and_companion_ownership_unchanged(self):
         text = MANAGER.read_text()
         loop = text.split("log 'event=start", 1)[1]
