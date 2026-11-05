@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "id": "pulse-room-forecast-guide-20261105",
+  "date": "2026-11-05",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Pièce Pulse : Sol accompagne le forecast pas à pas, avec un exemple à chaque étape : d'abord la répartition des JH de chaque profil par mois (en JH ou en %), puis les ressources de chaque profil, puis le lissage sur les semaines et un tableau par mois à confirmer. Sol explique aussi la grille : chaque profil liste toute l'équipe, et une ligne correspond à un collaborateur, un profil et une phase. Il peut relire avec les lectures de la pièce quand un résultat est en échec, vide ou surprenant, pour comprendre et aider, sans jamais inventer.",
+  "reason": "Projet 20933, 05/11. La pièce a répondu « D'accord » au « ok » de Sadok sans rien saisir. Elle a ensuite répondu un échec vide à sa demande de vue mensuelle. Corrections d'Amine : accompagner l'utilisateur et donner des exemples, procéder par étapes (répartition par profil et par mois, puis ressources, puis lissage), laisser Sol libre de diagnostiquer, comprendre et aider.",
+  "files": [
+    "docs/changes/pulse-room-forecast-guide-20261105.json",
+    "docs/changes/pulse-room-forecast-guide-20261105.md",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-brain.cjs",
+    "openclaw-plugin-mobile-ui/src/roomBrain.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-pulse-room-brain.cjs",
+      "status": "passed",
+      "evidence": "97 vérifications : la consigne de l'outil couvre la lecture de la grille, les trois étapes avec leurs exemples, le tableau confirmé et la liberté de relire sans inventer. Ces vérifications échouent sur l'ancien code."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-contact-room-brain.cjs, test-room-send-approval.cjs, test-recette-formulations.cjs",
+      "status": "passed",
+      "evidence": "98, 52 et 70 vérifications, sans changement."
+    }
+  ],
+  "documentation": [
+    "docs/changes/pulse-room-forecast-guide-20261105.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Mêmes actions de la pièce ; seules la consigne et la phrase de rédaction après un résultat changent."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même cerveau de pièce : le modèle peut déjà enchaîner plusieurs appels au même outil ; sa consigne l'y autorise désormais après un échec."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "La lecture et l'écriture du forecast doivent suivre la page choisie par Pulse (forecastaffairexls2 ou xls3). Ce correctif est traité côté playbooks.",
+    "Une recette réelle dans la pièce est nécessaire après le déploiement."
+  ],
+  "rollback": "Revert de ce commit puis companion-deploy.sh <commit>."
+}
