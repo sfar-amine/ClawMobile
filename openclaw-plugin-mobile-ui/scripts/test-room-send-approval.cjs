@@ -100,7 +100,7 @@ async function sign(c,id,key=owner.privateKey){
         if(p.command.operation==='handoff'&&handoff instanceof Error)throw handoff;
         return p.command.operation==='handoff'?(handoff||{state:'COMPLETED',answer:'Le résultat de la demande reste à vérifier.'}):{state:'CANCELLED'};},
       sendContact:async params=>{told.push(params);return {messageId:'m'};},
-      notifyOwner:async(id,title,content)=>{notified.push({id,title,content});return true;}});
+      notifyOwner:async(id,title,content)=>{notified.push({id,title,content});return true;},recordSent:async()=>({enqueued:true})});
     return {a,c,rows,typed,told,notified,advance:ms=>{now+=ms;},fire:async()=>{for(const t of timers.splice(0))if(t.at<=now)await t.fn();},
       now:()=>now};
   }
@@ -200,7 +200,7 @@ async function sign(c,id,key=owner.privateKey){
       // Real clock here: the room owner admits the packet against the current time.
       const c2={told:[],...core(Date.now)};c2.c=c2.core;
       c2.a=approvals.createRoomSendApprovals({confirmations:c2.c,timer:()=>({}),readGrant:async()=>grantValue(),
-        runTyped:async input=>owner(input),sendContact:async p=>{c2.told.push(p);return {};},notifyOwner:async()=>true});
+        runTyped:async input=>owner(input),sendContact:async p=>{c2.told.push(p);return {};},notifyOwner:async()=>true,recordSent:async()=>({})});
       asked=await c2.a.request(askedBodies[0]);
       if(decision==='confirm')await sign(c2.c,asked.confirmationRequestId);else await c2.c.cancel(asked.confirmationRequestId);
       const out=await c2.a.decided(asked.confirmationRequestId);

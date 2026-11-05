@@ -448,7 +448,24 @@ def finish_send(key,state,message_id=None,*,qa_delivery=False):
               (state,message_id,now,key))
     c.commit(); c.close()
 
-def whatsapp_send(target,message,key,*,qa_delivery=False,document=None,reauthorize=None,qa_deadline=None):
+ROOM_CONTEXT_METHOD='samantha.room.owner_sent'
+ROOM_CONTEXT_TEXT_LIMIT=4000
+
+def room_owner_sent(target,message,message_id):
+    """Amine 05/11: the contact's room model sees this accepted send at its next turn (plugin roomOwnerSent.ts).
+
+    Context only, after the send receipt is accepted: any failure is swallowed and never changes, fails or replays
+    the send. The plugin resolves the room from this owner's grant and answers no_room/no_session when there is none."""
+    try:
+        text=(message or '').strip()
+        if not text or not isinstance(message_id,str): return None
+        if len(text)>ROOM_CONTEXT_TEXT_LIMIT: text=text[:ROOM_CONTEXT_TEXT_LIMIT-1]+'…'
+        return gateway_call(ROOM_CONTEXT_METHOD,{'e164':target,'messageId':message_id,
+            'at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'text':text},timeout_ms=4000)
+    except Exception:
+        return None
+
+def whatsapp_send(target,message,key,*,qa_delivery=False,document=None,reauthorize=None,qa_deadline=None,room_context=True):
     allow,_=whatsapp_state()
     if target not in allow: raise RuntimeError("target_not_allowlisted")
     if document is not None and not qa_delivery:raise RuntimeError('qa_document_private_only')
@@ -496,6 +513,8 @@ def whatsapp_send(target,message,key,*,qa_delivery=False,document=None,reauthori
         finish_send(key,"uncertain",canonical({'qa_stage':{k:v for k,v in staged.items() if k!='path'}}) if staged else None,qa_delivery=qa_delivery)
         raise
     finish_send(key,"accepted",mid,qa_delivery=qa_delivery)
+    # A replay of this accepted receipt returned above: the room context is queued once, with the real send only.
+    if room_context and not qa_delivery and document is None: room_owner_sent(target,message,mid)
     if staged is not None:
         # Transport acceptance proves consumption, not that a person read it.
         # Failure to remove our exact copy cannot revoke a real send receipt.
@@ -1860,7 +1879,8 @@ class Contacts:
                 if not self.patch(before,after): state='indeterminate'
             if state=='completed' and staged_content is None: self.write_context(number,metadata,note,archive,removed=action in ('remove','sweep'))
             if state=='completed' and action=='add' and body.get('notify') is True:
-                self.people.whatsapp_send(number,'Amine autorise ce contact à échanger avec Samantha.','trusted:r17-welcome:'+digest(operation))
+                # Inside this grant mutation (Companion budget 20 s), before any room is granted: no room context call.
+                self.people.whatsapp_send(number,'Amine autorise ce contact à échanger avec Samantha.','trusted:r17-welcome:'+digest(operation),room_context=False)
         except Refused as error:
             if error.code=='config_changed':
                 if staged_content is not None and self.context(number)==staged_content: self.people.restore_context(self.path(number),previous_context)

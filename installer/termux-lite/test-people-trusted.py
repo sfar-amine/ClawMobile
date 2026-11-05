@@ -20,6 +20,11 @@ DATA_ROWS=[
  {"contact_id":"2","display_name":"Mehdi Test","data1":"+216 20 000 001","data2":"2","data3":None,"mimetype":m.PHONE_MIME},
  {"contact_id":"2","display_name":"Mehdi Test","data1":"+216 20 000 002","data2":"2","data3":None,"mimetype":m.PHONE_MIME},
 ]
+def sends(gw):
+ return sum(1 for c in gw.call_args_list if c.args[0]=="send")
+def room_calls(gw):
+ return [c.args[1] for c in gw.call_args_list if c.args[0]==m.ROOM_CONTEXT_METHOD]
+
 class PeopleTrustedTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory(); root=Path(self.tmp.name)
@@ -162,7 +167,7 @@ class PeopleTrustedTests(unittest.TestCase):
    c=m.connect(); c.execute("update send_receipts set updated_at=1 where idempotency_key='durable-key'"); c.commit(); c.close()
    second=m.whatsapp_send("+21653792744","hello","durable-key")
   self.assertEqual(first,"MID-DURABLE"); self.assertEqual(second,"MID-DURABLE")
-  self.assertEqual(gw.call_count,1)
+  self.assertEqual(sends(gw),1)
 
  def test_idempotency_key_conflict_rejected(self):
   self.set_config(["+21653792744"])
@@ -170,7 +175,7 @@ class PeopleTrustedTests(unittest.TestCase):
    m.whatsapp_send("+21653792744","hello","same-key")
    with self.assertRaisesRegex(RuntimeError,"idempotency_key_conflict"):
     m.whatsapp_send("+21653792744","different","same-key")
-  self.assertEqual(gw.call_count,1)
+  self.assertEqual(sends(gw),1)
 
  def test_uncertain_send_is_never_replayed_automatically(self):
   self.set_config(["+21653792744"])
@@ -184,5 +189,56 @@ class PeopleTrustedTests(unittest.TestCase):
  def test_send_rejects_target_outside_local_allowlist(self):
   with self.assertRaisesRegex(RuntimeError,"target_not_allowlisted"):
    m.whatsapp_send("+21699999999","hello","k")
+
+ # Amine 05/11: an accepted send queues the contact's room context once (plugin samantha.room.owner_sent).
+ def test_accepted_send_queues_room_context_once(self):
+  self.set_config(["+21610000001"])
+  def gw(method,params=None,timeout_ms=7000):
+   return {"channel":"whatsapp","messageId":"MID-ROOM"} if method=="send" else {"enqueued":True,"agentId":"contacts-messages"}
+  with patch.object(m,"gateway_call",side_effect=gw) as call:
+   mid=m.whatsapp_send("+21610000001","  Je passe à 18 h.  ","room-key")
+  self.assertEqual(mid,"MID-ROOM"); self.assertEqual(sends(call),1)
+  ctx=room_calls(call); self.assertEqual(len(ctx),1)
+  self.assertEqual(set(ctx[0]),{"e164","messageId","at","text"})
+  self.assertEqual((ctx[0]["e164"],ctx[0]["messageId"],ctx[0]["text"]),("+21610000001","MID-ROOM","Je passe à 18 h."))
+  self.assertRegex(ctx[0]["at"],r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+  self.assertNotIn("sessionKey",call.call_args_list[0].args[1])
+  self.assertLessEqual(call.call_args_list[1].kwargs["timeout_ms"],4000)
+
+ def test_room_context_failure_never_changes_the_send(self):
+  self.set_config(["+21610000001"])
+  for failure in (RuntimeError("invalid_gateway_response:samantha.room.owner_sent"),TimeoutError()):
+   key="room-fail-"+type(failure).__name__
+   def gw(method,params=None,timeout_ms=7000):
+    if method=="send": return {"channel":"whatsapp","messageId":"MID-"+key}
+    raise failure
+   with patch.object(m,"gateway_call",side_effect=gw) as call:
+    self.assertEqual(m.whatsapp_send("+21610000001","ok",key),"MID-"+key)
+   self.assertEqual((sends(call),len(room_calls(call))),(1,1))
+   c=m.connect();row=c.execute("select state,message_id from send_receipts where idempotency_key=?",(key,)).fetchone();c.close()
+   self.assertEqual((row["state"],row["message_id"]),("accepted","MID-"+key))
+
+ def test_replayed_accepted_receipt_does_not_requeue_room_context(self):
+  self.set_config(["+21610000001"])
+  with patch.object(m,"gateway_call",return_value={"channel":"whatsapp","messageId":"MID-REPLAY"}) as call:
+   m.whatsapp_send("+21610000001","hello","replay-key")
+   self.assertEqual(m.whatsapp_send("+21610000001","hello","replay-key"),"MID-REPLAY")
+  self.assertEqual((sends(call),len(room_calls(call))),(1,1))
+
+ def test_failed_send_and_grant_time_welcome_queue_no_room_context(self):
+  self.set_config(["+21610000001"])
+  with patch.object(m,"gateway_call",side_effect=RuntimeError("timeout")) as call:
+   with self.assertRaisesRegex(RuntimeError,"timeout"): m.whatsapp_send("+21610000001","hello","failed-key")
+  self.assertEqual(room_calls(call),[])
+  with patch.object(m,"gateway_call",return_value={"channel":"whatsapp","messageId":"MID-W"}) as call:
+   m.whatsapp_send("+21610000001","Amine autorise ce contact à échanger avec Samantha.","welcome-key",room_context=False)
+  self.assertEqual((sends(call),room_calls(call)),(1,[]))
+
+ def test_long_room_context_text_is_bounded(self):
+  self.set_config(["+21610000001"])
+  with patch.object(m,"gateway_call",return_value={"channel":"whatsapp","messageId":"MID-LONG"}) as call:
+   m.whatsapp_send("+21610000001","x"*5000,"long-key")
+  text=room_calls(call)[0]["text"]
+  self.assertEqual(len(text),m.ROOM_CONTEXT_TEXT_LIMIT); self.assertTrue(text.endswith("…"))
 
 if __name__=="__main__": unittest.main(verbosity=2)
