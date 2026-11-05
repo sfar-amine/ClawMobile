@@ -491,7 +491,8 @@ check_supervisor(){
   # continuous refusal (exhausted decision budget, escalated incident, unreachable gate) it is started directly,
   # under its restart budget and backoff. S24 05/11: core_services_watchdog and incident_manager stayed down
   # since the 03-04/11 reboots, their dossiers escalated and every admission refused.
-  t=$(now); since=$(get "$1" admission_refused_at "$t"); case "$since" in ''|*[!0-9]*) since=$t;; esac
+  # An episode opened before admission_refused_at existed (or with a lost key) starts its clock now, once.
+  t=$(now); since=$(get "$1" admission_refused_at none); case "$since" in ''|*[!0-9]*) since=$t; put "$1" admission_refused_at "$t";; esac
   if [ $((t-since)) -ge "$LATCHED_RETRY_S" ]; then
    log "service=$1 action=direct_repair reason=absent_supervisor_refused refused_s=$((t-since))"
    LATCHED_SUPERVISOR=1 check_supervisor_effect "$@" || true
