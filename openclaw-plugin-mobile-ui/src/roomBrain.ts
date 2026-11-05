@@ -62,8 +62,9 @@ const pulseRefusal = (subjects: readonly string[]) =>
 // Amine 05/11 (projet 20933): the team given by the contact goes to « Équipe affaire » at once, a project that exists is
 // never created again, the Matrice profils is never touched, and the forecast comes last, as a monthly table confirmed first.
 const PULSE_PROJECT_PROCESS = "Projet Pulse : projet, phase, commandé, équipe affaire, puis le forecast en dernier. Une équipe " +
-  "donnée pour un projet qui existe déjà s'ajoute tout de suite à son équipe affaire (une affectation par personne), sans attendre " +
-  "le forecast et sans recréer le projet. La Matrice profils n'est jamais modifiée.";
+  "donnée pour un projet qui existe déjà s'ajoute tout de suite à son équipe affaire (une affectation par personne), sans " +
+  "attendre le forecast et sans recréer le projet. Le forecast de plusieurs personnes passe ensuite par project.staffing : un " +
+  "seul tableau mensuel confirmé pour toutes. La Matrice profils n'est jamais modifiée.";
 // Amine 05/11: the forecast grid lists every project profile with every team member under it (a person appears under each
 // profile); a line is collaborator + profile + phase, and its cells are filled per month, smoothed over the weeks.
 const PULSE_FORECAST_GUIDE = "Forecast : dans la grille, chaque profil de la fiche projet liste toutes les personnes de l'équipe " +
@@ -80,6 +81,12 @@ const PULSE_TROUBLESHOOT = "Si un outil échoue ou renvoie un résultat vide ou 
   "lectures de la pièce (projet, équipe, phases, commandé, forecast) pour comprendre, explique simplement au contact ce que tu as " +
   "constaté et propose la suite ou pose la question utile. Tout ce que tu affirmes vient d'un outil ; les écritures gardent l'accord " +
   "du contact. Si la cause reste inconnue, dis-le franchement sans inventer.";
+// Amine 05/11: in an unforeseen case Sol is free to do it like an engineer would, with the room's own actions; what it
+// cannot do yet is recorded so the improvement loop codes it for the next time (playbooks room_tool_turn « gap »).
+const PULSE_AUTONOMY = "Si aucune action ne fait exactement ce que demande le contact, compose-la avec les actions de cet " +
+  "outil : les lectures d'abord, puis annonce ton plan au contact, puis chaque écriture avec son propre accord. Si c'est " +
+  "impossible même ainsi, appelle lacune.signaler (actions essayées, cause) : c'est transmis pour devenir une action ; " +
+  "dis-le franchement au contact, sans promettre de délai, et propose ce qui est possible maintenant.";
 const pulseRules = (subjects: readonly string[]) =>
   "Outil unique de la pièce Pulse d'un contact autorisé d'Amine. Pour toute demande sur Pulse (" +
   (subjects.length ? listed(subjects, ", ") + ", avec " : "") + "phases, équipes, consommations et forecasts) : appelle cet outil, " +
@@ -87,7 +94,7 @@ const pulseRules = (subjects: readonly string[]) =>
   "(nom, client, date, montant) : laisse vide ce qui n'est pas dit, l'outil pose lui-même la question. Rédige " +
   "toujours toi-même la réponse au contact à partir du résultat de l'outil (état, faits, cause, et sa phrase en référence) : dis ce qui est fait, ce qui reste et pourquoi, sans rien ajouter qui n'y figure pas. Quand une question de cet outil attend une réponse, indique relation : " +
   "answer si le contact y répond, new_request s'il fait une nouvelle demande. " + PULSE_PROJECT_PROCESS + " " +
-  PULSE_FORECAST_GUIDE + " " + PULSE_TROUBLESHOOT +
+  PULSE_FORECAST_GUIDE + " " + PULSE_TROUBLESHOOT + " " + PULSE_AUTONOMY +
   " Hors de Pulse, rien n'est possible dans cette pièce.";
 /** The Pulse-only room refusal for the full qualified Pulse room (createRoomTools derives it from the live catalogue). */
 export const PULSE_ROOM_REFUSAL = pulseRefusal(pulseSubjects());
@@ -285,10 +292,37 @@ export function roomActions(tool: DomainTool): Action[] {
     ["read", "write", "external_send"].includes(a.risk));
 }
 
-function roomSchema(actions: Action[]) {
+/** The room's gap report (playbooks room_tool_turn « gap »): closed fields only, never the contact's words. */
+export const ROOM_GAP_ACTION = "lacune.signaler";
+export const ROOM_GAP_REASONS = ["no_matching_action", "composition_insufficient", "parameter_unsupported",
+  "write_unsupported", "typed_route_unavailable"] as const;
+export const ROOM_GAP_TEXT = "Je ne sais pas encore faire cela dans cette pièce. C’est transmis pour devenir une action " +
+  "disponible ici ; en attendant, je te propose ce qui est possible maintenant.";
+const GAP_ROOMS: ReadonlySet<TypedRoom> = new Set<TypedRoom>(["pulse"]);
+function gapParams(actions: Action[]) {
   return {type: "object", properties: {
-    action: {type: "string", enum: actions.map(a => a.action)},
-    params: {anyOf: actionParamShapes(actions)},
+    attemptedActions: {type: "array", maxItems: 8, items: {type: "string", enum: actions.map(a => a.action)}},
+    reasonCodes: {type: "array", minItems: 1, maxItems: 5, items: {type: "string", enum: [...ROOM_GAP_REASONS]}},
+  }, required: ["reasonCodes"], additionalProperties: false};
+}
+/** A valid gap report, or null (unknown field, action outside this room, reason outside the closed list). */
+export function roomGapCommand(actions: Action[], params: any) {
+  if (!params || typeof params !== "object" || Array.isArray(params) ||
+      Object.keys(params).some(k => !["attemptedActions", "reasonCodes"].includes(k))) return null;
+  const ids = new Set(actions.map(a => a.action));
+  const attempted = params.attemptedActions === undefined ? [] : params.attemptedActions;
+  const reasons = params.reasonCodes;
+  if (!Array.isArray(attempted) || attempted.length > 8 || attempted.some((a: any) => typeof a !== "string" || !ids.has(a)))
+    return null;
+  if (!Array.isArray(reasons) || !reasons.length || reasons.length > 5 ||
+      reasons.some((r: any) => !(ROOM_GAP_REASONS as readonly string[]).includes(r))) return null;
+  return {attemptedActions: [...new Set<string>(attempted)], reasonCodes: [...new Set<string>(reasons)]};
+}
+
+function roomSchema(actions: Action[], gap = false) {
+  return {type: "object", properties: {
+    action: {type: "string", enum: [...actions.map(a => a.action), ...(gap ? [ROOM_GAP_ACTION] : [])]},
+    params: {anyOf: [...actionParamShapes(actions), ...(gap ? [gapParams(actions)] : [])]},
     relation: {type: "string", enum: ["answer", "new_request"]},
   }, required: ["action", "params"], additionalProperties: false};
 }
@@ -376,8 +410,10 @@ function createRoomTool(context: RoomContext, room: RoomPrincipal, tool: DomainT
   const actions = roomActions(tool);
   if (!actions.length) return null;
   const texts = TEXTS[room.room], domain = ROOM_TYPED[room.room].domain, refused = ROOM_REFUSED[room.room] || {};
-  const parameters = roomSchema(actions);
-  const list = actions.map(a => `${a.action}: ${a.description}`).join("\n");
+  const gap = GAP_ROOMS.has(room.room);
+  const parameters = roomSchema(actions, gap);
+  const list = [...actions.map(a => `${a.action}: ${a.description}`),
+    ...(gap ? [`${ROOM_GAP_ACTION}: aucune action, même composée, ne fait ce que demande le contact`] : [])].join("\n");
   const rules = room.room === "pulse" ? pulseRules(pulseSubjects(actions)) : texts.rules;
   return {name: tool.name, description: `${rules}\n${list}`,
     schema: parameters, inputSchema: parameters, parameters, catalogMode: "direct-only" as const,
@@ -390,6 +426,24 @@ function createRoomTool(context: RoomContext, room: RoomPrincipal, tool: DomainT
             Object.keys(args).some(k => !["action", "params", "relation"].includes(k)) || typeof args.action !== "string" ||
             (args.relation !== undefined && !["answer", "new_request"].includes(args.relation)) ||
             !args.params || typeof args.params !== "object" || Array.isArray(args.params)) throw Error("typed_input_invalid");
+        if (gap && args.action === ROOM_GAP_ACTION) {
+          const report = roomGapCommand(actions, args.params);
+          if (!report) throw Error("typed_input_invalid");
+          const eventRef = bound.userRunId + ":" + bound.invocationId;
+          if (eventRef.length > MAX_EVENT_REF) throw Error("typed_input_invalid");
+          reached = "grant";
+          const grant = await messageGrant(room, bound.userRunId, read).catch(() => null);
+          let packet;
+          try { packet = roomGrantPacket(room, eventRef, grant); }
+          catch { return delivered(texts.access, "DENIED", "room_grant_revoked"); }
+          context.assertInvocationCurrent!();
+          reached = "gap";
+          const out = await typed(JSON.stringify({command: {operation: "gap", domain, ...report},
+            host: roomHost(room, bound.userRunId, bound.invocationId), roomAdmission: packet}));
+          if (out?.ok !== true || typeof out?.observation_id !== "string") return roomToolReply(out, room.room, refusal);
+          return delivered(ROOM_GAP_TEXT, "GAP_RECORDED", out.recorded ? "room_gap_recorded" : "room_gap_already_recorded",
+            {observationId: out.observation_id, ...report});
+        }
         const action = actions.find(a => a.action === args.action);
         if (!action) return delivered(refusal, "OUTSIDE_SCOPE", "scope_outside");
         // Same constraint as the room policy, before any read (Pulse: Amine's account; actions: his SMS and photos).

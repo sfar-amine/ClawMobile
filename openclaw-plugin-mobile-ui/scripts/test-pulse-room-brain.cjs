@@ -245,8 +245,33 @@ async function call(h,args,runId=`run-${++runSeq}`,callId=`call-${runSeq}-${Math
      "1. Répartition","2. Ressources","3. Lissage","lissée sur les semaines sauf demande précise",
      "« Back-End : Amine Sadfi 80 %, Sadok 20 % »","attends son accord avant d'écrire ; un « ok » répond à ce tableau",
      // Amine 05/11: free to troubleshoot with the room reads, never to invent.
-     "ne t'arrête pas là : relis avec les lectures de la pièce","Si la cause reste inconnue, dis-le franchement sans inventer"])
+     "ne t'arrête pas là : relis avec les lectures de la pièce","Si la cause reste inconnue, dis-le franchement sans inventer",
+     // Amine 05/11: forecast of several people in one confirmed table; free to compose, a gap is coded for next time.
+     "Le forecast de plusieurs personnes passe ensuite par project.staffing","compose-la avec les actions de cet outil",
+     "appelle lacune.signaler","sans promettre de délai","lacune.signaler: aucune action, même composée"])
     ok(d.includes(part),'Pulse room process rule: '+part);}
+  // ---- Amine 05/11: a request no action covers is recorded as a gap for the improvement loop ---------------------
+  {const g=harness({replies:[{ok:true,recorded:true,observation_id:'OPT-gap-1'},{ok:true,recorded:false,observation_id:'OPT-gap-1'}]});
+   ok(g.tool.parameters.properties.action.enum.includes('lacune.signaler'),'gap action offered to the Pulse room');
+   const args={action:'lacune.signaler',params:{attemptedActions:['project.search','project.team'],reasonCodes:['composition_insufficient']}};
+   const first=await call(g,args);
+   eq(g.payloads.length,1);
+   eq(g.payloads[0].command,{operation:'gap',domain:'pulse',attemptedActions:['project.search','project.team'],
+     reasonCodes:['composition_insufficient']},'closed gap command, no contact words');
+   ok(g.payloads[0].roomAdmission&&g.payloads[0].host.contactId,'same room admission and host as a call');
+   eq([first.body.state,first.body.reasonCode,first.body.facts.observationId],['GAP_RECORDED','room_gap_recorded','OPT-gap-1']);
+   ok(first.body.toolText===brain.ROOM_GAP_TEXT&&/Rédige toi-même la réponse/.test(first.body.instruction),'the model writes the honest reply');
+   const again=await call(g,args);
+   eq(again.body.reasonCode,'room_gap_already_recorded');
+   // Refused before any read: an action outside the room, a reason outside the closed list, an unknown field.
+   for(const params of [{attemptedActions:['project.revenue'],reasonCodes:['no_matching_action']},
+       {reasonCodes:['because']},{reasonCodes:[]},{reasonCodes:['no_matching_action'],note:'texte libre'}]){
+     const bad=harness();const r=await call(bad,{action:'lacune.signaler',params});
+     eq([r.body.state,r.body.reasonCode,bad.payloads.length,bad.reads.length],['unverified','typed_input_invalid',0,0]);}
+   // An owner failure is the owner's own reply, never « recorded ».
+   const failed=harness({replies:[{state:'OUTSIDE_SCOPE',reasonCode:'typed_room_gap_refused'}]});
+   const out=await call(failed,args);
+   ok(out.body.state!=='GAP_RECORDED','a refused gap is not reported as recorded');}
   console.log(`Pulse room brain: ${checks} checks passed`);
   fs.rmSync(home,{recursive:true,force:true});
 })().catch(error=>{console.error(error);process.exitCode=1;});
