@@ -59,13 +59,20 @@ const listed = (items: readonly string[], last = " et ") =>
 const pulseScope = (subjects: readonly string[]) => subjects.length ? `Pulse (${listed(subjects)})` : "Pulse";
 const pulseRefusal = (subjects: readonly string[]) =>
   `Ici je ne traite que Pulse${subjects.length ? " : " + listed(subjects) : ""}. Pour le reste, vois directement avec Amine.`;
+// Amine 05/11 (projet 20933): the team given by the contact goes to « Équipe affaire » at once, a project that exists is
+// never created again, the Matrice profils is never touched, and the forecast comes last, as a monthly table confirmed first.
+const PULSE_PROJECT_PROCESS = "Projet Pulse : projet, phase, commandé, équipe affaire, puis le forecast en dernier. Une équipe " +
+  "donnée pour un projet qui existe déjà s'ajoute tout de suite à son équipe affaire (une affectation par personne), sans attendre " +
+  "le forecast et sans recréer le projet. La Matrice profils n'est jamais modifiée. Le forecast se donne en JH ou en % du " +
+  "commandé du profil, linéaire sur N mois : montre le tableau par mois et attends l'accord du contact avant de l'écrire.";
 const pulseRules = (subjects: readonly string[]) =>
   "Outil unique de la pièce Pulse d'un contact autorisé d'Amine. Pour toute demande sur Pulse (" +
   (subjects.length ? listed(subjects, ", ") + ", avec " : "") + "phases, équipes, consommations et forecasts) : appelle cet outil, " +
   "jamais de réponse de mémoire. Choisis l'action et ses paramètres typés à partir des mots du contact ; n'invente aucune valeur " +
   "(nom, client, date, montant) : laisse vide ce qui n'est pas dit, l'outil pose lui-même la question. Rédige " +
   "toujours toi-même la réponse au contact à partir du résultat de l'outil (état, faits, cause, et sa phrase en référence) : dis ce qui est fait, ce qui reste et pourquoi, sans rien ajouter qui n'y figure pas. Quand une question de cet outil attend une réponse, indique relation : " +
-  "answer si le contact y répond, new_request s'il fait une nouvelle demande. Hors de Pulse, rien n'est possible dans cette pièce.";
+  "answer si le contact y répond, new_request s'il fait une nouvelle demande. " + PULSE_PROJECT_PROCESS +
+  " Hors de Pulse, rien n'est possible dans cette pièce.";
 /** The Pulse-only room refusal for the full qualified Pulse room (createRoomTools derives it from the live catalogue). */
 export const PULSE_ROOM_REFUSAL = pulseRefusal(pulseSubjects());
 // Amine 26/10: a constraint, not a refusal. The room acts with Amine's Pulse account, so a leave

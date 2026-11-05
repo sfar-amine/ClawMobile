@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "id": "pulse-room-project-process-20261105",
+  "date": "2026-11-05",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Pièce Pulse : la consigne du modèle porte le déroulé d'un projet. Il passe par le projet, la phase, le commandé et l'équipe affaire, avec le forecast en dernier. Une équipe donnée pour un projet existant s'ajoute tout de suite, sans attendre le forecast ni recréer le projet. La Matrice profils n'est jamais modifiée. Le forecast se donne en JH ou en % du commandé, et le tableau mensuel est confirmé avant écriture.",
+  "reason": "Projet 20933, 05/11. Sadok a donné son équipe pour un projet déjà créé. La pièce a relancé la création (« Voulez-vous vraiment créer un nouveau projet ? »), et l'équipe affaire n'a pas été remplie avant qu'Amine le signale. Corrections d'Amine : la Matrice profils n'est jamais touchée (règle générale), il faut lui faciliter la vie et corriger le process en conséquence.",
+  "files": [
+    "docs/changes/pulse-room-project-process-20261105.json",
+    "docs/changes/pulse-room-project-process-20261105.md",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-brain.cjs",
+    "openclaw-plugin-mobile-ui/src/roomBrain.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-pulse-room-brain.cjs",
+      "status": "passed",
+      "evidence": "89 vérifications. Les 5 nouvelles portent sur la consigne de l'outil de la pièce : équipe affaire tout de suite, pas de recréation, Matrice jamais modifiée, JH ou %, tableau confirmé. Elles échouent sur l'ancien code."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-contact-room-brain.cjs, test-room-send-approval.cjs, test-recette-formulations.cjs",
+      "status": "passed",
+      "evidence": "98, 52 et 70 vérifications, inchangées."
+    }
+  ],
+  "documentation": [
+    "docs/changes/pulse-room-project-process-20261105.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Mêmes actions de la pièce Pulse (project.assign_collaborator existe déjà) ; seule la consigne du modèle change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même cerveau de pièce et même outil ; texte de consigne seulement."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Le forecast ne s'écrit que sur les lignes que Pulse affiche, c'est-à-dire les cases cochées de la Matrice profils par un utilisateur de Pulse.",
+    "Une recette réelle dans la pièce est requise après déploiement."
+  ],
+  "rollback": "Revert de ce commit puis companion-deploy.sh <commit>."
+}
