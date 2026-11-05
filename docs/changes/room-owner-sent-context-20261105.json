@@ -4,7 +4,7 @@
   "date": "2026-11-05",
   "origin": "chat",
   "kind": "repair",
-  "summary": "Un message envoyé à un contact au nom d'Amine (envoi owner par people-trusted.py, ou avis de résultat d'une demande d'envoi de la pièce Messages) est ajouté au contexte du prochain tour de la session de pièce de ce contact, par la file d'injection du tour suivant du SDK OpenClaw (méthode Gateway samantha.room.owner_sent).",
+  "summary": "Un message envoyé à un contact au nom d'Amine (envoi owner par people-trusted.py, ou avis de résultat d'une demande d'envoi de la pièce Messages) est ajouté au contexte du prochain tour de la session de pièce de ce contact, par la file d'injection du tour suivant du SDK OpenClaw (méthode Gateway samantha.room.owner_sent). L'appel est détaché (processus séparé) : l'envoi accepté rend la main tout de suite.",
   "reason": "Amine 05/11 : quand Claude envoie depuis le chat d'Amine un message WhatsApp à un contact autorisé, le modèle de la pièce du contact ne le voit jamais. OpenClaw reflète le send dans la session de main, et retire les messages delivery-mirror du rejeu du modèle. Quand le contact répond « ok », la pièce ne sait pas à quoi il répond. roomSendApprovals tell() avait le même trou.",
   "files": [
     ".github/workflows/ci.yml",
@@ -41,6 +41,11 @@
       "name": "installer/termux-lite/test-whatsapp-allowlist.py, test-qa-room-access.py, test-whatsapp-contact-memory.py, test-ci-registration.py",
       "status": "passed",
       "evidence": "Verts, inchangés. Le chemin de livraison QA n'injecte rien."
+    },
+    {
+      "name": "installer/termux-lite/test-people-trusted.py DetachedRoomContextTests",
+      "status": "passed",
+      "evidence": "L'appel de contexte part dans un processus détaché (start_new_session, sorties nulles), jamais attendu : un envoi accepté ne peut plus dépasser le budget de son exécuteur."
     }
   ],
   "documentation": [

@@ -27,6 +27,9 @@ def room_calls(gw):
 
 class PeopleTrustedTests(unittest.TestCase):
  def setUp(self):
+  # The detached room-context call is observed through gateway_call, as a synchronous call would be.
+  spawn=patch.object(m,"spawn_gateway_call",side_effect=lambda method,params,timeout_ms=4000: m.gateway_call(method,params,timeout_ms=timeout_ms))
+  spawn.start(); self.addCleanup(spawn.stop)
   self.tmp=tempfile.TemporaryDirectory(); root=Path(self.tmp.name)
   self.old=(m.ROOT,m.DB,m.WORKSPACE,m.CONTACTS,m.CONFIG,m.SESSION_DB)
   m.ROOT=root/"people"; m.DB=m.ROOT/"directory.db"
@@ -240,5 +243,15 @@ class PeopleTrustedTests(unittest.TestCase):
    m.whatsapp_send("+21610000001","x"*5000,"long-key")
   text=room_calls(call)[0]["text"]
   self.assertEqual(len(text),m.ROOM_CONTEXT_TEXT_LIMIT); self.assertTrue(text.endswith("…"))
+
+class DetachedRoomContextTests(unittest.TestCase):
+ def test_room_context_call_is_detached_and_never_awaited(self):
+  with patch.object(m.subprocess,"Popen") as popen:
+   self.assertEqual(m.spawn_gateway_call(m.ROOM_CONTEXT_METHOD,{"messageId":"MID","text":"é"}),{"spawned":True})
+  args,kwargs=popen.call_args
+  self.assertEqual(args[0][:4],["openclaw","gateway","call",m.ROOM_CONTEXT_METHOD])
+  self.assertIn('"text":"é"',args[0][-1])
+  self.assertTrue(kwargs["start_new_session"]); self.assertIs(kwargs["stdout"],m.subprocess.DEVNULL)
+  popen.return_value.wait.assert_not_called(); popen.return_value.communicate.assert_not_called()
 
 if __name__=="__main__": unittest.main(verbosity=2)

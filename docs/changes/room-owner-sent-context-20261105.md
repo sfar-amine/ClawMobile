@@ -38,3 +38,5 @@ Les avis de `roomSendApprovals` (« Amine a confirmé / refusé / n'a pas confir
 
 ## Retour arrière
 Revert du commit, puis `companion-deploy.sh` du commit précédent.
+
+L'appel de contexte est détaché du processus d'envoi : un appel bloquant (démarrage du CLI + 4 s) pouvait pousser un envoi déjà accepté hors du budget de son exécuteur, et le faire passer pour incertain.

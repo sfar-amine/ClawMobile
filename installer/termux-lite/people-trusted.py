@@ -460,10 +460,19 @@ def room_owner_sent(target,message,message_id):
         text=(message or '').strip()
         if not text or not isinstance(message_id,str): return None
         if len(text)>ROOM_CONTEXT_TEXT_LIMIT: text=text[:ROOM_CONTEXT_TEXT_LIMIT-1]+'…'
-        return gateway_call(ROOM_CONTEXT_METHOD,{'e164':target,'messageId':message_id,
+        return spawn_gateway_call(ROOM_CONTEXT_METHOD,{'e164':target,'messageId':message_id,
             'at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'text':text},timeout_ms=4000)
     except Exception:
         return None
+
+def spawn_gateway_call(method,params,timeout_ms=4000):
+    """Detached gateway call: the accepted send returns at once. A blocking call (CLI start + 4 s) could push an
+    already accepted send past its executor budget and turn a real send into an uncertain one."""
+    args=["openclaw","gateway","call",method,"--json","--timeout",str(timeout_ms),
+          "--params",json.dumps(params,ensure_ascii=False,separators=(",",":"))]
+    subprocess.Popen(args,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
+                     start_new_session=True,close_fds=True)
+    return {'spawned':True}
 
 def whatsapp_send(target,message,key,*,qa_delivery=False,document=None,reauthorize=None,qa_deadline=None,room_context=True):
     allow,_=whatsapp_state()
