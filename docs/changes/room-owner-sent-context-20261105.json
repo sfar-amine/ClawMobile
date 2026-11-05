@@ -1,0 +1,97 @@
+{
+  "version": 2,
+  "id": "room-owner-sent-context-20261105",
+  "date": "2026-11-05",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Un message envoyé à un contact au nom d'Amine (envoi owner par people-trusted.py, ou avis de résultat d'une demande d'envoi de la pièce Messages) est ajouté au contexte du prochain tour de la session de pièce de ce contact, par la file d'injection du tour suivant du SDK OpenClaw (méthode Gateway samantha.room.owner_sent). L'appel est détaché (processus séparé) : l'envoi accepté rend la main tout de suite.",
+  "reason": "Amine 05/11 : quand Claude envoie depuis le chat d'Amine un message WhatsApp à un contact autorisé, le modèle de la pièce du contact ne le voit jamais. OpenClaw reflète le send dans la session de main, et retire les messages delivery-mirror du rejeu du modèle. Quand le contact répond « ok », la pièce ne sait pas à quoi il répond. roomSendApprovals tell() avait le même trou.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/room-owner-sent-context-20261105.json",
+    "docs/changes/room-owner-sent-context-20261105.md",
+    "installer/termux-lite/people-trusted.py",
+    "installer/termux-lite/test-people-trusted.py",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/host-hook-state-D_zw_kUa.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/registry-CTP8XMYJ.mjs.gz",
+    "openclaw-plugin-mobile-ui/scripts/test-room-owner-sent.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-room-send-approval.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/roomSendApprovals.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/src/roomOwnerSent.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-room-owner-sent.cjs",
+      "status": "passed",
+      "evidence": "65 contrôles, inscrit dans ci.yml. Le corps public d'OpenClaw 2026.10.9 (host-hook-state, empreinte identique à la production du S24) tourne dans une VM, avec un magasin de sessions en mémoire. Grant réel de la recette S24, numéro fictif. Une entrée valide donne une seule injection, avec la clé owner-send:<id>, le texte exact, prepend_context, une TTL de 7 jours et les métadonnées. Le même messageId garde la même clé et n'ajoute rien. Le tour suivant vide la file une seule fois dans prependContext. no_room couvre une conversation seule, un contact suspendu, owner, expiré, maison ou inconnu. Les autres réponses fermées : no_session sans créer de session, allowlist_unavailable, prompt_injection_disabled, room_changed et injection_unavailable. 17 entrées invalides sont refusées avant toute lecture. La méthode est inscrite avec operator.write. tell() met l'avis dans la session de la pièce Messages, avec sa clé d'envoi. Un échec du contexte ne change pas l'issue, et un avis non envoyé ne donne aucun contexte."
+    },
+    {
+      "name": "installer/termux-lite/test-people-trusted.py",
+      "status": "passed",
+      "evidence": "26 tests, dont 5 nouveaux. Un envoi accepté fait un seul appel samantha.room.owner_sent {e164,messageId,at,text}, sans sessionKey dans le send. Un échec ou un délai de cet appel ne change ni le messageId rendu ni le reçu accepted. Le rejeu d'un reçu accepté ne refait ni le send ni l'injection. Un envoi échoué ou un message d'accueil R17 (room_context=False) n'injecte rien. Le texte est borné à 4000 caractères. Les deux tests existants de rejeu comptent désormais les seuls appels send."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-room-send-approval.cjs, test-contact-room-brain.cjs, test-pulse-room-brain.cjs, test-brain-only-entry.cjs, test-intent-interpreter-port.cjs",
+      "status": "passed",
+      "evidence": "Verts, sans pair playbooks (ROOM_PLAYBOOKS_ROOT non fourni dans ce conteneur). test-room-send-approval reçoit un recordSent inerte."
+    },
+    {
+      "name": "installer/termux-lite/test-whatsapp-allowlist.py, test-qa-room-access.py, test-whatsapp-contact-memory.py, test-ci-registration.py",
+      "status": "passed",
+      "evidence": "Verts, inchangés. Le chemin de livraison QA n'injecte rien."
+    },
+    {
+      "name": "installer/termux-lite/test-people-trusted.py DetachedRoomContextTests",
+      "status": "passed",
+      "evidence": "L'appel de contexte part dans un processus détaché (start_new_session, sorties nulles), jamais attendu : un envoi accepté ne peut plus dépasser le budget de son exécuteur."
+    }
+  ],
+  "documentation": [
+    "docs/changes/room-owner-sent-context-20261105.md",
+    "openclaw-plugin-mobile-ui/fixtures/openclaw-2026.10.9-compat/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Méthode Gateway interne appelée par deux propriétaires existants (people-trusted.py, roomSendApprovals). Aucune action, aucun réglage ni aucune information de l'app n'est exposé à l'agent ou à la voix, et aucune route Companion n'est ajoutée."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Aucun nouveau store. La file est celle du SDK OpenClaw, dans l'entrée de session : bornée à 32, avec TTL, dédoublonnée et vidée au tour suivant. La pièce est lue par la lecture existante du grant people-trusted (allowlistRead get) et routée par roomAgentFor. Aucune session n'est créée."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Plugin Gateway method and people-trusted post-send hook only; Claw MCP tools untouched."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Tour suivant seulement : l'injection est vidée au prochain tour de la session de pièce (prependContext de ce tour), puis supprimée. Elle n'est pas rejouée aux tours suivants. Si le contact ne répond pas sous 7 jours, elle expire.",
+    "Session de pièce existante requise : si le contact n'a jamais écrit dans sa pièce, la réponse est no_session et rien n'est mis en file. OpenClaw 2026.10.9 expose runtime.agent.session.createSessionEntry, mais une session créée par le plugin n'aurait pas l'origine ni le contexte de livraison WhatsApp du routage : elle n'est pas utilisée.",
+    "Le SDK renvoie aussi un id vide quand la copie du plugin n'a plus l'autorité de cycle de vie : ce cas apparaît comme no_session.",
+    "Configuration : l'injection exige plugins.entries.openclaw-plugin-mobile-ui.hooks.allowPromptInjection absent ou true. Sur le S24 le 05/11, il est absent (seul allowConversationAccess: true), donc autorisé. S'il vaut false, la méthode répond prompt_injection_disabled : le SDK refuserait avec un résultat vide, et le vidage au tour suivant supprimerait l'entrée sans la montrer.",
+    "Doublon et file pleine (32 par session) ne sont pas distingués par le SDK : already_enqueued_or_full.",
+    "people-trusted.py attend la méthode au plus 4 s + 5 s (gateway_call) après l'envoi accepté. Le budget de l'appelant send_owner.py (playbooks) n'a pas été mesuré.",
+    "Le message d'accueil R17 (dans la mutation d'ajout, budget Companion de 20 s, avant toute pièce) n'appelle pas la méthode (room_context=False).",
+    "sessionKey et agentId ne sont pas ajoutés au send : ils déplaceraient le reflet delivery-mirror hors de la session de main (historique d'Amine), sans effet sur le modèle, qui retire ces messages du rejeu.",
+    "Pas encore de recette réelle sur le S24 : ni envoi owner suivi d'une réponse du contact, ni avis de pièce Messages."
+  ],
+  "rollback": "Revert de ce commit, puis companion-deploy du commit précédent. Les injections déjà en file sont encore montrées une fois au tour suivant de leur pièce (le plugin reste chargé), ou expirent au bout de 7 jours ; aucune donnée à migrer."
+}

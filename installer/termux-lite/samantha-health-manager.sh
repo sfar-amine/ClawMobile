@@ -128,7 +128,7 @@ wait_supervisor_lock(){
 # 4 déploiements en 17 min ont épuisé 3/3, déclenché un rollback Tier0 puis 4 incidents human_required,
 # et ~490 restart_refused par superviseur, sans fin, sur des processus qui tournaient). Un superviseur
 # ABSENT reste une panne et passe par restart_gate.
-check_supervisor_effect(){ n="$1"; pat="$2"; script="$3"; local -a sargs=("${@:4}"); if proc "$pat" && supervisor_on_current_root "$pat" "$script" "${sargs[@]}"; then healthy "$n"; return; fi; unstable "$n"; due "$n" || return; if proc "$pat"; then log "service=$n state=stale_runtime action=replace expected=$script budget=exempt"; stop_supervisor "$pat"; wait_supervisor_lock "$n" || { fail "$n"; return; }; else restart_gate "$n" || return; log "service=$n action=start"; fi; start "$n" "$script" "${sargs[@]}"; sleep 3 9>&-; proc "$pat" && supervisor_on_current_root "$pat" "$script" "${sargs[@]}" && healthy "$n" || fail "$n"; }
+check_supervisor_effect(){ n="$1"; pat="$2"; script="$3"; local -a sargs=("${@:4}"); if proc "$pat" && supervisor_on_current_root "$pat" "$script" "${sargs[@]}"; then healthy "$n"; return; fi; unstable "$n"; due "$n" || return; if proc "$pat"; then log "service=$n state=stale_runtime action=replace expected=$script budget=exempt"; stop_supervisor "$pat"; wait_supervisor_lock "$n" || { fail "$n"; return; }; else restart_gate "$n" || latched_dead_retry "$n" "$pat" || return; log "service=$n action=start"; fi; start "$n" "$script" "${sargs[@]}"; sleep 3 9>&-; proc "$pat" && supervisor_on_current_root "$pat" "$script" "${sargs[@]}" && healthy "$n" || fail "$n"; }
 # A Companion deploy stops and restarts the server itself: never "repair" it meanwhile (S24 11/10: EADDRINUSE,
 # 15 concurrent repairs a day, each one cutting the Remote Bridge). The canonical mode also closes the race
 # between the outer loop and this repair boundary.
@@ -166,13 +166,14 @@ with_repair_lease() (
  "$@"; rc=$?
  return "$rc"
 )
-# A Companion latched in human_required can only become healthy again by running, and a stopped one has no
+# A Companion (or, on the refused-admission path, a base supervisor) latched in human_required can only become
+# healthy again by running, and a stopped one has no
 # work to interrupt: the latch kept it down until someone typed the restart by hand (S24 03/11 19:03 after a
 # reboot, and again at 22:05 after a deploy day). Only for a Companion whose process is absent, at most once per
 # LATCHED_RETRY_S, the restart is attempted while the human escalation stays open; a live Companion keeps the latch.
 latched_dead_retry(){
  local n="$1" pat="$2" t at
- [ "$n" = companion ] && [ "$(get "$n" escalation none)" = human_required ] && ! proc "$pat" || return 1
+ { [ "$n" = companion ] || [ "${LATCHED_SUPERVISOR:-0}" = 1 ]; } && [ "$(get "$n" escalation none)" = human_required ] && ! proc "$pat" || return 1
  t=$(now); at=$(get "$n" latched_retry_at 0); case "$at" in ''|*[!0-9]*) at=0;; esac
  [ $((t-at)) -ge "$LATCHED_RETRY_S" ] || return 1
  put "$n" latched_retry_at "$t"; log "service=$n action=restart_authorized reason=dead_process_latched_retry interval_s=$LATCHED_RETRY_S"
@@ -471,9 +472,10 @@ except Exception:print("UNAVAILABLE 0 0")
 }
 check_supervisor(){
  local rc=0
- if proc "$2" && supervisor_on_current_root "$2" "$3" "${@:4}"; then rm -f "$(sf "$1" admission)"; healthy "$1"; return; fi
+ local t since
+ if proc "$2" && supervisor_on_current_root "$2" "$3" "${@:4}"; then rm -f "$(sf "$1" admission)" "$(sf "$1" admission_refused_at)"; healthy "$1"; return; fi
  IMMUNE_OBSERVATION="$(immune_supervisor_facts "$1" "$2" "$3" 2>/dev/null)" immune_action "$1" bounded-supervisor-restore check_supervisor_effect "$@" || rc=$?
- [ "$rc" -eq 75 ] || rm -f "$(sf "$1" admission)"
+ [ "$rc" -eq 75 ] || rm -f "$(sf "$1" admission)" "$(sf "$1" admission_refused_at)"
  # core-services-watchdog --gateway-only covers the Gateway precisely while no Companion process exists,
  # which is also when the AI gate (reached through the Companion) cannot answer. Same rule as the Companion
  # repair below: with no Companion process the bounded effect runs directly (restart budget, backoff).
@@ -483,7 +485,17 @@ check_supervisor(){
  elif [ "$rc" -eq 75 ] && [ "$(get "$1" admission none)" != refused ]; then
   # A refused admission was silent: adb_watchdog stayed down after the 05/11 reboot with no line here.
   # Logged once per episode; the immune dossier holds the reason.
-  log "service=$1 state=down action=repair_not_admitted reason=immune_gate_refused"; put "$1" admission refused
+  log "service=$1 state=down action=repair_not_admitted reason=immune_gate_refused"; put "$1" admission refused; put "$1" admission_refused_at "$(now)"
+ elif [ "$rc" -eq 75 ] && ! proc "$2"; then
+  # Same rule as the Companion latch: an absent supervisor has no work to interrupt. After LATCHED_RETRY_S of
+  # continuous refusal (exhausted decision budget, escalated incident, unreachable gate) it is started directly,
+  # under its restart budget and backoff. S24 05/11: core_services_watchdog and incident_manager stayed down
+  # since the 03-04/11 reboots, their dossiers escalated and every admission refused.
+  t=$(now); since=$(get "$1" admission_refused_at "$t"); case "$since" in ''|*[!0-9]*) since=$t;; esac
+  if [ $((t-since)) -ge "$LATCHED_RETRY_S" ]; then
+   log "service=$1 action=direct_repair reason=absent_supervisor_refused refused_s=$((t-since))"
+   LATCHED_SUPERVISOR=1 check_supervisor_effect "$@" || true
+  fi
  fi
  return 0
 }

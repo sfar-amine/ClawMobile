@@ -15,7 +15,7 @@ class RestartEscalationTests(unittest.TestCase):
     def test_every_health_manager_restart_path_uses_the_same_gate(self):
         text = MANAGER.read_text()
         for snippet in (
-            'restart_gate "$n" || return',
+            'restart_gate "$n" || latched_dead_retry "$n" "$pat" || return',
             'restart_gate adb || return',
             'restart_gate whatsapp || return',
             'restart_gate gateway_memory || return',

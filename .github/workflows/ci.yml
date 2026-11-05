@@ -371,6 +371,7 @@ jobs:
           node scripts/test-pulse-room-brain.cjs
           node scripts/test-contact-room-brain.cjs
           node scripts/test-room-send-approval.cjs
+          node scripts/test-room-owner-sent.cjs
 
       - name: Qualify Companion M1 contracts and telemetry offline
         run: |

@@ -89,3 +89,17 @@ Recherche web Codex sur Android (03/11/2026, jeu `codex-android-compat`) : `temp
 (sha256 `4075c997…faa`) et `web-search-provider.runtime-DEBVJch2.mjs.gz` (sha256 `73e09af8…25f`) viennent de
 `@openclaw/codex@2026.10.9` (archive npm). Les quatre empreintes sont identiques à l'octet aux fichiers du S24 relevés le
 03/11 avant toute modification.
+
+Contexte de la pièce après un envoi au nom d'Amine (05/11/2026, même archive npm `openclaw@2026.10.9`, sha256
+`43c61a00…04ab`, conteneur Claude Code, lu comme texte) : `host-hook-state-D_zw_kUa.mjs.gz` (sha256 du module
+`a562b3cd…d382`) porte `enqueuePluginNextTurnInjection` et `drainPluginNextTurnInjectionContext` : file d'injections du
+tour suivant dans l'entrée de session, dédoublonnée par `idempotencyKey`, 32 au plus par session, avec TTL, vidée dans
+`prependContext` au tour suivant. `registry-CTP8XMYJ.mjs.gz` (sha256 `3edab64b…cdd7`) porte le wrapper
+`api.session.workflow.enqueueNextTurnInjection` : il rend un refus vide si `plugins.entries.<id>.hooks.allowPromptInjection`
+vaut `false` ou si cette copie du plugin n'a plus l'autorité de cycle de vie, puis il appelle le propriétaire avec
+`runtime.config.current()`. `scripts/test-room-owner-sent.cjs` exécute le corps public de `host-hook-state` dans une VM,
+avec un magasin de sessions en mémoire. Relevé S24 du 05/11 en lecture seule (`claw_exec`, actions
+`room-owner-sent-probe1` à `probe4`) : OpenClaw 2026.10.9 (8b18b55) en production, les deux modules ont la même empreinte
+que ceux de l'archive npm, `plugins.entries.openclaw-plugin-mobile-ui.hooks` ne contient que
+`allowConversationAccess: true` (donc `allowPromptInjection` vaut sa valeur par défaut, autorisé), et les clés de session
+des pièces sont de la forme `agent:<agent>:whatsapp:direct:+<e164>` (4 clés relevées, toutes avec `+` ; aucun numéro copié).

@@ -57,6 +57,7 @@ import {createTypedCapabilityTools, readTypedToolCatalogue} from "./typedCapabil
 import { agentCapabilityHook,ROOM_TOOLS,TYPED_CONTROL_ADMISSION_METHOD,typedControlAdmissionHandler } from "./capabilityAgentGuard";
 import { createContactTool } from "./contactTools";
 import { handleQaContactMediaReceived } from "./qaContactMediaOwner";
+import { ROOM_OWNER_SENT_METHOD, createOwnerSentHandler } from "./roomOwnerSent";
 
 type JsonSchema = Record<string, any>;
 
@@ -207,6 +208,10 @@ function register(api: any) {
   // Same authenticated Gateway transport as the existing warm port. This method
   // only checks a live SDK callback; Companion remains the sole runs.json writer.
   api.registerGatewayMethod?.(TYPED_CONTROL_ADMISSION_METHOD,typedControlAdmissionHandler,
+    {scope:"operator.write",profileAccess:"independent"});
+  // Amine 05/11: a message sent to a room contact on Amine's behalf reaches that room's next turn as context
+  // (SDK next-turn injection on the existing room session; people-trusted.py and roomSendApprovals call it).
+  api.registerGatewayMethod?.(ROOM_OWNER_SENT_METHOD, createOwnerSentHandler(api),
     {scope:"operator.write",profileAccess:"independent"});
   api.on("before_prompt_build", ownerFoundationHook);
 
