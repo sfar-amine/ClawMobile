@@ -235,6 +235,13 @@ async function call(h,args,runId=`run-${++runSeq}`,callId=`call-${runSeq}-${Math
     eq(two.reply,brain.LEAVE_REQUEST_REFUSAL);ok(one&&three);
     console.log('paired with playbooks room owner at',peer);
   }
+  // Amine 05/11 (20933): team in « Équipe affaire » at once, no project created twice, Matrice profils never touched,
+  // forecast last as a confirmed monthly table (JH or % of the profile commandé).
+  {const {tool}=harness();const d=tool.description;
+   for(const part of ["Une équipe donnée pour un projet qui existe déjà s'ajoute tout de suite à son équipe affaire",
+     "sans attendre le forecast et sans recréer le projet","La Matrice profils n'est jamais modifiée",
+     "en JH ou en % du commandé du profil","montre le tableau par mois et attends l'accord du contact avant de l'écrire"])
+    ok(d.includes(part),'Pulse room process rule: '+part);}
   console.log(`Pulse room brain: ${checks} checks passed`);
   fs.rmSync(home,{recursive:true,force:true});
 })().catch(error=>{console.error(error);process.exitCode=1;});
