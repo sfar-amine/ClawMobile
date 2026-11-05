@@ -24,6 +24,7 @@ import {ROOM_SEND_TEXTS, roomGrantPacket, roomHost, roomTypedHelper} from "../ro
 export {ROOM_SEND_TEXTS};
 import {runTermuxCommand} from "../backends/termux";
 import {ownerConfirmationNotificationArgs} from "../backends/ownerConfirmationNotification";
+import {ROOM_OWNER_SENT_METHOD, boundOwnerSentText} from "../roomOwnerSent";
 
 export const ROOM_SEND_ACTION = "whatsapp.room_send";
 const DOMAIN = "whatsapp";
@@ -39,6 +40,8 @@ export type RoomSendDeps = {
   runTyped?: (privateInput: string) => Promise<any>;
   sendContact?: (params: {to: string; accountId: string | null; message: string; idempotencyKey: string}) => Promise<any>;
   notifyOwner?: (requestId: string, title: string, content: string) => Promise<boolean>;
+  /** Next-turn context of the contact's room session (Gateway samantha.room.owner_sent); never affects the send. */
+  recordSent?: (params: {e164: string; messageId: string; at: string; text: string; source: "room_send_outcome"; sessionKey: string}) => Promise<any>;
   clock?: () => number;
   timer?: (fn: () => unknown, ms: number) => {unref?: () => void} | any;
 };
@@ -98,14 +101,21 @@ export function createRoomSendApprovals(deps: RoomSendDeps = {}) {
     {timeoutMs: 5000, hardTimeoutMs: 5000}));
   const notifyOwner = deps.notifyOwner || (async (id, title, content) =>
     (await runTermuxCommand("termux-notification", ownerConfirmationNotificationArgs(id, title, content), 5000)).ok);
+  const recordSent = deps.recordSent || (params => callOpenClawGateway(ROOM_OWNER_SENT_METHOD, params,
+    {timeoutMs: 5000, hardTimeoutMs: 5000}));
   const pending = new Map<string, Pending>();
 
   const tell = async (entry: Pending, kind: string, message: string) => {
+    const idempotencyKey = "samantha-room-send-" + sha(entry.id + "|" + kind).slice(0, 40);
     try {
-      await sendContact({to: entry.room.e164, accountId: entry.accountId, message,
-        idempotencyKey: "samantha-room-send-" + sha(entry.id + "|" + kind).slice(0, 40)});
-      return true;
+      await sendContact({to: entry.room.e164, accountId: entry.accountId, message, idempotencyKey});
     } catch {return false;}
+    // Amine 05/11: the room model sees this notice at the contact's next turn (same send key, deduplicated there).
+    try {
+      await recordSent({e164: entry.room.e164, messageId: idempotencyKey, at: new Date(clock()).toISOString(),
+        text: boundOwnerSentText(message), source: "room_send_outcome", sessionKey: entry.room.sessionKey});
+    } catch {/* Context only: the notice was sent. */}
+    return true;
   };
   const step = (id: string, outcome: string) => store.recordStep(id, {stage: "confirmation_consume", outcome}).catch(() => undefined);
   const command = (entry: Pending, extra: Record<string, unknown>) => ({domain: DOMAIN, goalRef: entry.goalRef, ...extra});
