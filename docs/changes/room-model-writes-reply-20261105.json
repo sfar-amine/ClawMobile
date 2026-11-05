@@ -44,7 +44,10 @@
   },
   "architecture": {
     "changed": true,
-    "reason": "ADR-20261102-pulse-room-brain révisé le 05/11 : la remise directe canDeliverSourceReply est retirée, le modèle rédige toutes les réponses des pièces."
+    "reason": "ADR-20261102-pulse-room-brain révisé le 05/11 : la remise directe canDeliverSourceReply est retirée, le modèle rédige toutes les réponses des pièces.",
+    "documents": [
+      "docs/08-decisions/ADR-20261102-pulse-room-brain.md"
+    ]
   },
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
