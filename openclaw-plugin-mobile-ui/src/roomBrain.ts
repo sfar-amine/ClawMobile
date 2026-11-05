@@ -63,15 +63,31 @@ const pulseRefusal = (subjects: readonly string[]) =>
 // never created again, the Matrice profils is never touched, and the forecast comes last, as a monthly table confirmed first.
 const PULSE_PROJECT_PROCESS = "Projet Pulse : projet, phase, commandé, équipe affaire, puis le forecast en dernier. Une équipe " +
   "donnée pour un projet qui existe déjà s'ajoute tout de suite à son équipe affaire (une affectation par personne), sans attendre " +
-  "le forecast et sans recréer le projet. La Matrice profils n'est jamais modifiée. Le forecast se donne en JH ou en % du " +
-  "commandé du profil, linéaire sur N mois : montre le tableau par mois et attends l'accord du contact avant de l'écrire.";
+  "le forecast et sans recréer le projet. La Matrice profils n'est jamais modifiée.";
+// Amine 05/11: the forecast grid lists every project profile with every team member under it (a person appears under each
+// profile); a line is collaborator + profile + phase, and its cells are filled per month, smoothed over the weeks.
+const PULSE_FORECAST_GUIDE = "Forecast : dans la grille, chaque profil de la fiche projet liste toutes les personnes de l'équipe " +
+  "(une même personne apparaît sous chaque profil) ; une ligne, c'est un collaborateur avec un profil et une phase, et on remplit " +
+  "ses cellules par mois. Accompagne le contact pas à pas, en ne demandant que ce qui manque et en donnant un exemple à chaque " +
+  "étape. 1. Répartition : pour la phase (s'il n'y en a qu'une, prends-la), comment les JH de chaque profil se répartissent par " +
+  "mois, en JH ou en % ; propose par défaut le commandé du profil à parts égales sur les mois, par exemple « Mobile 100 JH : 40 % " +
+  "en novembre, 30 % en décembre, 30 % en janvier ». 2. Ressources : pour chaque profil qui a des JH, qui y travaille parmi " +
+  "l'équipe du projet et, s'ils sont plusieurs, la part de chacun, par exemple « Back-End : Amine Sadfi 80 %, Sadok 20 % ». " +
+  "3. Lissage : calcule la charge de chaque personne par mois, lissée sur les semaines sauf demande précise, montre le tableau par " +
+  "mois (collaborateur, profil, mois, total) et attends son accord avant d'écrire ; un « ok » répond à ce tableau.";
+// Amine 05/11: Sol is free to troubleshoot, understand and help, never to invent.
+const PULSE_TROUBLESHOOT = "Si un outil échoue ou renvoie un résultat vide ou surprenant, ne t'arrête pas là : relis avec les " +
+  "lectures de la pièce (projet, équipe, phases, commandé, forecast) pour comprendre, explique simplement au contact ce que tu as " +
+  "constaté et propose la suite ou pose la question utile. Tout ce que tu affirmes vient d'un outil ; les écritures gardent l'accord " +
+  "du contact. Si la cause reste inconnue, dis-le franchement sans inventer.";
 const pulseRules = (subjects: readonly string[]) =>
   "Outil unique de la pièce Pulse d'un contact autorisé d'Amine. Pour toute demande sur Pulse (" +
   (subjects.length ? listed(subjects, ", ") + ", avec " : "") + "phases, équipes, consommations et forecasts) : appelle cet outil, " +
   "jamais de réponse de mémoire. Choisis l'action et ses paramètres typés à partir des mots du contact ; n'invente aucune valeur " +
   "(nom, client, date, montant) : laisse vide ce qui n'est pas dit, l'outil pose lui-même la question. Rédige " +
   "toujours toi-même la réponse au contact à partir du résultat de l'outil (état, faits, cause, et sa phrase en référence) : dis ce qui est fait, ce qui reste et pourquoi, sans rien ajouter qui n'y figure pas. Quand une question de cet outil attend une réponse, indique relation : " +
-  "answer si le contact y répond, new_request s'il fait une nouvelle demande. " + PULSE_PROJECT_PROCESS +
+  "answer si le contact y répond, new_request s'il fait une nouvelle demande. " + PULSE_PROJECT_PROCESS + " " +
+  PULSE_FORECAST_GUIDE + " " + PULSE_TROUBLESHOOT +
   " Hors de Pulse, rien n'est possible dans cette pièce.";
 /** The Pulse-only room refusal for the full qualified Pulse room (createRoomTools derives it from the live catalogue). */
 export const PULSE_ROOM_REFUSAL = pulseRefusal(pulseSubjects());
@@ -300,9 +316,10 @@ function traced(reply: any, trace: Record<string, any> | null) {
 // Amine 05/11: the model reads every result and writes the reply itself, for every room and contact. The tool's own
 // sentence is a reference, never delivered as is (S24 05/11 09:54: a partial Pulse creation reached Sadok as the bare
 // generic failure, the model never saw the project, the steps done or the cause).
-const COMPOSE = "Résultat de l'outil. Rédige toi-même la réponse au contact, en français, à partir de ce résultat seulement " +
+const COMPOSE = "Résultat de l'outil. Rédige toi-même la réponse au contact, en français, à partir des résultats des outils " +
   "(état, faits, cause, phrase de l'outil en référence) : dis ce qui est fait, ce qui reste et pourquoi ; n'ajoute, ne " +
-  "déduis et ne complète rien de mémoire.";
+  "déduis et ne complète rien de mémoire. Si ce résultat est un échec, vide ou surprenant, tu peux d'abord relire avec les " +
+  "autres lectures de cet outil pour comprendre et aider le contact.";
 function delivered(text: string, state: string, reasonCode = "", facts?: unknown) {
   const known = facts && typeof facts === "object" && Object.keys(facts as object).length ? {facts} : {};
   return {content: [{type: "text", text: JSON.stringify({state, reasonCode, toolText: text, ...known, instruction: COMPOSE})}],
