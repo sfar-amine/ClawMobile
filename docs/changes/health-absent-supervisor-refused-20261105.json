@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "id": "health-absent-supervisor-refused-20261105",
+  "date": "2026-11-05",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "check_supervisor : un superviseur de base absent, refusé par le portail sans interruption depuis LATCHED_RETRY_S, est démarré directement par check_supervisor_effect, sous son budget de relances et sa temporisation. Avec l'escalade human_required, le retry espacé du Companion (latched_dead_retry) s'applique aussi à ce chemin.",
+  "reason": "S24 05/11 20:03 : core_services_watchdog et incident_manager sont absents depuis les reboots des 03-04/11, avec des verrous libres. Leurs dossiers immunitaires sont escaladés human_required (budget de décisions épuisé) et chaque admission était refusée : il n'y avait plus d'issue sans geste humain.",
+  "files": [
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-health-gateway-fallback-owner.py",
+    "docs/changes/health-absent-supervisor-refused-20261105.json",
+    "docs/changes/health-absent-supervisor-refused-20261105.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-health-gateway-fallback-owner.py",
+      "status": "passed",
+      "evidence": "Vraies fonctions du gestionnaire et vrai core-services-watchdog.sh, avec un Companion vivant et le portail refusé. Un refus frais : aucun démarrage. Refus depuis plus de 15 min avec escalade human_required : direct_repair, latched retry, un seul processus --gateway-only. Sain ensuite : l'épisode est clos. Les 7 cas existants restent verts."
+    },
+    {
+      "name": "installer/termux-lite/test-health-*.py (8 autres fichiers)",
+      "status": "passed",
+      "evidence": "Verts, inchangés."
+    }
+  ],
+  "documentation": [
+    "docs/changes/health-absent-supervisor-refused-20261105.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Supervision interne ; aucune route, aucun réglage."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même propriétaire, même effet borné, même budget et même latch que le Companion ; une clé d'état <service>.admission_refused_at."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Health manager supervisor repair path only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Une décision « attendre » de Sol sur un superviseur absent cède après 15 min de refus continu.",
+    "Sur le S24, la clé admission_refused_at n'existe pas encore pour les deux superviseurs : le compteur part du premier refus après le déploiement, d'où un démarrage environ 15 min plus tard."
+  ],
+  "rollback": "Revert de ce commit puis companion-deploy du commit précédent."
+}

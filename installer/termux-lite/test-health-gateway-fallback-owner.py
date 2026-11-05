@@ -210,6 +210,26 @@ class GatewayFallbackOwnerTests(unittest.TestCase):
         log = self.probe(GATE_UNAVAILABLE, check)
         self.assertEqual(log.count("action=repair_not_admitted"), 2, log)
 
+    def test_absent_supervisor_refused_for_long_is_started_directly(self):
+        """05/11: core_services_watchdog and incident_manager stayed down for days, every admission refused."""
+        self.start_companion()
+        state = self.home / ".openclaw/health/state"
+        log = self.probe(GATE_UNAVAILABLE, self.CHECK)
+        self.assertIn("service=core_services_watchdog state=down action=repair_not_admitted", log)
+        self.assertEqual(pids_running(self.script), [], "a fresh refusal is respected")
+        # Refused for longer than the latch interval, still absent, escalation latched: started once, directly.
+        (state / "core_services_watchdog.admission_refused_at").write_text(str(int(time.time()) - 1000))
+        (state / "core_services_watchdog.escalation").write_text("human_required")
+        log = self.probe(GATE_UNAVAILABLE, self.CHECK)
+        self.assertIn("service=core_services_watchdog action=direct_repair reason=absent_supervisor_refused", log)
+        self.assertIn("reason=dead_process_latched_retry", log)
+        running = pids_running(self.script)
+        self.assertEqual(len(running), 1, running)
+        self.assertEqual(running[0][1][-1], "--gateway-only")
+        # Healthy again: the refusal episode is closed.
+        self.probe(GATE_UNAVAILABLE, self.CHECK)
+        self.assertFalse((state / "core_services_watchdog.admission_refused_at").exists())
+
     def test_single_owner_and_companion_ownership_unchanged(self):
         text = MANAGER.read_text()
         loop = text.split("log 'event=start", 1)[1]
