@@ -9,6 +9,7 @@
   "files": [
     "installer/termux-lite/samantha-health-manager.sh",
     "installer/termux-lite/test-health-gateway-fallback-owner.py",
+    "installer/termux-lite/test-health-restart-escalation.py",
     "docs/changes/health-absent-supervisor-refused-20261105.json",
     "docs/changes/health-absent-supervisor-refused-20261105.md"
   ],
@@ -17,6 +18,11 @@
       "name": "installer/termux-lite/test-health-gateway-fallback-owner.py",
       "status": "passed",
       "evidence": "Vraies fonctions du gestionnaire et vrai core-services-watchdog.sh, avec un Companion vivant et le portail refusé. Un refus frais : aucun démarrage. Refus depuis plus de 15 min avec escalade human_required : direct_repair, latched retry, un seul processus --gateway-only. Sain ensuite : l'épisode est clos. Les 7 cas existants restent verts."
+    },
+    {
+      "name": "installer/termux-lite/test-health-restart-escalation.py",
+      "status": "passed",
+      "evidence": "Le contrôle structurel « chaque chemin de relance passe par restart_gate » reconnaît la forme commune Companion/superviseur (restart_gate || latched_dead_retry || return)."
     },
     {
       "name": "installer/termux-lite/test-health-*.py (8 autres fichiers)",
