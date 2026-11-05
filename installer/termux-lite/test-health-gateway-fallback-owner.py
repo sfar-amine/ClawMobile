@@ -197,6 +197,19 @@ class GatewayFallbackOwnerTests(unittest.TestCase):
         self.assertNotIn("direct_repair", log)
         self.assertEqual(pids_running(self.script), [])
 
+    def test_refused_admission_is_logged_once_per_episode(self):
+        """05/11: adb_watchdog stayed down after a reboot; every refusal was silent."""
+        self.start_companion()
+        check = "check_supervisor adb_watchdog '[a]db-recovery-watchdog.sh' \"$ROOT/adb-recovery-watchdog.sh\"\n"
+        log = self.probe(GATE_UNAVAILABLE, check + check + check)
+        self.assertEqual(log.count("service=adb_watchdog state=down action=repair_not_admitted "
+                                   "reason=immune_gate_refused"), 1, log)
+        self.assertNotIn("service=adb_watchdog action=start", log)
+        # Admitted again (here: the effect runs and fails to find the script): a later refusal is a new episode.
+        log = self.probe(GATE_SELECTED, check)
+        log = self.probe(GATE_UNAVAILABLE, check)
+        self.assertEqual(log.count("action=repair_not_admitted"), 2, log)
+
     def test_single_owner_and_companion_ownership_unchanged(self):
         text = MANAGER.read_text()
         loop = text.split("log 'event=start", 1)[1]

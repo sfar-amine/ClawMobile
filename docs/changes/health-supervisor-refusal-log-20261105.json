@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "id": "health-supervisor-refusal-log-20261105",
+  "date": "2026-11-05",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "samantha-health-manager.sh check_supervisor : un refus d'admission (code 75) pour un superviseur absent ou périmé écrit une ligne repair_not_admitted, une seule fois par épisode. L'épisode se clôt quand le superviseur est sain ou qu'une réparation est admise.",
+  "reason": "S24 05/11 : adb-recovery-watchdog.sh est mort à 15:16 et n'a pas été relancé après le reboot de 15:48 ; health.log n'avait aucune ligne adb_watchdog depuis le 03/11. Le refus venait d'un dossier immunitaire bloqué (corrigé côté playbooks, immune-orphan-effect-20261105) et restait invisible.",
+  "files": [
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-health-gateway-fallback-owner.py",
+    "docs/changes/health-supervisor-refusal-log-20261105.json",
+    "docs/changes/health-supervisor-refusal-log-20261105.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-health-gateway-fallback-owner.py",
+      "status": "passed",
+      "evidence": "Vraies fonctions du gestionnaire. Avec le portail refusé : trois contrôles adb_watchdog donnent une seule ligne repair_not_admitted et aucun démarrage. Après une admission, un nouveau refus ouvre un nouvel épisode. Les 6 cas existants restent verts (repli direct core_services_watchdog compris)."
+    },
+    {
+      "name": "installer/termux-lite/test-health-boot-reset.py, test-health-deploy-lock.py, test-health-hysteresis.py, test-health-qa-queue.py, test-health-resource-policy.py, test-health-restart-escalation.py, test-health-verdict.py, test-health-verdict-f5.py",
+      "status": "passed",
+      "evidence": "Verts, inchangés."
+    }
+  ],
+  "documentation": [
+    "docs/changes/health-supervisor-refusal-log-20261105.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Journalisation seule ; aucune route, aucun réglage, aucune action d'app."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même propriétaire et même répertoire d'état ; une clé <service>.admission en plus."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Health manager supervisor logging only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "La ligne dit que la réparation a été refusée, pas pourquoi : la raison est dans le dossier immunitaire du composant."
+  ],
+  "rollback": "Revert de ce commit puis companion-deploy du commit précédent."
+}

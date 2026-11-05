@@ -471,14 +471,19 @@ except Exception:print("UNAVAILABLE 0 0")
 }
 check_supervisor(){
  local rc=0
- if proc "$2" && supervisor_on_current_root "$2" "$3" "${@:4}"; then healthy "$1"; return; fi
+ if proc "$2" && supervisor_on_current_root "$2" "$3" "${@:4}"; then rm -f "$(sf "$1" admission)"; healthy "$1"; return; fi
  IMMUNE_OBSERVATION="$(immune_supervisor_facts "$1" "$2" "$3" 2>/dev/null)" immune_action "$1" bounded-supervisor-restore check_supervisor_effect "$@" || rc=$?
+ [ "$rc" -eq 75 ] || rm -f "$(sf "$1" admission)"
  # core-services-watchdog --gateway-only covers the Gateway precisely while no Companion process exists,
  # which is also when the AI gate (reached through the Companion) cannot answer. Same rule as the Companion
  # repair below: with no Companion process the bounded effect runs directly (restart budget, backoff).
  if [ "$rc" -eq 75 ] && [ "$1" = core_services_watchdog ] && ! proc 'dist/companion/[s]erver.js'; then
   log "service=$1 action=direct_repair reason=ai_gate_unreachable"
   check_supervisor_effect "$@" || true
+ elif [ "$rc" -eq 75 ] && [ "$(get "$1" admission none)" != refused ]; then
+  # A refused admission was silent: adb_watchdog stayed down after the 05/11 reboot with no line here.
+  # Logged once per episode; the immune dossier holds the reason.
+  log "service=$1 state=down action=repair_not_admitted reason=immune_gate_refused"; put "$1" admission refused
  fi
  return 0
 }
