@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "id": "room-compose-gap-20261105",
+  "date": "2026-11-05",
+  "origin": "chat",
+  "kind": "capability",
+  "summary": "Pièce Pulse : consigne de composition des actions existantes (lectures, plan annoncé, chaque écriture avec son accord) et nouvelle action lacune.signaler. Elle n'a que des champs fermés, suit la même admission qu'un appel et envoie l'opération playbooks gap. Process projet : l'équipe tout de suite, le forecast de plusieurs personnes par project.staffing avec un seul tableau confirmé.",
+  "reason": "Amine 05/11 : dans un cas limite, Sol doit pouvoir faire comme Claude avec les actions de la pièce, et ce qu'il ne sait pas faire doit être codé pour le tour suivant. Une demande sans action exacte finissait par « vois avec Amine », et rien n'était enregistré.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/roomBrain.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-brain.cjs",
+    "docs/changes/room-compose-gap-20261105.json",
+    "docs/changes/room-compose-gap-20261105.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-pulse-room-brain.cjs",
+      "status": "passed",
+      "evidence": "114 contrôles. Action lacune.signaler proposée à la pièce Pulse. Commande fermée exacte (domaine, actions, causes), même admission et même hôte qu'un appel. Retours GAP_RECORDED puis room_gap_already_recorded. Refus avant toute lecture pour une action hors pièce, une cause hors liste, une liste vide ou un champ libre. Un refus du propriétaire n'est jamais annoncé comme enregistré. Les consignes (composition, lacune, staffing, équipe tout de suite) sont présentes."
+    },
+    {
+      "name": "test-contact-room-brain.cjs, test-room-send-approval.cjs, test-whatsapp-rooms-paired.cjs",
+      "status": "passed",
+      "evidence": "Verts, inchangés (98, 52 contrôles)."
+    }
+  ],
+  "documentation": [
+    "docs/changes/room-compose-gap-20261105.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Même outil de pièce ; une action de signalement fermée, routée vers le propriétaire playbooks existant."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même fabrique d'outil de pièce, même admission et même helper typé ; le pool d'amélioration existant reçoit l'observation."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Room tool of contact sessions only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "La composition reste guidée par la consigne : chaque écriture garde son hand-off et sa confirmation.",
+    "Activer les playbooks (pb#407, puis project.staffing) avant ce déploiement.",
+    "Une nouvelle route arrive au mieux validated ; elle ne devient validated-write qu'après une écriture réelle autorisée."
+  ],
+  "rollback": "Revert de ce commit puis companion-deploy du commit précédent."
+}
