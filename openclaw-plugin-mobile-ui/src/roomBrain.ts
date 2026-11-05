@@ -22,9 +22,9 @@
  *     its domain only, the owner's SMS and photos refused, a write prepared then stopped at its hand-off.
  *
  * « Ne jamais inventer » (Amine 12/10): every answer that the owners already wrote (question, refusal, failure,
- * closed hours, verified write or read sentence) is delivered as is (`canDeliverSourceReply`, the turn ends; the
- * model does not restate it). A read whose owner gives only verified facts is returned to the model with those facts
- * and the rule to answer with them only, as in Amine's own typed turns.
+ * closed hours, verified write or read sentence) reaches the model with the result's state, facts and cause; the model
+ * writes the reply itself from them only (Amine 05/11: model at the input and at the output, for every contact). No
+ * tool reply is delivered past the model (`canDeliverSourceReply` is not used).
  */
 import os from "node:os";
 import http from "node:http";
@@ -63,8 +63,8 @@ const pulseRules = (subjects: readonly string[]) =>
   "Outil unique de la pièce Pulse d'un contact autorisé d'Amine. Pour toute demande sur Pulse (" +
   (subjects.length ? listed(subjects, ", ") + ", avec " : "") + "phases, équipes, consommations et forecasts) : appelle cet outil, " +
   "jamais de réponse de mémoire. Choisis l'action et ses paramètres typés à partir des mots du contact ; n'invente aucune valeur " +
-  "(nom, client, date, montant) : laisse vide ce qui n'est pas dit, l'outil pose lui-même la question. Les réponses prêtes de " +
-  "l'outil sont remises telles quelles au contact. Quand une question de cet outil attend une réponse, indique relation : " +
+  "(nom, client, date, montant) : laisse vide ce qui n'est pas dit, l'outil pose lui-même la question. Rédige " +
+  "toujours toi-même la réponse au contact à partir du résultat de l'outil (état, faits, cause, et sa phrase en référence) : dis ce qui est fait, ce qui reste et pourquoi, sans rien ajouter qui n'y figure pas. Quand une question de cet outil attend une réponse, indique relation : " +
   "answer si le contact y répond, new_request s'il fait une nouvelle demande. Hors de Pulse, rien n'est possible dans cette pièce.";
 /** The Pulse-only room refusal for the full qualified Pulse room (createRoomTools derives it from the live catalogue). */
 export const PULSE_ROOM_REFUSAL = pulseRefusal(pulseSubjects());
@@ -85,8 +85,8 @@ const MAX_EVENT_REF = 300;
 type RoomTexts = {label: string; scope: string; access: string; unverified: string; stopped: string; noDetail: string;
   facts: string; rules: string};
 const RULES_TAIL = " Choisis l'action et ses paramètres typés à partir des mots du contact ; n'invente aucune valeur : laisse " +
-  "vide ce qui n'est pas dit, l'outil pose lui-même la question. Les réponses prêtes de l'outil sont remises telles quelles " +
-  "au contact. Quand une question de cet outil attend une réponse, indique relation : answer si le contact y répond, " +
+  "vide ce qui n'est pas dit, l'outil pose lui-même la question. Rédige toujours toi-même la réponse au contact à partir du résultat de l'outil (état, faits, cause, et sa phrase en référence) : dis ce qui est fait, ce qui reste et pourquoi, sans rien ajouter qui n'y figure pas. " +
+  "Quand une question de cet outil attend une réponse, indique relation : answer si le contact y répond, " +
   "new_request s'il fait une nouvelle demande.";
 function roomTexts(name: string, of: string, to: string, scope: string, subjects: string): RoomTexts {
   return {label: name, scope,
@@ -290,9 +290,16 @@ function traced(reply: any, trace: Record<string, any> | null) {
   return {...reply, content: [{type: "text", text: JSON.stringify({...JSON.parse(reply.content[0].text), ...trace})}]};
 }
 
-function delivered(text: string, state: string, reasonCode = "") {
-  return {content: [{type: "text", text: JSON.stringify({state, reasonCode, answer: text})}],
-    details: {sourceReply: {text}}};
+// Amine 05/11: the model reads every result and writes the reply itself, for every room and contact. The tool's own
+// sentence is a reference, never delivered as is (S24 05/11 09:54: a partial Pulse creation reached Sadok as the bare
+// generic failure, the model never saw the project, the steps done or the cause).
+const COMPOSE = "Résultat de l'outil. Rédige toi-même la réponse au contact, en français, à partir de ce résultat seulement " +
+  "(état, faits, cause, phrase de l'outil en référence) : dis ce qui est fait, ce qui reste et pourquoi ; n'ajoute, ne " +
+  "déduis et ne complète rien de mémoire.";
+function delivered(text: string, state: string, reasonCode = "", facts?: unknown) {
+  const known = facts && typeof facts === "object" && Object.keys(facts as object).length ? {facts} : {};
+  return {content: [{type: "text", text: JSON.stringify({state, reasonCode, toolText: text, ...known, instruction: COMPOSE})}],
+    details: {toolText: text}};
 }
 
 /** The reply of a room typed turn: the owners' own text delivered as is, or verified facts for the model. */
@@ -300,10 +307,10 @@ export function roomToolReply(result: any, room: TypedRoom = "pulse", refusal = 
   const texts = TEXTS[room];
   const state = String(result?.state || ""), reason = String(result?.reasonCode || "");
   const answer = typeof result?.answer === "string" ? result.answer.trim() : "";
+  const facts = result?.facts;
   switch (state) {
     case "COMPLETED": {
-      if (answer && answer !== GENERIC_RECEIPT) return delivered(answer, state);
-      const facts = result?.facts;
+      if (answer && answer !== GENERIC_RECEIPT) return delivered(answer, state, "", facts);
       if (facts && typeof facts === "object" && Object.keys(facts).length)
         return {content: [{type: "text", text: JSON.stringify({state, facts, instruction: texts.facts})}],
           details: {verifiedFacts: true}};
@@ -315,8 +322,8 @@ export function roomToolReply(result: any, room: TypedRoom = "pulse", refusal = 
         reason === "scope_owner_private" ? OWNER_PRIVATE_REFUSAL : refusal, state, reason);
     case "TECHNICAL_FAILURE":
       if (reason === "service_closed" && CLOSED_SENTENCE.test(answer)) return delivered(answer, state, reason);
-      return delivered(answer || texts.unverified, state, reason);
-    default: return delivered(answer || texts.unverified, state || "unverified", reason);
+      return delivered(answer || texts.unverified, state, reason, facts);
+    default: return delivered(answer || texts.unverified, state || "unverified", reason, facts);
   }
 }
 
@@ -349,7 +356,7 @@ function createRoomTool(context: RoomContext, room: RoomPrincipal, tool: DomainT
   const list = actions.map(a => `${a.action}: ${a.description}`).join("\n");
   const rules = room.room === "pulse" ? pulseRules(pulseSubjects(actions)) : texts.rules;
   return {name: tool.name, description: `${rules}\n${list}`,
-    schema: parameters, inputSchema: parameters, parameters, catalogMode: "direct-only" as const, canDeliverSourceReply: true,
+    schema: parameters, inputSchema: parameters, parameters, catalogMode: "direct-only" as const,
     async execute(toolCallId: unknown, args: any) {
       let reached = "admission";
       try {

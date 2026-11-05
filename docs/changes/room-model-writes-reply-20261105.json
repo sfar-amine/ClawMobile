@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "id": "room-model-writes-reply-20261105",
+  "date": "2026-11-05",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Pièces des contacts : plus aucune réponse d'outil remise telle quelle (canDeliverSourceReply retiré). Le modèle reçoit l'état, la cause, les faits du reçu et la phrase de l'outil en référence, et rédige toujours lui-même la réponse.",
+  "reason": "Décision d'Amine du 05/11 : le modèle à l'entrée et à la sortie, pour tout contact. S24 05/11 09:54 : la création partielle du projet 20933 est arrivée chez Sadok sous la forme du seul échec générique, remis sans passer par le modèle.",
+  "files": [
+    "docs/08-decisions/ADR-20261102-pulse-room-brain.md",
+    "docs/changes/room-model-writes-reply-20261105.json",
+    "docs/changes/room-model-writes-reply-20261105.md",
+    "installer/termux-lite/deploy-parcours-room.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-contact-room-brain.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-brain.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-recette-formulations.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-room-send-approval.cjs",
+    "openclaw-plugin-mobile-ui/src/roomBrain.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-pulse-room-brain.cjs",
+      "status": "passed",
+      "evidence": "84 vérifications. Nouveau cas tiré du reçu partiel réel du 05/11 (projet 20933) : faits transmis au modèle, consigne de rédaction présente, aucune sourceReply ; idem pour un refus. Échoue sur l'ancien code."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-contact-room-brain.cjs, test-room-send-approval.cjs, test-recette-formulations.cjs",
+      "status": "passed",
+      "evidence": "98, 52 et 70 vérifications, adaptées à toolText."
+    },
+    {
+      "name": "installer/termux-lite/test-deploy-parcours.py",
+      "status": "passed",
+      "evidence": "Vert ; la lecture de parcours lit details.toolText."
+    }
+  ],
+  "documentation": [
+    "docs/changes/room-model-writes-reply-20261105.md",
+    "docs/08-decisions/ADR-20261102-pulse-room-brain.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Mêmes outils et mêmes actions de pièce ; seule la remise de la réponse change."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "ADR-20261102-pulse-room-brain révisé le 05/11 : la remise directe canDeliverSourceReply est retirée, le modèle rédige toutes les réponses des pièces.",
+    "documents": [
+      "docs/08-decisions/ADR-20261102-pulse-room-brain.md"
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "La voix garde voice.verbatim, traitée à part.",
+    "Recette réelle dans une pièce requise après déploiement."
+  ],
+  "rollback": "Revert de ce commit puis companion-deploy.sh <commit>."
+}

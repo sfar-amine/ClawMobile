@@ -77,7 +77,7 @@ function params(raw){
       if(proof?.block)throw Error('room_proof_refused');
       const result=await room.execute(call,args);
       const body=JSON.parse(result.content[0].text);
-      out={reply:String(result.details?.sourceReply?.text||''),state:String(body.state||''),reasonCode:String(body.reasonCode||''),
+      out={reply:String(result.details?.toolText||''),state:String(body.state||''),reasonCode:String(body.reasonCode||''),
         facts:!!(body.facts&&Object.keys(body.facts).length),granted,helperCalls,error:null};
     }else if(tool){
       const args={action,params:params(paramsJson)},call=run+'-1';
@@ -90,7 +90,7 @@ function params(raw){
       if(proof?.block)throw Error('room_proof_refused');
       const result=await tools[0].execute(call,args);
       const body=JSON.parse(result.content[0].text);
-      out={reply:String(result.details?.sourceReply?.text||''),state:String(body.state||''),reasonCode:String(body.reasonCode||''),
+      out={reply:String(result.details?.toolText||''),state:String(body.state||''),reasonCode:String(body.reasonCode||''),
         facts:!!(body.facts&&Object.keys(body.facts).length),error:null};
     }else{
       const {pulseRoomSession}=require(path.join(dist,'contactRoomProfile'));

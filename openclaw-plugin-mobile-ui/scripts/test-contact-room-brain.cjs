@@ -48,7 +48,7 @@ function harness({grant=()=>grantValue(),replies=[],a=agent,key=sessionKey,ctx}=
 async function call(h,name,args,runId=`run-${++runSeq}`,callId=`call-${runSeq}-${Math.random().toString(16).slice(2,8)}`,a=agent,key=sessionKey){
   assert.equal(bind(name,args,callId,runId,{},a,key).block,undefined);
   const out=await h.tool(name).execute(callId,args);
-  return {out,body:JSON.parse(out.content[0].text),reply:out.details?.sourceReply?.text,runId,callId};
+  return {out,body:JSON.parse(out.content[0].text),reply:out.details?.toolText,runId,callId};
 }
 const STATUS={action:'device.status.read',params:{}};
 const TORCH={action:'device.torch.set',params:{on:true}};
@@ -74,7 +74,7 @@ const SEND={action:'messaging.send',params:{recipient:'Sadok',message:'J’arriv
     eq(profile.roomAgentFor(granted),routed,granted.join(','));
   const h0=harness();
   eq(h0.tools.map(t=>t.name),['samantha_agenda','samantha_device_assistance','samantha_whatsapp']);
-  ok(h0.tools.every(t=>t.canDeliverSourceReply===true&&t.catalogMode==='direct-only'));
+  ok(h0.tools.every(t=>!('canDeliverSourceReply' in t)&&t.catalogMode==='direct-only'));
   const enumOf=name=>h0.tool(name).parameters.properties.action.enum;
   eq(enumOf('samantha_agenda'),['agenda.event.create','agenda.event.read','agenda.event.update','agenda.reminder.schedule'],'no candidate (agenda.sync)');
   eq(enumOf('samantha_device_assistance').length,20);eq(enumOf('samantha_whatsapp'),['messaging.send']);
@@ -129,7 +129,7 @@ const SEND={action:'messaging.send',params:{recipient:'Sadok',message:'J’arriv
     {requester:{senderIsOwner:true},agentId:'main',runId:'owner-run',sessionKey:'agent:main:whatsapp:direct:+21600000000'});
   let h=harness({replies:[{state:'COMPLETED',answer:'x'}]});
   let r=await h.tool('samantha_agenda').execute('owner-proof',read);
-  eq([r.details.sourceReply.text,h.reads.length,h.payloads.length],[brain.roomToolReply({}, 'agenda').details.sourceReply.text,0,0],
+  eq([r.details.toolText,h.reads.length,h.payloads.length],[brain.roomToolReply({}, 'agenda').details.toolText,0,0],
     'an owner proof is never a room proof');
 
   // ---- 3. The room grant: read once per message, for every room tool of the run ---------------------------------
@@ -174,9 +174,9 @@ const SEND={action:'messaging.send',params:{recipient:'Sadok',message:'J’arriv
     eq([r.reply,r.body.state,r.body.reasonCode],[brain.OWNER_PRIVATE_REFUSAL,'DENIED','scope_owner_private']);
   }
   eq([h.reads.length,h.payloads.length],[0,0]);
-  eq(brain.roomToolReply({state:'DENIED',reasonCode:'scope_owner_private'},'actions',refusal).details.sourceReply.text,brain.OWNER_PRIVATE_REFUSAL);
-  eq(brain.roomToolReply({state:'OUTSIDE_SCOPE',reasonCode:'scope_outside'},'agenda',refusal).details.sourceReply.text,refusal);
-  eq(brain.roomToolReply({state:'DENIED',reasonCode:'scope_forbidden'},'messages',refusal).details.sourceReply.text,refusal);
+  eq(brain.roomToolReply({state:'DENIED',reasonCode:'scope_owner_private'},'actions',refusal).details.toolText,brain.OWNER_PRIVATE_REFUSAL);
+  eq(brain.roomToolReply({state:'OUTSIDE_SCOPE',reasonCode:'scope_outside'},'agenda',refusal).details.toolText,refusal);
+  eq(brain.roomToolReply({state:'DENIED',reasonCode:'scope_forbidden'},'messages',refusal).details.toolText,refusal);
   // In a combined Pulse room the Pulse constraints stay: leave requests refused, outside named for both rooms.
   h=harness({a:'contacts-pulse-agenda',key:combined,grant:()=>grantValue(['conversation','pulse','agenda'])});
   r=await call(h,'samantha_pulse',{action:'leave.request',params:{start_at:'2026-11-10',end_at:'2026-11-12'}},undefined,undefined,'contacts-pulse-agenda',combined);
@@ -204,7 +204,7 @@ const SEND={action:'messaging.send',params:{recipient:'Sadok',message:'J’arriv
    assert.equal(bind(t.name,EVENT,'stop-1','run-stop').block,undefined);
    const res=await t.execute('stop-1',EVENT);
    eq(payloads.map(p=>[p.command.operation,p.command.reason]),[['call',undefined],['abort','admission_revoked']],'a user Stop aborts');
-   ok(/pièce Agenda n’est plus confirmé/.test(res.details.sourceReply.text));}
+   ok(/pièce Agenda n’est plus confirmé/.test(res.details.toolText));}
   h=harness({replies:[{state:'READY',prepared:{goalRef:'goal-4'}},new Error('killed')]});
   r=await call(h,'samantha_device_assistance',TORCH);
   eq([r.reply,r.body.reasonCode,h.payloads.length],
