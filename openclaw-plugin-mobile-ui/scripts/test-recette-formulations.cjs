@@ -97,7 +97,7 @@ eq(typed.fitActionParams(decl('offer.team'),{offer_id:'4512'}),{params:{offer_id
     assert.equal(guard.agentCapabilityHook({toolName:h.tool.name,params:args,toolCallId:id},
       {requester:{senderIsOwner:false},agentId:agent,runId:'room-run-'+seq,sessionKey,sessionId:'s-room'}).block,undefined);
     const out=await h.tool.execute(id,args);
-    return {out,body:JSON.parse(out.content[0].text),reply:out.details?.sourceReply?.text};
+    return {out,body:JSON.parse(out.content[0].text),reply:out.details?.toolText};
   }
 
   // ---- 1 (room). Same tolerance in the room, traced next to the delivered answer --------------------------------
@@ -118,7 +118,7 @@ eq(typed.fitActionParams(decl('offer.team'),{offer_id:'4512'}),{params:{offer_id
       'returned to the contact\'s brain (it asks), nothing read or run');
     ok(r.body.instruction.includes('pose au contact une seule question courte')&&r.body.instruction.includes('sans proposer ni inventer'));
     ok(r.body.instruction.includes('une recherche'),'a search of the same tool may first find the value');
-    ok(r.out.details.sourceReply===undefined&&!r.body.answer,'never the generic « pas de résultat vérifié »');
+    ok(r.out.details.toolText===undefined&&!r.body.toolText,'never the generic « pas de résultat vérifié »');
     ok(!JSON.stringify(r.body).includes(brain.ROOM_UNVERIFIED));
   }
   // The described parameter names its description; the complete call runs as before.

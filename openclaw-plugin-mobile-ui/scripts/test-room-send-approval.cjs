@@ -57,7 +57,7 @@ async function sign(c,id,key=owner.privateKey){
     const id=`call-${++n}`,run=`run-${n}`;
     assert.equal(guard.agentCapabilityHook({toolName:'samantha_whatsapp',params:args,toolCallId:id},
       {requester:{senderIsOwner:false},agentId:agent,runId:run,sessionKey,sessionId:'s'}).block,undefined);
-    const out=await h.tool.execute(id,args);return {reply:out.details?.sourceReply?.text,body:JSON.parse(out.content[0].text),run,id};
+    const out=await h.tool.execute(id,args);return {reply:out.details?.toolText,body:JSON.parse(out.content[0].text),run,id};
   }
   const pending=approvals.ROOM_SEND_TEXTS.pending('Sadok');
   let h=host({replies:[{state:'READY',reasonCode:'pulse_room_direct_write',prepared:{goalRef:'goal-0123456789abcdef0123',parameters:SEND.params}}],

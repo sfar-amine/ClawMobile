@@ -78,3 +78,16 @@ Réponses d'Amine (02/11) :
     est abandonnée.
   - Le contact reçoit « en attente de la confirmation d'Amine », puis l'issue.
 - **QA** : propriétaire typé `samantha_qa` dans un lot séparé ; d'ici là, `room_domain_not_typed`.
+
+## Révision du 05/11/2026 (Amine) : le modèle rédige toutes les réponses
+« Le modèle à l'entrée et à la sortie, pour tout. » Le point « les réponses déjà rédigées par les propriétaires sont
+remises telles quelles (`canDeliverSourceReply`) » est **retiré**, pour toutes les pièces des contacts.
+
+Chaque résultat d'outil va au modèle : état, cause, faits vérifiés du reçu, et la phrase du propriétaire comme
+référence (`toolText`). Le modèle rédige lui-même la réponse au contact, à partir de ce résultat seulement : ce qui est
+fait, ce qui reste et pourquoi. Il n'ajoute rien de mémoire. Aucune réponse d'outil n'est remise au contact sans
+passer par le modèle.
+
+Cause : S24 05/11 09:54. La création du projet 20933 était partielle (projet, phase et commandé faits ; équipe non
+faite, cause nommée). Elle est arrivée chez Sadok sous la forme du seul échec générique, remis sans passer par le
+modèle. Note : [room-model-writes-reply-20261105](../changes/room-model-writes-reply-20261105.md).

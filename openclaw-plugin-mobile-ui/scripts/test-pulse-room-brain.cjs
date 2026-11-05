@@ -41,14 +41,14 @@ function harness({grant=grantValue,replies=[]}={}){
 async function call(h,args,runId=`run-${++runSeq}`,callId=`call-${runSeq}-${Math.random().toString(16).slice(2,8)}`){
   assert.equal(bind(h.tool.name,args,callId,runId).block,undefined);
   const out=await h.tool.execute(callId,args);
-  return {out,body:JSON.parse(out.content[0].text),reply:out.details?.sourceReply?.text,runId,callId};
+  return {out,body:JSON.parse(out.content[0].text),reply:out.details?.toolText,runId,callId};
 }
 
 (async()=>{
   // ---- 1. The room contact gets only its room tool (real S24 projection) -----------------------------------
   const h0=harness();
   eq(h0.tools.map(t=>t.name),['samantha_pulse']);
-  ok(h0.tool.canDeliverSourceReply===true&&h0.tool.catalogMode==='direct-only','direct delivery, model-visible schema');
+  ok(!('canDeliverSourceReply' in h0.tool)&&h0.tool.catalogMode==='direct-only','the model writes every reply (Amine 05/11), model-visible schema');
   const enumerated=h0.tool.parameters.properties.action.enum;
   ok(enumerated.includes('project.search')&&enumerated.includes('leave.balance')&&enumerated.includes('leave.request'));
   ok(!enumerated.includes('project.revenue')&&!enumerated.includes('project.set_status'),'no browser owner, no candidate');
@@ -85,11 +85,11 @@ async function call(h,args,runId=`run-${++runSeq}`,callId=`call-${runSeq}-${Math
   const read={action:'project.search',params:{project_query:'Projet Exemple'}};
   let h=harness({replies:[{state:'COMPLETED',answer:'Projet Exemple (20495) : en cours.'}]});
   let r=await h.tool.execute('no-proof',read);
-  eq([r.details.sourceReply.text,h.reads.length,h.payloads.length],[brain.ROOM_UNVERIFIED,0,0],'no before_tool_call proof, nothing read or run');
+  eq([r.details.toolText,h.reads.length,h.payloads.length],[brain.ROOM_UNVERIFIED,0,0],'no before_tool_call proof, nothing read or run');
   // An owner proof (main, senderIsOwner) is never consumed by the room tool, and a room proof never by the owner tools.
   guard.agentCapabilityHook({toolName:'samantha_pulse',params:read,toolCallId:'owner-proof'},
     {requester:{senderIsOwner:true},agentId:'main',runId:'owner-run',sessionKey:'agent:main:whatsapp:direct:+21600000000'});
-  r=await h.tool.execute('owner-proof',read);eq(h.payloads.length,0);eq(r.details.sourceReply.text,brain.ROOM_UNVERIFIED);
+  r=await h.tool.execute('owner-proof',read);eq(h.payloads.length,0);eq(r.details.toolText,brain.ROOM_UNVERIFIED);
   assert.equal(bind('samantha_pulse',read,'room-proof','run-x').block,undefined);
   assert.throws(()=>guard.consumeTypedInvocation('room-proof','samantha_pulse',read,{senderIsOwner:true,
     sessionKey,assertInvocationCurrent(){}}),/typed_host_admission_required/);checks++;
@@ -135,7 +135,7 @@ async function call(h,args,runId=`run-${++runSeq}`,callId=`call-${runSeq}-${Math
   r=await call(h,{action:'leave.balance',params:{}});
   eq([r.reply,h.payloads[0].command.action],['Solde de congé : 12 jours.','leave.balance']);
   // The playbooks owner's refusal of a leave request (scope_leave_request) renders the same sentence.
-  eq(brain.roomToolReply({state:'DENIED',reasonCode:'scope_leave_request',answer:'x'}).details.sourceReply.text,brain.LEAVE_REQUEST_REFUSAL);
+  eq(brain.roomToolReply({state:'DENIED',reasonCode:'scope_leave_request',answer:'x'}).details.toolText,brain.LEAVE_REQUEST_REFUSAL);
 
   // ---- 5. Outside the room's domain: refused, nothing read or run ---------------------------------------------
   // Recette 03/11: the subjects named are the room's actions (this capture has no finance.ca: no « chiffre d'affaires »).
@@ -143,8 +143,22 @@ async function call(h,args,runId=`run-${++runSeq}`,callId=`call-${runSeq}-${Math
   ok(roomRefusal.startsWith('Ici je ne traite que Pulse : projets, offres, évaluations, CRA, ')&&!roomRefusal.includes('chiffre'));
   h=harness();r=await call(h,{action:'agenda.read',params:{}});
   eq([r.reply,r.body.state,h.reads.length,h.payloads.length],[roomRefusal,'OUTSIDE_SCOPE',0,0]);
-  eq(brain.roomToolReply({state:'OUTSIDE_SCOPE',reasonCode:'scope_outside'}).details.sourceReply.text,brain.PULSE_ROOM_REFUSAL);
-  eq(brain.roomToolReply({state:'DENIED',reasonCode:'scope_forbidden'}).details.sourceReply.text,brain.PULSE_ROOM_REFUSAL);
+  eq(brain.roomToolReply({state:'OUTSIDE_SCOPE',reasonCode:'scope_outside'}).details.toolText,brain.PULSE_ROOM_REFUSAL);
+  eq(brain.roomToolReply({state:'DENIED',reasonCode:'scope_forbidden'}).details.toolText,brain.PULSE_ROOM_REFUSAL);
+
+  // ---- 5b. The model writes every reply (Amine 05/11) ----------------------------------------------------------
+  // S24 05/11 09:54: the partial creation of project 20933 reached Sadok as the bare generic failure, delivered past
+  // the model. The result now goes to the model with its state, facts and cause; nothing is delivered as is.
+  {const partial=brain.roomToolReply({state:'FAILED',reasonCode:'failed',
+     answer:'La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.',
+     facts:{ok:false,state:'partial',project_id:'20933',steps:{project:true,phase:true,order:true,team:false,forecast:false},
+       reason_code:'pulse_project_team_member_missing:Amine SFAR'}});
+   const body=JSON.parse(partial.content[0].text);
+   eq([body.state,body.facts.project_id,body.facts.steps.order,body.facts.steps.team],['FAILED','20933',true,false],'facts reach the model');
+   ok(/Rédige toi-même la réponse au contact/.test(body.instruction),'the model writes the reply');
+   ok(!('sourceReply' in partial.details),'no tool reply delivered past the model');
+   const refused=brain.roomToolReply({state:'OUTSIDE_SCOPE',reasonCode:'scope_outside'});
+   ok(!('sourceReply' in refused.details)&&/Rédige toi-même/.test(JSON.parse(refused.content[0].text).instruction),'refusals too');}
 
   // ---- 6. A Pulse read is answered from the tool result only ---------------------------------------------------
   h=harness({replies:[{state:'COMPLETED',answer:'Projet Exemple (20495) : en cours, 3 personnes.',facts:{ok:true}}]});
@@ -154,10 +168,10 @@ async function call(h,args,runId=`run-${++runSeq}`,callId=`call-${runSeq}-${Math
   r=await call(h,read);eq(r.reply,undefined);eq(r.body.facts,{ok:true,items:[{id:'20495'}]});ok(/uniquement avec ces faits/.test(r.body.instruction));
   // Closed hours sentence of the Pulse manifest, a question for a missing value, a failure: delivered as is.
   const closed='Pulse est fermé en ce moment (ouvert du lundi au vendredi, 8 h - 18 h). Réessaie demain à 8 h.';
-  eq(brain.roomToolReply({state:'TECHNICAL_FAILURE',reasonCode:'service_closed',answer:closed}).details.sourceReply.text,closed);
+  eq(brain.roomToolReply({state:'TECHNICAL_FAILURE',reasonCode:'service_closed',answer:closed}).details.toolText,closed);
   eq(brain.roomToolReply({state:'NEEDS_INPUT',answer:'Pour créer le projet, il me manque : la date de fin. Peux-tu me la donner ?'})
-    .details.sourceReply.text,'Pour créer le projet, il me manque : la date de fin. Peux-tu me la donner ?');
-  eq(brain.roomToolReply({state:'TECHNICAL_FAILURE',reasonCode:'x',answer:''}).details.sourceReply.text,brain.ROOM_UNVERIFIED);
+    .details.toolText,'Pour créer le projet, il me manque : la date de fin. Peux-tu me la donner ?');
+  eq(brain.roomToolReply({state:'TECHNICAL_FAILURE',reasonCode:'x',answer:''}).details.toolText,brain.ROOM_UNVERIFIED);
   h=harness({replies:[new Error('helper crashed')]});r=await call(h,read);eq([r.reply,r.body.reasonCode],[brain.ROOM_UNVERIFIED,'typed_turn_unavailable']);
 
   // ---- 7. A complete write: prepared, grant re-read, then direct-written; stopped when the grant is gone ----
@@ -183,7 +197,7 @@ async function call(h,args,runId=`run-${++runSeq}`,callId=`call-${runSeq}-${Math
    assert.equal(bind(t.name,write,'stop-1','run-stop').block,undefined);
    const res=await t.execute('stop-1',write);
    eq(payloads.map(p=>[p.command.operation,p.command.reason]),[['call',undefined],['abort','admission_revoked']]);
-   eq(res.details.sourceReply.text,brain.ROOM_WRITE_STOPPED);}
+   eq(res.details.toolText,brain.ROOM_WRITE_STOPPED);}
   // The recette (deploy-parcours-room.cjs) builds the same private host identity.
   eq(brain.roomHost(require('../dist/contactRoomProfile.js').pulseRoomSession(agent,sessionKey),'r','c'),
     {room:'pulse',contactId:contact.contactId,conversationKey:`pulse-room:${agent}:${contact.contactId}:${sessionKey}`,
