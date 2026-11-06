@@ -9,7 +9,7 @@ Décisions : S24 EVT-3228 (3fcf038f), EVT-3229 (0a436deb), EVT-3230 (3852c560), 
 
 `SAMANTHA_BRAIN_ONLY=1` est lu uniquement dans l’environnement de l’hôte. L’app, WhatsApp owner et la voix ne passent plus par un tri préalable. La liste fermée de réflexes sociaux est conservée. Les gestes explicites gardent leur propriétaire. Le cerveau choisit une réponse, une question ou un outil ; il ne fournit jamais route, entrypoint, caller ou autorisation.
 
-Les outils sont une projection du registre capabilities et des 11 manifestes, construite par `CapabilityGraph.compile_views` dans le répertoire de vues existant. Aucun catalogue manuel ni nouveau store : les noms du manifeste plugin et la fixture source sont générés de cette projection. Un outil par domaine et un outil app ; `samantha_catalogue` lit la projection du même registre pour la découverte uniquement. Les actions non prêtes ou sans propriétaire direct ne deviennent pas exécutables par magie. Les routes sans entrypoint restent explicitement indisponibles ; le cerveau peut utiliser un outil natif déjà autorisé. Les paiements ne sont pas exposés par ces outils migrés.
+Les outils sont une projection du registre capabilities et des 11 manifestes, construite par `CapabilityGraph.compile_views` dans le répertoire de vues existant. Aucun catalogue manuel ni nouveau store : les noms du manifeste plugin et la fixture source sont générés de cette projection. Un outil par domaine et un outil app ; `samantha_catalogue` lit la projection du même registre pour la découverte uniquement. Les actions non prêtes ou sans propriétaire direct ne deviennent pas exécutables par magie. Les routes sans entrypoint restent explicitement indisponibles ; le cerveau peut utiliser un outil natif déjà autorisé. ~~Les paiements ne sont pas exposés par ces outils migrés.~~ **Neutralisé le 06/11 par décision d'Amine** (voir la mise à jour du 6 novembre 2026 ci-dessous).
 
 L’outil reçoit action/params fermés par les contrats existants. Le Graph fait `plan_admitted`, choisit une route technique disponible, construit le `DecisionEnvelope` V2 et exécute cette décision. Aucun `resolve(text)`, aucune extraction lexicale de paramètres et aucun réaiguillage après dérive de révision. Les GET app utilisent exclusivement l’URL loopback et la méthode déclarées dans le registre : ni URL ni en-tête ne viennent du modèle ; redirections et mutations sont refusées. Les faits du reçu sont bornés à 32 Kio dans le dialogue, avec troncature annoncée si nécessaire.
 
@@ -86,3 +86,12 @@ La voix relay authentifiée doit appliquer le même choix `main` avant toute int
 ## Mise à jour du 2 novembre 2026 : interrupteur retiré
 
 `SAMANTHA_BRAIN_ONLY=1` est actif sur le S24 depuis le 28/10. L’étape 3 de l’ADR « le cerveau partout » (samantha-ui-playbooks, `docs/08-decisions/ADR-20261102-brain-everywhere.md` et son annexe d’inventaire, §8) rend ce mode inconditionnel : core ne lit plus la variable, et les branches owner qu’elle éteignait sont supprimées (coordinateur avant l’agent sur WhatsApp, l’app, Claw Live et le relais Bixby ; heure/date par regex ; routeur de skills local ; outil texte libre `clawmobile_capability`). Un seul chemin, sans repli natif. Le retour arrière est un revert suivi d’un redéploiement par `companion-deploy.sh`. Les réflexes vocaux sociaux restent, par décision d’Amine. Détail : `docs/changes/brain-only-unconditional-20261102.md`.
+
+## Mise à jour du 6 novembre 2026 : la règle « les paiements ne sont pas exposés » est neutralisée
+
+Constat S24 du 06/11 à 21:59 : « paie ma facture SONEDE de 19,400 DT » s'est terminé par « route non active ». Aucun outil typé ne portait de paiement, et la prise en charge avant le modèle avait été supprimée le 02/11.
+
+Décision d'Amine : le paiement doit marcher en passant par Samantha, en chat, en voix ou ailleurs. Les outils typés portent donc l'action de paiement, en `risk: transaction` et `executionMode: payment_handoff`. Elle appelle seulement la remise inerte `payments.request_handoff` des playbooks (samantha-ui-playbooks, amendement du même jour à leur copie de cet ADR).
+
+Ce Companion accepte exactement cette forme et refuse toute autre transaction. La confirmation native, la biométrie et le code bancaire restent la seule autorisation. Les contacts ne voient aucun de ces outils.
+

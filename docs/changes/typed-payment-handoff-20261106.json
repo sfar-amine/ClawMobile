@@ -8,6 +8,7 @@
   "reason": "S24 06/11 21:59: 'paie ma facture SONEDE de 19,400 DT' reached samantha_sonede (reads only) then samantha_catalogue and answered 'route non active'; since brain-only (02/11) no typed tool carried a payment. The playbooks side is samantha-ui-playbooks payment-brain-handoff-20261106; without this change the catalogue validation would reject the whole projection.",
   "files": [
     ".github/workflows/ci.yml",
+    "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
     "docs/changes/typed-payment-handoff-20261106.json",
     "docs/changes/typed-payment-handoff-20261106.md",
     "openclaw-plugin-mobile-ui/scripts/test-typed-payment-handoff.cjs",
@@ -33,8 +34,11 @@
     "reason": "Same capability payment.owner_native (registry owned by samantha-ui-playbooks, payment-brain-handoff-20261106 declares the modification); this change only lets the owner brain's typed tools carry the inert payment hand-off."
   },
   "architecture": {
-    "changed": false,
-    "reason": "Existing typed tool host and helper; the decision record is samantha-ui-playbooks ADR-20261025-brain-only-typed-tools (amendment 06/11)."
+    "changed": true,
+    "reason": "Neutralises the 25/10 rule 'les paiements ne sont pas exposés' by Amine's decision of 06/11; only the inert payment hand-off shape is accepted.",
+    "documents": [
+      "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md"
+    ]
   },
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
