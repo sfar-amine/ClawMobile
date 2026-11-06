@@ -33,6 +33,13 @@ export const DIRECT_TYPED_TOOLS: ReadonlySet<string> = new Set(["samantha_utilit
 // the generic 30 s helper ceiling would cut it before its own named timeout.
 const PUBLIC_WEB_HELPER_TIMEOUT_S = 50;
 const isPublicWeb = (action?: Action) => action?.execution?.kind === "public_web";
+// S24 06/11: the brain had no way to a payment (« route non active »). Only the inert payment hand-off projected by
+// the playbooks (executionMode payment_handoff, payments.request_handoff) carries risk transaction: it prepares the
+// quote and opens the native confirmation; Amine's biometric and bank code stay the only way to a payment.
+// Maxit's quote alone may take 75 s, under the helper's 120 s ceiling.
+const PAYMENT_HANDOFF_HELPER_TIMEOUT_S = 120;
+export const isPaymentHandoff = (action?: Action) => action?.executionMode === "payment_handoff" && action.risk === "transaction";
+const PAYMENT_HINT = " (ouvre seulement la confirmation de paiement sur le téléphone, sur demande explicite d'Amine ; biométrie et code bancaire restent à lui ; paramètres facultatifs, seulement ceux qu'il a dits)";
 const WEB_HINT = " Pour toute question qui demande le Web (actualité, prix, fait public récent) : une seule action samantha.app.web.answer, qui cherche une fois et cite ses sources ; n'en enchaîne pas d'autres pour recouper. query : quelques mots-clés, 200 caractères au plus.";
 const directOnly = (name: string) => DIRECT_TYPED_TOOLS.has(name) ? {catalogMode: "direct-only" as const} : {};
 
@@ -46,7 +53,8 @@ export function readTypedToolCatalogue(home = os.homedir()): DomainTool[] {
     if (value.tools.some((t: any) => !/^samantha_[a-z0-9_]{1,100}$/.test(t.name) || !id.test(t.domain) ||
         typeof t.description !== "string" || !Array.isArray(t.actions) || t.actions.length > 160 ||
         t.actions.some((a: any) => !id.test(a.action) || a.params?.type !== "object" ||
-          a.params?.additionalProperties !== false || !["read", "write", "external_send"].includes(a.risk)))) return [];
+          a.params?.additionalProperties !== false || !(["read", "write", "external_send"].includes(a.risk) ||
+            (a.risk === "transaction" && a.executionMode === "payment_handoff" && a.confirmationRequired === false))))) return [];
     return value.tools;
   } catch { return []; }
 }
@@ -96,7 +104,7 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
   if (context?.senderIsOwner !== true || context.agentId && context.agentId !== "main") return null;
   const tools: any[] = (options.catalogue || readTypedToolCatalogue(options.home)).map(tool => {
     const parameters = toolSchema(tool);
-    const actions = tool.actions.map(a => `${a.action}: ${a.description}${a.canonicalStatus === "candidate" ? " (candidate non qualifiée ; ne pas annoncer disponible)" : ""}${a.nativeOwner ? " (propriétaire natif " + a.nativeOwner.owner + ", poursuivre son parcours existant)" : ""}${a.confirmationRequired ? " (récapitulatif puis confirmation)" : ""}`).join("\n");
+    const actions = tool.actions.map(a => `${a.action}: ${a.description}${a.canonicalStatus === "candidate" ? " (candidate non qualifiée ; ne pas annoncer disponible)" : ""}${a.nativeOwner ? " (propriétaire natif " + a.nativeOwner.owner + ", poursuivre son parcours existant)" : ""}${isPaymentHandoff(a) ? PAYMENT_HINT : ""}${a.confirmationRequired ? " (récapitulatif puis confirmation)" : ""}`).join("\n");
     const examples = tool.actions.flatMap(a => a.examples || []).slice(0, 5).join(" ; ");
     const currentConversation = /^agent:main:companion-chat-([A-Za-z0-9-]{1,80})$/.exec(context.sessionKey || "")?.[1];
     const nativeWhatsApp=context.messageChannel==='whatsapp'&&/^agent:main:whatsapp:direct:\+?[1-9][0-9]{7,14}$/.test(context.sessionKey||'');
@@ -169,7 +177,8 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
             surface: whatsapp ? "whatsapp" : "app", graphSurface: whatsapp ? "whatsapp" : "claw_live"}});
           if (Buffer.byteLength(privateInput) > 32768) throw Error("typed_input_too_large");
           context.assertInvocationCurrent!();
-          const helperTimeoutS = operation === "call" && isPublicWeb(action) ? PUBLIC_WEB_HELPER_TIMEOUT_S : 30;
+          const helperTimeoutS = operation === "call" && isPublicWeb(action) ? PUBLIC_WEB_HELPER_TIMEOUT_S
+            : operation === "call" && isPaymentHandoff(action) ? PAYMENT_HANDOFF_HELPER_TIMEOUT_S : 30;
           const raw = await runCapabilityHelperProcess([options.helperPath || runtimeFile("claw-capability.py", options.home),
             "typed-tool", "--host-input-stdin", "--timeout", String(helperTimeoutS)],
             {timeoutMs: (helperTimeoutS + 8) * 1000, maxBuffer: 128 * 1024, env: {...process.env}, privateInput});

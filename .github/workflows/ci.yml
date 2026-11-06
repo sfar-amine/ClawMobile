@@ -637,6 +637,7 @@ jobs:
       - name: Verify host-bound capability owner admission (P1)
         run: |
           node scripts/test-typed-capability-tools.cjs
+          node scripts/test-typed-payment-handoff.cjs
           node scripts/test-typed-tools-direct-visible.cjs
           node scripts/test-typed-device-direct.cjs
           node scripts/test-typed-web-direct.cjs
