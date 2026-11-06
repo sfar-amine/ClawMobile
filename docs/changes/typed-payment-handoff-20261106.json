@@ -1,0 +1,49 @@
+{
+  "version": 2,
+  "id": "typed-payment-handoff-20261106",
+  "date": "2026-11-06",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The Companion's typed tools accept the playbooks' inert payment hand-off actions (risk transaction, executionMode payment_handoff, no host recap) and give them the helper's 120 s budget, so the brain can open the native payment confirmation for SONEDE, Topnet and Maxit from chat, voice or Amine's WhatsApp.",
+  "reason": "S24 06/11 21:59: 'paie ma facture SONEDE de 19,400 DT' reached samantha_sonede (reads only) then samantha_catalogue and answered 'route non active'; since brain-only (02/11) no typed tool carried a payment. The playbooks side is samantha-ui-playbooks payment-brain-handoff-20261106; without this change the catalogue validation would reject the whole projection.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
+    "docs/changes/typed-payment-handoff-20261106.json",
+    "docs/changes/typed-payment-handoff-20261106.md",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-payment-handoff.cjs",
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-payment-handoff.cjs",
+      "status": "passed",
+      "evidence": "Only risk transaction + executionMode payment_handoff + confirmationRequired false is accepted (other shapes still reject the whole view); description states the native confirmation; the call reaches the helper with --timeout 120 and the exact command; an undeclared parameter is not executed; reads keep 30 s; contacts see no tool."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+      "status": "passed",
+      "evidence": "Unchanged owner isolation, one-shot admission and canonical projection checks."
+    }
+  ],
+  "documentation": [
+    "docs/changes/typed-payment-handoff-20261106.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same capability payment.owner_native (registry owned by samantha-ui-playbooks, payment-brain-handoff-20261106 declares the modification); this change only lets the owner brain's typed tools carry the inert payment hand-off."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Neutralises the 25/10 rule 'les paiements ne sont pas exposés' by Amine's decision of 06/11; only the inert payment hand-off shape is accepted.",
+    "documents": [
+      "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md"
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Deploy this Companion before activating the playbooks snapshot that projects payment_handoff actions; alone it changes nothing (no such action in the current view)."
+  ],
+  "rollback": "Revert this commit and redeploy the previous Companion; deactivate the playbooks snapshot first if it is active."
+}
