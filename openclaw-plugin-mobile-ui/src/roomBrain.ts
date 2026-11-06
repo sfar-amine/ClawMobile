@@ -61,9 +61,10 @@ const pulseRefusal = (subjects: readonly string[]) =>
   `Ici je ne traite que Pulse${subjects.length ? " : " + listed(subjects) : ""}. Pour le reste, vois directement avec Amine.`;
 // Amine 05/11 (projet 20933): the team given by the contact goes to « Équipe affaire » at once, a project that exists is
 // never created again, the Matrice profils is never touched, and the forecast comes last, as a monthly table confirmed first.
-// Amine 06/11: the commandé is a step of its own, after the équipe affaire and before the forecast.
-const PULSE_PROJECT_PROCESS = "Projet Pulse, dans cet ordre : projet, phase, équipe affaire, commandé (une étape à part " +
-  "entière, son tableau par profil accepté par le contact), puis le forecast en dernier. Une équipe " +
+// Amine 06/11: the commandé is a step of its own, after the phase and before the forecast (with the équipe affaire, in
+// either order).
+const PULSE_PROJECT_PROCESS = "Projet Pulse : projet, phase, puis le commandé (une étape à part entière, son tableau par " +
+  "profil accepté par le contact) et l'équipe affaire, puis le forecast en dernier. Une équipe " +
   "donnée pour un projet qui existe déjà s'ajoute tout de suite à son équipe affaire (une affectation par personne), sans " +
   "attendre le forecast et sans recréer le projet. Le forecast de plusieurs personnes passe ensuite par project.staffing : un " +
   "seul tableau mensuel confirmé pour toutes. La Matrice profils n'est jamais modifiée.";
