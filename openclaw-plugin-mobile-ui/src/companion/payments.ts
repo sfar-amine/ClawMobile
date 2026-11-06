@@ -8,6 +8,7 @@ import type {OwnerIntent, OwnerOrigin} from "./ownerConfirmationProtocol";
 import {ownerHash, ownerUuid, ownerText} from "./ownerConfirmationProtocol";
 import {confirmations} from "./confirmations";
 import {createTopnetLivePaymentAdapter} from "./topnetLivePaymentAdapter";
+import {createSonedeLivePaymentAdapter} from "./sonedeLivePaymentAdapter";
 import {createMaxitTopupLivePaymentAdapter} from "./maxitTopupLivePaymentAdapter";
 import {LOCAL_PAYMENT_ACTION_TYPE, buildLocalPaymentIntent, localPaymentPayloadHash, parseLocalPaymentReference} from "./localPaymentIntent";
 import {runTermuxCommand} from "../backends/termux";
@@ -29,7 +30,8 @@ const adapters:PaymentAdapter[]=[
     async revalidate(q){return {...q};},async execute(){return {state:"confirmed",reasonCode:"gateway_and_provider_confirmed"};}},
   createTopnetLivePaymentAdapter(),
   createMaxitTopupLivePaymentAdapter(),
-  ...["steg","sonede"].map(id=>({id,label:id.toUpperCase(),mode:"live" as const,executionValidated:false,unavailableReason:"provider_payment_contract_unverified"}))
+  createSonedeLivePaymentAdapter(),
+  {id:"steg",label:"STEG",mode:"live" as const,executionValidated:false,unavailableReason:"provider_payment_contract_unverified"}
 ];
 
 function key() {

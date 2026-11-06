@@ -139,6 +139,8 @@ export type ClicToPayProviderConfig={
   executionValidated?:boolean;localOwnerValidated?:boolean;unavailableReason?:string;
   bankNavigationOrigins?:readonly string[];
   acceptanceGate?:{filename:string;value:string};receiptPrefix?:string;
+  // The owner-confirmed local path also consumes the one-shot gate (SONEDE): absent gate = nothing sent.
+  localRequiresGate?:boolean;
 };
 
 export type ClicToPayLivePaymentAdapterOptions={billingRoot?:string;stateDir?:string;exec?:ExecFn;liveRun?:LiveRunFn};
@@ -164,6 +166,11 @@ export function createClicToPayLivePaymentAdapter(config:ClicToPayProviderConfig
       try{fs.unlinkSync(consumed);}catch{}
       return false;
     }
+  };
+
+  const gateArmed=()=>{
+    if(!gatePath||!config.acceptanceGate)return false;
+    try{return fs.readFileSync(gatePath,"utf8").trim()===config.acceptanceGate.value;}catch{return false;}
   };
 
   const billingCli=path.join(billingRoot,"billing-cli.mjs");
@@ -203,7 +210,9 @@ export function createClicToPayLivePaymentAdapter(config:ClicToPayProviderConfig
       return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
 
     if(requireGate&&!consumeGate())
-      return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
+      return config.localRequiresGate===true
+        ?{state:"blocked",reasonCode:"payment_not_submitted"}
+        :{state:"effect_unknown",reasonCode:"payment_effect_unverified"};
 
     const card=parsed((await execute(process.execPath,[cardCli,"status"],15000)).stdout);
     if(card.state!=="ready"||typeof card.last4!=="string"||!/^[0-9]{4}$/.test(card.last4)||card.cvc_stored!==true)
@@ -244,7 +253,7 @@ export function createClicToPayLivePaymentAdapter(config:ClicToPayProviderConfig
     quote:readQuote,
     revalidate:async quote=>readQuote(quote.reference),
     execute:async (quote,requestId,context)=>executeProvider(quote,requestId,context,true),
-    executeLocal:async (quote,requestId,context)=>executeProvider(quote,requestId,context,false),
+    executeLocal:async (quote,requestId,context)=>executeProvider(quote,requestId,context,config.localRequiresGate===true),
     async resume(quote,requestId,continuation,traceSink):Promise<PaymentExecutionResult>{
       if(!continuation||continuation.provider!==config.id||!/^[0-9]{1,32}$/.test(continuation.checkoutId)||!UUID.test(continuation.gatewayOrderId))
         return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
@@ -266,5 +275,8 @@ export function createClicToPayLivePaymentAdapter(config:ClicToPayProviderConfig
     }
   };
 
+  // Availability mirrors the armed one-shot gate, read live: consumed or absent gate = not offered (SONEDE).
+  if(config.localRequiresGate===true)
+    Object.defineProperty(adapter,"localOwnerValidated",{enumerable:true,get:gateArmed});
   return adapter;
 }

@@ -26,6 +26,7 @@
     "test:trace-induction": "node scripts/test-trace-induction.cjs",
     "test:claw-live-warm": "node scripts/test-claw-live-warm.cjs",
     "test:clictopay-provider-adapter": "node scripts/test-clictopay-provider-adapter.cjs",
+    "test:sonede-live-payment": "node scripts/test-sonede-live-payment-adapter.cjs",
     "test:payment-handoff": "node scripts/test-payment-handoff.cjs",
     "test:claw-live-warm-cancellation": "node scripts/test-claw-live-warm-cancellation.cjs",
     "test:companion-history-cache": "node scripts/test-companion-history-cache.cjs",

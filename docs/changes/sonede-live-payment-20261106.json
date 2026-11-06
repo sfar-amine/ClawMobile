@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "id": "sonede-live-payment-20261106",
+  "date": "2026-11-06",
+  "origin": "chat",
+  "kind": "capability",
+  "summary": "Companion: SONEDE live payment adapter on the shared ClicToPay factory, off by default: offered and executable only while its one-shot marker is armed, every start (owner-confirmed local path included) consumes it, absent marker = blocked/payment_not_submitted.",
+  "reason": "06/11 Amine's SONEDE payment request was refused because no SONEDE payment contract existed. Live S24 discovery (no card, no payment) proved the provider-prepared ClicToPay session; the playbooks twin PR adds the provider adapter. The Companion must expose it without enabling any debit before the controlled recipe.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/sonede-live-payment-20261106.json",
+    "docs/changes/sonede-live-payment-20261106.md",
+    "openclaw-plugin-mobile-ui/package.json",
+    "openclaw-plugin-mobile-ui/scripts/test-sonede-live-payment-adapter.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/catalog.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clicToPayLivePaymentAdapter.ts",
+    "openclaw-plugin-mobile-ui/src/companion/payments.ts",
+    "openclaw-plugin-mobile-ui/src/companion/sonedeLivePaymentAdapter.ts"
+  ],
+  "tests": [
+    {"name": "openclaw-plugin-mobile-ui/scripts/test-sonede-live-payment-adapter.cjs", "status": "passed", "evidence": "5/5: off without marker (nothing sent), one armed start consumes the marker, wrong marker never arms, digits-only references and provider-bound continuation, Topnet constant owner path unchanged."},
+    {"name": "test-clictopay-provider-adapter, test-topnet-live-payment-adapter, test-payment-core, test-maxit-topup-payment-adapter, test-payment-adapter-root, test-payment-handoff, test-payment-budgets, test-payment-steps, test-payment-api", "status": "passed", "evidence": "Unchanged payment suites green after the build."}
+  ],
+  "documentation": ["docs/changes/sonede-live-payment-20261106.md"],
+  "capabilities": {"impact": "none", "reason": "Same payment.owner_native capability; SONEDE adapter behind its one-shot marker."},
+  "architecture": {"changed": false, "reason": "Existing ClicToPay adapter factory and payment core; no new service, store or scheduler."},
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": ["Requires the playbooks SONEDE adapter (twin PR) to be pinned; without it the live runner answers provider_acceptance_unimplemented and nothing is sent.", "The SONEDE success return is not observed yet: a success is reconciled by the bank timeout path (60 s)."],
+  "rollback": "Revert this commit and redeploy the previous Companion."
+}
