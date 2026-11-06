@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "origin": "chat",
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Deploy acceptance only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "id": "acceptance-settle-late-20261106",
+  "date": "2026-11-06",
+  "kind": "repair",
+  "summary": "companion-acceptance.py : une réponse « deferred » pas encore livrée après SETTLE_SECONDS est relue après toutes les autres lectures, avec la même fenêtre ; elle échoue toujours si elle ne livre rien.",
+  "reason": "Deux rollbacks sans lien (05/11 /files?scope=session, 06/11 /control/automations) : 200 dans le budget mais encore « deferred » 15 s après le redémarrage, pendant le pic de lectures de la recette.",
+  "files": [
+    "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/test-companion-acceptance-settle.py",
+    "docs/changes/acceptance-settle-late-20261106.json",
+    "docs/changes/acceptance-settle-late-20261106.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-companion-acceptance-settle.py",
+      "status": "passed",
+      "evidence": "12 OK, dont : différée 18 lectures puis livrée → ok, settledLate ; jamais livrée → fail. Autres tests companion-acceptance verts (journey-plan échoue à l'identique sur la base faute du dépôt jumeau, présent en CI)."
+    }
+  ],
+  "documentation": [
+    "docs/changes/acceptance-settle-late-20261106.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Recette de déploiement uniquement."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même script de recette, même fenêtre de calcul."
+  },
+  "limitations": [
+    "Mesure du temps réel de ces calculs à froid à relever au prochain déploiement (reçu : settledLate)."
+  ],
+  "rollback": "Revert de ce commit."
+}
