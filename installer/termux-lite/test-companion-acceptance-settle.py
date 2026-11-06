@@ -34,7 +34,43 @@ def server(first_slow=(), first_503=(), always_slow=(), always_503=(), scripted=
     return call, seen
 
 
+DEFERRED = json.dumps({"computation": {"deliveryMode": "deferred"}}).encode()
+
+
+def clock():
+    """A monotonic clock advanced by each read, so settle() reaches its deadline without real waiting."""
+    now = [0.0]
+    def monotonic():
+        now[0] += 1.0
+        return now[0]
+    return monotonic
+
+
 class AcceptanceSettle(unittest.TestCase):
+    def deferred_server(self, route, deferred_reads):
+        base, seen = server()
+        def call(method, path, timeout, headers=None):
+            if method == "GET" and path == route:
+                n = seen[path] = seen.get(path, 0) + 1
+                return (200, DEFERRED if n <= deferred_reads else b'{"items": []}', 0.05)
+            return base(method, path, timeout, headers)
+        return call, seen
+
+    def test_deferred_right_after_restart_is_judged_again_after_the_other_reads(self):
+        # S24 06/11: /control/automations still deferred 15 s into the post-deploy burst, settled later.
+        call, seen = self.deferred_server("/control/automations?contract=2", 18)
+        with mock.patch.object(acceptance.time, "monotonic", side_effect=clock()):
+            rc, out, _ = self.run_main(call)
+        row = next(c for c in out["checks"] if c["route"] == "/control/automations?contract=2" and not c.get("check"))
+        self.assertEqual((rc, row["status"], row["settled"], row.get("settledLate")), (0, "ok", True, True))
+
+    def test_deferred_that_never_settles_still_fails(self):
+        call, _ = self.deferred_server("/files?scope=session", 10**6)
+        with mock.patch.object(acceptance.time, "monotonic", side_effect=clock()):
+            rc, out, _ = self.run_main(call)
+        row = next(c for c in out["checks"] if c["route"] == "/files?scope=session" and not c.get("check"))
+        self.assertEqual((rc, row["status"], row["settled"]), (1, "fail", False))
+
     def run_main(self, call, baseline=None):
         with mock.patch.object(acceptance, "call", side_effect=call), mock.patch.object(acceptance.time, "sleep") as slept, \
              mock.patch("builtins.print") as printed:

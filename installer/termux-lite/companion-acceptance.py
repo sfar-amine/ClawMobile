@@ -300,6 +300,11 @@ def main(session_id=None, baseline_path=None):
         if code == 200 and EMAIL.search(body.decode("utf-8", "replace")):
             warnings.append({"route": path, "warning": "email_address_in_response"})
         status = "skipped" if code == 404 else ("ok" if ok and not leak and settled else "fail")
+        # A deferred answer still computing right after the restart is judged again once every other read is done
+        # (S24 05/11 /files?scope=session, 06/11 /control/automations: 200 in budget, still "deferred" 15 s into the
+        # post-deploy burst, two unrelated releases rolled back). Same SETTLE_SECONDS, never skipped.
+        if code == 200 and ok and not leak and not settled:
+            status = "pending_settle"
         failed |= status == "fail"
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget,
                         "previousSeconds": previous_seconds, "regression": regression,
@@ -358,6 +363,13 @@ def main(session_id=None, baseline_path=None):
         status = "ok" if code == 200 and took <= budget and not leak else "fail"
         failed |= status == "fail"
         results.append({"route": "/skills/candidates/{traceId}", "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "status": status})
+    for row in results:
+        if row.get("status") == "pending_settle":
+            code, body, _ = call("GET", row["route"], row["budget"] + 5)
+            row["settled"] = code == 200 and settle(row["route"], body)
+            row["settledLate"] = True
+            row["status"] = "ok" if row["settled"] else "fail"
+            failed |= row["status"] == "fail"
     # R20: judge leaks on the settled file answer, never on the "warming" placeholder.
     for row in results:
         if row["route"].startswith("/files") and row["status"] == "ok":
