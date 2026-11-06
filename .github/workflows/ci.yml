@@ -413,6 +413,7 @@ jobs:
           node scripts/test-conversation-pages.cjs
           node scripts/test-submit-reconciliation.cjs
           node scripts/test-payment-core.cjs
+          node scripts/test-payment-gate-continuation.cjs
       - name: Maxit top-up payment path (blocked proof, precise reasons, step receipts, nested budgets) — lot 11/10
         run: |
           node scripts/test-maxit-topup-payment-adapter.cjs

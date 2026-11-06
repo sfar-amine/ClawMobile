@@ -1,0 +1,51 @@
+{
+  "version": 2,
+  "id": "payment-gate-continuation-20261107",
+  "date": "2026-11-07",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "A local-owner payment already dispatched (bank return, 60 s timeout reconciliation, resume) no longer requires the one-shot acceptance gate that its own start consumed, so a SONEDE payment cancelled or approved at the bank reaches a terminal state; starting a new payment still requires the armed gate.",
+  "reason": "S24 06/11 23:52, first live SONEDE payment by conversation: owner biometric accepted, Amine cancelled on the ClicToPay/3DS page; the app intercepted /api/newpaiement/rejectpay and requested the bank return at 23:53:56, but resumeFromBankReturn and timeoutBankAction both refused (local_owner_payment_contract_unverified: localOwnerValidated mirrors the consumed gate). The record stayed requires_bank_action and kept invoice 312854662 guarded; SONEDE readback 23:58: invoice still due, nothing collected. A successful payment would have stayed unconfirmed the same way.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/payment-gate-continuation-20261107.json",
+    "docs/changes/payment-gate-continuation-20261107.md",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-gate-continuation.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/paymentCore.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-payment-gate-continuation.cjs",
+      "status": "passed",
+      "evidence": "Adapter whose localOwnerValidated mirrors a gate consumed by executeLocal (same as clicToPayLivePaymentAdapter localRequiresGate): bank return reaches resume and ends failed/cancelled; a confirmed result is applied; timeout reconciliation reads the invoice and closes cancelled; a new payment still requires the armed gate and the pending reference stays guarded; the bank return token stays single-use; never a second submission."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-payment-core.cjs",
+      "status": "passed",
+      "evidence": "PAYMENT_CORE_TESTS_PASSED=68 unchanged."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-sonede-live-payment-adapter.cjs",
+      "status": "passed",
+      "evidence": "Unchanged."
+    }
+  ],
+  "documentation": [
+    "docs/changes/payment-gate-continuation-20261107.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same capability payment.owner_native (registry owned by samantha-ui-playbooks); this repairs the continuation of an already-started payment record."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing payment core continuation paths; no new store, router, scheduler or daemon."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The SONEDE success return (/recu) is still unobserved live.",
+    "The Android app shows 'Lecture du statut chez Orange' during status reading: app repository, not reachable from this session."
+  ],
+  "rollback": "Revert this commit and redeploy the previous Companion."
+}

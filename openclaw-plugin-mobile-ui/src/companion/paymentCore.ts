@@ -227,6 +227,17 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
       ? availableLocal(r.draft.adapterId,r.draft.mode)
       : availableExternal(r.draft.adapterId,r.draft.mode);
   };
+  // S24 06/11 (SONEDE, first live attempt): the one-shot acceptance gate authorizes STARTING a payment and is consumed by
+  // it. Continuing the same already-dispatched record (bank return, timeout reconciliation, resume) only reads the
+  // gateway and the provider; it never submits again, so it must not require the consumed gate. Requiring it left the
+  // record in requires_bank_action forever after the bank page (rejectpay return refused, timeout refused).
+  const continuationForRecord=(r:PaymentRecord)=>{
+    if(r.authorizationSource!=="local_owner_confirmation")return availableExternal(r.draft.adapterId,r.draft.mode);
+    const a=baseAdapter(r.draft.adapterId,r.draft.mode);
+    if(r.draft.mode!=="live"||r.executorAttempts!==1||typeof a.executeLocal!=="function"||typeof a.resume!=="function")
+      paymentError("local_owner_payment_contract_unverified",409);
+    return a;
+  };
   const normalize=(r:PaymentRecord)=>{
     if(r.bankResumeAttempts===undefined)r.bankResumeAttempts=0;
     if(!r.authorizationSource)(r as any).authorizationSource="payment_owner_native";
@@ -472,14 +483,14 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
         if(r.state!=="requires_bank_action"||r.executorAttempts!==1||r.bankResumeAttempts!==0||!r.continuation||
           !Number.isSafeInteger(r.bankActionRequiredAt)||now()-r.bankActionRequiredAt<BANK_ACTION_TIMEOUT_MS)
           paymentError("payment_bank_timeout_not_available",409);
-        availableForRecord(r);
+        continuationForRecord(r);
         const at=now();
         r.state="executing";r.reasonCode="bank_timeout_reconciling";r.executionBootId=bootId;r.updatedAt=at;
         delete r.bankReturnTokenHash;
         appendTrace(r,{stage:"bank_timeout_reconciliation_started"},at);
         return JSON.parse(JSON.stringify(r)) as PaymentRecord;
       });
-      const adapter=availableForRecord(claimed);
+      const adapter=continuationForRecord(claimed);
       const traceSink={trace:async(event:PaymentTraceInput)=>options.store.change(rows=>{
         const current=locate(rows,id),at=now();if(current.state!=="executing")return;
         appendTrace(current,event,at);current.updatedAt=at;
@@ -531,7 +542,7 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
         const r=locate(rows,id);
         if(r.state!=="requires_bank_action"||r.executorAttempts!==1||r.bankResumeAttempts!==0)
           paymentError("payment_resume_not_available",409);
-        const adapter=availableForRecord(r);
+        const adapter=continuationForRecord(r);
         if(typeof adapter.resume!=="function"||!r.continuation)paymentError("payment_resume_not_available",409);
         const at=now();
         r.state="executing";r.reasonCode="bank_action_resuming";r.executionBootId=bootId;
@@ -539,7 +550,7 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
         appendTrace(r,{stage:"bank_resume_started"},at);
         return JSON.parse(JSON.stringify(r)) as PaymentRecord;
       });
-      const adapter=availableForRecord(claimed);
+      const adapter=continuationForRecord(claimed);
       const traceSink={trace:async(event:PaymentTraceInput)=>options.store.change(rows=>{
         const current=locate(rows,id),at=now();if(current.state!=="executing")return;
         appendTrace(current,event,at);current.updatedAt=at;
@@ -558,7 +569,7 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
         const r=locate(rows,id);
         if(r.state!=="requires_bank_action"||r.executorAttempts!==1||r.bankResumeAttempts!==0||!r.bankReturnTokenHash||
           hash(bankReturnToken)!==r.bankReturnTokenHash)paymentError("payment_bank_return_not_available",409);
-        const adapter=availableForRecord(r);
+        const adapter=continuationForRecord(r);
         if(typeof adapter.resume!=="function"||!r.continuation)paymentError("payment_resume_not_available",409);
         const at=now();
         r.state="executing";r.reasonCode="bank_action_resuming";r.executionBootId=bootId;
@@ -566,7 +577,7 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
         appendTrace(r,{stage:"bank_resume_started"},at);
         return JSON.parse(JSON.stringify(r)) as PaymentRecord;
       });
-      const adapter=availableForRecord(claimed);
+      const adapter=continuationForRecord(claimed);
       const traceSink={trace:async(event:PaymentTraceInput)=>options.store.change(rows=>{
         const current=locate(rows,id),at=now();if(current.state!=="executing")return;
         appendTrace(current,event,at);current.updatedAt=at;
