@@ -29,11 +29,8 @@
     "docs/changes/typed-payment-handoff-20261106.md"
   ],
   "capabilities": {
-    "impact": "modified",
-    "ids": [
-      "payment.owner_native"
-    ],
-    "reason": "Same payment owner and human boundary; reachable from the brain's typed tools."
+    "impact": "none",
+    "reason": "Same capability payment.owner_native (registry owned by samantha-ui-playbooks, payment-brain-handoff-20261106 declares the modification); this change only lets the owner brain's typed tools carry the inert payment hand-off."
   },
   "architecture": {
     "changed": false,
