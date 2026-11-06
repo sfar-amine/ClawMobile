@@ -238,7 +238,8 @@ async function call(h,args,runId=`run-${++runSeq}`,callId=`call-${runSeq}-${Math
   // Amine 05/11 (20933): team in « Équipe affaire » at once, no project created twice, Matrice profils never touched,
   // forecast last as a confirmed monthly table (JH or % of the profile commandé).
   {const {tool}=harness();const d=tool.description;
-   for(const part of ["Une équipe donnée pour un projet qui existe déjà s'ajoute tout de suite à son équipe affaire",
+   for(const part of ["Projet Pulse, dans cet ordre : projet, phase, équipe affaire, commandé (une étape à part entière",
+     "puis le forecast en dernier","Une équipe donnée pour un projet qui existe déjà s'ajoute tout de suite à son équipe affaire",
      "sans attendre le forecast et sans recréer le projet","La Matrice profils n'est jamais modifiée",
      // Amine 05/11: grid lines, three guided steps with examples, then a confirmed monthly table.
      "une même personne apparaît sous chaque profil","une ligne, c'est un collaborateur avec un profil et une phase",
