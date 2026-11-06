@@ -48,6 +48,9 @@ export function ownerGateEvidence(capabilities:any,nowMs=Date.now()):GateEvidenc
   // maxit.topup: localOwnerValidated mirrors the armed live-acceptance gate (read at start, re-read at execution).
   if(adapters.some((a:any)=>a?.id==='maxit.topup'&&a.mode==='live'&&a.localOwnerValidated===true))
     gates['maxit.topup']={armed:true,source:'canonical_owner',expiresAt};
+  // sonede: localOwnerValidated is read live from its one-shot marker (sonede-live-acceptance.enabled).
+  if(adapters.some((a:any)=>a?.id==='sonede'&&a.mode==='live'&&a.localOwnerValidated===true))
+    gates['sonede']={armed:true,source:'canonical_owner',expiresAt};
   // topnet.payment: its one-shot gate is not projected by the owner (localOwnerValidated is constant), so it stays unproven.
   return gates;
 }
