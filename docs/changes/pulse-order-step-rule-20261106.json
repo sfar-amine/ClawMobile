@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "id": "pulse-order-step-rule-20261106",
+  "date": "2026-11-06",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Consigne de la pièce Pulse : projet, phase, puis le commandé (étape à part entière, tableau par profil accepté) et l'équipe affaire, puis le forecast en dernier.",
+  "reason": "Règle d'Amine du 06/11 : le commandé est une étape à part entière, après la phase et avant le forecast ; l'ordre entre commandé et équipe affaire est libre.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/roomBrain.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-brain.cjs",
+    "docs/changes/pulse-order-step-rule-20261106.json",
+    "docs/changes/pulse-order-step-rule-20261106.md"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-pulse-room-brain.cjs",
+      "status": "passed",
+      "evidence": "116 contrôles, dont la consigne (commandé après la phase et avant le forecast) ; test-contact-room-brain : 98, vert."
+    }
+  ],
+  "documentation": [
+    "docs/changes/pulse-order-step-rule-20261106.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Texte de consigne du même outil de pièce."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Consigne uniquement."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_impacted",
+      "tests": "verified_impacted",
+      "runtime": "verified_impacted"
+    },
+    "evidence": [
+      "Pulse room consigne only."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "L'ordre d'écriture réel et le reçu de la pièce viennent du lot playbooks jumeau (claude/pulse-order-step)."
+  ],
+  "rollback": "Revert de ce commit puis companion-deploy du commit précédent."
+}
