@@ -1,0 +1,125 @@
+{
+ "capturedAt": "2026-11-07T16:57+01:00",
+ "companion": "1bf6ca931c15d95483e01af2079ce50509af3c9a",
+ "runStatus": {
+  "success": true,
+  "turnMeasurement": {
+   "version": 1,
+   "surface": "app",
+   "route": null,
+   "firstSignMs": 108,
+   "decisionMs": null,
+   "toolMs": null,
+   "usefulMs": 15245,
+   "totalMs": 15246
+  },
+  "runId": "run_1794064014193_f0987f1c",
+  "clientRunId": "samantha-352b4acc-8135-4da9-a497-35c1acca18d6",
+  "sessionId": "samantha-20c5e7bd-26cc-4974-b810-f02af3a02c9f",
+  "ownerAdmitted": true,
+  "ownerTransport": "admin_admitted",
+  "state": "done",
+  "message": "Je n’ai pas pu consulter tes soldes Orange : le réseau mobile Orange n’était pas prêt, et le Wi‑Fi est resté activé. Aucun solde n’a été récupéré.",
+  "progress": {
+   "text": "Réponse de Samantha",
+   "events": [
+    {
+     "type": "tool.call",
+     "callId": "call_8fcddb50bd8740a2a547857eb5d01ff5|fc_005f09410d989ac8016aef3e97b9ec87d2a659bde92167d953",
+     "label": "Je lis ton solde Orange",
+     "title": "Je lis ton solde Orange",
+     "at": 1794064025473
+    },
+    {
+     "type": "tool.result",
+     "callId": "call_8fcddb50bd8740a2a547857eb5d01ff5|fc_005f09410d989ac8016aef3e97b9ec87d2a659bde92167d953",
+     "label": "Je lis ton solde Orange",
+     "title": "Je lis ton solde Orange",
+     "at": 1794064026276
+    }
+   ],
+   "activity": {
+    "tool": "samantha_maxit_tunisie",
+    "action": "telecom.orange.balances",
+    "at": 1794064025473
+   },
+   "steps": [
+    {
+     "id": "accepted",
+     "label": "Demande reçue",
+     "state": "done",
+     "at": 1794064014193
+    },
+    {
+     "id": "agent-1",
+     "label": "Je lis ton solde Orange",
+     "state": "done",
+     "at": 1794064025473,
+     "durationMs": 803
+    },
+    {
+     "id": "answer",
+     "label": "Réponse de Samantha",
+     "state": "done",
+     "at": 1794064028945,
+     "durationMs": 2669
+    }
+   ],
+   "effect": {
+    "debited": "unknown",
+    "source": "receipt"
+   },
+   "totalMs": 14752
+  },
+  "result": "Je n’ai pas pu consulter tes soldes Orange : le réseau mobile Orange n’était pas prêt, et le Wi‑Fi est resté activé. Aucun solde n’a été récupéré.",
+  "prompt": "mon solde orange",
+  "userText": "mon solde orange",
+  "submittedAt": 1794064014193,
+  "updatedAt": 1794064028945,
+  "replayEffect": "unknown"
+ },
+ "routeHealth": {
+  "maxit-tunisie|telecom.orange.balances|orange.summary.maxit.v1": {
+   "history": [
+    {
+     "classification": "local_runtime",
+     "fallback_route": null,
+     "primary": true,
+     "repair_component": null,
+     "result": "failure",
+     "summary": "{'ok': False, 'source': 'maxit_network_guard', 'state': 'network_snapshot_unavailable'}",
+     "ts": 1794061058.0462973
+    }
+   ],
+   "state": "degraded"
+  },
+  "maxit-tunisie|telecom.orange.balances|orange.balances.ussd.v1": {
+   "history": [
+    {
+     "classification": "business_constraint",
+     "fallback_route": null,
+     "primary": false,
+     "repair_component": null,
+     "result": "failure",
+     "summary": "{'ok': False, 'source': 'maxit_network_guard', 'state': 'orange_cellular_required_wifi_kept', 'reason': 'orange_cellular_not_ready', 'network_guard': {'path': 'blocked', 'wifi_initial': True, 'wifi_disabled': False, 'dns_ready_ms': None, 'restored': True, 'lease_id': None}}",
+     "ts": 1794064026.0891278
+    }
+   ],
+   "state": "healthy"
+  }
+ },
+ "playbooksRuntime": {
+  "capabilities/execution_graph.json": "8c069e904ce43c10870e5ffdd73961adf88fbed5f9c88bc58c03d99ef4bd730c",
+  "telecom/maxit_guarded_service.py": "9f8462fe3b209dfdd94937c3b716368162d34f6a3217c81fa0a51b8f38ae88db",
+  "skill_intelligence/capability_graph.py": "21b112f94c0a346384bdee20ab7a1ee29b45fcca792472400db37bacee7f258e"
+ },
+ "executionGraphSurfaces": {
+  "claw_live": {
+   "kind": "voice"
+  },
+  "samantha_android": {
+   "kind": "app"
+  }
+ },
+ "guardKeepWifi": "telecom/maxit_guarded_service.py run_with_wifi_off_guard: SAMANTHA_LIVE_VOICE=1 adds --keep-wifi; skill_intelligence/capability_graph.py sets it when the graph surface kind is voice"
+}

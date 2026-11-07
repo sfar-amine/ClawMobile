@@ -42,6 +42,9 @@ type StoredRun = {
   ownerStop?: {version: 1; at: number; state: "requested" | "acknowledged"};
   /** Host-owned surface for native turns; absence on retained text runs means app. */
   turnSurface?: "app" | "whatsapp" | "voice";
+  /** Turn handed over by Samantha Voix (POST /runs voiceDelegation). The brain's typed tools keep the live-voice
+   * restriction for it (never turn Wi-Fi off); any other app run is a written app turn. */
+  voiceDelegation?: true;
   measurementOnly?: true;
   nativeTurn?: {version:1;deadlineAt:number;clockEpoch:string;startedMono:number;ingressPending?:true;adoptedByRunId?:string;adoptedMono?:number;notice:"pending"|"attempted"|"accepted"|"uncertain"|"cancelled";
     accountId?:string;ended?:boolean;deliveredMono?:number;route:"tool"|"question"|"answer"|"reflex"|null;model?:string;decisionMs:number|null;toolMs:number|null};
@@ -271,6 +274,7 @@ export async function reserveSubmittedRun(
     ownerAdmitted?: boolean;
     semanticOwner?: "main";
     internalOperation?: true;
+    voiceDelegation?: true;
   } = {},
 ): Promise<{ created: boolean; status: CompanionRunStatus }> {
   const clientId = requireClientRunId(clientRunId);
@@ -311,6 +315,7 @@ export async function reserveSubmittedRun(
       executionSource: options.executionSource || "gateway",
       ...(options.semanticOwner === "main" && options.ownerAdmitted === true && options.executionSource === "gateway" ? {semanticOwner:"main" as const} : {}),
       ...(options.internalOperation === true ? {internalOperation:true as const} : {}),
+      ...(options.voiceDelegation === true ? {voiceDelegation:true as const} : {}),
       presentation: options.executionSource === "capability_first" ? fallbackReceiptPresentation() : undefined,
       decision: options.decision && typeof options.decision === "object" ? options.decision : undefined,
       clarificationState: String(options.decision?.type || "") === "CLARIFY" ? "pending" : undefined,
@@ -1754,6 +1759,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     runId: stored.runId,
     clientRunId: stored.clientRunId,
     sessionId: stored.sessionId,
+    turnOrigin: stored.voiceDelegation ? "voice" : "app",
     ...(stored.ownerAdmitted ? {ownerAdmitted: true} : {}),
     ...(stored.ownerTransport ? {ownerTransport: stored.ownerTransport} : {}),
     ...(stored.reasonClass ? {reasonClass: stored.reasonClass} : {}),
@@ -2845,6 +2851,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       nativeTurn: nativeTurnMetadata(run.nativeTurn),
       semanticOwner:run.semanticOwner==="main"&&run.ownerAdmitted===true&&run.executionSource==="gateway"?"main":undefined,
       internalOperation:run.internalOperation===true?true:undefined,
+      voiceDelegation:run.voiceDelegation===true?true:undefined,
       inactivityCorrectionReceipt: validInactivityReceipt(run.inactivityCorrectionReceipt, run.runId),
       presentation: readReceiptPresentation(run.presentation),
       provenance: capabilityProvenance(run.provenance),
