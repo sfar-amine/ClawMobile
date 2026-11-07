@@ -197,6 +197,14 @@ export type CompanionRunProgress = {
   failedStep?: string;
   cause?: string;
   effect?: {debited: "unknown"; source: "receipt"};
+  /** Terminal run: accepted → settled (runProgress.ts). */
+  totalMs?: number;
+  /** Sanitized headers of the model's reasoning summary, recorded by the Gateway observer (runProgress.ts). */
+  reasoning?: string[];
+  /** The app may stop this run now through `POST /conversations/{id}/interrupt` (official chat.abort). */
+  stoppable?: true;
+  /** Amine stopped this run; its failure is that stop, not an engine error. */
+  stopped?: true;
 };
 
 export type CompanionRunProgressEvent = {

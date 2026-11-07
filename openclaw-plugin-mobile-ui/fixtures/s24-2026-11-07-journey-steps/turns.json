@@ -1,0 +1,203 @@
+{
+ "version": 1,
+ "source": "S24 07/11/2026, openclaw-agent.sqlite transcript_events (read-only), two owner turns of the main agent. Kept: event kind, timestamps, tool name, action, call id, toolResult isError, stopReason and the model's reasoning summary headers (digits >=6 masked). No user text, no tool arguments beyond action, no tool results.",
+ "openclaw": "2026.10.9",
+ "model": "gpt-5.6-sol",
+ "turns": [
+  {
+   "name": "orange-balances",
+   "events": [
+    {
+     "seq": 6,
+     "at": 1794052827795,
+     "kind": "assistant",
+     "stopReason": "toolUse",
+     "content": [
+      {
+       "type": "thinking",
+       "thinking": "**Identifying need for call balances**"
+      },
+      {
+       "type": "toolCall",
+       "name": "samantha_maxit_tunisie",
+       "id": "call_d85c0b5af54e4c838c8d87440a115fc8|fc_0fe4f4a975697140016aef12dbac9087d2b744f6476e4eee3c",
+       "action": "telecom.orange.balances"
+      }
+     ]
+    },
+    {
+     "seq": 9,
+     "at": 1794052845791,
+     "kind": "assistant",
+     "stopReason": "stop",
+     "content": [
+      {
+       "type": "thinking",
+       "thinking": "**Verifying data completeness and observations**"
+      },
+      {
+       "type": "text"
+      }
+     ]
+    }
+   ],
+   "compressedToolResult": {
+    "seq": 7,
+    "at": 1794052842359,
+    "note": "stored zstd-compressed (event_zstd); its row timestamp is the tool result time"
+   }
+  },
+  {
+   "name": "agenda-read-create-cancel",
+   "events": [
+    {
+     "seq": 6,
+     "at": 1794051250376,
+     "kind": "assistant",
+     "stopReason": "toolUse",
+     "content": [
+      {
+       "type": "thinking",
+       "thinking": "**Planning date retrieval for Nov 8**"
+      },
+      {
+       "type": "toolCall",
+       "name": "samantha_agenda",
+       "id": "call_3b4ba70b3ced46d9a140dc94c37aab04|fc_0ba21434ac5e854c016aef0cb1ee3487d294b2d822e352e4c9",
+       "action": "agenda.event.read"
+      }
+     ]
+    },
+    {
+     "seq": 7,
+     "at": 1794051255165,
+     "kind": "toolResult",
+     "tool": "samantha_agenda",
+     "callId": "call_3b4ba70b3ced46d9a140dc94c37aab04|fc_0ba21434ac5e854c016aef0cb1ee3487d294b2d822e352e4c9",
+     "isError": false
+    },
+    {
+     "seq": 9,
+     "at": 1794051256767,
+     "kind": "assistant",
+     "stopReason": "stop",
+     "content": [
+      {
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "seq": 11,
+     "at": 1794051273713,
+     "kind": "user"
+    },
+    {
+     "seq": 13,
+     "at": 1794051277037,
+     "kind": "assistant",
+     "stopReason": "toolUse",
+     "content": [
+      {
+       "type": "thinking",
+       "thinking": "**Clarifying default duration handling**"
+      },
+      {
+       "type": "toolCall",
+       "name": "samantha_agenda",
+       "id": "call_700edae77c134369b9a1c37475625e2b|fc_0718d8cd6ec3722b016aef0ccc7e0087d2ba37c007baca1da1",
+       "action": "agenda.event.create"
+      }
+     ]
+    },
+    {
+     "seq": 14,
+     "at": 1794051278237,
+     "kind": "toolResult",
+     "tool": "samantha_agenda",
+     "callId": "call_700edae77c134369b9a1c37475625e2b|fc_0718d8cd6ec3722b016aef0ccc7e0087d2ba37c007baca1da1",
+     "isError": false
+    },
+    {
+     "seq": 16,
+     "at": 1794051280655,
+     "kind": "assistant",
+     "stopReason": "stop",
+     "content": [
+      {
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "seq": 17,
+     "at": 1794051287033,
+     "kind": "user"
+    },
+    {
+     "seq": 19,
+     "at": 1794051290031,
+     "kind": "assistant",
+     "stopReason": "toolUse",
+     "content": [
+      {
+       "type": "toolCall",
+       "name": "samantha_agenda",
+       "id": "call_2ccf5f119b42487f9b07d2243b0289ef|fc_09f63db9180398af016aef0cd90a2c87d2b74a61d88fa821c2",
+       "action": "cancel"
+      }
+     ]
+    },
+    {
+     "seq": 20,
+     "at": 1794051291008,
+     "kind": "toolResult",
+     "tool": "samantha_agenda",
+     "callId": "call_2ccf5f119b42487f9b07d2243b0289ef|fc_09f63db9180398af016aef0cd90a2c87d2b74a61d88fa821c2",
+     "isError": false
+    },
+    {
+     "seq": 22,
+     "at": 1794051292996,
+     "kind": "assistant",
+     "stopReason": "stop",
+     "content": [
+      {
+       "type": "text"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "engineContract": [
+  {
+   "module": "builtin-openclaw-BxzDR6yL.mjs",
+   "sha256": "220ce2f67e0ec0b96b63fe474dbefd628a6429cf2b58b87f78a78324ee92ca1c",
+   "term": "const createStartEvent = () => ({",
+   "found": true,
+   "excerpt": "\temitTrackedItemEvent(ctx, itemData);\n\t\tconst createStartEvent = () => ({\n\t\t\tstream: \"tool\",\n\t\t\tdata: {\n\t\t\t\tphase: \"start\",\n\t\t\t\tname: toolName,\n\t\t\t\ttoolCallId,\n\t\t\t\t...evt.parentToolCallId ? { parentToolCallId: evt.parentToolCallId } : {},\n\t\t\t\targs: sanitizeToolArgs(args),\n\t\t\t\t...hideFromChannelProgress ? { hideFromChannelProgress: true } : {}\n\t\t\t}\n\t\t});\n\t\temitAgentEvent({\n\t\t\tru"
+  },
+  {
+   "module": "builtin-openclaw-BxzDR6yL.mjs",
+   "sha256": "220ce2f67e0ec0b96b63fe474dbefd628a6429cf2b58b87f78a78324ee92ca1c",
+   "term": "stream: \"thinking\",",
+   "found": true,
+   "excerpt": "AgentEvent({\n\t\t\trunId: params.runId,\n\t\t\tstream: \"thinking\",\n\t\t\tdata: {\n\t\t\t\ttext: trimmed,\n\t\t\t\tdelta\n\t\t\t}\n\t\t});\n\t\tif (state.streamReasoning && !hasMessageToolOnlySourceDelivery({\n\t\t\tparams,\n\t\t\tstate\n\t\t}) && params.onReasoningStream) runBestEffortCallback({\n\t\t\tlabel: \"reasoning stream\",\n\t\t\tlog,\n\t\t\tcallback: () => params.onReasoningStream?.({\n\t\t\t\ttext: trimmed,\n\t\t\t\t...state.reason"
+  },
+  {
+   "module": "server-chat-Dzto6UBI.mjs",
+   "sha256": "ae80c86ff14770d696b4a91fccb98a09ef49c60ea79cfdf236c84c740a49c06c",
+   "term": "evt.stream === \"thinking\" || evt.stream === \"approval\"",
+   "found": true,
+   "excerpt": "onMessageSubscribers && (isItemEvent || evt.stream === \"thinking\" || evt.stream === \"approval\" || evt.stream === \"lifecycle\" || !isAborted && evt.stream === \"assistant\" && shouldMirrorAssistantEventToHiddenSessionMessages(evt.data)))) sendOrBufferAgentTextEvent(clientRunId, {\n\t\t\t\tsessionKey,\n\t\t\t\tagentId: sessionAgentId,\n\t\t\t\tcontrolUiVisible: isControlUiVisible,\n\t\t\t\tpayload: age"
+  },
+  {
+   "module": "embedded-agent-tool-results-D87rtFux.mjs",
+   "sha256": "b87b8d56cd81700b17394d922843d685df39ccdb2cc54bd99783d8402d82741b",
+   "term": "function sanitizeToolArgs(args)",
+   "found": true,
+   "excerpt": "odeError ? { nodeError } : {}\n\t\t}\n\t};\n}\nfunction sanitizeToolArgs(args) {\n\treturn redactToolPayloadValue(args, \"args\");\n}\nfunction sanitizeToolResult(result) {\n\tif (typeof result === \"string\") return redactModelVisibleToolPayloadText(result);\n\tif (!result || typeof result !== \"object\") return result;\n\treturn sanitizeStructuredToolResult(result);\n}\nfunction prepareToolResult(res"
+  }
+ ]
+}

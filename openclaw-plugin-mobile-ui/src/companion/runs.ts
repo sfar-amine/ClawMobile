@@ -1,7 +1,7 @@
 import type {OwnerTurnObserver} from "./ownerTurnGateway";
 import {readRunWebResult, type RunWebResult} from "./runWeb";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
-import {isTechnicalProgressLabel, readRunActivity, runActivity, runProgressSteps, typedToolActivity} from "./runProgress";
+import {isTechnicalProgressLabel, mergeThoughts, publicToolLabel, readRunActivity, readThoughts, reasoningThoughts, runActivity, runProgressSteps, typedToolActivity} from "./runProgress";
 import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision,type ReceiptPresentation} from "./receiptPresentation";
 import {projectRunPayment} from "./runPaymentPresentation";
 import { structuredNotification } from "./notificationText";
@@ -37,6 +37,9 @@ type StoredRun = {
   internalOperation?: true;
   gatewayObservation?: GatewayObservation;
   gatewayProgress?: CompanionRunProgress;
+  /** Amine pressed Cancel on this run (app journey → official chat.abort). « requested » is written before the abort
+   * so a terminal frame racing the abort answer is still read as his stop; « acknowledged » once the Gateway confirmed. */
+  ownerStop?: {version: 1; at: number; state: "requested" | "acknowledged"};
   /** Host-owned surface for native turns; absence on retained text runs means app. */
   turnSurface?: "app" | "whatsapp" | "voice";
   measurementOnly?: true;
@@ -531,17 +534,25 @@ export function observedRunTiming(runId:string):{acceptedAt:number;state?:string
   if(!run||!Number.isFinite(run.acceptedAt))return null;
   return {acceptedAt:run.acceptedAt,...(run.state?{state:run.state}:{}),...readGatewayObservationTiming(run.gatewayObservation?.timing)};
 }
+/** Tool call ids of the Gateway stream: the provider's own id, for OpenAI Responses `call_<hex>|fc_<hex>` (S24 07/11). */
+const TOOL_CALL_ID=/^[A-Za-z0-9_.:|-]{1,200}$/;
 function readGatewayProgress(v:any):CompanionRunProgress|undefined {
   if(!v||!Array.isArray(v.events))return undefined;
   const events=v.events.slice(-48).filter((e:any)=>e&&["tool.call","tool.result","tool.error"].includes(e.type)&&
-    typeof e.callId==="string"&&/^[A-Za-z0-9_.:-]{1,160}$/.test(e.callId)&&
+    typeof e.callId==="string"&&TOOL_CALL_ID.test(e.callId)&&
     typeof e.label==="string"&&e.label.length<=160&&!isTechnicalProgressLabel(e.label));
   const rawCard=v.card;
   const card=rawCard?projectProgressCard({...rawCard,steps:Array.isArray(rawCard.steps)?rawCard.steps.map((step:any)=>({step:step.label,
     status:step.state==="done"?"completed":step.state==="running"?"in_progress":"pending"})):[]}):null;
   const activity=readRunActivity(v.activity);
-  return events.length||card||activity?{text:"",events,...(card?{card}:{}),...(activity?{activity}:{})}:undefined;
+  const reasoning=readThoughts(v.reasoning);
+  return events.length||card||activity||reasoning.length?{text:"",events,...(card?{card}:{}),...(activity?{activity}:{}),...(reasoning.length?{reasoning}:{})}:undefined;
 }
+function readOwnerStop(v:any):StoredRun["ownerStop"] {
+  return v?.version===1&&Number.isSafeInteger(v.at)&&v.at>0&&["requested","acknowledged"].includes(v.state)?{version:1,at:v.at,state:v.state}:undefined;
+}
+/** Fixed copy of a run Amine stopped: the stop is his, and what already ran is not undone. */
+export const OWNER_STOP_TEXT="Tu as arrêté cette demande. Ce qui a déjà été fait n’est pas annulé : vérifie-le dans la conversation.";
 function observedRunStatus(stored:StoredRun):CompanionRunStatus {
   return {...statusFromStoredRun(stored),...(stored.gatewayProgress?{progress:stored.gatewayProgress}:{})};
 }
@@ -580,6 +591,20 @@ export async function activeObservedGatewayRun(runId:string,sessionKey:string):P
     row.sessionKey===sessionKey&&row.state==="running"&&row.gatewayObservation?.epoch===GATEWAY_OBSERVER_EPOCH&&
     row.gatewayObservation.state==="following"&&Date.now()<row.gatewayObservation.deadlineAt;
 }
+/**
+ * Journey Cancel (Amine 07/11/2026), on the existing run ledger: « requested » just before the official chat.abort,
+ * « acknowledged » when the Gateway confirmed it, cleared when nothing was aborted. Only an admitted, followed,
+ * running app run of this session can carry it; it never undoes an effect.
+ */
+export async function recordOwnerStop(runId:string,sessionKey:string,state:"requested"|"acknowledged"|"cleared"):Promise<boolean> {
+  const next=await updateObservedRun(runId,r=>{
+    if(r.sessionKey!==sessionKey||r.ownerAdmitted!==true||r.executionSource!=="gateway"||r.modality==="voice")return undefined;
+    if(state==="cleared")return r.ownerStop&&r.state==="running"?{...r,ownerStop:undefined}:undefined;
+    if(state==="acknowledged")return r.ownerStop?{...r,ownerStop:{...r.ownerStop,state}}:undefined;
+    return r.state==="running"&&!r.ownerStop?{...r,ownerStop:{version:1,at:Date.now(),state}}:undefined;
+  });
+  return state==="cleared"?!!next&&!next.ownerStop:!!next?.ownerStop;
+}
 /** Same admitted run and session throughout. Incoming JSON/HTTP cannot create this callback. */
 export async function observeGatewayRun(runId:string,sessionKey:string):Promise<OwnerTurnObserver> {
   const started=await updateObservedRun(runId,stored=>{
@@ -591,7 +616,10 @@ export async function observeGatewayRun(runId:string,sessionKey:string):Promise<
     return {...stored,gatewayObservation:{version:1,epoch:GATEWAY_OBSERVER_EPOCH,state:"following",deadlineAt:Date.now()+GATEWAY_FOLLOW_MS}};
   });
   if(!started?.gatewayObservation||started.gatewayObservation.epoch!==GATEWAY_OBSERVER_EPOCH)throw Error("gateway_observation_not_admitted");
-  let sequence=0,closed=false,queued=0,cardQueued=false,chain=Promise.resolve();
+  let sequence=0,closed=false,queued=0,cardQueued=false,thoughtsQueued=false,chain=Promise.resolve();
+  // Reasoning headers seen on the `thinking` stream, merged in memory and written at most once at a time (and by the
+  // terminal settlement), never once per delta.
+  let thoughts:string[]=[];
   // Latency stages of this run (no text): first lifecycle start, tool start and assistant delta, in memory until the
   // terminal settlement persists them with its own write.
   const stages:Pick<GatewayObservationTiming,"runStartedAt"|"firstToolAt"|"firstTextAt"|"toolStarts">={};
@@ -604,6 +632,9 @@ export async function observeGatewayRun(runId:string,sessionKey:string):Promise<
   const bound=(r:StoredRun)=>r.sessionKey===sessionKey&&r.gatewayObservation?.epoch===GATEWAY_OBSERVER_EPOCH&&r.gatewayObservation.state==="following";
   const lost=async(requestSent:boolean)=>{
     closed=true;await chain;
+    // A run Amine stopped ends as his stop, never as « result to verify » followed by a history reconciliation.
+    if(await updateObservedRun(runId,r=>bound(r)&&r.ownerStop&&!["done","failed"].includes(r.state||"")?{...r,state:"failed",error:OWNER_STOP_TEXT,
+      updatedAt:Date.now(),ownerTransport:"admin_admitted" as const,gatewayObservation:{...r.gatewayObservation!,state:"settled"}}:undefined))return;
     await updateObservedRun(runId,r=>bound(r)?{...r,state:requestSent?"unknown":r.state,...(requestSent?{error:"Le résultat de cette demande reste à vérifier ; aucune relance automatique."}:{}),...(requestSent?{ownerTransport:"admin_admitted" as const}:{}),
       gatewayObservation:{...r.gatewayObservation!,state:"reconcile"}}:undefined);
   };
@@ -618,8 +649,20 @@ export async function observeGatewayRun(runId:string,sessionKey:string):Promise<
       const p=frame.payload;
       if(p?.runId!==runId||p.sessionKey!==sessionKey||!Number.isSafeInteger(p.seq)||p.seq<=sequence)return;
       sequence=p.seq;
+      const receivedAt=Date.now();
       // A card is refreshed only after its actual writer completed, never once per status poll.
       const data=p.data,id=data?.toolCallId;
+      if(p.stream==="thinking") {
+        const next=reasoningThoughts(data?.text);
+        if(!next.length||next.every(t=>thoughts.includes(t)))return;
+        thoughts=mergeThoughts(thoughts,next);
+        if(thoughtsQueued||queued>=48)return;
+        thoughtsQueued=true;
+        enqueue(async()=>{try {
+          await updateObservedRun(runId,r=>bound(r)?{...r,gatewayProgress:{...(r.gatewayProgress||{text:"",events:[]}),reasoning:mergeThoughts(r.gatewayProgress?.reasoning,thoughts)}}:undefined);
+        } finally {thoughtsQueued=false;}});
+        return;
+      }
       observeRunStage(stages,p.stream,data);
       if(p.stream==="tool"&&data?.name==="progress_card"&&data?.phase==="result") {
         if(cardQueued||queued>=48)return;
@@ -635,30 +678,39 @@ export async function observeGatewayRun(runId:string,sessionKey:string):Promise<
       // phrase « Je regarde tes factures. ». Never a parameter; it is not a step and never a result.
       const activity=p.stream==="tool"&&data?.phase==="start"?typedToolActivity(data?.name,data?.args,Date.now()):undefined;
       if(activity)enqueue(async()=>{await updateObservedRun(runId,r=>bound(r)?{...r,gatewayProgress:{...(r.gatewayProgress||{text:"",events:[]}),activity}}:undefined);});
-      // Only titled tool boundaries are progress. Assistant deltas never become facts or terminal success.
-      const title=cardText(data?.args?.title,160);
+      // Only titled tool boundaries are progress: the title the agent wrote, else the fixed French step of a known tool
+      // and action (runProgress.publicToolLabel, Amine 07/11). Assistant deltas never become facts or terminal success.
+      const title=cardText(data?.args?.title,160)||(data?.phase==="start"?publicToolLabel(data?.name,data?.args):undefined);
       if(p.stream!=="tool"||!["start","result"].includes(data?.phase)||typeof id!=="string"||
-        !/^[A-Za-z0-9_.:-]{1,160}$/.test(id)||data.phase==="start"&&(!title||isTechnicalProgressLabel(title)))return;
+        !TOOL_CALL_ID.test(id)||data.phase==="start"&&(!title||isTechnicalProgressLabel(title)))return;
+      const parent=typeof data?.parentToolCallId==="string"?data.parentToolCallId:undefined;
       enqueue(async()=>{await updateObservedRun(runId,r=>{
         if(!bound(r))return undefined;
         const events=r.gatewayProgress?.events||[],old=events.find(e=>e.callId===id);
+        // A call nested in an already shown call (discovery wrapper → plugin tool) is the same step.
+        if(data.phase==="start"&&parent&&events.some(e=>e.callId===parent))return undefined;
         const label=title||old?.label;if(!label)return undefined;
-        return {...r,gatewayProgress:{...r.gatewayProgress,text:"",events:[...events,{type:data.phase==="start"?"tool.call":data.isError?"tool.error":"tool.result",callId:id,label,title:label,at:Date.now(),...(data.isError?{isError:true}:{})}].slice(-48)}};
+        return {...r,gatewayProgress:{...r.gatewayProgress,text:"",events:[...events,{type:data.phase==="start"?"tool.call":data.isError?"tool.error":"tool.result",callId:id,label,title:label,at:receivedAt,...(data.isError?{isError:true}:{})}].slice(-48)}};
       });});
     },
     async final(value:unknown){
       const terminalReceivedAt=Date.now(),progressStart=performance.now();
       closed=true;await chain;
       const progressDrainedAt=Date.now(),progressWaitMs=Math.round(performance.now()-progressStart);
-      const terminal=gatewayTerminalResult(value,runId);
+      const answered=gatewayTerminalResult(value,runId);
+      // Amine's stop (journey Cancel): the aborted terminal of this run settles as that stop. A run that still finished
+      // with a verified answer before the abort keeps its answer.
+      const stopped=!!submittedRuns.get(runId)?.ownerStop&&(value as any)?.runId===runId&&answered?.state!=="done";
+      const terminal=stopped?{state:"failed" as const,text:OWNER_STOP_TEXT}:answered;
       if(!terminal){await lost(true);return;}
       const settlementStart=performance.now();let settlementWaitMs=0,commitStart:number|undefined;
       const settled=await updateObservedRun(runId,r=>{
         if(r.sessionKey!==sessionKey||r.gatewayObservation?.epoch!==GATEWAY_OBSERVER_EPOCH||
           !["following","reconcile"].includes(r.gatewayObservation.state)||["done","failed"].includes(r.state||""))return undefined;
         const settlementStartedAt=Date.now();settlementWaitMs=Math.round(performance.now()-settlementStart);commitStart=performance.now();
+        const gatewayProgress=thoughts.length?{...(r.gatewayProgress||{text:"",events:[]}),reasoning:mergeThoughts(r.gatewayProgress?.reasoning,thoughts)}:r.gatewayProgress;
         return {...r,state:terminal.state,result:terminal.state==="done"?terminal.text:undefined,error:terminal.state==="failed"?terminal.text:undefined,
-          updatedAt:settlementStartedAt,ownerTransport:"admin_admitted",gatewayObservation:{...r.gatewayObservation,state:"settled",
+          updatedAt:settlementStartedAt,ownerTransport:"admin_admitted",...(gatewayProgress?{gatewayProgress}:{}),gatewayObservation:{...r.gatewayObservation,state:"settled",
             timing:{...r.gatewayObservation.timing,...stages,terminalReceivedAt,progressDrainedAt,settlementStartedAt,progressWaitMs,settlementWaitMs}}};
       });
       // Existing bounded diagnostic sink; no extra registry write just to measure its own fsync/rename.
@@ -1412,15 +1464,23 @@ function withRunSteps(status: CompanionRunStatus, stored?: StoredRun | null): Co
   // Waiting cues: the same activity whether the run is read by id or by its clientRunId (the voice reads both).
   const activity = runActivity(status.progress) ?? readRunActivity(stored.gatewayProgress?.activity);
   if (activity) status = {...status, progress: {...(status.progress || {text: "", events: []}), activity}};
+  const stopped = !!stored.ownerStop && status.state === "failed";
   const derived = runProgressSteps({
     executionSource: stored.executionSource, state: status.state, error: stored.error,
     acceptedAt: stored.acceptedAt, updatedAt: stored.updatedAt ?? status.updatedAt, modality: stored.modality,
     decision: stored.decision, clarificationState: stored.clarificationState,
     presentation: runPresentation(stored), events: status.progress?.events, card: status.progress?.card,
+    reasoning: status.progress?.reasoning, stopped,
   });
   if (!derived) return status;
   const base = status.progress || {text: "", events: []};
-  return {...status, progress: {...base, ...derived, text: liveProgressText(status.state, base.text, derived.steps)}};
+  // Same proof as the interrupt owner (activeObservedGatewayRun), read from this row: the app shows Cancel only then.
+  const observation = stored.gatewayObservation;
+  const stoppable = !stored.ownerStop && stored.ownerAdmitted === true && stored.ownerTransport === "admin_admitted" &&
+    stored.executionSource === "gateway" && stored.modality !== "voice" && stored.state === "running" && status.state === "running" &&
+    observation?.epoch === GATEWAY_OBSERVER_EPOCH && observation.state === "following" && Date.now() < observation.deadlineAt;
+  return {...status, progress: {...base, ...derived, text: liveProgressText(status.state, base.text, derived.steps),
+    ...(stoppable ? {stoppable: true as const} : {}), ...(stopped ? {stopped: true as const} : {})}};
 }
 
 /** Technical transport text is never public: follow the current public step (including a clarification or the answer).
@@ -2840,6 +2900,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       ownerTransport: OWNER_TRANSPORTS.has(String(run.ownerTransport || "")) ? run.ownerTransport : undefined,
       gatewayObservation: readGatewayObservation(run.gatewayObservation),
       gatewayProgress: readGatewayProgress(run.gatewayProgress),
+      ownerStop: readOwnerStop(run.ownerStop),
       reasonClass: publicReasonClass(run.reasonClass),
     }));
   // HS3: a run that handed off to a payment request shows that request's state (read-time projection only).
