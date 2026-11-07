@@ -98,6 +98,28 @@ function toolSchema(tool: DomainTool) {
   }, required: ["action", "params"], additionalProperties: false};
 }
 
+/**
+ * Graph surface of an owner app turn (S24 07/11 16:07, « mon solde orange » shared from the app at home): every app call
+ * carried the voice surface « claw_live », so the Orange guard kept Wi-Fi as for a live voice session and refused the
+ * 4G corridor on a written request. Only a run the Companion proves is a written app turn (turnOrigin « app ») gets the
+ * app surface; a Samantha Voix hand-over, an unknown run or an unreachable Companion keeps the live-voice restriction.
+ * A restriction only, never an admission.
+ */
+export async function typedOwnerGraphSurface(userRunId: string): Promise<"samantha_android" | "claw_live"> {
+  try {
+    const port = Number(process.env.CLAWMOBILE_COMPANION_PORT || 8765);
+    if (!Number.isInteger(port) || port < 1 || port > 65535 || !/^[A-Za-z0-9_.:-]{1,160}$/.test(userRunId)) return "claw_live";
+    const response = await fetch("http://127.0.0.1:" + port + "/v1/runs/" + encodeURIComponent(userRunId),
+      {signal: AbortSignal.timeout(1500)});
+    const text = await response.text();
+    if (response.status !== 200 || text.length > 262144) return "claw_live";
+    const run = JSON.parse(text);
+    return run && run.runId === userRunId && run.turnOrigin === "app" ? "samantha_android" : "claw_live";
+  } catch {
+    return "claw_live";
+  }
+}
+
 export function createTypedCapabilityTools(context: TypedToolContext, options: Options = {}) {
   // Contacts do not even see these descriptors. Recheck identity and liveness
   // during execution; a factory snapshot is never permission for a later turn.
@@ -173,8 +195,9 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
             ? {operation, domain: tool.domain, action: args.action, params, ...(args.relation ? {relation: args.relation} : {})}
             : {operation, domain: tool.domain, confirmationId: args.params.confirmationId, payloadHash: args.params.payloadHash};
           const whatsapp = context.messageChannel === "whatsapp";
-          const privateInput = JSON.stringify({command, host: {...bound,
-            surface: whatsapp ? "whatsapp" : "app", graphSurface: whatsapp ? "whatsapp" : "claw_live"}});
+          const graphSurface = whatsapp ? "whatsapp" : await typedOwnerGraphSurface(bound.userRunId);
+          context.assertInvocationCurrent!();
+          const privateInput = JSON.stringify({command, host: {...bound, surface: whatsapp ? "whatsapp" : "app", graphSurface}});
           if (Buffer.byteLength(privateInput) > 32768) throw Error("typed_input_too_large");
           context.assertInvocationCurrent!();
           const helperTimeoutS = operation === "call" && isPublicWeb(action) ? PUBLIC_WEB_HELPER_TIMEOUT_S

@@ -1,0 +1,51 @@
+{
+  "version": 2,
+  "id": "typed-app-surface-20261107",
+  "date": "2026-11-07",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "A written app turn no longer runs the brain's typed tools under the live-voice surface: the Companion records Samantha Voix hand-overs (turnOrigin voice) and the typed tool gives the graph the app surface (samantha_android) only for a run the Companion proves is a written app turn. Voice, unknown runs and an unreachable Companion keep the live-voice restriction.",
+  "reason": "S24 07/11 16:07, « mon solde orange » shared from the app at home: the Orange guard refused with orange_cellular_required_wifi_kept (wifi_disabled false) because typedCapabilityTools passed graphSurface claw_live (execution graph kind voice) for every non-WhatsApp call, so the graph set SAMANTHA_LIVE_VOICE=1 and the guard refused the Wi-Fi-off 4G corridor meant for written requests.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/typed-app-surface-20261107.json",
+    "docs/changes/typed-app-surface-20261107.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-orange-app-surface/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-orange-app-surface/run-and-guard.json",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-app-surface.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-app-surface.cjs",
+      "status": "passed",
+      "evidence": "Real status of the failing run (Companion 1bf6ca93) without origin keeps claw_live; with turnOrigin app the typed Orange call reaches the graph with samantha_android; turnOrigin voice, another run, 404 and an unreachable Companion keep claw_live; a voiceDelegation run is persisted and read back as turnOrigin voice."
+    },
+    {
+      "name": "test-typed-capability-tools, test-voice-brain-delegation, test-companion-runs, test-run-journey-steps",
+      "status": "passed",
+      "evidence": "Unchanged and green."
+    }
+  ],
+  "documentation": [
+    "docs/changes/typed-app-surface-20261107.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No route, action or capability change; the existing samantha_android surface (kind app) of the execution graph is used for written app turns, the live-voice restriction is unchanged for Samantha Voix."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same typed tool, run registry and status read; one origin field on runs and one local status read before the helper call."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The 15:17 failure (network_snapshot_unavailable, incident awaiting_deterministic_recovery) is a separate transient of the guard's network snapshot; it is not changed here.",
+    "A written app request at home now turns Wi-Fi off for the bounded 4G read, as decided for written requests (17/10 « 4G et Wi-Fi »)."
+  ],
+  "rollback": "Revert this commit and redeploy the previous Companion."
+}
