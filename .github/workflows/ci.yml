@@ -595,6 +595,8 @@ jobs:
           python3 ../installer/termux-lite/test-runtime-start-command.py
           node scripts/test-remote-bridge-retention.cjs
           node scripts/test-remote-bridge-retention-startup.cjs
+      - name: Remote Bridge task/step lookups never scan receipts on the event loop (S24 57 664 receipts)
+        run: node scripts/test-remote-bridge-receipt-index.cjs
       - name: MCP raw execution Continuum fence admission
         run: node scripts/test-mcp-raw-continuum.cjs
 
