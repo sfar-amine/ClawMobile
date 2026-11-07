@@ -145,7 +145,8 @@ async function submitTextIntent(
       submittedPrompt,
       normalizedSessionId,
       clientRunId,
-      { userText: visibleUserText, attachments, requestText: normalized, executionSource: "gateway", replayOf, ownerAdmitted, semanticOwner },
+      { userText: visibleUserText, attachments, requestText: normalized, executionSource: "gateway", replayOf, ownerAdmitted, semanticOwner,
+        ...(options.voiceDelegation === true ? {voiceDelegation: true as const} : {}) },
     );
     runId = reservation.status.runId;
     duplicate = !reservation.created;

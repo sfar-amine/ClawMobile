@@ -125,6 +125,8 @@ export type CompanionRunStatus = {
   /** P1 : tour admis par preuve native, et connexion Gateway finalement utilisée. */
   ownerAdmitted?: boolean;
   ownerTransport?: "admin_admitted" | "write_cli" | "write_cli_owner_unavailable";
+  /** Text run origin: « voice » when Samantha Voix handed the turn over, else « app ». Absent on voice transcripts. */
+  turnOrigin?: "app" | "voice";
   /** Stable public machine class copied from the deterministic runner receipt. */
   reasonClass?: string;
   /** Closed projection of the stored decision (receiptPresentation.publicDecision). */
