@@ -1,0 +1,49 @@
+{
+  "version": 2,
+  "id": "files-main-session-prewarm-20261107",
+  "date": "2026-11-07",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The Companion confirms the owner's main session once at startup, so the first session file read after a restart needs one Gateway call (the file list) instead of two in a row. Only a found main session is kept; a failed or empty startup answer is not remembered, and no files RPC is ever sent without the confirmed main session.",
+  "reason": "S24 07/11 19:14: release 888daa93 was rolled back because /files?scope=session was still deferred after the settle window and its late re-judgment, as on 07/11 14:05 and 05/11 23:02. Through the CLI, sessions.list took 6.5 s and a second Gateway call 3.5 s on the S24 at rest, both under one 13.5 s read deadline; right after a restart, with every acceptance read at once, the pair no longer fits.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/files-main-session-prewarm-20261107.json",
+    "docs/changes/files-main-session-prewarm-20261107.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-files-session-deferred/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-files-session-deferred/rollbacks-and-cli-timing.json",
+    "openclaw-plugin-mobile-ui/scripts/test-files-main-session-prewarm.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/fileReads.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-files-main-session-prewarm.cjs",
+      "status": "passed",
+      "evidence": "Captured S24 durations scaled 1/10: a cold session listing pays both calls (1005 ms); after the startup prewarm the first read needs only the file list (354 ms); a read arriving during the prewarm joins it; a Gateway down at startup and an absent main session are not remembered; no files RPC without the main session; the old build fails (no prewarm)."
+    },
+    {
+      "name": "test-files-http, test-file-gateway-read, test-file-gateway-limits, test-file-read-boundary, test-run-diagnostics",
+      "status": "passed",
+      "evidence": "Unchanged and green on the new build, including the R20 rule that an absent main row sends no files RPC, and the excluded server regions."
+    }
+  ],
+  "documentation": [
+    "docs/changes/files-main-session-prewarm-20261107.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No route, method or capability change; same Gateway reads, same deadlines and same fail-closed rules."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "One startup call to the existing main-session lookup and its existing cache; no new store, transport or budget."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The prewarm costs one CLI Gateway call per Companion start, even if no file is read within the 10 minute cache.",
+    "The agent-scope listing still runs its three CLI calls in parallel; it settled in time on 07/11 19:14 and is unchanged here."
+  ],
+  "rollback": "Revert this commit and redeploy the previous Companion."
+}
