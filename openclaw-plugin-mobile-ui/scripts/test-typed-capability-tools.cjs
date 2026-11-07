@@ -36,7 +36,10 @@ async function main() {
   // S24 07/11 21:46 (Amine): a verified Orange read came back with the generic ready answer and the brain had to
   // repeat it. The brain keeps room to answer from the receipt's verified facts when the ready answer does not fit.
   for(const tool of domainTools){assert.match(tool.description,/si elle est générique, incomplète ou contredit les faits vérifiés du reçu \(facts\), réponds à partir de ces faits et dis ce qui ne colle pas/);
-    assert.match(tool.description,/sans inventer de fait/);assert.doesNotMatch(tool.description,/Reproduis la réponse prête/);}
+    assert.match(tool.description,/sans inventer de fait/);assert.doesNotMatch(tool.description,/Reproduis la réponse prête/);
+    // S24 07/11 23:00 (deploy 87823c1e rolled back): with that room the brain reworded the agenda recap; what the
+    // owner confirms stays the receipt's own words.
+    assert.match(tool.description,/un récapitulatif à confirmer se reproduit tel quel, mot pour mot, avec sa demande de confirmation/);}
   const args={action:'telecom.balance',params:{}};
   assert.equal((await orange.execute('missing-hook',args)).isError,true);
   assert.equal(bind(orange.name,args,'one').block,undefined);
