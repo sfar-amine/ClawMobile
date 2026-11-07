@@ -1,0 +1,33 @@
+{
+ "version": 1,
+ "capture": {
+  "device": "S24",
+  "date": "2026-11-07",
+  "openclaw": "2026.10.9",
+  "kind": "installed engine code contract; not traffic",
+  "live_observation": "S24 07/11 15:17: app run run_1794061009103_21aa04d1 called samantha_maxit_tunisie (transcript 15:17:30 -> 15:17:44) while the Companion owner-turn connection (caps []) received no tool frame: progress kept only 'Demande reçue' and 'Réponse de Samantha', activity empty."
+ },
+ "parts": [
+  {
+   "module": "client-info-BgcoFakQ.mjs",
+   "sha256": "980dde34ed44136150da60f32cfa6b408ee247549207ea40de35093ea7532c8a",
+   "term": "TOOL_EVENTS: \"tool-events\"",
+   "found": true,
+   "excerpt": "H_STYLE: \"terminal-upload-path-style\",\n\tTOOL_EVENTS: \"tool-events\",\n\tUI_AGENT_GITHUB_SETTINGS: \"ui-agent-github-settings\",\n\tUI_COMMANDS: \"ui-commands\",\n\tULTRAFAST: \"ultrafast\",\n\tUSAGE_REFRESHING: \"usage-refreshing\"\n};\nconst GATEWAY_CLIENT_ID_SET = new Set(Object.values(GATEWAY_CLIENT_IDS));\nconst GATEWAY_CLIENT_MODE_SET = new Set(Object.v"
+  },
+  {
+   "module": "principal-CCKVuZLT.mjs",
+   "sha256": "845c3f5e7437e6fe2df3c72211247a5e66fcbdb37ddb70362f2a3d1b76db6bf6",
+   "term": "function resolveAgentTurnRunObserver(params)",
+   "found": true,
+   "excerpt": "ation across agent turn entry paths. */\nfunction resolveAgentTurnRunObserver(params) {\n\tconst connId = params.principal?.connId;\n\treturn connId && hasGatewayClientCap(params.principal?.connect?.caps, GATEWAY_CLIENT_CAPS.TOOL_EVENTS) ? (runId) => params.registerToolEventRecipient(runId, connId) : void 0;\n}\n//#endregion\nexport { resolveAgen"
+  },
+  {
+   "module": "server-chat-Dzto6UBI.mjs",
+   "sha256": "ae80c86ff14770d696b4a91fccb98a09ef49c60ea79cfdf236c84c740a49c06c",
+   "term": "const runToolRecipients = toolEventRecipients.get(evt.runId);",
+   "found": true,
+   "excerpt": "gentDeltaIfNeeded(clientRunId);\n\t\t\t}\n\t\t\tconst runToolRecipients = toolEventRecipients.get(evt.runId);\n\t\t\tif (isControlUiVisible && !suppressHeartbeatToolEvents && runToolRecipients && runToolRecipients.size > 0) broadcastToConnIds(\"agent\", sessionKey ? {\n\t\t\t\t...agentPayload,\n\t\t\t\t...buildSessionEventSnapshot(sessionKey, void 0, sessionAgen"
+  }
+ ]
+}
