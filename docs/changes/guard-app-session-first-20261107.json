@@ -1,0 +1,51 @@
+{
+  "version": 2,
+  "id": "guard-app-session-first-20261107",
+  "date": "2026-11-07",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Le garde réseau (seul propriétaire autorisé à couper le Wi-Fi) lit d'abord l'app Max it sur Wi-Fi quand la consultation Orange est en mode app (paire --mode app dans la commande enfant). Phase A app_session_wifi : même bail, aucune mutation réseau. Phase B : seulement si l'enfant répond mobile_network_required avec maxit_signed_out ou screen_locked, hors voix en direct et avec au moins 20 s de budget, le couloir guarded_fallback existant (Wi-Fi coupé puis restauré) dans le même bail et la même échéance, avec la même commande enfant. En voix (--keep-wifi), refus orange_cellular_required_wifi_kept après la phase A, sans mutation. consultation_context admet la route app_session_wifi et network_metrics.app_session dit ce qui s'est passé.",
+  "reason": "S24 07/11 : à 20:18 le garde coupait le Wi-Fi (guarded_fallback, orange_cellular_not_ready, dns_ready_ms 3312, restauré) dès que le Wi-Fi était le réseau par défaut sans 4G Orange en parallèle. L'API Orange en 4G répondait waaat_auth_failed (20:25 et 20:35) même après la connexion d'Amine à Max it, alors qu'une fois connecté par la 4G il voit son solde dans Max it sur Wi-Fi. Décision d'Amine « App Max it d'abord » : Wi-Fi gardé, 4G seulement pour se reconnecter à Max it ou quand l'écran est verrouillé.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/guard-app-session-first-20261107.json",
+    "docs/changes/guard-app-session-first-20261107.md",
+    "installer/termux-lite/android-network-mutation-guard.py",
+    "installer/termux-lite/test-consultation-app-session-first.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-orange-app-session/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-orange-app-session/app-session-evidence.json"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-consultation-app-session-first.py",
+      "status": "passed",
+      "evidence": "14 tests OK avec bail réel sur disque, consultation_context, restore_lease et nettoyage du canal réels (téléphone et enfant injectés). Phase A servie : aucun set_wifi, route app_session_wifi, preuve aux six clés existantes, app_session served. maxit_signed_out et screen_locked : une seule coupure puis la restauration, enfant lancé deux fois dans le même bail, la seconde voit guarded_fallback (wifiToggled true) ; décision journalisée avant la coupure ; preuve finale égale à la preuve réelle S24 de 20:18. Voix : phase A puis orange_cellular_required_wifi_kept sans mutation. Budget sous 20 s : consultation_budget_exhausted sans mutation. Nettoyage de la phase A non certifié : aucune escalade, bail conservé. cellular_default, blocked et modes auto/silent/ui inchangés. Échoue sur le garde de base (13 échecs, 7 erreurs). Inscrit dans ci.yml."
+    },
+    {
+      "name": "installer/termux-lite/test-android-network-mutation-guard.py, test-consultation-network-receipt.py, test-consultation-process-safety.py, test-consultation-total-bound.py, test-consultation-fastpath.py, test-consultation-voice-keep-wifi.py, test-payment-guard-invariance.py, test-wifi-night-offline.py, test-ci-registration.py",
+      "status": "passed",
+      "evidence": "Inchangés et verts (78, 13, 8, 6, 12, 6, 6, 10 et 3 tests). Les empreintes du parcours de recharge (with_wifi_off, run_while_wifi_stays_off et les fonctions épinglées 636becf5) restent identiques."
+    }
+  ],
+  "documentation": [
+    "docs/changes/guard-app-session-first-20261107.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Même entrée canonique Orange (telecom.maxit_guarded_service via with-consultation-receipt), mêmes capabilities ; seul le chemin réseau choisi par le garde change en mode app."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Propriétaire existant : le garde réseau, son bail wifi_off, son restaurateur détaché et sa restauration exacte. Aucun nouveau service, store, routeur ni moteur de reprise ; la phase B est le couloir guarded_fallback existant, une fois au plus, dans la borne totale de 60 s."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "CI canonique (tools/localci.py) sur le head GitHub exact encore requise.",
+    "Le côté playbooks (mode app de telecom.maxit_guarded_service, état mobile_network_required et ses deux raisons) est livré séparément ; sans lui, aucune commande ne porte --mode app et le garde se comporte exactement comme avant.",
+    "Une phase A lente consomme la même échéance de 60 s : sous 20 s restants, pas d'escalade (consultation_budget_exhausted).",
+    "En mode app, la route cellular_bound_wifi_unchanged avec canal autorisé reste inchangée (pas de phase A) ; app_session vaut alors not_applicable.",
+    "Aucune recette réelle sur le S24 dans ce lot."
+  ],
+  "rollback": "Revert de ce commit puis companion-deploy.sh <commit> : le garde reprend le couloir guarded_fallback immédiat en mode app. Aucun réglage Android ni bail nouveau à nettoyer."
+}

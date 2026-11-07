@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "capturedOn": "2026-11-07",
+  "device": "S24",
+  "provenance": "Relevés en lecture seule sur le S24 le 07/11/2026 au soir (reçu du garde réseau, état de la souscription de données, résultats de l'API Orange), puis messages d'Amine dans le chat du même soir. Aucun numéro, solde, jeton ni identifiant de compte.",
+  "guardReceipt2018": {
+    "time": "20:18",
+    "reason": "orange_cellular_not_ready",
+    "network_guard": {
+      "path": "guarded_fallback",
+      "wifi_initial": true,
+      "wifi_disabled": true,
+      "dns_ready_ms": 3312,
+      "restored": true
+    }
+  },
+  "defaultDataSubscription": {
+    "subscriptionId": 1,
+    "carrier": "Orange",
+    "radio": "LTE"
+  },
+  "orangeApiOver4g": {
+    "persistedAfterOwnerSignedInToMaxit": true,
+    "answers": [
+      {"time": "20:25", "network": "4g", "state": "waaat_auth_failed", "latencyMs": 3245},
+      {"time": "20:35", "network": "4g", "state": "waaat_auth_failed", "latencyMs": 2069}
+    ]
+  },
+  "ownerObservation": {
+    "maxitBalanceVisibleOnWifiAfterSignInOver4g": true,
+    "quote": "j'arrive a voir mon solde dans maxit et puisque cest moi qui a mis la 4g et loué a maxit donc j'ai eu le jeton donc tas plus besoin de swicher a chaque fois"
+  },
+  "ownerDecision": {
+    "label": "App Max it d'abord",
+    "wifiKept": true,
+    "cellularOnlyWhen": ["maxit_signed_out", "screen_locked"],
+    "meaning": "Samantha lit l'app Max it sur Wi-Fi sans couper le Wi-Fi ; la 4G (Wi-Fi coupé) ne sert qu'à se reconnecter à Max it par le réseau mobile, ou quand l'écran est verrouillé (API Orange en 4G)."
+  }
+}
