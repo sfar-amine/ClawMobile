@@ -44,7 +44,7 @@
   "limitations": [
     "Right after a Companion restart, the first bridge request waits for the asynchronous index pass (seconds on the S24) without blocking other HTTP requests.",
     "The receipt directory still grows (write and unknown-effect receipts never expire); its retention policy is unchanged here.",
-    "The one-time startup abandon sweep remains synchronous and bounded to 3 s."
+    "The startup abandon sweep, run once at each start, remains synchronous and bounded to 3 s."
   ],
   "rollback": "Revert this commit and redeploy the previous Companion."
 }
