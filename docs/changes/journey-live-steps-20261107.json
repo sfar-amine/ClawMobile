@@ -3,7 +3,7 @@
   "id": "journey-live-steps-20261107",
   "date": "2026-11-07",
   "origin": "chat",
-  "kind": "feature",
+  "kind": "repair",
   "summary": "The run journey gets real steps: each typed tool call of the brain (direct or through the tool_call wrapper) becomes a French step with its measured duration, the answer step and the run carry their durations, the model's reasoning-summary headers are kept sanitized, and Cancel stops an admitted followed app run through the existing interrupt owner with the run settled as Amine's stop.",
   "reason": "Amine 07/11 (journey screenshot of 'mon solde orange'): only 'Demande reçue' and 'Réponse de Samantha' were shown. S24 transcripts show typed calls without titles, provider call ids 'call_<hex>|fc_<hex>' rejected by the observer, reasoning headers on the thinking stream, and an aborted run ending as 'result to verify'.",
   "files": [
