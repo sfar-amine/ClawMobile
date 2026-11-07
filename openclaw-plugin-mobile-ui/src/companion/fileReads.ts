@@ -11,7 +11,7 @@ const pool=new ControlReadPool(14000,2,8,10*1024*1024);
 const pending={success:false,state:"warming",receipt:null,ready:false,retryAfterMs:500,computation:{deliveryMode:"deferred"}};
 let mainCache:{at:number;row:{key:string;sessionId:string}|null}|null=null;
 let mainFlight:Promise<{key:string;sessionId:string}|null>|undefined;
-async function mainSession(deadline:number){
+async function mainSession(deadline:number,prewarm=false){
  if(mainCache&&Date.now()-mainCache.at<(mainCache.row?600000:15000)){if(!mainCache.row)throw failure('files_owner_unavailable',503);return mainCache.row;}
  if(!mainFlight){mainFlight=(async()=>{
   try{
@@ -20,11 +20,19 @@ async function mainSession(deadline:number){
    if(!Array.isArray(value?.sessions)||value.sessions.length>100)throw Error();
    // The string is only a selector. Dispatch always uses the owner's actual key.
    const found=value.sessions.filter((row:any)=>row?.key==='agent:main:main'&&row.agentId==='main'&&row.isMain!==false&&identity.test(row.key)&&typeof row.sessionId==='string'&&identity.test(row.sessionId));
-   const row=found.length===1?{key:found[0].key,sessionId:found[0].sessionId}:null;mainCache={at:Date.now(),row};return row;
-  }catch{mainCache={at:Date.now(),row:null};return null;}
+   const row=found.length===1?{key:found[0].key,sessionId:found[0].sessionId}:null;if(row||!prewarm)mainCache={at:Date.now(),row};return row;
+  }catch{if(!prewarm)mainCache={at:Date.now(),row:null};return null;}
  })();}
  let row;try{row=await mainFlight;}finally{mainFlight=undefined;}
  if(!row)throw failure('files_owner_unavailable',503);return row;
+}
+/** Startup: confirm the owner's main session once, so the first session file read needs one Gateway call instead of two.
+ * S24 07/11: sessions.list 6.5 s + sessions.files.list 3.5-6 s (CLI) against the 13.5 s read deadline; after a restart the
+ * session listing was still "deferred" 30 s later and three releases were rolled back. Only a found row is kept: a
+ * failed or empty answer here leaves the next read to ask again, and no files RPC is ever sent without the main row. */
+export function prewarmFileMainSession(){
+ if(mainCache||mainFlight)return;
+ void mainSession(Date.now()+13500,true).catch(()=>{});
 }
 function query(params:URLSearchParams,content:boolean){
  const allowed=content?["scope","sessionId","path"]:["scope","sessionId","path","search"];

@@ -1,0 +1,41 @@
+{
+  "capturedAt": "2026-11-07T18:35:30Z",
+  "device": "S24 (Termux, OpenClaw 2026.10.9)",
+  "sourceKind": "S24 capture: ~/.openclaw/deploys/companion-*.json receipts (failing acceptance rows only) and a timed CLI Gateway call at rest",
+  "acceptance": {"settleSeconds": 15, "lateSettleRejudge": true, "readDeadlineMs": 13500},
+  "rollbacks": [
+    {
+      "receipt": "companion-20261107T191430.json",
+      "state": "rolled_back", "detail": "acceptance_failed",
+      "target": "888daa93190d7bf4f7331621eedcbe2bba70fdae", "previous": "5067c4584fcc454994b773bd20c7ce578966f50e",
+      "at": "2026-11-07T18:20:38.300560+00:00", "checks": 87,
+      "failing": [
+        {"route": "/files?scope=session", "code": 200, "seconds": 0.07, "budget": 1.5, "previousSeconds": 0.09, "regression": false, "leak": false, "settled": false, "samples": [{"code": 200, "seconds": 0.07}], "status": "fail", "settledLate": true}
+      ],
+      "neighbour": {"route": "/files/content?scope=session&path=IDENTITY.md", "code": 200, "seconds": 0.08, "samples": [{"code": 503, "seconds": 0.0}, {"code": 503, "seconds": 0.01}, {"code": 200, "seconds": 0.08}], "status": "ok"},
+      "rollbackAcceptance": {"ok": true, "criterion": "identity_and_health"}
+    },
+    {
+      "receipt": "companion-20261107T140527.json",
+      "state": "rolled_back", "detail": "acceptance_failed",
+      "failing": [
+        {"route": "/files?scope=agent", "code": 200, "settled": false, "settledLate": true},
+        {"route": "/files?scope=session", "code": 200, "settled": false, "settledLate": true}
+      ]
+    },
+    {
+      "receipt": "companion-20261105T230250.json",
+      "state": "rolled_back", "detail": "acceptance_failed",
+      "failing": [
+        {"route": "/files?scope=session", "code": 200, "settled": false}
+      ]
+    }
+  ],
+  "cliTimingAtRest": {
+    "at": "2026-11-07T19:35:30+01:00", "uptime": "4:38", "loadAverage": [4.80, 4.78, 5.15],
+    "calls": [
+      {"command": "openclaw gateway call sessions.list --json --timeout 14000 --params {\"search\":\"agent:main:main\",\"limit\":100}", "rc": 0, "seconds": 6.476},
+      {"command": "openclaw gateway call health --json --timeout 14000 --params {}", "rc": 0, "seconds": 3.529}
+    ]
+  }
+}

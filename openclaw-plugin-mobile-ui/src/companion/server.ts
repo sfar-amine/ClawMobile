@@ -10,7 +10,7 @@ import {readCatalogResponse,catalogETag} from './catalog';
 import {readDeploymentReceipts} from "./deploymentReceipts";
 import {skillControlDetail,changeSkill} from "./skillControl";
 import {learnSkill,learningCandidates,learningCandidate} from "./skillLearning";
-import {filesList,filesContent} from "./fileReads";
+import {filesList,filesContent,prewarmFileMainSession} from "./fileReads";
 import {writeAgentFile} from "./agentFileWritePlan";
 import {prewarmUsage,readUsage,readUsageDetails} from './usage';
 import {readProviders} from './providers';
@@ -220,6 +220,9 @@ export function startCompanionServer() {
     // Qualification is deliberately separate from deployment: unset, 0 or any value other than exact 1 does nothing.
     void maintainRemoteBridgeReadReceipts();
   }, Number(process.env.CLAWMOBILE_REMOTE_BRIDGE_ABANDON_SWEEP_DELAY_MS || 30_000)).unref();
+  // The owner's main session is confirmed before the first session file read (S24 07/11: two CLI Gateway calls in a row
+  // exceeded the read deadline right after a restart and the release was rolled back).
+  setTimeout(() => prewarmFileMainSession(), 1_000).unref();
 
   return server;
 }
