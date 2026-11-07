@@ -57,11 +57,20 @@ export async function interruptConversationGeneration(id:string,body:any,assertC
    await assertCurrent();
    const remaining=Math.min(5500,deadline-Date.now());
    if(remaining<1)throw nativeError('generation_interrupt_unverified',503);
-   const value=await callOpenClawGateway('chat.abort',{sessionKey:key,agentId:'main',runId:body.runId,preserveSideRuns:true},
-     {timeoutMs:remaining,hardTimeoutMs:remaining});
+   // Journey Cancel: the run carries Amine's stop before the abort, so its aborted terminal settles as that stop.
+   const recordStop=(runsOwner as any).recordOwnerStop as undefined|((runId:string,sessionKey:string,state:string)=>Promise<boolean>);
+   if(typeof recordStop==='function')await recordStop(body.runId,key,'requested').catch(()=>false);
+   let value:any;
+   try{
+     value=await callOpenClawGateway('chat.abort',{sessionKey:key,agentId:'main',runId:body.runId,preserveSideRuns:true},
+       {timeoutMs:remaining,hardTimeoutMs:remaining});
+   }catch(error){if(typeof recordStop==='function')await recordStop(body.runId,key,'cleared').catch(()=>false);throw error;}
    if(value?.ok!==true||typeof value.aborted!=='boolean'||!Array.isArray(value.runIds)||
-      value.runIds.some((runId:any)=>typeof runId!=='string')||value.aborted&&!value.runIds.includes(body.runId))
+      value.runIds.some((runId:any)=>typeof runId!=='string')||value.aborted&&!value.runIds.includes(body.runId)){
+     if(typeof recordStop==='function')await recordStop(body.runId,key,'cleared').catch(()=>false);
      throw nativeError('generation_interrupt_unverified',503);
+   }
+   if(typeof recordStop==='function')await recordStop(body.runId,key,value.aborted?'acknowledged':'cleared').catch(()=>false);
    let timer:ReturnType<typeof setTimeout>;
    const observed=await Promise.race([getRunStatus(body.runId).catch(()=>null),
      new Promise<null>(resolve=>{timer=setTimeout(()=>resolve(null),Math.max(1,deadline-Date.now()));})]).finally(()=>clearTimeout(timer));

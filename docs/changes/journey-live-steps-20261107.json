@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "id": "journey-live-steps-20261107",
+  "date": "2026-11-07",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The run journey gets real steps: each typed tool call of the brain (direct or through the tool_call wrapper) becomes a French step with its measured duration, the answer step and the run carry their durations, the model's reasoning-summary headers are kept sanitized, and Cancel stops an admitted followed app run through the existing interrupt owner with the run settled as Amine's stop.",
+  "reason": "Amine 07/11 (journey screenshot of 'mon solde orange'): only 'Demande reçue' and 'Réponse de Samantha' were shown. S24 transcripts show typed calls without titles, provider call ids 'call_<hex>|fc_<hex>' rejected by the observer, reasoning headers on the thinking stream, and an aborted run ending as 'result to verify'.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/journey-live-steps-20261107.json",
+    "docs/changes/journey-live-steps-20261107.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-journey-steps/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-journey-steps/turns.json",
+    "openclaw-plugin-mobile-ui/scripts/test-run-journey-steps.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityControl.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runProgress.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-run-journey-steps.cjs",
+      "status": "passed",
+      "evidence": "Real S24 turns of 07/11 replayed as Gateway frames: Orange 'Je lis ton solde Orange' 14564 ms, answer 3432 ms, total 21661 ms; agenda through the tool_call wrapper with a nested call = one step; reasoning headers kept, body/identifiers/paths/long numbers dropped; Cancel racing the abort answer settles as Amine's stop (no failed step); nothing aborted clears the marker; transport lost after a stop request still settles as the stop; no Gateway read."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-gateway-run-observation.cjs",
+      "status": "passed",
+      "evidence": "Unchanged observer contract (sessions, sequence, terminal proof, no reads while following)."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-generation-interrupt.cjs",
+      "status": "passed",
+      "evidence": "Unchanged interrupt admission, payment protection and idempotence."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-run-progress-titles.cjs",
+      "status": "passed",
+      "evidence": "Agent titles, preparation line and technical label filtering unchanged."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-voice-waiting-cues.cjs",
+      "status": "passed",
+      "evidence": "Voice activity unchanged; wrapped typed calls now also give their activity."
+    }
+  ],
+  "documentation": [
+    "docs/changes/journey-live-steps-20261107.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-journey-steps/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No new route or action: the journey reads the existing run status and Cancel uses the existing capability samantha.app.conversation.interrupt (POST /v1/conversations/{conversationId}/interrupt, already in companion-acceptance)."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same owners: runs ledger, Gateway observer and the existing interrupt owner (chat.abort); only optional fields are added to the run status."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The reasoning headers are the model's own words (English for gpt-5.6-sol); they are filtered, not translated.",
+    "Cancel is offered only for admitted gateway app runs followed by this Companion (not voice, not capability-first runs)."
+  ],
+  "rollback": "Revert this commit and redeploy the previous Companion; the added fields are optional and ignored by the previous app."
+}

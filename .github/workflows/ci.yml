@@ -320,6 +320,8 @@ jobs:
         run: |
           node scripts/test-run-progress-titles.cjs
           node scripts/test-run-progress-terminal.cjs
+      - name: Écran de suivi (étapes des outils typés en français avec durées, réflexion filtrée, Cancel) sur tours réels S24
+        run: node scripts/test-run-journey-steps.cjs
       - name: HS3 closed presentation and existing run transport
         run: |
           python3 scripts/test-receipt-presentation-read.py

@@ -4,12 +4,17 @@ import type {CompanionRunProgressEvent} from "./types";
 import type {ReceiptPresentation} from "./receiptPresentation";
 
 export type RunStepState = "pending" | "running" | "done" | "failed" | "skipped";
-export type RunStep = {id: string; label: string; state: RunStepState; at?: number};
+/** `durationMs`: measured from the step's own recorded boundaries (start → result), never estimated. */
+export type RunStep = {id: string; label: string; state: RunStepState; at?: number; durationMs?: number};
 export type RunProgressSteps = {
   steps: RunStep[];
   failedStep?: string;
   cause?: string;
   effect: {debited: "unknown"; source: "receipt"};
+  /** Terminal run: accepted → settled, from the run's own receipt timestamps. */
+  totalMs?: number;
+  /** Sanitized headers of the model's own reasoning summary (journey « See the reasoning »), never its body. */
+  reasoning?: string[];
 };
 export type RunProgressSource = {
   executionSource?: "gateway" | "capability_first";
@@ -23,16 +28,19 @@ export type RunProgressSource = {
   presentation?: ReceiptPresentation;
   events?: CompanionRunProgressEvent[];
   card?: {steps: {label: string; state: "pending" | "running" | "done"}[]};
+  reasoning?: unknown;
+  /** Amine stopped the run (journey Cancel): its end is that stop, not a failed step. */
+  stopped?: boolean;
 };
 const MAX_CARD_STEPS = 12;
 
 const LABELS = {
   fr: {accepted: "Demande reçue", understood: "Demande comprise", clarify: "Précision demandée",
     execute: "Exécution", answer: "Réponse de Samantha", expired: "Expiré après une inactivité vérifiée.",
-    prepare: "Je prépare ta demande"},
+    prepare: "Je prépare ta demande", stopped: "Arrêtée à ta demande"},
   en: {accepted: "Request received", understood: "Request understood", clarify: "Clarification asked",
     execute: "Execution", answer: "Samantha's answer", expired: "Expired after verified inactivity.",
-    prepare: "Preparing your request"},
+    prepare: "Preparing your request", stopped: "Stopped at your request"},
 };
 /** Technical event labels of the Gateway transport and of tool calls: never a public step (Amine 25/10/2026, point E). */
 const TECHNICAL_LABEL = /^(?:(?:Calling|Completed|Running|Using|Tool failed)\s+[A-Za-z0-9_.-]+\.?|Completed\.|Working(?:\.\.\.|…)|Thinking\.\.\.|Started OpenClaw session\.|Prepared context\.|Submitted prompt\.|Model response received\.|Saved run artifacts\.|Run finished\.|Run ended with an error\.|Client connection closed\.|OpenClaw submit failed\.)$/;
@@ -101,7 +109,12 @@ function agentEventSteps(events: CompanionRunProgressEvent[], running: boolean, 
         }
       } else if (id) {
         const step = byCall.get(id);
-        if (step && step.callIds?.at(-1) === id) step.state = event.type === "tool.error" ? "skipped" : "done";
+        if (step && step.callIds?.at(-1) === id) {
+          step.state = event.type === "tool.error" ? "skipped" : "done";
+          // First start of the (merged) step → its last result, both recorded by the observer.
+          const ended = at(event.at);
+          if (ended !== undefined && step.at !== undefined && ended >= step.at) step.durationMs = ended - step.at;
+        }
         if (contextCalls.has(id)) { contextCalls.delete(id); if (prepare && contextCalls.size === 0) prepare.state = "done"; }
       }
       continue;
@@ -119,6 +132,19 @@ function agentEventSteps(events: CompanionRunProgressEvent[], running: boolean, 
   if (prepare && out[out.length - 1] !== prepare) prepare.state = "done";
   return out.map(({callIds, ...step}) => step);
 }
+
+/** Latest recorded tool result of the run (the answer is written after it), else undefined. */
+function lastToolBoundary(events: CompanionRunProgressEvent[] | undefined): number | undefined {
+  let last: number | undefined;
+  for (const event of events || []) {
+    if (event?.type !== "tool.result" && event?.type !== "tool.error") continue;
+    const value = at(event.at);
+    if (value !== undefined && (last === undefined || value > last)) last = value;
+  }
+  return last;
+}
+const span = (from: number | undefined, to: number | undefined) =>
+  from !== undefined && to !== undefined && to >= from && to - from <= 86_400_000 ? to - from : undefined;
 
 export function runProgressSteps(run: RunProgressSource): RunProgressSteps | undefined {
   if (run.modality === "voice") return undefined;
@@ -156,7 +182,9 @@ export function runProgressSteps(run: RunProgressSource): RunProgressSteps | und
       const pay = p?.payment?.state;
       const s: RunStepState = pay && p?.status === "error" ? "failed"
         : pay && ["awaiting_owner", "executing", "requires_bank_action"].includes(pay) ? "running" : terminalState(run.state);
-      steps.push({id: "execute", label: t.execute, state: s, at: s === "done" || s === "failed" ? ended : undefined});
+      const executeMs = s === "done" || s === "failed" ? span(accepted, ended) : undefined;
+      steps.push({id: "execute", label: t.execute, state: s, at: s === "done" || s === "failed" ? ended : undefined,
+        ...(executeMs !== undefined ? {durationMs: executeMs} : {})});
       if (s === "failed") failedStep = p?.failure?.step || t.execute;
   } else if (run.card?.steps?.length) {
     // Gateway runs with the agent's progress card: its steps are written for Amine (user-oriented progress rule) and
@@ -180,12 +208,23 @@ export function runProgressSteps(run: RunProgressSource): RunProgressSteps | und
     if (run.state === "done") for (const step of eventSteps) if (step.state === "running") step.state = "done";
     if (run.state === "failed") for (const step of eventSteps) if (step.state === "running") step.state = "skipped";
     steps.push(...eventSteps);
-    if (run.state === "done") steps.push({id: "answer", label: t.answer, state: "done", at: ended});
+    if (run.state === "failed" && run.stopped) {
+      steps.push({id: "answer", label: t.stopped, state: "skipped", at: ended});
+      return {steps, effect: {debited: "unknown", source: "receipt"}, ...(span(accepted, ended) !== undefined ? {totalMs: span(accepted, ended)} : {}),
+        ...(readThoughts(run.reasoning).length ? {reasoning: readThoughts(run.reasoning)} : {})};
+    }
+    // The answer is written after the last tool result (or from the start when no tool ran).
+    const answerMs = span(lastToolBoundary(run.events) ?? accepted, ended);
+    if (run.state === "done") steps.push({id: "answer", label: t.answer, state: "done", at: ended, ...(answerMs !== undefined ? {durationMs: answerMs} : {})});
     if (run.state === "failed") { steps.push({id: "answer", label: t.answer, state: "failed", at: ended}); failedStep = t.answer; }
     if (running && !eventSteps.some(step => step.state === "running")) steps.push({id: "answer", label: t.answer, state: "running"});
   }
 
   const result: RunProgressSteps = {steps, effect: {debited: "unknown", source: "receipt"}};
+  const totalMs = span(accepted, ended);
+  if (totalMs !== undefined) result.totalMs = totalMs;
+  const reasoning = readThoughts(run.reasoning);
+  if (reasoning.length) result.reasoning = reasoning;
   if (failedStep) {
     result.failedStep = failedStep;
     const cause = p?.failure?.reason || (run.error === "run_inactivity_expired" ? t.expired : undefined);
@@ -204,8 +243,22 @@ const TYPED_TOOL = /^samantha_[a-z0-9_]{1,100}$/;
 const TYPED_ACTION = /^[a-z][a-z0-9_.-]{0,127}$/;
 const NOT_AN_ACTIVITY = new Set(["samantha_catalogue"]);
 
+/**
+ * The model also reaches a plugin tool through the Gateway's discovery wrapper: `tool_call` with
+ * `{id: "openclaw:<plugin>:<tool>", args: {...}}` (S24 transcripts of 07/11/2026). The wrapped tool and its own
+ * arguments are the call; anything else is returned unchanged.
+ */
+const WRAPPED_TOOL = /^openclaw:[a-z0-9-]{1,80}:([a-z][a-z0-9_]{1,100})$/;
+export function unwrapToolCall(name: unknown, args: unknown): {name: unknown; args: unknown} {
+  if (name !== "tool_call" || !args || typeof args !== "object" || Array.isArray(args)) return {name, args};
+  const wrapped = args as Record<string, unknown>;
+  const inner = typeof wrapped.id === "string" ? WRAPPED_TOOL.exec(wrapped.id)?.[1] : undefined;
+  return inner ? {name: inner, args: wrapped.args} : {name, args};
+}
+
 /** Activity of a typed tool call seen on the Gateway stream (`data.name`, `data.args.action`), or undefined. */
-export function typedToolActivity(name: unknown, args: unknown, at?: number): RunActivity | undefined {
+export function typedToolActivity(rawName: unknown, rawArgs: unknown, at?: number): RunActivity | undefined {
+  const {name, args} = unwrapToolCall(rawName, rawArgs);
   if (typeof name !== "string" || !TYPED_TOOL.test(name) || NOT_AN_ACTIVITY.has(name)) return undefined;
   const action = args && typeof args === "object" && !Array.isArray(args) ? (args as Record<string, unknown>).action : undefined;
   return {tool: name, ...(typeof action === "string" && TYPED_ACTION.test(action) ? {action} : {}),
@@ -241,4 +294,104 @@ export function runActivity(progress: {activity?: unknown; events?: CompanionRun
 /** A transport/tool label (« Calling exec. », « Completed read. », « Completed. ») that must not reach Amine as live text. */
 export function isTechnicalProgressLabel(label: unknown): boolean {
   return typeof label !== "string" || !label.trim() || TECHNICAL_LABEL.test(label.trim());
+}
+
+/**
+ * Journey steps (Amine 07/11/2026): what Samantha is doing, in French, from the tool the brain started and its action
+ * only. Never a tool name, an argument or a result (rule of 25/10). Internal tools (files, shell, discovery, sessions)
+ * return undefined and stay invisible.
+ */
+const NOT_A_STEP = new Set(["samantha_catalogue", "samantha_brain"]);
+const BILLING_PROVIDER: Record<string, string> = {samantha_steg: " STEG", samantha_sonede: " SONEDE", samantha_topnet: " Topnet"};
+export function publicToolLabel(rawName: unknown, rawArgs: unknown): string | undefined {
+  const {name, args} = unwrapToolCall(rawName, rawArgs);
+  if (typeof name !== "string") return undefined;
+  const raw = args && typeof args === "object" && !Array.isArray(args) ? (args as Record<string, unknown>).action : undefined;
+  const action = typeof raw === "string" && TYPED_ACTION.test(raw) ? raw : "";
+  if (name === "web_search") return "Je cherche sur le web";
+  if (name === "web_fetch") return "Je lis une page web";
+  if (name === "memory_search" || name === "memory_get") return "Je consulte ma mémoire";
+  if (/^(?:android|adb)_[a-z0-9_]{1,80}$/.test(name)) return "J’utilise ton téléphone";
+  if (!TYPED_TOOL.test(name) || NOT_A_STEP.has(name)) return undefined;
+  if (action === "cancel") return "J’annule l’action en attente";
+  if (name === "samantha_agenda") {
+    if (action === "agenda.event.create") return "J’ajoute l’événement à ton agenda";
+    if (action === "agenda.event.update") return "Je modifie l’événement de ton agenda";
+    if (action === "agenda.event.delete") return "Je supprime l’événement de ton agenda";
+    if (action.startsWith("agenda.reminder.")) return "Je programme le rappel";
+    return "Je consulte ton agenda";
+  }
+  if (name === "samantha_maxit_tunisie") {
+    if (action === "telecom.usage") return "Je lis ta consommation Orange";
+    if (/balance/.test(action)) return "Je lis ton solde Orange";
+    if (/topup|recharge/.test(action)) return "Je prépare la recharge Orange";
+    return "Je consulte ton compte Orange";
+  }
+  if (name === "samantha_utility_billing" || BILLING_PROVIDER[name]) {
+    const provider = BILLING_PROVIDER[name] || "";
+    return action === "billing.pay" ? "Je prépare le paiement" + provider : "Je regarde tes factures" + provider;
+  }
+  if (name === "samantha_pulse") {
+    const pulse: Record<string, string> = {"finance.ca": "Je lis le chiffre d’affaires dans Pulse", "project.search": "Je cherche le projet dans Pulse",
+      "project.create": "Je crée le projet dans Pulse", "project.order": "J’enregistre le commandé dans Pulse",
+      "offer.search": "Je cherche l’offre dans Pulse", "offer.create": "Je crée l’offre dans Pulse"};
+    if (pulse[action]) return pulse[action];
+    if (action.startsWith("cra.")) return "Je vérifie les CRA dans Pulse";
+    if (/^project\.(?:team|forecast|phase)/.test(action)) return "Je mets à jour le projet dans Pulse";
+    return "Je consulte Pulse";
+  }
+  if (name === "samantha_whatsapp") return action === "messaging.send" ? "J’envoie le message WhatsApp" : "Je prépare le message WhatsApp";
+  if (name === "samantha_web") return "Je cherche sur le web";
+  if (name.startsWith("samantha_laptop")) return "Je vérifie ton PC";
+  if (name === "samantha_device_assistance" || name === "samantha_android") {
+    if (action.startsWith("device.sms.")) return "Je lis tes derniers SMS";
+    if (action.startsWith("device.photos.")) return "Je regarde tes photos";
+    if (action === "device.alarm.next") return "Je regarde ton prochain réveil";
+    if (action.startsWith("device.alarm.")) return "Je règle le réveil";
+    if (action === "device.timer.cancel") return "J’arrête le minuteur";
+    if (action.startsWith("device.timer.")) return "Je lance le minuteur";
+    if (action === "device.app.open") return "J’ouvre l’application";
+    if (action === "device.settings.open") return "J’ouvre les réglages";
+    if (action.startsWith("device.screenshot.")) return "Je fais une capture d’écran";
+    if (action === "device.status.read" || action.startsWith("device.battery")) return "Je lis l’état du téléphone";
+    if (action.endsWith(".set")) return "Je règle ton téléphone";
+    return "J’utilise ton téléphone";
+  }
+  return "Je traite ta demande";
+}
+
+/**
+ * « See the reasoning » (Amine 07/11/2026): the model's reasoning summary arrives on the Gateway `thinking` stream as
+ * `**Header**` lines followed by a body (S24: gpt-5.6-sol, « **Identifying need for call balances** »). Only the
+ * headers are kept, and only those without anything technical or identifying (identifiers, paths, files, links,
+ * long digit runs); the body is never kept. At most six, oldest dropped first.
+ */
+const MAX_THOUGHTS = 6;
+const THOUGHT_TECHNICAL = /(?:[A-Za-z0-9]_[A-Za-z0-9]|[`{}\[\]<>|\\@#$]|https?:|www\.|(?:^|\s)~?\/|\b[\w-]+\.(?:md|json|py|sh|ts|js|mjs|cjs|sqlite|kt|apk|txt)\b|\b(?:samantha|openclaw|claw|companion|gateway)\b|\d{6,})/i;
+const THOUGHT_CAMEL_CASE = /\b[a-z]+[A-Z][A-Za-z]*\b/;
+function cleanThought(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const text = value.replace(/\s+/g, " ").trim();
+  return text.length >= 3 && text.length <= 120 && !/[\x00-\x1f]/.test(text) && !THOUGHT_TECHNICAL.test(text) && !THOUGHT_CAMEL_CASE.test(text) ? text : undefined;
+}
+export function reasoningThoughts(text: unknown): string[] {
+  if (typeof text !== "string" || !text) return [];
+  const out: string[] = [];
+  for (const match of text.slice(0, 20000).matchAll(/\*\*([^*\n]{1,160})\*\*/g)) {
+    const thought = cleanThought(match[1]);
+    if (thought && !out.includes(thought)) out.push(thought);
+  }
+  return out.slice(-MAX_THOUGHTS);
+}
+export function mergeThoughts(previous: unknown, next: string[]): string[] {
+  const out = readThoughts(previous);
+  for (const thought of next) if (!out.includes(thought)) out.push(thought);
+  return out.slice(-MAX_THOUGHTS);
+}
+/** A stored or received list, validated item by item; anything else is dropped. */
+export function readThoughts(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const item of value.slice(-MAX_THOUGHTS)) { const thought = cleanThought(item); if (thought && !out.includes(thought)) out.push(thought); }
+  return out;
 }
