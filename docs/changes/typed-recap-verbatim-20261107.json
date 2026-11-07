@@ -6,7 +6,7 @@
   "kind": "repair",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "The room given to the brain on typed tool answers (#569) applies to results only: a confirmation recap is reproduced word for word with its confirmation request, and a receipt question is still asked as is.",
+  "summary": "The room given to the brain on typed tool answers (#569) applies to results only, in a shorter wording that keeps the direct typed surface under its 34 000-character prompt budget: « Pars de la réponse prête du reçu sans inventer de fait ; si elle est générique ou contredit ses faits (facts), réponds depuis ces faits et signale l'écart ; un récapitulatif à confirmer et une question du reçu restent mot pour mot, sans format, exemple ni consigne ajoutés. »",
   "reason": "S24 07/11 23:00: the deploy of 87823c1e (#569) rolled back on the write_recap parcours. The brain reworded the agenda recap « Confirme cette action : … Confirmer ? » into its own sentence; what the owner confirms must stay the receipt's own words.",
   "files": [
     "docs/changes/typed-recap-verbatim-20261107.json",
@@ -19,7 +19,17 @@
     {
       "name": "scripts/test-typed-capability-tools.cjs",
       "status": "passed",
-      "evidence": "Every domain tool description keeps the room on results, requires a confirmation recap word for word with its confirmation request, and keeps receipt questions verbatim."
+      "evidence": "Every domain tool description keeps the room on results, forbids invented facts, and keeps a confirmation recap and a receipt question word for word."
+    },
+    {
+      "name": "scripts/test-typed-device-direct.cjs",
+      "status": "passed",
+      "evidence": "Direct typed surface 33 677 characters (budget 34 000); the first wording of this PR measured 34 645 in CI step 124."
+    },
+    {
+      "name": "scripts/test-typed-*.cjs",
+      "status": "passed",
+      "evidence": "All ten typed tool scripts pass locally after the build."
     }
   ],
   "documentation": [
