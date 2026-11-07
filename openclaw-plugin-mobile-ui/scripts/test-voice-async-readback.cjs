@@ -89,6 +89,33 @@ async function test(name,run){await run();passed++;console.log('PASS '+name);}
   const s=setup();open(s);tool(s,'voice-a','Autre demande');acknowledge(s);await s.p.execute('voice-a',request,async()=>final);s.p.receiptReply('voice-a');
   assert(!responses(s).some(x=>x.scheduling==='INTERRUPT'));assert.equal(resumed(s).length,0);
  });
+ await test('the interrupted boundary of the retired generation never drops an answer sent at once (S24 07/11)',async()=>{
+  const s=setup();open(s);tool(s);acknowledge(s);
+  s.p.provider({serverContent:{turnComplete:true}}); // no output looks open: the final INTERRUPT goes out at once
+  await s.p.execute('voice-a',request,async()=>final);s.p.receiptReply('voice-a');
+  assert.equal(resumed(s).at(-1).outputGenerationId,'out-voice-a-receipt');
+  const before=payloads(s).length;
+  s.p.provider({serverContent:{interrupted:true}});s.p.provider({serverContent:{turnComplete:true}}); // the retired generation
+  assert.equal(payloads(s).length,before);
+  s.p.provider({serverContent:{outputTranscription:{text:final.text},modelTurn:{parts:[{inlineData:{mimeType:'audio/pcm;rate=24000',data:'AQAB'}}]}}});
+  s.p.provider({serverContent:{turnComplete:true}});
+  const after=payloads(s).slice(before);
+  assert(!after.some(x=>x.payload.serverContent?.interrupted));
+  assert.equal(after.filter(x=>x.payload.serverContent?.modelTurn).length,1);
+  assert.equal(after.find(x=>x.payload.serverContent?.modelTurn).outputGenerationId,'out-voice-a-receipt');
+  assert(after.some(x=>x.payload.serverContent?.turnComplete));
+ });
+ await test('a real barge-in during an answer sent at once still interrupts it',async()=>{
+  const s=setup();open(s);tool(s);acknowledge(s);s.p.provider({serverContent:{turnComplete:true}});
+  await s.p.execute('voice-a',request,async()=>final);s.p.receiptReply('voice-a');
+  s.p.provider({serverContent:{modelTurn:{parts:[{inlineData:{mimeType:'audio/pcm;rate=24000',data:'AQAB'}}]}}});
+  s.p.provider({serverContent:{interrupted:true}});
+  assert(payloads(s).some(x=>x.outputGenerationId==='out-voice-a-receipt'&&x.payload.serverContent?.interrupted));
+  const t=setup();open(t);tool(t);acknowledge(t);t.p.provider({serverContent:{turnComplete:true}});
+  await t.p.execute('voice-a',request,async()=>final);t.p.receiptReply('voice-a');
+  t.p.receive(control('turnStart','voice-b',{firstSample:0}));t.p.provider({serverContent:{interrupted:true}});
+  assert(payloads(t).some(x=>x.turnId==='voice-a'&&x.payload.serverContent?.interrupted));
+ });
  await test('a final readback cannot ask for another execution',async()=>{
   const s=setup();open(s);tool(s);acknowledge(s);await s.p.execute('voice-a',request,async()=>final);
   s.p.provider({serverContent:{turnComplete:true}});s.p.receiptReply('voice-a');

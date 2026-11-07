@@ -395,6 +395,18 @@ export class VoiceTurnProtocol {
             }
           } else return;
         }
+        // S24 07/11 (dnd-on, minuteur, mail-confirmer): the final INTERRUPT went out at once because no output looked open,
+        // yet the provider still retired a generation (the one it opened for the SILENT acknowledgement) and signalled
+        // `interrupted` 90 ms later, before any output of the answer. The app then dropped the answer. That boundary
+        // belongs to the retired generation, never to the answer: it and its turnComplete are dropped and the turn keeps
+        // its answer. A new owner turn (barge-in) or an owner interruption is never mistaken for it.
+        if(t.retiring&&!t.outputSeen&&!t.interrupted&&!this.nextOutput&&!this.waiting&&!this.asrOwner&&!output.modelTurn&&!output.outputTranscription) {
+          if(output.interrupted) {
+            t.retiring=output.turnComplete?undefined:"interrupted";this.observe("async_retired_boundary",t.id);return;
+          }
+          if(output.turnComplete&&t.retiring==="interrupted") {t.retiring=undefined;return;}
+        }
+        t.retiring=undefined;
         t.outputSeen=true;
         if(output.modelTurn?.parts?.some((part:any)=>part.inlineData?.mimeType?.startsWith("audio/")&&part.inlineData?.data)&&!t.audioGenerations?.has(t.generation)){
           (t.audioGenerations??=new Set()).add(t.generation);
@@ -485,7 +497,7 @@ export class VoiceTurnProtocol {
     // When virtual playback is still open, preserve its owner until interrupted > turnComplete arrives. The official
     // NON_BLOCKING response interrupts it immediately; no guessed generation identity or relaxed timeout is involved.
     const pendingBoundary=!t.outputEnded;
-    if(pendingBoundary)t.asyncHandoff=handoff;else this.resumeAsyncOutput(t,handoff);
+    if(pendingBoundary)t.asyncHandoff=handoff;else {t.retiring=true;this.resumeAsyncOutput(t,handoff);}
     this.observe("async_readback_requested",t.id,{receipt:!continues,pending_boundary:pendingBoundary});
     const serialized=JSON.stringify(result);
     // Preserve the existing 48000-character receipt prompt bound, including unusually large results.
@@ -546,7 +558,7 @@ export class VoiceTurnProtocol {
 type Start={id:string;first:number;activityStarted:boolean};
 type AsyncHandoff={generation:string;final:boolean;sentAt:number};
 type Deferred={notice:boolean;result:boolean;receipt?:any;readyAt?:number;dropped?:"superseded"|"expired"};
-type Turn={inputEndedWall?:number;sttFinalAt?:number;firstAudioAt?:number;receiptAudioAt?:number;capabilityStartedAt?:number;capabilityEndedAt?:number;deferred?:Deferred;requested?:boolean;spokenReceipt?:any;asyncCall?:{id:string;name:string;request:unknown;responded:boolean};asyncHandoff?:AsyncHandoff;asyncFinalSent?:boolean;receiptQueued?:boolean;progressCount?:number;outputSeen?:boolean;greeting?:boolean;readback?:boolean;spoken?:string;verbatimChecked?:boolean;audioGenerations?:Set<string>;interruptionObserved?:boolean;inputEndedAt?:number;receiptRequestedAt?:number;decisionMs?:number;capabilityMs?:number;id:string;end:number;inputEnded:boolean;asrFinished:boolean;outputEnded:boolean;interrupted:boolean;generation:string;input:string;audio:Map<number,string>};
+type Turn={retiring?:true|"interrupted";inputEndedWall?:number;sttFinalAt?:number;firstAudioAt?:number;receiptAudioAt?:number;capabilityStartedAt?:number;capabilityEndedAt?:number;deferred?:Deferred;requested?:boolean;spokenReceipt?:any;asyncCall?:{id:string;name:string;request:unknown;responded:boolean};asyncHandoff?:AsyncHandoff;asyncFinalSent?:boolean;receiptQueued?:boolean;progressCount?:number;outputSeen?:boolean;greeting?:boolean;readback?:boolean;spoken?:string;verbatimChecked?:boolean;audioGenerations?:Set<string>;interruptionObserved?:boolean;inputEndedAt?:number;receiptRequestedAt?:number;decisionMs?:number;capabilityMs?:number;id:string;end:number;inputEnded:boolean;asrFinished:boolean;outputEnded:boolean;interrupted:boolean;generation:string;input:string;audio:Map<number,string>};
 const ID=/^[A-Za-z0-9._:-]{1,160}$/;
 const OUTPUT_BOUNDARY_MS=2000;
 const READBACK_MAX_CHARS=600;
