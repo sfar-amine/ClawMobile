@@ -11,6 +11,7 @@
     "docs/changes/typed-surface-registry-20261107.md",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-orange-app-surface/README.md",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-orange-app-surface/registry-and-busy-companion.json",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-turn-admission.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-typed-app-surface.cjs",
     "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts"
   ],
@@ -24,6 +25,11 @@
       "name": "test-typed-capability-tools, test-typed-admission-shared-instances, test-typed-device-direct, test-typed-direct-call-id, test-typed-failure-presentation, test-typed-payment-handoff, test-typed-qa-tool, test-typed-tools-direct-visible, test-google-typed-schema, test-run-journey-steps, test-owner-turn-admission, test-companion-runs, test-gateway-run-observation",
       "status": "passed",
       "evidence": "Unchanged and green."
+    },
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-owner-turn-admission.cjs",
+      "status": "passed",
+      "evidence": "Local CI of c2a9a4e8 (4 parallel jobs) read the run state 150 ms after a background failure and saw running; the test now reads the state until it settles (3 s at most). 80 cases green, also 6/6 runs idle and under CPU load before the change."
     }
   ],
   "documentation": [
