@@ -210,14 +210,6 @@ export function startCompanionServer() {
       console.warn("[claw-live-warm] startup prewarm failed: " + String(error?.message || error).slice(0, 160));
     });
   }, 1_000).unref();
-  // Task/step lookups answer from the receipt index; it is built off the event loop's critical path, before the
-  // first bridge request needs it (S24 07/11: 57 653 receipts scanned synchronously per request).
-  setTimeout(() => {
-    const started = Date.now();
-    void remoteBridgeReceiptIndex().then((index) => {
-      serverDiagnostic("info", "remote_bridge_receipt_index", {tasks: index.byTask.size, steps: index.byStep.size, ms: Date.now() - started});
-    }).catch((error: any) => serverDiagnostic("warn", "remote_bridge_receipt_index_unavailable", {errno: error?.code}));
-  }, 2_000).unref();
   // F6: one bounded pass after startup over receipts left by previous instances.
   setTimeout(() => {
     try {
@@ -229,6 +221,14 @@ export function startCompanionServer() {
     // Qualification is deliberately separate from deployment: unset, 0 or any value other than exact 1 does nothing.
     void maintainRemoteBridgeReadReceipts();
   }, Number(process.env.CLAWMOBILE_REMOTE_BRIDGE_ABANDON_SWEEP_DELAY_MS || 30_000)).unref();
+  // Task/step lookups answer from the receipt index; it is built off the event loop's critical path, before the
+  // first bridge request needs it (S24 07/11: 57 653 receipts scanned synchronously per request).
+  setTimeout(() => {
+    const started = Date.now();
+    void remoteBridgeReceiptIndex().then((index) => {
+      serverDiagnostic("info", "remote_bridge_receipt_index", {tasks: index.byTask.size, steps: index.byStep.size, ms: Date.now() - started});
+    }).catch((error: any) => serverDiagnostic("warn", "remote_bridge_receipt_index_unavailable", {errno: error?.code}));
+  }, 2_000).unref();
 
   return server;
 }
