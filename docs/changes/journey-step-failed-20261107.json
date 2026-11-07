@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "id": "journey-step-failed-20261107",
+  "date": "2026-11-07",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "A typed Samantha tool that answers FAILED, TECHNICAL_FAILURE or DENIED no longer shows its journey step as done: the live tool frame's result is read (first text, closed outcome set) and the step is recorded as a tool error (shown skipped), like an engine error.",
+  "reason": "S24 07/11 16:07: the typed Orange read returned {\"state\":\"FAILED\",…} with isError false, so the journey showed « Je lis ton solde Orange » done (803 ms) while the answer said no balance was read.",
+  "files": [
+    "docs/changes/journey-step-failed-20261107.json",
+    "docs/changes/journey-step-failed-20261107.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-journey-steps/typed-failed-result.json",
+    "openclaw-plugin-mobile-ui/scripts/test-run-journey-steps.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/runProgress.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-run-journey-steps.cjs",
+      "status": "passed",
+      "evidence": "The real 16:07 typed result (isError false, state FAILED) replayed on the observer gives the step state skipped with its 803 ms and a tool.error event; COMPLETED and NEEDS_CONFIRMATION stay successes; unreadable results keep the engine's verdict."
+    }
+  ],
+  "documentation": [
+    "docs/changes/journey-step-failed-20261107.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Display of an existing tool step only; no route, action or capability change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same observer and progress projection; it reads the result already present in the tool frame."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The app shows the step as skipped (not done); the run itself keeps its answer and state."
+  ],
+  "rollback": "Revert this commit and redeploy the previous Companion."
+}
