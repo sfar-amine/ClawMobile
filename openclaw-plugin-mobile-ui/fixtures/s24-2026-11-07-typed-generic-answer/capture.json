@@ -1,0 +1,102 @@
+{
+  "captured": "2026-11-07T21:46 Europe/Tunis (S24, app surface)",
+  "request": "mon solde orange",
+  "app_run": "run_1794084366481_50f32742",
+  "tool": {
+    "name": "samantha_maxit_tunisie",
+    "arguments": {
+      "action": "telecom.orange.balances",
+      "params": {}
+    }
+  },
+  "tool_result_observed": {
+    "state": "COMPLETED",
+    "answer": "Le résultat de la demande reste à vérifier.",
+    "replayed": false,
+    "facts": {
+      "ok": true,
+      "provider": "orange",
+      "workflow": "balances",
+      "source": "maxit_accessibility",
+      "ui_used": true,
+      "observed_at": 1794084412.203682,
+      "data": {
+        "cards": [
+          {
+            "label": "Bonus internet mobile",
+            "value": "16.67",
+            "unit": "GO",
+            "days_remaining": 23
+          },
+          {
+            "label": "Forfait du mois en cours",
+            "value": "11",
+            "unit": "TND",
+            "days_remaining": 54
+          },
+          {
+            "label": "Compte de recharge",
+            "value": "19.040",
+            "unit": "TND",
+            "days_remaining": 4072
+          },
+          {
+            "label": "Report du forfait",
+            "value": "61.300",
+            "unit": "TND",
+            "days_remaining": 54
+          },
+          {
+            "label": "Option sur forfait Internet Mobile",
+            "value": "15.00",
+            "unit": "GO",
+            "days_remaining": 23
+          },
+          {
+            "label": "Navigui 500Go (365j)",
+            "value": "411.41",
+            "unit": "GO",
+            "days_remaining": 285
+          },
+          {
+            "label": "Option sur forfait appels vers le National 100h",
+            "value": "5944",
+            "unit": "Minutes",
+            "days_remaining": 23
+          },
+          {
+            "label": "Forfait Together",
+            "value": "6000",
+            "unit": "Minutes",
+            "days_remaining": 23
+          }
+        ]
+      },
+      "total_ms": 22615,
+      "route_id": "orange.usage.ui.v1",
+      "route_selection_reason": "maxit_app_after_mobile_sign_in",
+      "coverage": "maxit_line_view_all",
+      "run_id": "0aebad87dab44d06815919064272981e",
+      "network_guard": {
+        "wifi_initial": true,
+        "wifi_disabled": true,
+        "dns_ready_ms": 222,
+        "restored": true,
+        "path": "guarded_fallback"
+      },
+      "network_path": "guarded_fallback",
+      "network_metrics": {
+        "network_inspection_ms": 497,
+        "wifi_toggled": true
+      }
+    }
+  },
+  "assistant_reply_observed": "Le résultat de la demande reste à vérifier.",
+  "text_observed_lines": 7,
+  "notes": [
+    "facts copied from the agent transcript toolResult (seq 7); the derived `text` field is left out: the test renders it again",
+    "the tool description asks the brain to reproduce the receipt's ready answer, so it said « reste à vérifier » over a verified read",
+    "the card « Navigui 500Go (365j) » (6 digits in its label) was dropped from `text` by the label digit guard",
+    "lease id removed from network_guard"
+  ]
+}

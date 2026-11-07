@@ -27,12 +27,16 @@ async function main() {
   for(const tool of descriptors)assert(manifest.contracts.tools.includes(tool.name));
   const orange=descriptors.find(t=>t.name==='samantha_maxit_tunisie');
   // S24 28/10: the model added its own answering format and an example to Pulse's question.
-  const domainTools=descriptors.filter(t=>t.description.includes('Reproduis la réponse prête'));
+  const domainTools=descriptors.filter(t=>t.description.includes('Pars de la réponse prête du reçu'));
   // ADR-20261028-model-decides-relation: the model may say how the call relates to an open question.
   for(const tool of domainTools){assert.deepEqual(tool.parameters.properties.relation,{type:'string',enum:['answer','new_request']});
     assert.equal(tool.parameters.required.includes('relation'),false);assert.match(tool.description,/indique relation : answer si l'utilisateur y répond, new_request s'il fait une nouvelle demande/);}
   assert(domainTools.length>=10);
   for(const tool of domainTools)assert.match(tool.description,/une question du reçu se pose telle quelle, sans format, exemple ni consigne de réponse ajoutés\./);
+  // S24 07/11 21:46 (Amine): a verified Orange read came back with the generic ready answer and the brain had to
+  // repeat it. The brain keeps room to answer from the receipt's verified facts when the ready answer does not fit.
+  for(const tool of domainTools){assert.match(tool.description,/si elle est générique, incomplète ou contredit les faits vérifiés du reçu \(facts\), réponds à partir de ces faits et dis ce qui ne colle pas/);
+    assert.match(tool.description,/sans inventer de fait/);assert.doesNotMatch(tool.description,/Reproduis la réponse prête/);}
   const args={action:'telecom.balance',params:{}};
   assert.equal((await orange.execute('missing-hook',args)).isError,true);
   assert.equal(bind(orange.name,args,'one').block,undefined);

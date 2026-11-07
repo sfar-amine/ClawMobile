@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "id": "typed-answer-judgment-20261107",
+  "date": "2026-11-07",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "The typed capability tools let the brain answer from the receipt's verified facts when the ready answer is generic, incomplete or contradicts them, still without inventing any fact; a receipt question is still asked as is.",
+  "reason": "S24 07/11 21:46: a verified Orange balance came back with the generic ready answer « Le résultat de la demande reste à vérifier. » and the tool description told the brain to reproduce it. Amine wants the brain to keep room to catch such incoherences.",
+  "files": [
+    "docs/changes/typed-answer-judgment-20261107.json",
+    "docs/changes/typed-answer-judgment-20261107.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-typed-generic-answer/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-typed-generic-answer/capture.json",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts"
+  ],
+  "tests": [
+    {
+      "name": "scripts/test-typed-capability-tools.cjs",
+      "status": "passed",
+      "evidence": "Every domain tool description starts from the ready answer, allows answering from verified facts when it is generic, incomplete or contradictory, forbids invented facts, keeps receipt questions verbatim, and no longer says « Reproduis la réponse prête »."
+    }
+  ],
+  "documentation": [
+    "docs/changes/typed-answer-judgment-20261107.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same typed tools, actions, parameters and receipts; only the brain's instruction on the ready answer changes."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing typed tool projection; no new store, route or owner."
+  },
+  "rollback": "Revert this commit and redeploy the previous Companion with companion-deploy.sh."
+}
