@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "id": "bridge-receipt-index-20261107",
+  "date": "2026-11-07",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The Remote Bridge answers task/step lookups and task_status from an in-memory index of its existing receipts, built once per instance asynchronously and updated on every receipt write, instead of reading and parsing every receipt synchronously on each request. The Companion keeps answering HTTP while bridge commands arrive.",
+  "reason": "S24 07/11: 57 664 receipts (40 days). Every new task step and every task_status parsed them all on the event loop (1.2 s warm, more under I/O pressure); a sampler saw the Companion silent for 0.8-2 s at a time in R/D state, and about 40 s without HTTP answers during a written turn, which also made the typed Orange call fall back to the voice surface.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/bridge-receipt-index-20261107.json",
+    "docs/changes/bridge-receipt-index-20261107.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-bridge-receipt-scan/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-bridge-receipt-scan/scan-and-freeze.json",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-receipt-index.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-receipt-index.cjs",
+      "status": "passed",
+      "evidence": "57 664 receipts with the S24 method mix: longest event-loop pause 4 ms while indexing and 0 ms per request (the former synchronous pass took about 300 ms on the CI disk and failed the same test with a 425 ms pause); two simultaneous submissions of one new step run it once; a step of a previous instance is replayed from its receipt; a conflicting step is refused 409; task_status reads only the task's receipts in order; a receipt removed by retention is no longer a proof."
+    },
+    {
+      "name": "test-remote-bridge-core, test-remote-bridge-retention, test-remote-bridge-retention-startup, test-remote-bridge-abandoned, test-bridge-long, test-mcp-read-owner, test-mcp-remember, test-native-pulse-handoff, test-security-surfaces, test-mcp-raw-continuum",
+      "status": "passed",
+      "evidence": "Unchanged and green on the new build."
+    }
+  ],
+  "documentation": [
+    "docs/changes/bridge-receipt-index-20261107.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No route, method or capability change; same receipts, same idempotency and conflict rules."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "The receipt files stay the only truth; the index is an in-memory lookup rebuilt per instance, never persisted. The task-step check and the claiming receipt write stay one synchronous section."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Right after a Companion restart, the first bridge request waits for the asynchronous index pass (seconds on the S24) without blocking other HTTP requests.",
+    "The receipt directory still grows (write and unknown-effect receipts never expire); its retention policy is unchanged here.",
+    "The startup abandon sweep, run once at each start, remains synchronous and bounded to 3 s."
+  ],
+  "rollback": "Revert this commit and redeploy the previous Companion."
+}
