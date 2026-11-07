@@ -1,0 +1,44 @@
+{
+  "version": 2,
+  "id": "voice-retired-interrupt-boundary-20261107",
+  "date": "2026-11-07",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Samantha Voix no longer drops a brain answer when the provider signals `interrupted` for the generation that the final INTERRUPT response retires: when the final readback goes out at once (no output looked open), an `interrupted` boundary arriving before any output of the answer, and its turnComplete, are attributed to the retired generation and dropped; the turn keeps its answer. A real barge-in (new owner turn or owner interruption) still interrupts it.",
+  "reason": "S24 07/11 voice recette (bench app de467d38, Companion f81a7d78): « active le mode ne pas déranger », « mets un minuteur de deux minutes » and « oui, envoie » ended with an empty answer (playback=interrupted). The brain had answered (10.1 to 14.8 s, capability done); the app received `interrupted` 90 ms after the brain result, before any audio of the answer (app telemetry t44 current=true, no t30), and dropped the answer. In voiceTurnProtocol, asyncReadback resumes the receipt generation at once when outputEnded is true; an `interrupted` then sets t.interrupted on the answer itself. On 01/11 the same steps were green: the race depends on whether the provider still had the generation it opened for the SILENT acknowledgement.",
+  "files": [
+    "docs/changes/voice-retired-interrupt-boundary-20261107.json",
+    "docs/changes/voice-retired-interrupt-boundary-20261107.md",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-async-readback.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-voice-async-readback.cjs",
+      "status": "passed",
+      "evidence": "15 tests. New: after an immediate final INTERRUPT, `interrupted` then `turnComplete` with no output are not forwarded and the answer's audio and turnComplete reach the app under out-voice-a-receipt (fails on the previous voiceTurnProtocol); a real barge-in (audio already seen, or a new owner turn) still forwards `interrupted`."
+    },
+    {
+      "name": "test-voice-turn-protocol, test-voice-deferred-readback, test-voice-m1-disturbances, test-voice-m1-telemetry, test-voice-turn-stages, test-voice-latency-budget, test-run-web-voice, test-voice-understanding, test-warm-v2-ownership",
+      "status": "passed",
+      "evidence": "37, 16, 6, 12, ok, 1, 7/7, 16, ok: unchanged."
+    }
+  ],
+  "documentation": [
+    "docs/changes/voice-retired-interrupt-boundary-20261107.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Voice relay boundary handling only; no capability, route or registry change (registry owned by samantha-ui-playbooks)."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same VoiceTurnProtocol owner and the same INTERRUPT readback; one per-turn flag bounds which provider boundary belongs to the retired generation."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The provider generation events were not captured on the S24 (no Companion trace of `interrupted` with its generation); the cause is inferred from app telemetry and the relay code, and is confirmed only by the next voice recette after deployment."
+  ],
+  "rollback": "Revert this commit and redeploy the previous Companion."
+}
