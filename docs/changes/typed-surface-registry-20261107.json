@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "id": "typed-surface-registry-20261107",
+  "date": "2026-11-07",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The typed tool now reads the origin of an owner turn from the Companion's run registry file instead of an HTTP status lookup, so a written app turn keeps the app surface (samantha_android) even when the Companion is too busy to answer during a long turn. Samantha Voix hand-overs, unknown runs and an unreadable registry keep the live-voice restriction.",
+  "reason": "S24 07/11 17:54, after core#563: « mon solde orange » shared from the app was refused again (orange_cellular_required_wifi_kept, wifi_disabled false). The registry row of run_1794070429687_2980847e had no voiceDelegation, but the dialogue decision for that exact run carried surface claw_live: the 1.5 s HTTP lookup fell back. A probe of GET /v1/runs/<id> every 200 ms during a 47 s written turn got no answer within 3 s for about 40 s.",
+  "files": [
+    "docs/changes/typed-surface-registry-20261107.json",
+    "docs/changes/typed-surface-registry-20261107.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-orange-app-surface/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-orange-app-surface/registry-and-busy-companion.json",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-app-surface.cjs",
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-typed-app-surface.cjs",
+      "status": "passed",
+      "evidence": "Real 17:54 row in an S24-sized registry (386 runs, >1 MB) gives samantha_android in well under a second while a Companion that never answers is listening, with no HTTP request; voiceDelegation, unknown run, bad id, corrupt, oversized and missing registry keep claw_live; the typed Orange call reaches the helper with graphSurface samantha_android; rows written by the real reserveSubmittedRun are read back correctly. On the previous HTTP lookup the same test fails at the silent-Companion assertion."
+    },
+    {
+      "name": "test-typed-capability-tools, test-typed-admission-shared-instances, test-typed-device-direct, test-typed-direct-call-id, test-typed-failure-presentation, test-typed-payment-handoff, test-typed-qa-tool, test-typed-tools-direct-visible, test-google-typed-schema, test-run-journey-steps, test-owner-turn-admission, test-companion-runs, test-gateway-run-observation",
+      "status": "passed",
+      "evidence": "Unchanged and green."
+    }
+  ],
+  "documentation": [
+    "docs/changes/typed-surface-registry-20261107.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No route, action or capability change; same samantha_android / claw_live surfaces as core#563."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "The Companion's existing run registry stays the only owner of the turn origin; the typed tool reads its atomically replaced file (12-17 ms for 1 MB on the S24) instead of its busy HTTP endpoint. No new store or field."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Why the Companion stopped answering HTTP for about 40 s during a long turn is not fixed here; it is measured in the fixture and needs its own investigation (it also delays the app's polling).",
+    "The 15:17 network_snapshot_unavailable transient of the guard remains separate."
+  ],
+  "rollback": "Revert this commit and redeploy the previous Companion."
+}
