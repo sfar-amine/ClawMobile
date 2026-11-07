@@ -1551,7 +1551,7 @@ def consultation_context(lease_id: str) -> dict:
         remaining = int((float(row['consultation_deadline']) - CONSULTATION_RESTORE_RESERVE_S - time.monotonic()) * 1000)
         if remaining <= 0:
             return _blocked_consultation_context('consultation_budget_exhausted')
-        if decision['route'] not in {'cellular_default','cellular_bound_wifi_unchanged','guarded_fallback','app_session_wifi'}:
+        if decision['route'] not in {'cellular_default','cellular_bound_wifi_unchanged','guarded_fallback'}:
             return _blocked_consultation_context('network_selection_unavailable')
         result = {'schemaVersion':1,'verified':True,'state':'admitted','route':decision['route'],
                   'remainingBudgetMs':min(44000,remaining),'wifiToggled':row.get('consultation_wifi_toggled') is True,'reason':decision['reason']}
@@ -1696,19 +1696,6 @@ def prepare_consultation_cellular(lease_id: str) -> bool:
         return False
 
 
-# Décision d'Amine du 07/11/2026 « App Max it d'abord » (fixtures/s24-2026-11-07-orange-app-session) : Max it garde sa
-# session sur Wi-Fi. En mode app, le garde lit d'abord l'app sans toucher au Wi-Fi (phase A, `app_session_wifi`) ; il
-# ne coupe le Wi-Fi (phase B, couloir `guarded_fallback` existant, même bail, même échéance) que si l'enfant dit que
-# Max it est déconnecté ou que l'écran est verrouillé, et seulement s'il reste assez de budget pour une vraie lecture.
-APP_SESSION_ESCALATION_MIN_S = 20.0
-APP_SESSION_ESCALATION_REASONS = frozenset({'maxit_signed_out','screen_locked'})
-
-
-def app_session_first(command: list[str]) -> bool:
-    """App-first consultation: the child command carries the consecutive pair `--mode app`."""
-    return any(command[index:index+2] == ['--mode','app'] for index in range(len(command)-1))
-
-
 def consultation_child_budget(deadline: float, now: float | None = None) -> float:
     """Time left to the child once the restoration reserve is kept; never zero, never past the total bound."""
     now = time.monotonic() if now is None else now
@@ -1781,12 +1768,6 @@ def _with_consultation_receipt_locked(command: list[str], deadline: float | None
     decision = snapshot['decision']
     if not allow_cellular_channel and decision['route']=='cellular_bound_wifi_unchanged':
         decision={'route':'guarded_fallback','reason':'channel_disabled_for_canonical_consultation','wifi_enabled':snapshot['wifi_enabled']}
-    fallback_decision = decision
-    app_session = 'not_applicable'
-    if app_session_first(command) and decision['route']=='guarded_fallback':
-        # Phase A : aucune mutation réseau. Le couloir Wi-Fi coupé reste l'escalade de la phase B, voix exceptée.
-        decision={'route':'app_session_wifi','reason':'maxit_app_session_first','wifi_enabled':snapshot['wifi_enabled']}
-        app_session = 'served'
     if keep_wifi and decision['route']=='guarded_fallback':
         # Incident 15/10 : couper le Wi-Fi pendant un appel vocal coupe la session vocale (réponse jamais dite,
         # chargement infini). Décision du 17/10 « 4G et Wi-Fi » : sans chemin cellulaire attesté, on le dit, sans mutation.
@@ -1812,65 +1793,36 @@ def _with_consultation_receipt_locked(command: list[str], deadline: float | None
     code=4; child_cleanup_verified=True; channel_cleanup_verified=True
     def interrupted(_sig,_frame):
         raise KeyboardInterrupt
-    def run_child(env: dict) -> tuple[subprocess.CompletedProcess,dict]:
-        nonlocal child_cleanup_verified
-        if time.monotonic() >= deadline-CONSULTATION_RESTORE_RESERVE_S:
-            raise RuntimeError('consultation_budget_exhausted')
-        child_cleanup_verified=False
-        child=collect_consultation_child(command,env,timeout_s=consultation_child_budget(deadline))
-        # A normal return means the whole child group was stopped and certified (else ConsultationChildFailure).
-        child_cleanup_verified=True
-        value=json.loads(child.stdout or '')
-        if not isinstance(value,dict):
-            raise ValueError('consultation_output_invalid')
-        return child,value
-    def disable_wifi_for_fallback(current: dict) -> None:
-        # Same authorized Wi-Fi-off consultation corridor; never mutate on the qualified fast paths.
-        current['consultation_wifi_toggled']=True
-        write_json(lease,current)
-        set_wifi(False)
-        proof['wifi_disabled']=True
     previous = {sig:signal.signal(sig,interrupted) for sig in (signal.SIGTERM,signal.SIGINT)}
     try:
         if not spawn_restorer(lease,row['owner_token']):
             raise RuntimeError('consultation_restorer_unavailable')
         if decision['route']=='guarded_fallback':
-            disable_wifi_for_fallback(row)
+            # Same authorized Wi-Fi-off consultation corridor; never mutate on the qualified fast paths.
+            row['consultation_wifi_toggled']=True
+            write_json(lease,row)
+            set_wifi(False)
+            proof['wifi_disabled']=True
+        if time.monotonic() >= deadline-CONSULTATION_RESTORE_RESERVE_S:
+            raise RuntimeError('consultation_budget_exhausted')
         env=os.environ.copy()
         env['SAMANTHA_MAXIT_LEASE_ID']=lease.stem
         env['SAMANTHA_MAXIT_GUARD_LOCK_FD']=str(lock_fd)
         env.pop('SAMANTHA_MAXIT_CHANNEL',None)
-        child,value=run_child(env)
-        refusal=None
-        escalation=value.get('reason')
-        if (decision['route']=='app_session_wifi' and value.get('state')=='mobile_network_required'
-                and isinstance(escalation,str) and escalation in APP_SESSION_ESCALATION_REASONS):
-            if keep_wifi:
-                # Live voice: never cut the Wi-Fi, say why (same refusal state as the voice corridor of 17/10).
-                app_session='declined_wifi_kept'
-                refusal={'ok':False,'source':'maxit_network_guard','state':'orange_cellular_required_wifi_kept','reason':escalation}
-            elif consultation_child_budget(deadline) < APP_SESSION_ESCALATION_MIN_S:
-                app_session='budget_exhausted'
-                refusal={'ok':False,'source':'maxit_network_guard','state':'consultation_budget_exhausted'}
-            else:
-                # Phase B: same lease, same deadline, the original corridor decision, journalled before the toggle.
-                app_session='escalated_'+escalation
-                current=json.loads(lease.read_text())
-                current['consultation_decision']=fallback_decision
-                proof['path']=fallback_decision['route']
-                disable_wifi_for_fallback(current)
-                child,value=run_child(env)
-        if refusal is not None:
-            payload=refusal;code=4
-        else:
-            # Never accept network_guard or restoration assertions from child/provider JSON.
-            value.pop('network_guard',None); value.pop('network_path',None)
-            payload=value; code=child.returncode if value.get('ok') is True else 4
-            if child.returncode != 0 and value.get('ok') is True:
-                payload={'ok':False,'source':'maxit_network_guard','state':'child_result_contradictory'};code=4
-            milliseconds=payload.pop('dns_ready_ms',None)
-            if type(milliseconds) is int and 0<=milliseconds<=8000:
-                proof['dns_ready_ms']=milliseconds
+        child_cleanup_verified=False
+        child=collect_consultation_child(command,env,timeout_s=consultation_child_budget(deadline))
+        child_cleanup_verified=True
+        value=json.loads(child.stdout or '')
+        if not isinstance(value,dict):
+            raise ValueError('consultation_output_invalid')
+        # Never accept network_guard or restoration assertions from child/provider JSON.
+        value.pop('network_guard',None); value.pop('network_path',None)
+        payload=value; code=child.returncode if value.get('ok') is True else 4
+        if child.returncode != 0 and value.get('ok') is True:
+            payload={'ok':False,'source':'maxit_network_guard','state':'child_result_contradictory'};code=4
+        milliseconds=payload.pop('dns_ready_ms',None)
+        if type(milliseconds) is int and 0<=milliseconds<=8000:
+            proof['dns_ready_ms']=milliseconds
     except ConsultationChildFailure as exc:
         child_cleanup_verified=exc.cleanup_verified
         payload={'ok':False,'source':'maxit_network_guard','state':str(exc)};code=4
@@ -1916,8 +1868,7 @@ def _with_consultation_receipt_locked(command: list[str], deadline: float | None
                 signal.signal(sig,handler)
     payload.pop('channel_cleanup',None)
     payload['network_guard']=proof;payload['network_path']=proof['path']
-    payload['network_metrics']={'network_inspection_ms':snapshot['inspection_ms'],'wifi_toggled':proof['wifi_disabled'],
-                                'app_session':app_session}
+    payload['network_metrics']={'network_inspection_ms':snapshot['inspection_ms'],'wifi_toggled':proof['wifi_disabled']}
     print(json.dumps(payload))
     return code
 

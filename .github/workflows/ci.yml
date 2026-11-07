@@ -723,8 +723,6 @@ jobs:
         run: python3 ../installer/termux-lite/test-payment-guard-invariance.py
       - name: Incident Orange vocal 15/10 — voix en direct, Wi-Fi jamais coupé (--keep-wifi)
         run: python3 ../installer/termux-lite/test-consultation-voice-keep-wifi.py
-      - name: Orange « App Max it d'abord » (décision 07/11) — app lue sur Wi-Fi, couloir 4G seulement si déconnecté ou écran verrouillé
-        run: python3 ../installer/termux-lite/test-consultation-app-session-first.py
       - name: O8 baseline model efficiency and Gemini client regression
         run: |
           python3 ../installer/termux-lite/test-model-efficiency.py
