@@ -98,23 +98,31 @@ function toolSchema(tool: DomainTool) {
   }, required: ["action", "params"], additionalProperties: false};
 }
 
+/** The Companion's run registry bounds its rows to 8 MiB; payments and confirmations share the file. */
+const COMPANION_RUN_REGISTRY_MAX_BYTES = 16 * 1024 * 1024;
+
 /**
  * Graph surface of an owner app turn (S24 07/11 16:07, « mon solde orange » shared from the app at home): every app call
  * carried the voice surface « claw_live », so the Orange guard kept Wi-Fi as for a live voice session and refused the
- * 4G corridor on a written request. Only a run the Companion proves is a written app turn (turnOrigin « app ») gets the
- * app surface; a Samantha Voix hand-over, an unknown run or an unreachable Companion keeps the live-voice restriction.
+ * 4G corridor on a written request. Only a run the Companion recorded as a written app turn gets the app surface; a
+ * Samantha Voix hand-over (voiceDelegation), an unknown run or an unreadable registry keeps the live-voice restriction.
  * A restriction only, never an admission.
+ *
+ * S24 07/11 17:54: the same request still kept Wi-Fi. The registry row was right (no voiceDelegation) but the HTTP
+ * lookup of 1.5 s ran while the Companion answered nothing for about 40 s of a long turn, so the call fell back to
+ * « claw_live ». The row is written before the turn is submitted, and the registry file is replaced atomically
+ * (temporary file then rename): it is read here directly, never through the busy HTTP owner (12-17 ms for 1 MB on the S24).
  */
 export async function typedOwnerGraphSurface(userRunId: string): Promise<"samantha_android" | "claw_live"> {
   try {
-    const port = Number(process.env.CLAWMOBILE_COMPANION_PORT || 8765);
-    if (!Number.isInteger(port) || port < 1 || port > 65535 || !/^[A-Za-z0-9_.:-]{1,160}$/.test(userRunId)) return "claw_live";
-    const response = await fetch("http://127.0.0.1:" + port + "/v1/runs/" + encodeURIComponent(userRunId),
-      {signal: AbortSignal.timeout(1500)});
-    const text = await response.text();
-    if (response.status !== 200 || text.length > 262144) return "claw_live";
-    const run = JSON.parse(text);
-    return run && run.runId === userRunId && run.turnOrigin === "app" ? "samantha_android" : "claw_live";
+    if (!/^[A-Za-z0-9_.:-]{1,160}$/.test(userRunId)) return "claw_live";
+    const stateDir = process.env.OPENCLAW_STATE_DIR || path.join(os.homedir(), ".openclaw");
+    const registry = path.join(stateDir, "clawmobile-companion", "runs.json");
+    const size = (await fs.promises.stat(registry)).size;
+    if (size > COMPANION_RUN_REGISTRY_MAX_BYTES) return "claw_live";
+    const data = JSON.parse(await fs.promises.readFile(registry, "utf8"));
+    const run = Array.isArray(data?.runs) ? data.runs.find((row: any) => row?.runId === userRunId) : undefined;
+    return run && run.voiceDelegation !== true ? "samantha_android" : "claw_live";
   } catch {
     return "claw_live";
   }

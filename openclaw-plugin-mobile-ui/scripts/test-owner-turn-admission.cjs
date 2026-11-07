@@ -94,6 +94,9 @@ async function biometricApprove(type,reference,payloadHash,origin={channel:'sama
 const enrollBody=(confirmationId,key=admissionKey,possessor=key)=>({confirmationId,publicKey:spki(key).toString('base64'),
  possession:crypto.sign('sha256',Buffer.from(enrollmentMessage(confirmationId,keyIdOf(key))),possessor.privateKey).toString('base64')});
 const readLines=f=>fs.existsSync(f)?fs.readFileSync(f,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[];
+// Local CI 07/11 (core#565, 4 parallel jobs): the background failure was not yet written 150 ms after the submit.
+// The state is read until it settles (3 s at most), never a fixed delay.
+async function runState(id,expected){let state;for(let i=0;i<150;i++){state=(await request('GET','/v1/runs/'+id)).body.state;if(state===expected)return state;await new Promise(r=>setTimeout(r,20));}return state;}
 async function settled(id){for(let i=0;i<300;i++){const all=[...readLines(cliLog),...sdkCalls];const hit=all.find(x=>x.id===id);if(hit)return hit;await new Promise(r=>setTimeout(r,20));}throw new Error('turn_not_dispatched '+id);}
 async function submit({text='Envoie le rapport',sessionId='p1-session',clientRunId='p1-'+crypto.randomUUID(),headers,sign=true,mutate}={}){
  const body=JSON.stringify({instruction:text,displayText:text,sessionId,clientRunId});
@@ -210,7 +213,7 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
 
   // --- 5. Transport admin indisponible AVANT envoi : le tour reste non-owner (CLI) ; échec APRÈS envoi : aucun rejeu.
   gatewayTransport.setOwnerTurnSdkLoader(async()=>{throw Object.assign(new Error('x'),{code:'owner_transport_unavailable'})});
-  r=await submit();assert.equal(r.response.body.ownerAdmission.owner,true);await new Promise(x=>setTimeout(x,150));assert.equal(readLines(cliLog).filter(x=>x.id===r.runId).length,0);assert.equal((await request('GET','/v1/runs/'+r.runId)).body.state,'failed');count('admin_unavailable_fail_closed');
+  r=await submit();assert.equal(r.response.body.ownerAdmission.owner,true);await new Promise(x=>setTimeout(x,150));assert.equal(readLines(cliLog).filter(x=>x.id===r.runId).length,0);assert.equal(await runState(r.runId,'failed'),'failed');count('admin_unavailable_fail_closed');
   gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(async(method,o,params,extra)=>{sdkCalls.push({transport:'admin',method,scopes:extra.scopes,id:params.idempotencyKey});throw new Error('after dispatch');}));
   r=await submit();await settled(r.runId);await new Promise(x=>setTimeout(x,200));
   assert.equal(readLines(cliLog).filter(x=>x.id===r.runId).length,0,'pas de repli après envoi');
