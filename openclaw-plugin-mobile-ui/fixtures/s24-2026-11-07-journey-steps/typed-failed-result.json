@@ -1,0 +1,23 @@
+{
+ "capturedAt": "2026-11-07T17:20+01:00",
+ "run": "run_1794064014193_f0987f1c",
+ "toolResult": {
+  "toolName": "samantha_maxit_tunisie",
+  "toolCallId": "call_8fcddb50bd8740a2a547857eb5d01ff5|fc_005f09410d989ac8016aef3e97b9ec87d2a659bde92167d953",
+  "isError": false,
+  "content": [
+   {
+    "type": "text",
+    "text": "{\"state\":\"FAILED\",\"receiptId\":\"goal-f9d3fd4a568373f29446\",\"facts\":{\"ok\":false,\"source\":\"maxit_network_guard\",\"state\":\"orange_cellular_required_wifi_kept\",\"reason\":\"orange_cellular_not_ready\",\"network_guard\":{\"path\":\"blocked\",\"wifi_initial\":true,\"wifi_disabled\":false,\"dns_ready_ms\":null,\"restored\":true,\"lease_id\":null}},\"answer\":\"La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.\",\"replayed\":false}"
+   }
+  ]
+ },
+ "engineContract": {
+  "module": "builtin-openclaw-BxzDR6yL.mjs",
+  "sha256": "220ce2f67e0ec0b96b63fe474dbefd628a6429cf2b58b87f78a78324ee92ca1c",
+  "excerpt": "emitAgentEvent({\n\t\trunId: ctx.params.runId,\n\t\tstream: \"tool\",\n\t\tdata: {\n\t\t\t...createResultData(),\n\t\t\tresult: eventResult\n\t\t}\n\t});",
+  "resultData": "phase: \"result\", name: toolName, toolCallId, meta, isError: isToolError",
+  "wire": "server-chat-Dzto6UBI.mjs prepareAgentWirePayload rewrites only assistant text; tool frames reach tool-events recipients unchanged"
+ },
+ "liveObservation": "Step « Je lis ton solde Orange » shown done (803 ms) while the typed result said FAILED and the answer explained the failure."
+}

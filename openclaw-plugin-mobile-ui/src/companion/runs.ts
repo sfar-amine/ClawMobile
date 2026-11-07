@@ -1,7 +1,7 @@
 import type {OwnerTurnObserver} from "./ownerTurnGateway";
 import {readRunWebResult, type RunWebResult} from "./runWeb";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
-import {isTechnicalProgressLabel, mergeThoughts, publicToolLabel, readRunActivity, readThoughts, reasoningThoughts, runActivity, runProgressSteps, typedToolActivity} from "./runProgress";
+import {isTechnicalProgressLabel, mergeThoughts, publicToolLabel, readRunActivity, readThoughts, reasoningThoughts, runActivity, runProgressSteps, typedToolActivity, typedToolReportedFailure} from "./runProgress";
 import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision,type ReceiptPresentation} from "./receiptPresentation";
 import {projectRunPayment} from "./runPaymentPresentation";
 import { structuredNotification } from "./notificationText";
@@ -695,7 +695,8 @@ export async function observeGatewayRun(runId:string,sessionKey:string):Promise<
         // A call nested in an already shown call (discovery wrapper → plugin tool) is the same step.
         if(data.phase==="start"&&parent&&events.some(e=>e.callId===parent))return undefined;
         const label=title||old?.label;if(!label)return undefined;
-        return {...r,gatewayProgress:{...r.gatewayProgress,text:"",events:[...events,{type:data.phase==="start"?"tool.call":data.isError?"tool.error":"tool.result",callId:id,label,title:label,at:receivedAt,...(data.isError?{isError:true}:{})}].slice(-48)}};
+        const failed=data.isError===true||data.phase==="result"&&typedToolReportedFailure(data.result);
+        return {...r,gatewayProgress:{...r.gatewayProgress,text:"",events:[...events,{type:data.phase==="start"?"tool.call":failed?"tool.error":"tool.result",callId:id,label,title:label,at:receivedAt,...(failed?{isError:true}:{})}].slice(-48)}};
       });});
     },
     async final(value:unknown){

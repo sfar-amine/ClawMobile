@@ -120,6 +120,26 @@ const thoughtsOf=turn=>turn.events.flatMap(e=>(e.content||[]).filter(b=>b.type==
  assert.equal(await runs.recordOwnerStop(id5,key('other'),'requested'),false,'another session cannot mark this run');
  await o5.lost(true);
  const lost=await runs.getRunStatus(id5);assert.equal(lost.state,'failed');assert.equal(lost.progress.stopped,true);
+ // 6. Real typed result of 16:07 (isError false, state FAILED): the step is not shown as done.
+ const failedFixture=require('../fixtures/s24-2026-11-07-journey-steps/typed-failed-result.json');
+ assert.match(failedFixture.engineContract.excerpt,/result: eventResult/);
+ const failedResult={content:failedFixture.toolResult.content};
+ assert.equal(failedFixture.toolResult.isError,false);
+ assert.equal(progress.typedToolReportedFailure(failedResult),true);
+ for(const [state,failed] of [['COMPLETED',false],['NEEDS_CONFIRMATION',false],['TECHNICAL_FAILURE',true],['DENIED',true]])
+  assert.equal(progress.typedToolReportedFailure({content:[{type:'text',text:JSON.stringify({state})}]}),failed,state);
+ for(const odd of [undefined,null,{content:'x'},{content:[{type:'text',text:'pas du json'}]},{content:[{type:'image'}]}])
+  assert.equal(progress.typedToolReportedFailure(odd),false);
+ clock=1794064014193;
+ const sid6='journey-failed',id6=await create(sid6),o6=await runs.observeGatewayRun(id6,key(sid6));o6.sent();await tick();
+ const failedCall=failedFixture.toolResult.toolCallId;
+ clock=1794064025473;o6.event(frame(id6,sid6,1,'tool',{phase:'start',name:'samantha_maxit_tunisie',toolCallId:failedCall,args:{action:'telecom.orange.balances'}}));
+ clock=1794064026276;o6.event(frame(id6,sid6,2,'tool',{phase:'result',name:'samantha_maxit_tunisie',toolCallId:failedCall,isError:false,result:failedResult}));
+ await o6.final({runId:id6,status:'ok',result:{payloads:[{text:'Je n’ai pas pu consulter tes soldes Orange.'}],meta:{stopReason:'stop'}}});
+ const failedRun=await runs.getRunStatus(id6);
+ assert.deepEqual(failedRun.progress.steps.map(s=>[s.label,s.state,s.durationMs]).slice(0,2),
+  [['Demande reçue','done',undefined],['Je lis ton solde Orange','skipped',803]]);
+ assert.equal(failedRun.progress.events.find(e=>e.callId===failedCall&&e.type!=='tool.call').type,'tool.error');
  assert.deepEqual(calls.filter(m=>m!=='chat.abort'),[],'no Gateway read for any journey fact');
  console.log('run journey steps: ok');
 }catch(error){console.error(error);process.exitCode=1;}finally{Date.now=realNow;fs.rmSync(home,{recursive:true,force:true});}})();

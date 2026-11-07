@@ -249,6 +249,25 @@ const NOT_AN_ACTIVITY = new Set(["samantha_catalogue"]);
  * arguments are the call; anything else is returned unchanged.
  */
 const WRAPPED_TOOL = /^openclaw:[a-z0-9-]{1,80}:([a-z][a-z0-9_]{1,100})$/;
+/**
+ * S24 07/11 16:07: the typed Orange read answered {"state":"FAILED",…} with isError false, so its step showed done.
+ * A Samantha typed tool states its own outcome first in its result text (dialogue OUTCOMES); FAILED, TECHNICAL_FAILURE
+ * and DENIED are not a success. Anything unreadable stays as the engine said.
+ */
+const TYPED_FAILED_OUTCOMES = new Set(["FAILED", "TECHNICAL_FAILURE", "DENIED"]);
+export function typedToolReportedFailure(result: unknown): boolean {
+  const content = (result as any)?.content;
+  const part = Array.isArray(content) ? content.find((p: any) => p?.type === "text" && typeof p.text === "string") : undefined;
+  const text = part?.text;
+  if (typeof text !== "string" || text.length > 131072 || !text.trimStart().startsWith("{")) return false;
+  try {
+    const state = JSON.parse(text)?.state;
+    return typeof state === "string" && TYPED_FAILED_OUTCOMES.has(state);
+  } catch {
+    return false;
+  }
+}
+
 export function unwrapToolCall(name: unknown, args: unknown): {name: unknown; args: unknown} {
   if (name !== "tool_call" || !args || typeof args !== "object" || Array.isArray(args)) return {name, args};
   const wrapped = args as Record<string, unknown>;
