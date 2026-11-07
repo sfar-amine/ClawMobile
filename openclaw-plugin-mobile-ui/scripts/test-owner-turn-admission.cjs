@@ -54,7 +54,7 @@ const {fakePublicSdk}=require('./fixtures/owner-turn-public-sdk.cjs');
 gatewayTransport.setOwnerTurnSdkLoader(async()=>{
  if(sdkMode==='missing')throw Object.assign(new Error('x'),{code:'owner_transport_unavailable'});
  return fakePublicSdk(async(method,opts,params,extra)=>{
-  sdkCalls.push({transport:'admin',method,scopes:extra.scopes,sessionKey:params.sessionKey,id:params.idempotencyKey,progress:extra.progress,opts,extraKeys:Object.keys(extra).sort(),message:params.message,signal:extra.signal});
+  sdkCalls.push({transport:'admin',method,scopes:extra.scopes,caps:extra.clientOptions?.caps,sessionKey:params.sessionKey,id:params.idempotencyKey,progress:extra.progress,opts,extraKeys:Object.keys(extra).sort(),message:params.message,signal:extra.signal});
   if(sdkMode==='fail')throw Object.assign(new Error('boom'),{gatewayCode:'UNAVAILABLE'});
   return opts.expectFinal?{runId:params.idempotencyKey,status:'ok',result:{payloads:[{text:'Réponse finale synthétique.'}],meta:{stopReason:'stop'}}}:{runId:params.idempotencyKey,status:'accepted'};
  });
@@ -143,6 +143,11 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
   // --- 2. Preuve valide => owner, sur la connexion admin uniquement (scopes admin/write, méthode agent seule).
   r=await submit();assert.equal(r.response.status,200);assert.deepEqual(r.response.body.ownerAdmission,{owner:true});
   let hit=await settled(r.runId);assert.equal(hit.transport,'admin');assert.equal(hit.method,'agent');assert.deepEqual(hit.scopes,['operator.admin','operator.write']);assert.equal(hit.progress,false);
+  // S24 07/11: the owner-turn connection declares tool-events, else the Gateway never sends it the turn's tool frames.
+  assert.deepEqual(hit.caps,['tool-events']);
+  const toolCap=require('../fixtures/s24-2026-11-07-journey-steps/engine-tool-events-cap.json');
+  assert.ok(toolCap.parts.every(p=>p.found&&/^[a-f0-9]{64}$/.test(p.sha256)));assert.match(toolCap.parts[0].excerpt,/TOOL_EVENTS: "tool-events"/);
+  assert.match(toolCap.parts[1].excerpt,/hasGatewayClientCap\(params\.principal\?\.connect\?\.caps, GATEWAY_CLIENT_CAPS\.TOOL_EVENTS\)/);
   assert.equal(readLines(cliLog).filter(x=>x.id===r.runId).length,0);count('valid_owner_admin_only');
   // Forme d'appel figée contre la signature installée (fixture S24 claw_exec r03 : callGatewayFromCli(method, opts, params, extra)).
   {const sig=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-11/p1/callgatewayfromcli-signature.json'),'utf8'));

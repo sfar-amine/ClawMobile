@@ -12,6 +12,12 @@ import {turnAdmission, type AdmissionTicket} from "./ownerTurnAdmission";
 import {importSurface, openclawSdkVersion, readChunkConstExport} from "./openclawSdkVersions";
 
 export const OWNER_TURN_SCOPES = Object.freeze(["operator.admin", "operator.write"]);
+/**
+ * The Gateway sends an owner turn's tool frames only to a connection that declared `tool-events` at connect
+ * (OpenClaw 2026.10.9 resolveAgentTurnRunObserver; fixture s24-2026-11-07-journey-steps/engine-tool-events-cap.json).
+ * Without it the journey steps and the voice waiting cue never saw a real tool call (S24 07/11 15:17).
+ */
+export const OWNER_TURN_CAPS = Object.freeze(["tool-events"]);
 export const OWNER_TURN_METHOD = "agent";
 const nativeImport = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<any>;
 const unavailable = (code: string) => Object.assign(new Error(code), {code, requestSent: false});
@@ -189,7 +195,7 @@ export async function submitOwnerTurn(params: Record<string, any>, options: {exp
   try {
     client = new sdk.GatewayClient({url: `ws://127.0.0.1:${port}`, [mode]: credential.value,
       clientName: "cli", mode: "cli", role: "operator", deviceIdentity: null, sharedStateMode: "read-only",
-      scopes: [...OWNER_TURN_SCOPES], minProtocol: 4, maxProtocol: 4,
+      scopes: [...OWNER_TURN_SCOPES], caps: [...OWNER_TURN_CAPS], minProtocol: 4, maxProtocol: 4,
       hostDeps: {beforeConnect: assertCurrent},
       onEvent: (frame: unknown) => { if (!done && requestSent) options.observer?.event(frame); },
       onConnectError: fail, onReconnectPaused: () => fail(unavailable("owner_transport_unavailable")),

@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "id": "journey-tool-events-cap-20261107",
+  "date": "2026-11-07",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The Companion's owner-turn Gateway connection declares the tool-events capability, so OpenClaw sends it the tool frames of the app turns it starts: the journey steps (core#560) and the voice waiting cue finally see real tool calls.",
+  "reason": "S24 live recipe 07/11 15:17: app run run_1794061009103_21aa04d1 called samantha_maxit_tunisie (transcript 15:17:30-15:17:44) but the Companion received no tool frame; OpenClaw 2026.10.9 registers tool-event recipients only for connections that declared tool-events (resolveAgentTurnRunObserver) and ownerTurnGateway declared no caps.",
+  "files": [
+    "docs/changes/journey-tool-events-cap-20261107.json",
+    "docs/changes/journey-tool-events-cap-20261107.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-11-07-journey-steps/engine-tool-events-cap.json",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-turn-admission.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/ownerTurnGateway.ts"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-owner-turn-admission.cjs",
+      "status": "passed",
+      "evidence": "The owner-turn connection declares exactly ['tool-events']; the installed engine contract (TOOL_EVENTS value and capability gate) is asserted from the S24 fixture."
+    },
+    {
+      "name": "test-edit-replay, test-gateway-run-observation, test-run-journey-steps, test-generation-interrupt, test-voice-waiting-cues, test-openclaw-sdk-versions, test-companion-runs",
+      "status": "passed",
+      "evidence": "Unchanged and green."
+    }
+  ],
+  "documentation": [
+    "docs/changes/journey-tool-events-cap-20261107.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No route, action or capability change; one connect capability on the existing owner-turn Gateway connection."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same owner-turn connection and observer; it now subscribes to the tool frames OpenClaw already emits."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "The reasoning headers still depend on the model emitting a reasoning summary on the turn (none on the 15:17 Orange turn)."
+  ],
+  "rollback": "Revert this commit and redeploy the previous Companion."
+}
