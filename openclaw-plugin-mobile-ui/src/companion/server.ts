@@ -52,7 +52,7 @@ import { turnAdmission, legacyLoopbackOwnerContextEnabled, publicAdmission } fro
 import {normalizeCompanionSessionId} from "./openclawAgentClient";
 import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
-import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, pruneRemoteBridgeReadReceipts, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
+import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, pruneRemoteBridgeReadReceipts, remoteBridgeHealth, remoteBridgeReceiptIndex, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
 import { routeVoiceTurnToBrain, voiceTurnLogLine } from "./voiceBrainDelegation";
 /**
@@ -112,12 +112,13 @@ function serverDiagnostic(
   level: "info" | "warn" | "error",
   event: "attachment_maintenance_unavailable" | "server_listening" | "server_start_failed" | "server_shutdown"
     | "remote_bridge_abandon_sweep" | "remote_bridge_abandon_sweep_unavailable"
-    | "remote_bridge_read_retention" | "remote_bridge_read_retention_unavailable",
+    | "remote_bridge_read_retention" | "remote_bridge_read_retention_unavailable"
+    | "remote_bridge_receipt_index" | "remote_bridge_receipt_index_unavailable",
   metadata: {port?: unknown; errno?: unknown; state?: unknown; reason?: unknown; scanned?: unknown; abandoned?: unknown;
-    uncertain?: unknown; removed?: unknown; preserved?: unknown; retainedRead?: unknown} = {},
+    uncertain?: unknown; removed?: unknown; preserved?: unknown; retainedRead?: unknown; tasks?: unknown; steps?: unknown; ms?: unknown} = {},
 ) {
   const fields: Record<string, string | number> = {};
-  for (const key of ["port", "scanned", "abandoned", "uncertain", "removed", "preserved", "retainedRead"] as const) {
+  for (const key of ["port", "scanned", "abandoned", "uncertain", "removed", "preserved", "retainedRead", "tasks", "steps", "ms"] as const) {
     const value = metadata[key];
     if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0
         && (key !== "port" || value <= 65535)) fields[key] = value;
@@ -209,6 +210,14 @@ export function startCompanionServer() {
       console.warn("[claw-live-warm] startup prewarm failed: " + String(error?.message || error).slice(0, 160));
     });
   }, 1_000).unref();
+  // Task/step lookups answer from the receipt index; it is built off the event loop's critical path, before the
+  // first bridge request needs it (S24 07/11: 57 653 receipts scanned synchronously per request).
+  setTimeout(() => {
+    const started = Date.now();
+    void remoteBridgeReceiptIndex().then((index) => {
+      serverDiagnostic("info", "remote_bridge_receipt_index", {tasks: index.byTask.size, steps: index.byStep.size, ms: Date.now() - started});
+    }).catch((error: any) => serverDiagnostic("warn", "remote_bridge_receipt_index_unavailable", {errno: error?.code}));
+  }, 2_000).unref();
   // F6: one bounded pass after startup over receipts left by previous instances.
   setTimeout(() => {
     try {

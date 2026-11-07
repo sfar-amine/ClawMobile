@@ -332,6 +332,69 @@ function readReceipt(requestId: string): RemoteBridgeReceipt | null {
 
 function writeReceipt(receipt: RemoteBridgeReceipt) {
   atomicWrite(requestPath(receipt.requestId), JSON.stringify(receipt, null, 2));
+  noteReceipt(receipt);
+}
+
+/**
+ * Task and step lookups of the existing receipt directory, in memory.
+ * S24 07/11 18:08: 57 653 receipts (305 MB, 40 days, the read retention keeps 50 000). Every new task step and every
+ * task_status parsed all of them synchronously (1.2 s with a warm cache, far more under I/O pressure). The Companion
+ * then answered no HTTP request: about 40 s of silence during a turn, Orange called with the voice surface.
+ * The index is built once per instance, asynchronously, from the same files, and follows every receipt write.
+ * It stores no receipt and no second truth: a lookup still reads the receipt file itself.
+ */
+type ReceiptIndex = {byStep: Map<string, {requestId: string; receivedAt: number}>; byTask: Map<string, Set<string>>};
+let receiptIndex: ReceiptIndex | null = null;
+let receiptIndexBuild: Promise<ReceiptIndex> | null = null;
+const receiptsWrittenDuringBuild: RemoteBridgeReceipt[] = [];
+function stepKey(taskId: string, stepId: string) { return taskId + "\u0000" + stepId; }
+function indexReceipt(index: ReceiptIndex, receipt: RemoteBridgeReceipt) {
+  if (typeof receipt?.requestId !== "string" || typeof receipt.taskId !== "string" || !receipt.taskId) return;
+  let ids = index.byTask.get(receipt.taskId);
+  if (!ids) index.byTask.set(receipt.taskId, ids = new Set());
+  ids.add(receipt.requestId);
+  if (typeof receipt.stepId !== "string" || !receipt.stepId) return;
+  const key = stepKey(receipt.taskId, receipt.stepId), receivedAt = Number(receipt.receivedAt) || 0;
+  const known = index.byStep.get(key);
+  // One receipt per task step (dispatch refuses a second); the earliest wins if an old directory holds two.
+  if (!known || (known.requestId !== receipt.requestId && receivedAt < known.receivedAt))
+    index.byStep.set(key, {requestId: receipt.requestId, receivedAt});
+}
+function noteReceipt(receipt: RemoteBridgeReceipt) {
+  if (receiptIndex) indexReceipt(receiptIndex, receipt);
+  else if (receiptIndexBuild) receiptsWrittenDuringBuild.push(receipt);
+}
+async function buildReceiptIndex(): Promise<ReceiptIndex> {
+  ensureDirs();
+  const index: ReceiptIndex = {byStep: new Map(), byTask: new Map()};
+  const names: string[] = [];
+  for await (const entry of await fs.promises.opendir(REQUEST_DIR))
+    if (entry.isFile() && /^[A-Za-z0-9._:-]{1,128}\.json$/.test(entry.name)) names.push(entry.name);
+  // Small parallel batches: every read is asynchronous, so HTTP requests keep being served while the index fills.
+  for (let start = 0; start < names.length; start += 32) {
+    await Promise.all(names.slice(start, start + 32).map(async (name) => {
+      try {
+        const receipt = JSON.parse(await fs.promises.readFile(path.join(REQUEST_DIR, name), "utf8")) as RemoteBridgeReceipt;
+        if (name === `${receipt.requestId}.json`) indexReceipt(index, receipt);
+      } catch {}
+    }));
+  }
+  return index;
+}
+/** The instance's receipt index; the first call starts the asynchronous pass, every caller awaits the same one. */
+export function remoteBridgeReceiptIndex(): Promise<ReceiptIndex> {
+  if (receiptIndex) return Promise.resolve(receiptIndex);
+  if (!receiptIndexBuild) {
+    receiptIndexBuild = buildReceiptIndex().then((index) => {
+      for (const receipt of receiptsWrittenDuringBuild.splice(0)) indexReceipt(index, receipt);
+      receiptIndex = index;
+      return index;
+    }).finally(() => { receiptIndexBuild = null; });
+  }
+  return receiptIndexBuild;
+}
+function existingReceipt(requestId: string) {
+  try { return readReceipt(requestId); } catch { return null; }
 }
 
 // Bounded delay before a receipt of a dead instance becomes terminal. Above the
@@ -478,14 +541,10 @@ function receiptFiles() {
     .map((name) => path.join(REQUEST_DIR, name));
 }
 
-function findTaskStepReceipt(taskId: string, stepId: string) {
-  for (const filePath of receiptFiles()) {
-    try {
-      const receipt = JSON.parse(fs.readFileSync(filePath, "utf8")) as RemoteBridgeReceipt;
-      if (receipt.taskId === taskId && receipt.stepId === stepId) return receipt;
-    } catch {}
-  }
-  return null;
+function findTaskStepReceipt(index: ReceiptIndex, taskId: string, stepId: string) {
+  const known = index.byStep.get(stepKey(taskId, stepId));
+  const receipt = known ? existingReceipt(known.requestId) : null;
+  return receipt && receipt.taskId === taskId && receipt.stepId === stepId ? receipt : null;
 }
 
 function summarizeReceipt(receipt: RemoteBridgeReceipt) {
@@ -510,16 +569,15 @@ function summarizeReceipt(receipt: RemoteBridgeReceipt) {
   };
 }
 
-export function getRemoteBridgeTask(taskId: string, rawLimit = 50) {
+export async function getRemoteBridgeTask(taskId: string, rawLimit = 50) {
   ensureDirs();
   validateCorrelationId(taskId, "task");
   const limit = Math.max(1, Math.min(100, Number.isFinite(rawLimit) ? Math.trunc(rawLimit) : 50));
+  const index = await remoteBridgeReceiptIndex();
   const receipts: RemoteBridgeReceipt[] = [];
-  for (const filePath of receiptFiles()) {
-    try {
-      const receipt = JSON.parse(fs.readFileSync(filePath, "utf8")) as RemoteBridgeReceipt;
-      if (receipt.taskId === taskId) receipts.push(receipt);
-    } catch {}
+  for (const requestId of index.byTask.get(taskId) || []) {
+    const receipt = existingReceipt(requestId);
+    if (receipt?.taskId === taskId) receipts.push(receipt);
   }
   receipts.sort((a, b) => a.receivedAt - b.receivedAt);
   const selected = receipts.slice(Math.max(0, receipts.length - limit));
@@ -990,6 +1048,9 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
   webBounds?: {startedMonotonic:number;deadlineEpochMs:number},
 ): Promise<RemoteBridgeReceipt> {
   const bounds=webBounds || {startedMonotonic:performance.now(),deadlineEpochMs:Date.now()+PUBLIC_WEB_BUDGET_MS};
+  // Awaited first: from here to the first receipt write there is no await, so the task-step check and the
+  // receipt that claims the step stay one atomic section, as with the former synchronous scan.
+  const index = await remoteBridgeReceiptIndex();
   ensureDirs();
   const request = normalizeRequest(body);
   const params = (request.params || {}) as Record<string, unknown>;
@@ -1011,7 +1072,7 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
   }
 
   if (request.taskId && request.stepId) {
-    const prior = findTaskStepReceipt(request.taskId, request.stepId);
+    const prior = findTaskStepReceipt(index, request.taskId, request.stepId);
     if (prior) {
       if (prior.paramsHash !== paramsHash || prior.method !== request.method) {
         throw statusError(409, "task_step_conflict");
