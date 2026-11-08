@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "id": "typed-messaging-tool-20261109",
+  "date": "2026-11-09",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "The plugin declares the new samantha_messaging typed tool (SMS and e-mail, projected by samantha-ui-playbooks), shows it direct-only to the voice and app brain (DIRECT_TYPED_TOOLS; direct surface 38 259 characters, new ceiling 38 500), and hides alone any catalogue tool absent from contracts.tools instead of letting the Gateway refuse the whole typed batch.",
+  "reason": "Owner, 08/11 after the voice recette: « la voix doit pouvoir faire cela et tout ce qui ressemble à ça » (SMS and e-mail to himself were refused: no tool). S24 31/10 15:20: one undeclared catalogue tool made the Gateway refuse every typed owner.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/typed-messaging-tool-20261109.json",
+    "docs/changes/typed-messaging-tool-20261109.md",
+    "openclaw-plugin-mobile-ui/fixtures/playbooks-2026-11-09-messaging-typed-tool/messaging-tool.json",
+    "openclaw-plugin-mobile-ui/openclaw.plugin.json",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-messaging-direct.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-tools-direct-visible.cjs",
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts"
+  ],
+  "tests": [
+    {
+      "name": "scripts/test-typed-messaging-direct.cjs",
+      "status": "passed",
+      "evidence": "samantha_messaging projected by the playbooks is exposed direct-only with both actions marked récapitulatif puis confirmation, declared in contracts.tools; direct surface with device, web and messaging 38 259 ≤ 38 500; an undeclared catalogue tool is hidden while samantha_agenda and samantha_messaging stay; an unreadable manifest filters nothing."
+    },
+    {
+      "name": "typed tool suites",
+      "status": "passed",
+      "evidence": "test-typed-tools-direct-visible (samantha_messaging pending activation like device and web), test-typed-device-direct, test-typed-web-direct, test-typed-capability-tools, test-contact-room-brain, test-room-send-approval."
+    }
+  ],
+  "documentation": [
+    "docs/changes/typed-messaging-tool-20261109.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "The plugin only declares and shows the typed tool; the capability messaging.sms_email.owner and its owner are added by the paired samantha-ui-playbooks change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same typed tool factory and direct-only knob; one more declared name and a filter on the existing contracts.tools list."
+  },
+  "rollback": "Revert this commit and redeploy the previous Companion with companion-deploy.sh (after reverting the paired playbooks activation)."
+}

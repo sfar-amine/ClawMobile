@@ -85,7 +85,8 @@ for (const name of names) pluginToolNames.add(name);
 assert(typed.DIRECT_TYPED_TOOLS.has('samantha_utility_billing'));
 // samantha_device_assistance (31/10) exists once its playbooks are activated: test-typed-device-direct.cjs covers it.
 // samantha_web (04/11, route web unique) exists once samantha-ui-playbooks projects it; test-typed-web-direct.cjs covers it.
-const pendingActivation = new Set(['samantha_device_assistance', 'samantha_web']);
+// samantha_messaging (SMS et e-mail, 08/11) likewise: test-typed-messaging-direct.cjs covers it.
+const pendingActivation = new Set(['samantha_device_assistance', 'samantha_web', 'samantha_messaging']);
 const directInCapture = [...typed.DIRECT_TYPED_TOOLS].filter((name) => !pendingActivation.has(name));
 for (const name of directInCapture) assert(names.includes(name), `${name} exists in the projection`);
 for (const tool of descriptors)

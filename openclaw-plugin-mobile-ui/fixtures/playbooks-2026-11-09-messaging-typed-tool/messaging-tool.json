@@ -1,0 +1,94 @@
+{
+  "source": {
+    "repository": "sfar-amine/samantha-ui-playbooks",
+    "base": "d70f7c2c3067bc61da634e2949ca8b36dc582fd1",
+    "note": "skill_intelligence.typed_tools.project_tools projection of skill_intelligence/manifests/messaging.json (SMS et e-mail, Amine 08/11), before its playbooks PR merge."
+  },
+  "tool": {
+    "name": "samantha_messaging",
+    "domain": "messaging",
+    "description": "SMS et e-mail",
+    "actions": [
+      {
+        "action": "messaging.email.send",
+        "description": "envoyer un e-mail",
+        "params": {
+          "type": "object",
+          "properties": {
+            "recipient": {
+              "type": "string",
+              "maxLength": 12000,
+              "description": "« moi » pour Amine lui-même, le nom exact d'un contact, ou une adresse e-mail"
+            },
+            "subject": {
+              "type": "string",
+              "maxLength": 12000,
+              "description": "objet de l'e-mail, une ligne"
+            },
+            "message": {
+              "type": "string",
+              "maxLength": 12000,
+              "description": "texte exact de l'e-mail"
+            }
+          },
+          "required": [
+            "message",
+            "recipient",
+            "subject"
+          ],
+          "additionalProperties": false
+        },
+        "risk": "external_send",
+        "confirmationRequired": true,
+        "directExecution": true,
+        "canonicalStatus": "ready",
+        "executionMode": "command",
+        "ownerReferences": [
+          "channels/messaging/playbook.md"
+        ],
+        "examples": [
+          "envoie-moi un mail avec l'objet test et le texte tout va bien",
+          "envoie un e-mail à Sadok pour la réunion de demain",
+          "écris un mail à mon comptable"
+        ]
+      },
+      {
+        "action": "messaging.sms.send",
+        "description": "envoyer un SMS",
+        "params": {
+          "type": "object",
+          "properties": {
+            "recipient": {
+              "type": "string",
+              "maxLength": 12000,
+              "description": "« moi » pour Amine lui-même, le nom exact d'un contact, ou un numéro"
+            },
+            "message": {
+              "type": "string",
+              "maxLength": 12000,
+              "description": "texte exact du SMS"
+            }
+          },
+          "required": [
+            "message",
+            "recipient"
+          ],
+          "additionalProperties": false
+        },
+        "risk": "external_send",
+        "confirmationRequired": true,
+        "directExecution": true,
+        "canonicalStatus": "ready",
+        "executionMode": "command",
+        "ownerReferences": [
+          "channels/messaging/playbook.md"
+        ],
+        "examples": [
+          "envoie-moi un SMS qui dit rappel",
+          "envoie un texto à Sadok",
+          "écris un SMS à maman pour dire que j'arrive"
+        ]
+      }
+    ]
+  }
+}
