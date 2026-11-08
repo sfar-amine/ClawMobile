@@ -94,6 +94,9 @@ jobs:
       - name: Test long Remote Bridge receipt response budget
         run: node scripts/test-bridge-long.cjs
 
+      - name: MCP owner delegation finds the Gateway token chunk of the installed OpenClaw build (S24 31/10)
+        run: python3 ../installer/termux-lite/test-gateway-secretref-exec.py
+
       - name: WhatsApp survives extended network outages without retry storms
         run: |
           python3 ../installer/termux-lite/test-model-flow-selection.py
