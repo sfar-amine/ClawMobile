@@ -28,7 +28,10 @@ export const DIRECT_TYPED_TOOLS: ReadonlySet<string> = new Set(["samantha_utilit
   "samantha_topnet", "samantha_maxit_tunisie", "samantha_agenda", "samantha_pulse", "samantha_catalogue", "samantha_device_assistance",
   // Route web unique (S24 04/11): behind tool_search a web question cost 7 s of discovery before three chained
   // web_search calls (92 s). samantha_web carries only the two typed web actions (one Codex hosted search each).
-  "samantha_web"]);
+  "samantha_web",
+  // Amine 08/11 (« la voix doit pouvoir faire cela ») : SMS et e-mail dictés ; derrière tool_search, chaque envoi
+  // coûterait d'abord une recherche d'outil. Ses deux actions gardent récapitulatif puis confirmation.
+  "samantha_messaging"]);
 // One public web action = one Codex hosted search through public_web (budget 40 s) plus graph and dialogue owners;
 // the generic 30 s helper ceiling would cut it before its own named timeout.
 const PUBLIC_WEB_HELPER_TIMEOUT_S = 50;
@@ -42,6 +45,14 @@ export const isPaymentHandoff = (action?: Action) => action?.executionMode === "
 const PAYMENT_HINT = " (ouvre seulement la confirmation de paiement sur le téléphone, sur demande explicite d'Amine ; biométrie et code bancaire restent à lui ; paramètres facultatifs, seulement ceux qu'il a dits)";
 const WEB_HINT = " Pour toute question qui demande le Web (actualité, prix, fait public récent) : une seule action samantha.app.web.answer, qui cherche une fois et cite ses sources ; n'en enchaîne pas d'autres pour recouper. query : quelques mots-clés, 200 caractères au plus.";
 const directOnly = (name: string) => DIRECT_TYPED_TOOLS.has(name) ? {catalogMode: "direct-only" as const} : {};
+
+/** Tool names this plugin declares (openclaw.plugin.json contracts.tools); null when unreadable (nothing filtered). */
+export function declaredPluginTools(manifestPath = path.join(__dirname, "..", "openclaw.plugin.json")): Set<string> | null {
+  try {
+    const tools = JSON.parse(fs.readFileSync(manifestPath, "utf8"))?.contracts?.tools;
+    return Array.isArray(tools) && tools.every((name: unknown) => typeof name === "string") ? new Set(tools) : null;
+  } catch { return null; }
+}
 
 export function readTypedToolCatalogue(home = os.homedir()): DomainTool[] {
   try {
@@ -132,7 +143,11 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
   // Contacts do not even see these descriptors. Recheck identity and liveness
   // during execution; a factory snapshot is never permission for a later turn.
   if (context?.senderIsOwner !== true || context.agentId && context.agentId !== "main") return null;
-  const tools: any[] = (options.catalogue || readTypedToolCatalogue(options.home)).map(tool => {
+  const declared = declaredPluginTools();
+  const tools: any[] = (options.catalogue || readTypedToolCatalogue(options.home))
+    // S24 31/10 15:20: one catalogue tool absent from contracts.tools made the Gateway refuse the factory's whole batch
+    // (every typed owner lost). An undeclared tool is hidden alone; the others stay.
+    .filter(tool => !declared || declared.has(tool.name)).map(tool => {
     const parameters = toolSchema(tool);
     const actions = tool.actions.map(a => `${a.action}: ${a.description}${a.canonicalStatus === "candidate" ? " (candidate non qualifiée ; ne pas annoncer disponible)" : ""}${a.nativeOwner ? " (propriétaire natif " + a.nativeOwner.owner + ", poursuivre son parcours existant)" : ""}${isPaymentHandoff(a) ? PAYMENT_HINT : ""}${a.confirmationRequired ? " (récapitulatif puis confirmation)" : ""}`).join("\n");
     const examples = tool.actions.flatMap(a => a.examples || []).slice(0, 5).join(" ; ");
