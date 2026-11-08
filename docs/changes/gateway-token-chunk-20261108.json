@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "id": "gateway-token-chunk-20261108",
+  "date": "2026-11-08",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "gateway-secretref-exec.sh resolves the single gateway-auth-token-*.mjs chunk of the installed OpenClaw build instead of a hardcoded build hash; no chunk or several exit 32 with gateway_token_resolver_unavailable, an empty token exits 31 with gateway_token_unavailable, the token still never reaches argv, disk or output.",
+  "reason": "S24 08/11: claw_execute « Qu'est-ce que j'ai à l'agenda demain ? » returned delegation_failed reason 1 while the direct Google read completed. The OpenClaw 2026.10.9 update (S24 31/10) renamed gateway-auth-token-D8cKFnOh.mjs to gateway-auth-token-7OIpkk9l.mjs; the helper's import failed silently and every MCP owner delegation has failed since.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/gateway-token-chunk-20261108.json",
+    "docs/changes/gateway-token-chunk-20261108.md",
+    "installer/termux-lite/gateway-secretref-exec.sh",
+    "installer/termux-lite/test-gateway-secretref-exec.py"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-gateway-secretref-exec.py",
+      "status": "passed",
+      "evidence": "With a fake OpenClaw build: the renamed chunk is used and OpenClaw receives the Gateway URL and token (value never printed); no chunk or two chunks exit 32 with a named reason; an empty token exits 31 and OpenClaw is never started; no build hash is hardcoded."
+    },
+    {
+      "name": "test-ci-registration, test-no-hardcoded-clawmobile, test-tier0-lkg-hold",
+      "status": "passed",
+      "evidence": "Registration and existing helper references unchanged."
+    }
+  ],
+  "documentation": [
+    "docs/changes/gateway-token-chunk-20261108.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Same MCP owner delegation and Gateway client; the helper finds the token resolver of the installed OpenClaw build again."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same helper and OpenClaw native secret resolver; only the chunk lookup changes."
+  },
+  "rollback": "Revert this commit and redeploy the previous Companion with companion-deploy.sh."
+}
