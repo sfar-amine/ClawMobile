@@ -1,0 +1,16 @@
+{
+  "captured": "2026-11-07T23:00 Europe/Tunis (S24, deploy acceptance of 87823c1e)",
+  "deployReceipt": "companion-20261107T224815.json",
+  "state": "rolled_back",
+  "parcours": {"failed": "write_recap", "reason": "not_stopped_at_recap", "passed": 11, "total": 12},
+  "request": "Ajoute à mon agenda demain à 10h un rendez-vous intitulé Recette déploiement",
+  "toolResult": {
+    "state": "NEEDS_CONFIRMATION",
+    "answer": "Confirme cette action :\nAjouter ce rendez-vous à ton agenda Google.\nTitre : Recette déploiement\nDébut : 2026-11-08T10:00\nConfirmer ?"
+  },
+  "brainReply": "Je vais ajouter ce rendez-vous à ton agenda Google :\n\n**Recette déploiement** — demain, dimanche 8 novembre à **10 h**.\n\nTu confirmes ?",
+  "notes": [
+    "With the room to answer from facts, the brain reworded the confirmation recap; it still stopped before writing and the parcours cancelled it.",
+    "deploy-parcours.py requires the recap's own words (Confirme … ?): what the owner confirms is the receipt, never a paraphrase."
+  ]
+}
