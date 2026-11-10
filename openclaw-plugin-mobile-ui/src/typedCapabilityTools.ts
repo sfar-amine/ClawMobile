@@ -31,7 +31,7 @@ export const DIRECT_TYPED_TOOLS: ReadonlySet<string> = new Set(["samantha_utilit
   "samantha_web",
   // Amine 08/11 (« la voix doit pouvoir faire cela ») : SMS et e-mail dictés ; derrière tool_search, chaque envoi
   // coûterait d'abord une recherche d'outil. Ses deux actions gardent récapitulatif puis confirmation.
-  "samantha_messaging"]);
+  "samantha_messaging", "samantha_omniflow"]);
 // One public web action = one Codex hosted search through public_web (budget 40 s) plus graph and dialogue owners;
 // the generic 30 s helper ceiling would cut it before its own named timeout.
 const PUBLIC_WEB_HELPER_TIMEOUT_S = 50;

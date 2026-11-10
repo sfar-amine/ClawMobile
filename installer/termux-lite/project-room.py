@@ -31,8 +31,8 @@ CONTACT_TOOLS = ['transmettre_a_amine', 'noter_contact']
 # calls typed tools (plugin contactRoomProfile.ts ROOM_TYPED). `projet` keeps its snapshot (`read`, workspace only)
 # and `web_search`; `qa` has no typed owner yet (no tool). One closed policy for every room agent: room_tool_policy.
 ROOM_TYPED_TOOLS = {'pulse': 'samantha_pulse', 'agenda': 'samantha_agenda', 'actions': 'samantha_device_assistance',
-                    'messages': 'samantha_whatsapp'}
-AGENT_ROOMS = ('projet', 'pulse', 'agenda', 'actions', 'messages', 'qa')
+                    'messages': 'samantha_whatsapp', 'omniflow': 'samantha_omniflow'}
+AGENT_ROOMS = ('projet', 'pulse', 'agenda', 'actions', 'messages', 'qa', 'omniflow')
 ROOM_CLOSED = ['exec', 'process', 'write', 'edit', 'apply_patch', 'browser', 'canvas', 'web_fetch', 'message',
                'sessions_list', 'sessions_history', 'sessions_send', 'sessions_spawn', 'session_status',
                'sessions_search', 'memory_search', 'memory_get', 'gateway', 'cron', 'nodes', 'clawmobile_capability']
@@ -65,7 +65,7 @@ SECRET = re.compile(rb'-----BEGIN [A-Z ]*PRIVATE KEY-----|\bgh[pousr]_[A-Za-z0-9
 
 # Amine 02/11 (contact rooms brain): the one rule of a room agent's typed tools, in every room body and in the plain
 # contacts body (contacts-agent.md) that the generic room agents share. Inert for an agent that is given no such tool.
-ROOM_TOOLS_RULE = "- Pièces ouvertes par Amine : chaque outil de pièce qui t'est donné (`samantha_pulse` pour Pulse, `samantha_agenda` pour son agenda, `samantha_device_assistance` pour les actions de son téléphone, `samantha_whatsapp` pour les messages en son nom) est la seule voie de son domaine : appelle-le pour toute demande de ce domaine, sans valeur inventée ; ses réponses prêtes sont remises telles quelles et ses faits vérifiés sont les seuls que tu cites. Pour ce domaine seulement, il prime sur les limites ci-dessous. Un outil qui ne t'est pas donné n'est pas ouvert à ce contact : dis-le, sans rien inventer."
+ROOM_TOOLS_RULE = "- Pièces ouvertes par Amine : chaque outil de pièce qui t'est donné (`samantha_pulse` pour Pulse, `samantha_agenda` pour son agenda, `samantha_device_assistance` pour les actions de son téléphone, `samantha_whatsapp` pour les messages en son nom, `samantha_omniflow` pour la Documentation Omniflow) est la seule voie de son domaine : appelle-le pour toute demande de ce domaine, sans valeur inventée ; ses réponses prêtes sont remises telles quelles et ses faits vérifiés sont les seuls que tu cites. Pour ce domaine seulement, il prime sur les limites ci-dessous. Un outil qui ne t'est pas donné n'est pas ouvert à ce contact : dis-le, sans rien inventer."
 
 AGENTS = """# AGENTS.md — contacts, pièce « Projet Samantha »
 

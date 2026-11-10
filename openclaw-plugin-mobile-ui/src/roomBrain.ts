@@ -144,6 +144,9 @@ const TEXTS: Record<TypedRoom, RoomTexts> = {
     "le téléphone d'Amine (état, batterie, Wi-Fi, Bluetooth, volume, sonnerie, luminosité, alarme, minuteur, torche, ouvrir une application ou un réglage)"),
   messages: roomTexts("Messages", "de WhatsApp", "sur WhatsApp", "l’envoi de messages WhatsApp en son nom",
     "l'envoi d'un message WhatsApp au nom d'Amine (destinataire et texte donnés par le contact)"),
+  omniflow: roomTexts("Documentation Omniflow", "de la documentation Omniflow", "à Omniflow",
+    "la documentation technique et fonctionnelle du CMS Omniflow",
+    "le CMS Omniflow, sa configuration, ses fonctionnalités et ses APIs documentées ; citer systématiquement les passages retournés, ne jamais inventer"),
 };
 /** Actions of a room's domain that the room never runs, refused before any read (and again by playbooks). */
 const ROOM_REFUSED: Partial<Record<TypedRoom, Record<string, {text: string; reason: string}>>> = {

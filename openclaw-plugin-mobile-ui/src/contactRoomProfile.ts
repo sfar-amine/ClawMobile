@@ -1,5 +1,5 @@
 import {createHash} from "node:crypto";
-const ORDER = ["projet", "pulse", "agenda", "actions", "messages", "qa"] as const;
+const ORDER = ["projet", "pulse", "agenda", "actions", "messages", "qa", "omniflow"] as const;
 export type ContactRoom = typeof ORDER[number];
 const SESSION = /^agent:(contacts(?:-[a-z]+)*):whatsapp:direct:(\+?[1-9][0-9]{7,14})$/;
 
@@ -23,6 +23,7 @@ export const ROOM_TYPED = {
   agenda: {domain: "agenda", tool: "samantha_agenda"},
   actions: {domain: "device-assistance", tool: "samantha_device_assistance"},
   messages: {domain: "whatsapp", tool: "samantha_whatsapp"},
+  omniflow: {domain: "omniflow", tool: "samantha_omniflow"},
 } as const;
 export type TypedRoom = keyof typeof ROOM_TYPED;
 export const TYPED_ROOMS = ORDER.filter((room): room is TypedRoom => room in ROOM_TYPED);
@@ -35,11 +36,11 @@ export function toolRoom(toolName: unknown): TypedRoom | null {
 export const PULSE_ROOM_AGENTS: ReadonlySet<string> = new Set(["contacts-pulse", "contacts-projet-pulse"]);
 
 // people-trusted.py ROOMS: the order of an R17 agent name.
-const R17_ROOMS = ["conversation", "projet", "pulse", "agenda", "taches", "lignes", "memoire", "actions", "messages", "qa", "maison"];
+const R17_ROOMS = ["conversation", "projet", "pulse", "agenda", "taches", "lignes", "memoire", "actions", "messages", "qa", "omniflow", "maison"];
 /** The agent the people-trusted owner routes these granted rooms to (people-trusted.py room_agent), main never. */
 export function roomAgentFor(rooms: unknown): string | null {
   if (!Array.isArray(rooms) || rooms.some(room => !R17_ROOMS.includes(room)) || rooms.includes("maison")) return null;
-  if (["agenda", "actions", "messages", "qa"].some(room => rooms.includes(room)))
+  if (["agenda", "actions", "messages", "qa", "omniflow"].some(room => rooms.includes(room)))
     return "contacts-" + R17_ROOMS.filter(room => room !== "conversation" && rooms.includes(room)).join("-");
   if (rooms.includes("pulse")) return rooms.includes("projet") ? "contacts-projet-pulse" : "contacts-pulse";
   return rooms.includes("projet") ? "contacts-projet" : null;

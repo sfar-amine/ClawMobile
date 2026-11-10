@@ -64,13 +64,13 @@ const SEND={action:'messaging.send',params:{recipient:'Sadok',message:'J’arriv
   eq(rooms.tools.map(t=>t.name),['samantha_agenda','samantha_device_assistance','samantha_whatsapp']);
 
   // ---- 1. One room model, one factory ---------------------------------------------------------------------------
-  eq([...profile.ROOM_TOOLS],['samantha_pulse','samantha_agenda','samantha_device_assistance','samantha_whatsapp']);
-  eq(profile.TYPED_ROOMS,['pulse','agenda','actions','messages']);
+  eq([...profile.ROOM_TOOLS],['samantha_pulse','samantha_agenda','samantha_device_assistance','samantha_whatsapp','samantha_omniflow']);
+  eq(profile.TYPED_ROOMS,['pulse','agenda','actions','messages','omniflow']);
   eq(brain.UNTYPED_ROOMS,{qa:'room_domain_not_typed'});
   for(const [granted,routed] of [[['conversation','agenda'],'contacts-agenda'],[GRANTED,agent],
       [['conversation','projet','pulse','agenda'],'contacts-projet-pulse-agenda'],[['conversation','pulse'],'contacts-pulse'],
       [['conversation','projet','pulse'],'contacts-projet-pulse'],[['conversation','projet'],'contacts-projet'],
-      [['conversation','qa'],'contacts-qa'],[['maison'],null],[['conversation'],null],[['salon'],null]])
+      [['conversation','qa'],'contacts-qa'],[['conversation','omniflow'],'contacts-omniflow'],[['maison'],null],[['conversation'],null],[['salon'],null]])
     eq(profile.roomAgentFor(granted),routed,granted.join(','));
   const h0=harness();
   eq(h0.tools.map(t=>t.name),['samantha_agenda','samantha_device_assistance','samantha_whatsapp']);

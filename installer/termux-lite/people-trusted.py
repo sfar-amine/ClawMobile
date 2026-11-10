@@ -612,14 +612,14 @@ EVENTS = {'add':'added', 'remove':'removed', 'scope':'scope_changed', 'suspend':
           'rooms':'rooms_changed'}
 # Access "rooms" (decision d'Amine 11/10). Enforced by agent routing, never by prompt: plain conversation is the
 # wildcard `contacts` agent, `projet` a read-only project snapshot agent, `maison` the owner's main agent.
-ROOMS = ('conversation', 'projet', 'pulse', 'agenda', 'taches', 'lignes', 'memoire', 'actions', 'messages', 'qa', 'maison')
+ROOMS = ('conversation', 'projet', 'pulse', 'agenda', 'taches', 'lignes', 'memoire', 'actions', 'messages', 'qa', 'omniflow', 'maison')
 # Rooms are enforced by the concrete-peer binding. Each typed room's contact brain then calls its room's typed tool
 # only (plugin roomBrain.ts, Amine 02/11): the room grant is re-read per message and before each write.
-ENFORCED_ROOMS = {'conversation', 'projet', 'pulse', 'agenda', 'actions', 'messages', 'qa', 'maison'}
+ENFORCED_ROOMS = {'conversation', 'projet', 'pulse', 'agenda', 'actions', 'messages', 'qa', 'omniflow', 'maison'}
 PROJECT_AGENT = 'contacts-projet'
 # Pièce Pulse (fichier 52 §5, Amine 02/11): the room agent's brain uses the room's typed tool only (pulse-room.py).
 PULSE_AGENTS = {'pulse': 'contacts-pulse', 'projet+pulse': 'contacts-projet-pulse'}
-CAPABILITY_ROOMS = {'agenda', 'actions', 'messages', 'qa'}
+CAPABILITY_ROOMS = {'agenda', 'actions', 'messages', 'qa', 'omniflow'}
 ROOM_TAG = 'r17-rooms:'
 # M4 (décision d'Amine 12/10): contact material stays in the private context repo and is
 # forgotten 30 days after access ended (expiry or removal). Bounded per 60s sweep pass.
